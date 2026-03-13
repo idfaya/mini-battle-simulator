@@ -1,0 +1,488 @@
+---
+--- Battle Main Module
+--- 战斗主模块 - 战斗的入口点和主循环控制
+--- 适用于命令行环境，不依赖 Unity 协程
+---
+
+local Logger = require("utils.logger")
+local BattleTimer = require("core.battle_timer")
+local BattleEvent = require("core.battle_event")
+local BattleMath = require("core.battle_math")
+local BattleFormation = require("modules.battle_formation")
+local BattleActionOrder = require("modules.battle_action_order")
+local BattleAttribute = require("modules.battle_attribute")
+local BattleSkill = require("modules.battle_skill")
+local BattleBuff = require("modules.battle_buff")
+local BattleEnergy = require("modules.battle_energy")
+local BattleDmgHeal = require("modules.battle_dmg_heal")
+local BattlePassiveSkill = require("modules.battle_passive_skill")
+
+---@class BattleMain
+local BattleMain = {}
+
+-- ==================== 状态变量 ====================
+
+-- 战斗是否正在运行
+local isRunning = false
+
+-- 战斗是否暂停
+local isPaused = false
+
+-- 更新间隔（秒）
+local updateInterval = 0.033  -- 默认约 30 FPS
+
+-- 上次更新时间戳
+local lastUpdateTime = 0
+
+-- 战斗开始状态
+local battleBeginState = nil
+
+-- 战斗结束回调函数
+local onBattleEndCallback = nil
+
+-- 当前战斗状态
+local currentBattleState = E_BATTLE_STATE.PREPARE
+
+-- 最大战斗回合数
+local MAX_BATTLE_ROUNDS = 100
+
+-- 当前回合数
+local currentRound = 0
+
+-- 战斗结果
+local battleResult = {
+    winner = nil,  -- "left", "right", "draw", nil
+    isFinished = false,
+    reason = nil,  -- 结束原因
+}
+
+-- ==================== 内部函数 ====================
+
+--- 重置所有状态
+local function ResetState()
+    isRunning = false
+    isPaused = false
+    lastUpdateTime = 0
+    battleBeginState = nil
+    onBattleEndCallback = nil
+    currentBattleState = E_BATTLE_STATE.PREPARE
+    currentRound = 0
+    battleResult = {
+        winner = nil,
+        isFinished = false,
+        reason = nil,
+    }
+end
+
+--- 初始化所有子系统
+---@param beginState table 战斗开始状态
+local function InitSubsystems(beginState)
+    Logger.Log("BattleMain.InitSubsystems - 开始初始化子系统")
+
+    -- 1. 初始化战斗数学模块（随机数生成器）
+    if beginState.seedArray then
+        BattleMath.Init(beginState.seedArray)
+    else
+        -- 使用默认种子
+        BattleMath.Init({123456789, 362436069, 521288629, 88675123})
+    end
+    Logger.Debug("  BattleMath 初始化完成")
+
+    -- 2. 初始化事件系统
+    BattleEvent.Init()
+    Logger.Debug("  BattleEvent 初始化完成")
+
+    -- 3. 初始化计时器
+    BattleTimer.Init()
+    Logger.Debug("  BattleTimer 初始化完成")
+
+    -- 4. 初始化阵型系统
+    BattleFormation.Init(beginState)
+    Logger.Debug("  BattleFormation 初始化完成")
+
+    -- 5. 初始化属性系统（必须在行动顺序系统之前，因为行动顺序需要读取英雄速度）
+    BattleAttribute.Init()
+    Logger.Debug("  BattleAttribute 初始化完成")
+
+    -- 6. 为所有英雄初始化属性
+    local allHeroes = BattleFormation.GetAllHeroes()
+    for _, hero in ipairs(allHeroes) do
+        if hero then
+            -- 从英雄数据构建属性映射表
+            local attributeMap = {
+                [BattleAttribute.ATTR_ID.HP] = hero.maxHp or hero.hp or 100,
+                [BattleAttribute.ATTR_ID.ATK] = hero.atk or 0,
+                [BattleAttribute.ATTR_ID.DEF] = hero.def or 0,
+                [BattleAttribute.ATTR_ID.SPEED] = hero.speed or 0,
+                [BattleAttribute.ATTR_ID.CRIT_RATE] = hero.critRate or 0,
+                [BattleAttribute.ATTR_ID.CRIT_DMG] = hero.critDamage or 150,
+                [BattleAttribute.ATTR_ID.HIT_RATE] = hero.hitRate or 100,
+                [BattleAttribute.ATTR_ID.DODGE_RATE] = hero.dodgeRate or 0,
+                [BattleAttribute.ATTR_ID.DMG_REDUCE] = hero.damageReduce or 0,
+                [BattleAttribute.ATTR_ID.DMG_INCREASE] = hero.damageIncrease or 0,
+            }
+            BattleAttribute.Init(hero, attributeMap)
+        end
+    end
+    Logger.Debug("  所有英雄属性初始化完成，共 " .. #allHeroes .. " 名英雄")
+
+    -- 7. 初始化行动顺序系统（在属性初始化之后）
+    local teamLeft, teamRight = BattleFormation.GetTeams()
+    BattleActionOrder.Init(teamLeft, teamRight)
+    Logger.Debug("  BattleActionOrder 初始化完成")
+
+    -- 8. 初始化技能系统（为每个英雄初始化技能）
+    for _, hero in ipairs(allHeroes) do
+        if hero then
+            -- 从英雄数据中获取技能配置
+            local skillsConfig = hero.skillsConfig or {}
+            -- 如果没有技能配置，添加默认的普通攻击
+            if #skillsConfig == 0 then
+                skillsConfig = {
+                    { skillId = 1001, skillType = E_SKILL_TYPE_NORMAL, name = "普通攻击" }
+                }
+            end
+            BattleSkill.Init(hero, skillsConfig)
+        end
+    end
+    Logger.Debug("  BattleSkill 初始化完成，共初始化 " .. #allHeroes .. " 名英雄的技能")
+
+    -- 8. 初始化 Buff 系统
+    BattleBuff.Init()
+    Logger.Debug("  BattleBuff 初始化完成")
+
+    -- 9. 初始化能量系统
+    BattleEnergy.Init()
+    Logger.Debug("  BattleEnergy 初始化完成")
+
+    -- 10. 初始化伤害/治疗系统
+    BattleDmgHeal.Init()
+    Logger.Debug("  BattleDmgHeal 初始化完成")
+
+    -- 11. 初始化被动技能系统
+    BattlePassiveSkill.Init()
+    Logger.Debug("  BattlePassiveSkill 初始化完成")
+
+    Logger.Log("BattleMain.InitSubsystems - 所有子系统初始化完成")
+end
+
+--- 清理所有子系统
+local function FinalizeSubsystems()
+    Logger.Log("BattleMain.FinalizeSubsystems - 开始清理子系统")
+
+    BattlePassiveSkill.OnFinal()
+    BattleDmgHeal.OnFinal()
+    BattleEnergy.OnFinal()
+    BattleBuff.OnFinal()
+    BattleSkill.OnFinal()
+    BattleAttribute.OnFinal()
+    BattleActionOrder.OnFinal()
+    BattleFormation.OnFinal()
+    BattleTimer.OnFinal()
+    BattleEvent.OnFinal()
+
+    Logger.Log("BattleMain.FinalizeSubsystems - 所有子系统清理完成")
+end
+
+--- 检查战斗是否结束
+---@return boolean 是否结束
+---@return string|nil 获胜方 ("left", "right", "draw")
+---@return string|nil 结束原因
+local function CheckBattleEnd()
+    -- 检查是否超过最大回合数
+    if currentRound >= MAX_BATTLE_ROUNDS then
+        return true, "draw", "达到最大回合数限制"
+    end
+
+    -- 检查左侧队伍是否全灭
+    local leftAlive = BattleFormation.GetAliveHeroCount(true)
+    -- 检查右侧队伍是否全灭
+    local rightAlive = BattleFormation.GetAliveHeroCount(false)
+
+    if leftAlive == 0 and rightAlive == 0 then
+        return true, "draw", "双方同归于尽"
+    elseif leftAlive == 0 then
+        return true, "right", "左侧队伍全灭"
+    elseif rightAlive == 0 then
+        return true, "left", "右侧队伍全灭"
+    end
+
+    return false, nil, nil
+end
+
+--- 触发战斗结束
+---@param winner string 获胜方
+---@param reason string 结束原因
+local function TriggerBattleEnd(winner, reason)
+    if battleResult.isFinished then
+        return
+    end
+
+    battleResult.isFinished = true
+    battleResult.winner = winner
+    battleResult.reason = reason
+    currentBattleState = E_BATTLE_STATE.FINI_BATTLE
+
+    Logger.Log(string.format("战斗结束! 获胜方: %s, 原因: %s", winner or "draw", reason))
+
+    -- 调用结束回调
+    if onBattleEndCallback then
+        onBattleEndCallback(battleResult)
+    end
+
+    -- 发布战斗结束事件
+    BattleEvent.Publish("BattleEnd", battleResult)
+end
+
+--- 战斗逻辑 - 开始下一个行动
+local function BeginNextAction()
+    Logger.Debug("BeginNextAction: called")
+    
+    if not isRunning or isPaused then
+        Logger.Debug(string.format("BeginNextAction: skipped, isRunning=%s, isPaused=%s", tostring(isRunning), tostring(isPaused)))
+        return
+    end
+
+    -- 检查战斗是否已结束
+    local isEnd, winner, reason = CheckBattleEnd()
+    Logger.Debug(string.format("BeginNextAction: CheckBattleEnd=%s", tostring(isEnd)))
+    if isEnd then
+        TriggerBattleEnd(winner, reason)
+        return
+    end
+
+    -- 运行行动顺序系统，获取下一个行动的英雄
+    Logger.Debug("BeginNextAction: calling BattleActionOrder.Run()")
+    local hero = BattleActionOrder.Run()
+
+    if hero then
+        Logger.Log(string.format("========== 回合 %d ==========", currentRound + 1))
+        Logger.Log(string.format("英雄 %s 开始行动", hero.name or "Unknown"))
+
+        -- 执行英雄行动
+        BattleMain.ExecuteHeroAction(hero)
+
+        -- 行动结束
+        BattleActionOrder.OnHeroActionFinish(hero)
+
+        -- 增加回合数
+        currentRound = currentRound + 1
+        Logger.Log(string.format("回合结束，当前回合数: %d", currentRound))
+    else
+        Logger.Debug("BeginNextAction: no hero ready")
+    end
+end
+
+-- ==================== 公共接口 ====================
+
+--- 启动战斗
+---@param beginState table 战斗开始状态，包含 teamLeft, teamRight, seedArray 等
+---@param onBattleEnd function 战斗结束回调函数 (result)
+function BattleMain.Start(beginState, onBattleEnd)
+    Logger.Log("============================================")
+    Logger.Log("BattleMain.Start - 战斗开始")
+    Logger.Log("============================================")
+
+    -- 重置状态
+    ResetState()
+
+    -- 保存参数
+    battleBeginState = beginState or {}
+    onBattleEndCallback = onBattleEnd
+
+    -- 初始化所有子系统
+    InitSubsystems(battleBeginState)
+
+    -- 设置战斗状态
+    currentBattleState = E_BATTLE_STATE.IN_BATTLE
+    isRunning = true
+    lastUpdateTime = os.clock()
+
+    -- 发布战斗开始事件
+    BattleEvent.Publish("BattleStart", battleBeginState)
+
+    Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
+end
+
+--- 执行英雄行动
+---@param hero table 英雄对象
+function BattleMain.ExecuteHeroAction(hero)
+    if not hero or not hero.isAlive then
+        return
+    end
+
+    -- 触发回合开始被动技能
+    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, hero)
+
+    -- 使用普通攻击（简化版，实际应根据 AI 或玩家输入选择技能）
+    -- hero.skills 是技能对象数组，从中获取第一个技能的 skillId
+    local skill = hero.skills and hero.skills[1]
+    if skill and skill.skillId then
+        -- 获取随机敌人作为目标
+        local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
+        if targetId then
+            local target = BattleFormation.FindHeroByInstanceId(targetId)
+            if target then
+                Logger.Log(string.format("  %s 对 %s 使用技能 %s", 
+                    hero.name or "Unknown", 
+                    target.name or "Unknown", 
+                    skill.name or tostring(skill.skillId)))
+                
+                -- 执行技能
+                BattleSkill.CastSkillInSeq(hero, target, skill.skillId)
+            end
+        end
+    end
+
+    -- 触发回合结束被动技能
+    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd, hero)
+
+    -- 回合结束增加能量
+    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.TurnEndAddEnergy, hero)
+end
+
+--- 更新战斗（每帧调用）
+function BattleMain.Update()
+    if not isRunning then
+        Logger.Debug("Update: not running")
+        return
+    end
+
+    -- 检查是否需要更新（基于 updateInterval）
+    local currentTime = os.clock()
+    local timeDiff = currentTime - lastUpdateTime
+    if timeDiff < updateInterval then
+        return
+    end
+    lastUpdateTime = currentTime
+
+    Logger.Debug(string.format("Update: timeDiff=%.4f, calling BeginNextAction", timeDiff))
+
+    -- 更新计时器
+    BattleTimer.Update()
+
+    -- 如果战斗已结束，不再执行逻辑
+    if battleResult.isFinished then
+        Logger.Debug("Update: battle finished")
+        return
+    end
+
+    -- 如果未暂停，执行战斗逻辑
+    if not isPaused then
+        BeginNextAction()
+    else
+        Logger.Debug("Update: paused")
+    end
+end
+
+--- 暂停战斗
+function BattleMain.Pause()
+    if not isRunning then
+        Logger.LogWarning("BattleMain.Pause - 战斗未在运行")
+        return
+    end
+
+    if isPaused then
+        Logger.LogWarning("BattleMain.Pause - 战斗已经处于暂停状态")
+        return
+    end
+
+    isPaused = true
+    Logger.Log("BattleMain.Pause - 战斗已暂停")
+    BattleEvent.Publish("BattlePause")
+end
+
+--- 恢复战斗
+function BattleMain.Resume()
+    if not isRunning then
+        Logger.LogWarning("BattleMain.Resume - 战斗未在运行")
+        return
+    end
+
+    if not isPaused then
+        Logger.LogWarning("BattleMain.Resume - 战斗未处于暂停状态")
+        return
+    end
+
+    isPaused = false
+    lastUpdateTime = os.clock()  -- 重置时间戳，防止瞬间大量更新
+    Logger.Log("BattleMain.Resume - 战斗已恢复")
+    BattleEvent.Publish("BattleResume")
+end
+
+--- 退出战斗
+function BattleMain.Quit()
+    if not isRunning then
+        Logger.LogWarning("BattleMain.Quit - 战斗未在运行")
+        return
+    end
+
+    Logger.Log("BattleMain.Quit - 正在退出战斗")
+
+    -- 触发战斗结束（无获胜方）
+    TriggerBattleEnd(nil, "主动退出")
+
+    -- 清理子系统
+    FinalizeSubsystems()
+
+    -- 重置状态
+    ResetState()
+
+    Logger.Log("BattleMain.Quit - 战斗已退出")
+end
+
+--- 检查战斗是否正在运行
+---@return boolean 是否正在运行
+function BattleMain.IsRunning()
+    return isRunning
+end
+
+--- 检查战斗是否暂停
+---@return boolean 是否暂停
+function BattleMain.IsPaused()
+    return isPaused
+end
+
+--- 设置更新间隔
+---@param interval number 更新间隔（秒），必须大于 0
+function BattleMain.SetUpdateInterval(interval)
+    if type(interval) ~= "number" or interval <= 0 then
+        Logger.LogError("BattleMain.SetUpdateInterval - interval 必须是大于 0 的数字")
+        return
+    end
+
+    updateInterval = interval
+    Logger.Log(string.format("BattleMain.SetUpdateInterval - 更新间隔设置为 %.3f 秒", interval))
+end
+
+--- 获取更新间隔
+---@return number 更新间隔（秒）
+function BattleMain.GetUpdateInterval()
+    return updateInterval
+end
+
+--- 获取当前战斗状态
+---@return number 战斗状态 (E_BATTLE_STATE)
+function BattleMain.GetBattleState()
+    return currentBattleState
+end
+
+--- 获取当前回合数
+---@return number 当前回合数
+function BattleMain.GetCurrentRound()
+    return currentRound
+end
+
+--- 获取战斗结果
+---@return table 战斗结果 {winner, isFinished, reason}
+function BattleMain.GetBattleResult()
+    return battleResult
+end
+
+--- 获取战斗开始状态
+---@return table 战斗开始状态
+function BattleMain.GetBeginState()
+    return battleBeginState
+end
+
+return BattleMain
