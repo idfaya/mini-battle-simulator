@@ -248,6 +248,10 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
                 return false
             end
         end
+    else
+        -- 没有Lua脚本时，执行默认的普通攻击伤害
+        Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击")
+        BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
     end
 
     -- 设置冷却
@@ -258,6 +262,44 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
 
     Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skillId) .. ", hero: " .. tostring(hero.name))
     return true
+end
+
+--- 执行默认普通攻击
+---@param hero table 攻击者
+---@param targets table 目标列表
+---@param skill table 技能对象
+function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
+    if not hero or not targets or #targets == 0 then
+        return
+    end
+
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local BattleAttribute = require("modules.battle_attribute")
+
+    -- 获取攻击者攻击力
+    local atk = BattleAttribute.GetAttribute(hero, BattleAttribute.ATTR_ID.ATK) or hero.atk or 0
+
+    -- 对每个目标造成伤害
+    for _, target in ipairs(targets) do
+        if target and not target.isDead then
+            -- 计算基础伤害（简化版：攻击力 - 目标防御力）
+            local def = BattleAttribute.GetAttribute(target, BattleAttribute.ATTR_ID.DEF) or target.def or 0
+            local damage = math.max(1, atk - def * 0.5)  -- 防御减免50%
+            damage = math.floor(damage)
+
+            -- 应用伤害
+            local curHp = BattleAttribute.GetHeroCurHp(target)
+            local newHp = math.max(0, curHp - damage)
+            BattleAttribute.SetHpByVal(target, newHp)
+
+            Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害 (HP: %d -> %d)",
+                hero.name or "Unknown",
+                target.name or "Unknown",
+                damage,
+                curHp,
+                newHp))
+        end
+    end
 end
 
 --- 检查技能释放条件

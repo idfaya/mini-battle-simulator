@@ -236,28 +236,23 @@ end
 
 --- 战斗逻辑 - 开始下一个行动
 local function BeginNextAction()
-    Logger.Debug("BeginNextAction: called")
-    
     if not isRunning or isPaused then
-        Logger.Debug(string.format("BeginNextAction: skipped, isRunning=%s, isPaused=%s", tostring(isRunning), tostring(isPaused)))
         return
     end
 
     -- 检查战斗是否已结束
     local isEnd, winner, reason = CheckBattleEnd()
-    Logger.Debug(string.format("BeginNextAction: CheckBattleEnd=%s", tostring(isEnd)))
     if isEnd then
         TriggerBattleEnd(winner, reason)
         return
     end
 
     -- 运行行动顺序系统，获取下一个行动的英雄
-    Logger.Debug("BeginNextAction: calling BattleActionOrder.Run()")
     local hero = BattleActionOrder.Run()
 
     if hero then
         Logger.Log(string.format("========== 回合 %d ==========", currentRound + 1))
-        Logger.Log(string.format("英雄 %s 开始行动", hero.name or "Unknown"))
+        Logger.Log(string.format("[行动] 英雄 %s 开始行动", hero.name or "Unknown"))
 
         -- 执行英雄行动
         BattleMain.ExecuteHeroAction(hero)
@@ -267,9 +262,7 @@ local function BeginNextAction()
 
         -- 增加回合数
         currentRound = currentRound + 1
-        Logger.Log(string.format("回合结束，当前回合数: %d", currentRound))
-    else
-        Logger.Debug("BeginNextAction: no hero ready")
+        Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
     end
 end
 
@@ -323,7 +316,7 @@ function BattleMain.ExecuteHeroAction(hero)
         if targetId then
             local target = BattleFormation.FindHeroByInstanceId(targetId)
             if target then
-                Logger.Log(string.format("  %s 对 %s 使用技能 %s", 
+                Logger.Log(string.format("[行动]   %s 对 %s 使用技能 [%s]", 
                     hero.name or "Unknown", 
                     target.name or "Unknown", 
                     skill.name or tostring(skill.skillId)))
@@ -344,34 +337,29 @@ end
 --- 更新战斗（每帧调用）
 function BattleMain.Update()
     if not isRunning then
-        Logger.Debug("Update: not running")
         return
     end
 
     -- 检查是否需要更新（基于 updateInterval）
     local currentTime = os.clock()
     local timeDiff = currentTime - lastUpdateTime
+    
     if timeDiff < updateInterval then
         return
     end
     lastUpdateTime = currentTime
-
-    Logger.Debug(string.format("Update: timeDiff=%.4f, calling BeginNextAction", timeDiff))
 
     -- 更新计时器
     BattleTimer.Update()
 
     -- 如果战斗已结束，不再执行逻辑
     if battleResult.isFinished then
-        Logger.Debug("Update: battle finished")
         return
     end
 
     -- 如果未暂停，执行战斗逻辑
     if not isPaused then
         BeginNextAction()
-    else
-        Logger.Debug("Update: paused")
     end
 end
 
@@ -444,10 +432,10 @@ function BattleMain.IsPaused()
 end
 
 --- 设置更新间隔
----@param interval number 更新间隔（秒），必须大于 0
+---@param interval number 更新间隔（秒），设置为0表示无间隔
 function BattleMain.SetUpdateInterval(interval)
-    if type(interval) ~= "number" or interval <= 0 then
-        Logger.LogError("BattleMain.SetUpdateInterval - interval 必须是大于 0 的数字")
+    if type(interval) ~= "number" or interval < 0 then
+        Logger.LogError("BattleMain.SetUpdateInterval - interval 必须是大于等于 0 的数字")
         return
     end
 

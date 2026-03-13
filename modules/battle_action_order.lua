@@ -77,9 +77,6 @@ function BattleActionOrder.UpdateActionBars()
 
             -- 速度越快，积累的行动点数越多
             _actionBars[hero.instanceId] = currentProgress + speed
-
-            Logger.Debug(string.format("BattleActionOrder.UpdateActionBars - 英雄 %s 行动条: %d -> %d (速度: %d)",
-                hero.name or "Unknown", currentProgress, _actionBars[hero.instanceId], speed))
         end
     end
 end
@@ -127,8 +124,6 @@ end
 --- 基于速度的行动条机制，返回行动条已满且进度最高的英雄
 ---@return table|nil 下一个行动的英雄，如果没有英雄准备好则返回nil
 function BattleActionOrder.Run()
-    Logger.Debug(string.format("Run: _isRunning=%s, heroCount=%d", tostring(_isRunning), #_heroes))
-    
     if not _isRunning then
         _isRunning = true
     end
@@ -138,20 +133,18 @@ function BattleActionOrder.Run()
 
     -- 获取按行动条排序的英雄列表
     local orderList = BattleActionOrder.GetActionOrder()
-    Logger.Debug(string.format("Run: aliveHeroCount=%d", #orderList))
 
     -- 找到第一个行动条达到阈值的英雄
-    for i, item in ipairs(orderList) do
-        Logger.Debug(string.format("Run: [%d] %s progress=%d/%d", i, item.hero.name or "Unknown", item.progress, ACTION_BAR_THRESHOLD))
+    for _, item in ipairs(orderList) do
         if item.progress >= ACTION_BAR_THRESHOLD then
             _currentHero = item.hero
-            Logger.Log(string.format("BattleActionOrder.Run - 英雄 %s 准备行动 (行动条: %d)",
+            Logger.Log(string.format("[行动] 英雄 %s 准备行动 (行动条: %d)",
                 item.hero.name or "Unknown", item.progress))
             return _currentHero
         end
     end
 
-    Logger.Debug("Run: no hero ready")
+    -- 没有英雄准备好行动
     return nil
 end
 

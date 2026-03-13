@@ -167,6 +167,9 @@ function SimpleBattleTest.Run()
     local battleFinished = false    -- 战斗是否结束
 
     -- 战斗主循环
+    -- 设置更新间隔为0，确保每次调用都能执行
+    BattleMain.SetUpdateInterval(0)
+    
     while updateCount < maxUpdates do
         updateCount = updateCount + 1
 
