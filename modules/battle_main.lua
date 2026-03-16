@@ -16,6 +16,7 @@ local BattleBuff = require("modules.battle_buff")
 local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
+local PassiveEffectHandler = require("core.passive_effect_handler")
 
 ---@class BattleMain
 local BattleMain = {}
@@ -169,6 +170,10 @@ local function InitSubsystems(beginState)
     BattlePassiveSkill.Init()
     Logger.Debug("  BattlePassiveSkill 初始化完成")
 
+    -- 12. 初始化被动技能效果处理器
+    PassiveEffectHandler.Init()
+    Logger.Debug("  PassiveEffectHandler 初始化完成")
+
     Logger.Log("BattleMain.InitSubsystems - 所有子系统初始化完成")
 end
 
@@ -176,6 +181,7 @@ end
 local function FinalizeSubsystems()
     Logger.Log("BattleMain.FinalizeSubsystems - 开始清理子系统")
 
+    PassiveEffectHandler.OnFinal()
     BattlePassiveSkill.OnFinal()
     BattleDmgHeal.OnFinal()
     BattleEnergy.OnFinal()
@@ -303,7 +309,7 @@ function BattleMain.Start(beginState, onBattleEnd)
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
---- 选择可用技能（优先选择冷却完成的大招技能）
+--- 选择可用技能（优先选择冷却完成且能量足够的大招技能）
 ---@param hero table 英雄对象
 ---@return table 技能对象
 local function SelectAvailableSkill(hero)
@@ -311,14 +317,24 @@ local function SelectAvailableSkill(hero)
         return nil
     end
     
-    -- 遍历所有技能，找到冷却完成的大招技能
+    -- 遍历所有技能，找到冷却完成且能量足够的大招技能
     for _, skill in ipairs(hero.skills) do
         if skill.skillId and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            -- 检查冷却
             local cd = BattleSkill.GetSkillCurCoolDown(hero, skill.skillId)
             if cd == 0 then
-                Logger.Log(string.format("[SelectAvailableSkill] %s 选择大招: %s", 
-                    hero.name or "Unknown", skill.name or tostring(skill.skillId)))
-                return skill
+                -- 检查能量
+                local energyCost = skill.skillCost or 0
+                if hero.curEnergy and hero.curEnergy >= energyCost then
+                    Logger.Log(string.format("[SelectAvailableSkill] %s 选择大招: %s (能量:%d/%d)", 
+                        hero.name or "Unknown", skill.name or tostring(skill.skillId),
+                        hero.curEnergy, energyCost))
+                    return skill
+                else
+                    Logger.Log(string.format("[SelectAvailableSkill] %s 能量不足，无法使用大招 %s (能量:%d/%d)", 
+                        hero.name or "Unknown", skill.name or tostring(skill.skillId),
+                        hero.curEnergy or 0, energyCost))
+                end
             end
         end
     end

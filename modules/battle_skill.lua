@@ -326,6 +326,13 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
 
     -- 设置冷却
     BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
+    
+    -- 扣除能量（大招技能）
+    if skill.skillType == E_SKILL_TYPE_ULTIMATE and skill.skillCost and skill.skillCost > 0 then
+        hero.curEnergy = (hero.curEnergy or 0) - skill.skillCost
+        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗能量: %d, 剩余能量: %d", 
+            hero.name or "Unknown", skill.skillCost, hero.curEnergy))
+    end
 
     -- 触发技能释放事件
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
