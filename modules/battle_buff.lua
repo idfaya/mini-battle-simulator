@@ -126,7 +126,7 @@ end
 ---@param buffConfig table Buff配置 {buffId, mainType, subType, duration, effects, ...}
 ---@return boolean 是否成功添加
 function BattleBuff.Add(caster, target, buffConfig)
-    if not target or not target.id then
+    if not target or (not target.id and not target.instanceId) then
         Logger.LogError("BattleBuff.Add: 无效的目标")
         return false
     end

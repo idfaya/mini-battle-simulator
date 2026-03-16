@@ -61,6 +61,7 @@ local function CreateHero(heroData, wpType, isLeft)
         
         -- 技能相关
         skills = heroData.skills or {},
+        skillsConfig = heroData.skillsConfig or {},
         passiveSkills = heroData.passiveSkills or {},
         buffs = {},
         

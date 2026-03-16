@@ -68,10 +68,36 @@ end
 --- @param attrType number 属性类型
 --- @return number 属性值
 local function GetUnitAttr(unit, attrType)
-    if not unit or not unit.attrs then
+    if not unit then
         return 0
     end
-    return unit.attrs[attrType] or 0
+    
+    -- 优先检查 attrs 字段 (原工程格式)
+    if unit.attrs then
+        return unit.attrs[attrType] or 0
+    end
+    
+    -- 优先检查直接字段 (BattleAttribute模块设置，包含所有加成)
+    if attrType == currentConfig.attrType.ATK then
+        return unit.atk or 0
+    elseif attrType == currentConfig.attrType.DEF then
+        return unit.def or 0
+    elseif attrType == currentConfig.attrType.HP then
+        return unit.maxHp or 0
+    elseif attrType == currentConfig.attrType.SPEED then
+        return unit.speed or 0
+    elseif attrType == currentConfig.attrType.CRIT then
+        return unit.critRate or 0
+    elseif attrType == currentConfig.attrType.CRIT_DAMAGE then
+        return unit.critDamage or 0
+    end
+    
+    -- 兼容 attributes 字段 (基础属性，不含加成)
+    if unit.attributes and unit.attributes.base then
+        return unit.attributes.base[attrType] or 0
+    end
+    
+    return 0
 end
 
 --- 检查是否暴击

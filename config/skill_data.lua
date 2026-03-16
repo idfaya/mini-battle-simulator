@@ -1,101 +1,197 @@
 ---
---- Skill Data Configuration
---- Test skills for MiniBattleSimulator
+--- Skill Data Module
+--- 加载和管理技能配置数据 (res_skill)
 ---
 
-local SkillData = {
-    -- ==================== 普通攻击 ====================
-    [1001] = {
-        skillId = 1001,
-        name = "普通攻击",
-        skillType = 1,  -- E_SKILL_TYPE_NORMAL
-        damageRate = 1.0,  -- 100%攻击力
-        cooldown = 0,  -- 无冷却
-        targetType = 1,  -- E_CAST_TARGET.Enemy 敌方单体
-        energyCost = 0,
-        energyGain = 10,  -- 攻击获得10点能量
-        description = "对单个敌人造成100%攻击力的物理伤害",
-    },
+local JSON = require("utils.json")
+local SkillData = {}
 
-    -- ==================== 狂战士·格罗姆 必杀技 ====================
-    [1002] = {
-        skillId = 1002,
-        name = "狂暴斩击",
-        skillType = 2,  -- E_SKILL_TYPE_ULTIMATE
-        damageRate = 2.5,  -- 250%攻击力
-        cooldown = 3,  -- 3回合冷却
-        targetType = 1,  -- E_CAST_TARGET.Enemy 敌方单体
-        energyCost = 100,
-        energyGain = 0,
-        description = "对单个敌人造成250%攻击力的物理伤害，并附加流血效果",
-    },
+-- 内部数据存储
+local skillMap = {}      -- SkillID -> skill config
+local skillsByClass = {} -- ClassID -> {skill1, skill2, ...}
 
-    -- ==================== 冰霜女巫·艾琳娜 必杀技 ====================
-    [1003] = {
-        skillId = 1003,
-        name = "暴风雪",
-        skillType = 2,  -- E_SKILL_TYPE_ULTIMATE
-        damageRate = 1.8,  -- 180%攻击力
-        cooldown = 4,  -- 4回合冷却
-        targetType = 4,  -- E_CAST_TARGET.AOE 敌方全体 (通过measureType实现)
-        energyCost = 100,
-        energyGain = 0,
-        description = "对所有敌人造成180%攻击力的魔法伤害，并降低其速度",
-    },
+--- 加载技能配置数据
+local function LoadSkillData()
+    local file = io.open("config/res_skill.json", "r")
+    if not file then
+        -- 尝试其他路径
+        file = io.open("MiniBattleSimulator/config/res_skill.json", "r")
+        if not file then
+            LogError("[SkillData] Failed to open res_skill.json")
+            return
+        end
+    end
 
-    -- ==================== 暗影刺客·凯尔 必杀技 ====================
-    [1004] = {
-        skillId = 1004,
-        name = "暗影突袭",
-        skillType = 2,  -- E_SKILL_TYPE_ULTIMATE
-        damageRate = 3.0,  -- 300%攻击力
-        cooldown = 3,  -- 3回合冷却
-        targetType = 1,  -- E_CAST_TARGET.Enemy 敌方单体
-        energyCost = 100,
-        energyGain = 0,
-        description = "对单个敌人造成300%攻击力的物理伤害，暴击率提升50%",
-    },
+    local content = file:read("*a")
+    file:close()
 
-    -- ==================== 圣盾守卫·泰坦 必杀技 ====================
-    [1005] = {
-        skillId = 1005,
-        name = "圣盾庇护",
-        skillType = 2,  -- E_SKILL_TYPE_ULTIMATE
-        damageRate = 0,  -- 无伤害
-        cooldown = 5,  -- 5回合冷却
-        targetType = 3,  -- E_CAST_TARGET.Alias 我方全体
-        energyCost = 100,
-        energyGain = 0,
-        description = "为全体队友添加护盾，吸收相当于泰坦防御力200%的伤害",
-    },
-}
+    local data = JSON.JsonDecode(content)
+    if not data then
+        LogError("[SkillData] Failed to parse res_skill.json")
+        return
+    end
 
--- 获取技能数据
+    for _, skill in ipairs(data) do
+        skillMap[skill.ID] = skill
+
+        -- 按ClassID分类
+        local classId = skill.ClassID
+        if not skillsByClass[classId] then
+            skillsByClass[classId] = {}
+        end
+        table.insert(skillsByClass[classId], skill)
+    end
+
+    Log(string.format("[SkillData] Loaded %d skills", #data))
+end
+
+--- 获取技能配置
+---@param skillId number 技能ID
+---@return table|nil 技能配置
 function SkillData.GetSkill(skillId)
-    return SkillData[skillId]
+    return skillMap[skillId]
 end
 
--- 根据技能类型获取技能列表
-function SkillData.GetSkillsByType(skillType)
-    local skills = {}
-    for id, skill in pairs(SkillData) do
-        if type(id) == "number" and skill.skillType == skillType then
-            table.insert(skills, skill)
-        end
-    end
-    return skills
+--- 通过ClassID获取技能列表
+---@param classId number 技能类别ID
+---@return table 技能列表
+function SkillData.GetSkillsByClass(classId)
+    return skillsByClass[classId] or {}
 end
 
--- 获取英雄的所有技能配置
-function SkillData.GetHeroSkills(skillIds)
-    local skills = {}
-    for _, skillId in ipairs(skillIds) do
-        local skill = SkillData.GetSkill(skillId)
-        if skill then
-            table.insert(skills, skill)
+--- 获取技能类型
+---@param skillId number 技能ID
+---@return number 技能类型 (1=小技能, 2=大招, 3=被动)
+function SkillData.GetSkillType(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.Type
+    end
+    return 1  -- 默认小技能
+end
+
+--- 获取技能优先级
+---@param skillId number 技能ID
+---@return number 优先级
+function SkillData.GetSkillPriority(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.SkillPriorities or 999
+    end
+    return 999
+end
+
+--- 获取技能冷却
+---@param skillId number 技能ID
+---@return number 冷却回合
+function SkillData.GetSkillCoolDown(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.CoolDownR or 0
+    end
+    return 0
+end
+
+--- 获取技能消耗
+---@param skillId number 技能ID
+---@return number 能量消耗
+function SkillData.GetSkillCost(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.Cost or 0
+    end
+    return 0
+end
+
+--- 获取技能参数
+---@param skillId number 技能ID
+---@return table 参数数组
+function SkillData.GetSkillParam(skillId)
+    local skill = skillMap[skillId]
+    if skill and skill.SkillParam then
+        return skill.SkillParam
+    end
+    return {}
+end
+
+--- 获取技能Buff列表
+---@param skillId number 技能ID
+---@return table BuffID数组
+function SkillData.GetSkillBuffs(skillId)
+    local skill = skillMap[skillId]
+    if not skill then
+        return {}
+    end
+
+    local buffs = {}
+    for i = 1, 5 do
+        local buffKey = "Buff" .. i
+        if skill[buffKey] and #skill[buffKey] > 0 then
+            for _, buffId in ipairs(skill[buffKey]) do
+                if buffId > 0 then
+                    table.insert(buffs, buffId)
+                end
+            end
         end
     end
-    return skills
+    return buffs
 end
+
+--- 获取技能模板ID (ClassID + "01")
+---@param skillId number 技能ID
+---@return string 模板ID
+function SkillData.GetSkillTemplateId(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.ClassID .. "01"
+    end
+    return nil
+end
+
+--- 获取技能ClassID
+---@param skillId number 技能ID
+---@return number|nil ClassID
+function SkillData.GetSkillClassId(skillId)
+    local skill = skillMap[skillId]
+    if skill then
+        return skill.ClassID
+    end
+    return nil
+end
+
+--- 获取所有技能ID列表
+---@return table 技能ID列表
+function SkillData.GetAllSkillIds()
+    local ids = {}
+    for id, _ in pairs(skillMap) do
+        table.insert(ids, id)
+    end
+    table.sort(ids)
+    return ids
+end
+
+--- 打印技能信息（调试用）
+---@param skillId number 技能ID
+function SkillData.PrintSkillInfo(skillId)
+    local skill = skillMap[skillId]
+    if not skill then
+        Log("[SkillData] Skill not found: " .. tostring(skillId))
+        return
+    end
+
+    Log("[SkillData] Skill Info:")
+    Log("  ID: " .. skill.ID)
+    Log("  ClassID: " .. skill.ClassID)
+    Log("  Name: " .. tostring(skill.Name))
+    Log("  Type: " .. skill.Type)
+    Log("  Level: " .. skill.SkillLevel)
+    Log("  Priority: " .. skill.SkillPriorities)
+    Log("  CoolDown: " .. skill.CoolDownR)
+    Log("  Cost: " .. skill.Cost)
+    Log("  SkillParam: " .. table.concat(skill.SkillParam or {}, ", "))
+end
+
+-- 初始化
+LoadSkillData()
 
 return SkillData

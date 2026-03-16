@@ -136,6 +136,12 @@ local function InitSubsystems(beginState)
         if hero then
             -- 从英雄数据中获取技能配置
             local skillsConfig = hero.skillsConfig or {}
+            Logger.Log(string.format("[BattleMain] %s 的 skillsConfig: %d 个技能", 
+                tostring(hero.name), #skillsConfig))
+            for i, cfg in ipairs(skillsConfig) do
+                Logger.Log(string.format("  [%d] skillId=%s, name=%s, type=%s", 
+                    i, tostring(cfg.skillId), tostring(cfg.name), tostring(cfg.skillType)))
+            end
             -- 如果没有技能配置，添加默认的普通攻击
             if #skillsConfig == 0 then
                 skillsConfig = {
@@ -297,6 +303,37 @@ function BattleMain.Start(beginState, onBattleEnd)
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
+--- 选择可用技能（优先选择冷却完成的大招技能）
+---@param hero table 英雄对象
+---@return table 技能对象
+local function SelectAvailableSkill(hero)
+    if not hero.skills or #hero.skills == 0 then
+        return nil
+    end
+    
+    -- 遍历所有技能，找到冷却完成的大招技能
+    for _, skill in ipairs(hero.skills) do
+        if skill.skillId and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            local cd = BattleSkill.GetSkillCurCoolDown(hero, skill.skillId)
+            if cd == 0 then
+                Logger.Log(string.format("[SelectAvailableSkill] %s 选择大招: %s", 
+                    hero.name or "Unknown", skill.name or tostring(skill.skillId)))
+                return skill
+            end
+        end
+    end
+    
+    -- 如果没有可用的大招，使用普通攻击
+    for _, skill in ipairs(hero.skills) do
+        if skill.skillId and skill.skillType == E_SKILL_TYPE_NORMAL then
+            return skill
+        end
+    end
+    
+    -- 默认返回第一个技能
+    return hero.skills[1]
+end
+
 --- 执行英雄行动
 ---@param hero table 英雄对象
 function BattleMain.ExecuteHeroAction(hero)
@@ -307,9 +344,8 @@ function BattleMain.ExecuteHeroAction(hero)
     -- 触发回合开始被动技能
     BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, hero)
 
-    -- 使用普通攻击（简化版，实际应根据 AI 或玩家输入选择技能）
-    -- hero.skills 是技能对象数组，从中获取第一个技能的 skillId
-    local skill = hero.skills and hero.skills[1]
+    -- 智能选择可用技能
+    local skill = SelectAvailableSkill(hero)
     if skill and skill.skillId then
         -- 获取随机敌人作为目标
         local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
@@ -332,6 +368,9 @@ function BattleMain.ExecuteHeroAction(hero)
 
     -- 回合结束增加能量
     BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.TurnEndAddEnergy, hero)
+    
+    -- 减少技能冷却
+    BattleSkill.ReduceCoolDown(hero, 1)
 end
 
 --- 更新战斗（每帧调用）

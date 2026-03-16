@@ -4,6 +4,7 @@
 ---
 
 local Logger = require("utils.logger")
+local SkillConfig = require("config.skill_config")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -16,6 +17,19 @@ BattleSkill.skillLuaCache = {}
 
 -- 技能实例计数器（用于生成唯一技能实例ID）
 BattleSkill.skillInstanceIdCounter = 0
+
+-- 是否已初始化
+local isInitialized = false
+
+--- 初始化技能模块
+function BattleSkill.InitModule()
+    if isInitialized then
+        return
+    end
+    SkillConfig.Init()
+    isInitialized = true
+    Logger.Log("[BattleSkill] 模块初始化完成")
+end
 
 --- 生成唯一技能实例ID
 ---@return number 技能实例ID
@@ -43,13 +57,19 @@ function BattleSkill.Init(hero, skillsConfig)
         return
     end
 
-    for _, skillConfig in ipairs(skillsConfig) do
+    Logger.Log(string.format("[BattleSkill.Init] %s 接收到 %d 个技能配置", tostring(hero.name), #skillsConfig))
+
+    for i, skillConfig in ipairs(skillsConfig) do
         local skillId = skillConfig.skillId or skillConfig.id
+        Logger.Log(string.format("[BattleSkill.Init] 处理技能配置 [%d]: skillId=%s, name=%s, type=%s", 
+            i, tostring(skillId), tostring(skillConfig.name), tostring(skillConfig.skillType)))
         if skillId then
             local skill = BattleSkill.CreateSkillInstance(skillId, skillConfig)
             table.insert(hero.skills, skill)
             hero.skillData.skillInstances[skillId] = skill
             hero.skillData.coolDowns[skillId] = 0
+            Logger.Log(string.format("[BattleSkill.Init] 成功创建技能实例: %s (type=%s)", 
+                tostring(skill.name), tostring(skill.skillType)))
         end
     end
 
@@ -61,23 +81,56 @@ end
 ---@param skillConfig table 技能配置
 ---@return table 技能实例
 function BattleSkill.CreateSkillInstance(skillId, skillConfig)
+    -- 确保模块已初始化
+    BattleSkill.InitModule()
+    
+    -- 从 SkillConfig 获取配置
+    local skillType = SkillConfig.GetSkillType(skillId)
+    local skillParam = SkillConfig.GetSkillParam(skillId)
+    local skillBuffs = SkillConfig.GetSkillBuffs(skillId)
+    local skillCooldown = SkillConfig.GetSkillCooldown(skillId)
+    local skillCost = SkillConfig.GetSkillCost(skillId)
+    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
+    
+    -- 合并配置
     local config = BattleSkill.GetSkillConfig(skillId)
     local mergedConfig = BattleSkill.MergeSkillConfig(config, skillConfig)
+    
+    -- 确定技能类型
+    local finalSkillType = mergedConfig.skillType or E_SKILL_TYPE_NORMAL
+    if skillType then
+        -- 根据 res_skill.json 的 Type 字段映射
+        -- Type 1=普通攻击, 2=主动技能, 3=大招, 4=被动
+        if skillType == 1 then
+            finalSkillType = E_SKILL_TYPE_NORMAL
+        elseif skillType == 2 then
+            finalSkillType = E_SKILL_TYPE_ACTIVE
+        elseif skillType == 3 then
+            finalSkillType = E_SKILL_TYPE_ULTIMATE
+        elseif skillType == 4 then
+            finalSkillType = E_SKILL_TYPE_PASSIVE
+        end
+    end
 
     local skill = {
         -- 基础信息
         instanceId = GenerateSkillInstanceId(),
         skillId = skillId,
-        skillType = mergedConfig.skillType or E_SKILL_TYPE_NORMAL,
+        skillType = finalSkillType,
         level = mergedConfig.level or 1,
-        name = mergedConfig.name or "Unknown Skill",
+        name = mergedConfig.name or ("Skill_" .. skillId),
 
         -- 冷却相关
         coolDown = 0,
-        maxCoolDown = mergedConfig.coolDown or mergedConfig.cd or 0,
+        maxCoolDown = skillCooldown or mergedConfig.coolDown or mergedConfig.cd or 0,
 
         -- 配置数据
         config = mergedConfig,
+        
+        -- 从 res_skill.json 加载的数据
+        skillParam = skillParam,
+        skillBuffs = skillBuffs,
+        skillCost = skillCost,
 
         -- 技能目标配置
         castTarget = mergedConfig.castTarget or E_CAST_TARGET.Enemy,
@@ -92,13 +145,16 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 技能条件
         conditions = mergedConfig.conditions or {},
 
-        -- Lua脚本
-        luaFile = mergedConfig.luaFile or mergedConfig.LuaFile or "",
+        -- Lua脚本路径 (从 SkillConfig 获取)
+        luaFile = luaPath or mergedConfig.luaFile or mergedConfig.LuaFile or "",
         luaFuncName = mergedConfig.luaFuncName or "",
 
         -- 额外数据
         extraData = mergedConfig.extraData or {},
     }
+    
+    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d) Lua路径: %s", 
+        skillId, skillType or 0, skill.luaFile or "nil"))
 
     return skill
 end
@@ -239,17 +295,31 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     end
 
     -- 加载并执行技能Lua脚本
+    local executed = false
     if skill.luaFile and skill.luaFile ~= "" then
         local skillLua = BattleSkill.LoadSkillLua(skillId)
-        if skillLua and skillLua.Execute then
-            local success = skillLua.Execute(hero, targets, skill)
-            if not success then
-                Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
-                return false
+        if skillLua then
+            -- 检查是否有Execute函数（自定义技能脚本）
+            if skillLua.Execute then
+                local success = skillLua.Execute(hero, targets, skill)
+                if success then
+                    executed = true
+                else
+                    Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
+                end
+            else
+                -- 原工程技能文件（数据配置），使用SkillExecutor执行
+                local SkillExecutor = require("core.skill_executor")
+                executed = SkillExecutor.ExecuteSkill(hero, targets, skillLua, skill)
+                if executed then
+                    Logger.Log("[BattleSkill.CastSkillInSeq] 使用SkillExecutor执行技能: " .. tostring(skillId))
+                end
             end
         end
-    else
-        -- 没有Lua脚本时，执行默认的普通攻击伤害
+    end
+    
+    -- 如果没有执行技能Lua脚本，执行默认的普通攻击伤害
+    if not executed then
         Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击")
         BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
     end
@@ -273,33 +343,307 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
         return
     end
 
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattleAttribute = require("modules.battle_attribute")
+    local SkillLoader = require("core.skill_loader")
 
-    -- 获取攻击者攻击力
-    local atk = BattleAttribute.GetAttribute(hero, BattleAttribute.ATTR_ID.ATK) or hero.atk or 0
-
-    -- 对每个目标造成伤害
-    for _, target in ipairs(targets) do
-        if target and not target.isDead then
-            -- 计算基础伤害（简化版：攻击力 - 目标防御力）
-            local def = BattleAttribute.GetAttribute(target, BattleAttribute.ATTR_ID.DEF) or target.def or 0
-            local damage = math.max(1, atk - def * 0.5)  -- 防御减免50%
-            damage = math.floor(damage)
-
-            -- 应用伤害
-            local curHp = BattleAttribute.GetHeroCurHp(target)
-            local newHp = math.max(0, curHp - damage)
-            BattleAttribute.SetHpByVal(target, newHp)
-
-            Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害 (HP: %d -> %d)",
-                hero.name or "Unknown",
-                target.name or "Unknown",
-                damage,
-                curHp,
-                newHp))
+    -- 尝试加载技能配置
+    local skillId = skill and skill.skillId
+    local spellConfig = nil
+    if skillId then
+        local config = SkillLoader.LoadSkillConfig(skillId)
+        if config then
+            -- 配置文件的变量名格式为 spell_xxxxxx
+            local varName = "spell_" .. tostring(skillId)
+            spellConfig = config[varName]
         end
     end
+
+    -- 获取技能的伤害倍率（优先使用技能对象中的配置）
+    local damageRate = 10000  -- 默认100%（万分比）
+    if skill and skill.damageData and skill.damageData.damageRate then
+        -- 使用技能对象中的damageData（百分比转万分比）
+        damageRate = skill.damageData.damageRate * 100
+        Logger.Log(string.format("[ExecuteDefaultAttack] 使用技能配置伤害倍率: %d%%", skill.damageData.damageRate))
+    elseif spellConfig and spellConfig.Trigger and spellConfig.Trigger.damageData then
+        -- 使用配置文件中的damageData
+        damageRate = spellConfig.Trigger.damageData.damageRate or 10000
+    end
+    
+    -- 检查是否是治疗技能
+    local isHealSkill = skill and skill.healData and skill.healData.healRate
+    local healRate = isHealSkill and skill.healData.healRate * 100 or 0
+
+    -- 对每个目标执行效果
+    for _, target in ipairs(targets) do
+        if target and not target.isDead then
+            if isHealSkill then
+                -- 执行治疗
+                local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
+                local curHp = BattleAttribute.GetHeroCurHp(target)
+                local maxHp = BattleAttribute.GetHeroMaxHp(target)
+                local newHp = math.min(maxHp, curHp + healAmount)
+                BattleAttribute.SetHpByVal(target, newHp)
+                
+                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 治疗 %d 点生命 (HP: %d -> %d)",
+                    hero.name or "Unknown",
+                    target.name or "Unknown",
+                    healAmount,
+                    curHp,
+                    newHp))
+            else
+                -- 执行伤害
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
+                
+                -- 应用伤害
+                local curHp = BattleAttribute.GetHeroCurHp(target)
+                local newHp = math.max(0, curHp - damage)
+                BattleAttribute.SetHpByVal(target, newHp)
+
+                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害 (HP: %d -> %d)",
+                    hero.name or "Unknown",
+                    target.name or "Unknown",
+                    damage,
+                    curHp,
+                    newHp))
+                
+                -- 触发伤害相关Buff
+                BattleSkill.TriggerDamageBuffs(hero, target, damage)
+            end
+        end
+    end
+    
+    -- 触发技能附加Buff
+    if spellConfig and spellConfig.launchBuff and spellConfig.launchBuff.AssociateBuff then
+        local buffId = spellConfig.launchBuff.AssociateBuff
+        if buffId and buffId > 0 then
+            for _, target in ipairs(targets) do
+                BattleSkill.ApplyBuffFromSkill(hero, target, buffId, skill)
+            end
+        end
+    end
+end
+
+--- 计算伤害
+---@param attacker table 攻击者
+---@param defender table 防御者
+---@param spellConfig table 技能配置
+---@return number 伤害值
+function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
+    local BattleAttribute = require("modules.battle_attribute")
+    local BattleFormula = require("core.battle_formula")
+    
+    -- 确保 BattleFormula 已初始化
+    if not BattleFormula.GetConfig() then
+        BattleFormula.Init(BattleFormula.FORMULA_TYPE.STANDARD)
+    end
+    
+    -- 从Spell配置读取伤害倍率
+    local damageRate = 10000  -- 默认100%（万分比）
+    if spellConfig and spellConfig.Trigger and spellConfig.Trigger.damageData then
+        damageRate = spellConfig.Trigger.damageData.damageRate or 10000
+    end
+    
+    -- 获取配置
+    local config = BattleFormula.GetConfig()
+    
+    -- 构建 BattleFormula 需要的属性格式
+    local attackerData = {
+        attrs = {
+            [config.attrType.ATK] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.ATK) or attacker.atk or 0,
+            [config.attrType.CRIT] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0,
+        },
+        damageBonus = attacker.damageIncrease or 0,
+    }
+    
+    local defenderData = {
+        attrs = {
+            [config.attrType.DEF] = BattleAttribute.GetAttribute(defender, BattleAttribute.ATTR_ID.DEF) or defender.def or 0,
+            [config.attrType.BLOCK] = defender.blockRate or 0,
+        },
+        damageReduction = defender.damageReduce or 0,
+    }
+    
+    -- 使用 BattleFormula 计算伤害
+    local damageResult = BattleFormula.CalcDamage(
+        attackerData,
+        defenderData,
+        damageRate,
+        E_ATTACK_TYPE.Physical,  -- 默认为物理伤害
+        nil  -- 自动判定暴击
+    )
+    
+    if damageResult.isCrit then
+        Logger.Log(string.format("[CalculateDamage] 暴击! 伤害: %d", damageResult.damage))
+    elseif damageResult.isBlock then
+        Logger.Log(string.format("[CalculateDamage] 格挡! 伤害: %d", damageResult.damage))
+    end
+    
+    return damageResult.damage
+end
+
+--- 使用指定倍率计算伤害
+---@param attacker table 攻击者
+---@param defender table 防御者
+---@param damageRate number 伤害倍率（万分比）
+---@return number 伤害值
+function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
+    local BattleAttribute = require("modules.battle_attribute")
+    local BattleFormula = require("core.battle_formula")
+    
+    -- 确保 BattleFormula 已初始化
+    if not BattleFormula.GetConfig() then
+        BattleFormula.Init(BattleFormula.FORMULA_TYPE.STANDARD)
+    end
+    
+    -- 获取配置
+    local config = BattleFormula.GetConfig()
+    
+    -- 构建 BattleFormula 需要的属性格式
+    local attackerData = {
+        attrs = {
+            [config.attrType.ATK] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.ATK) or attacker.atk or 0,
+            [config.attrType.CRIT] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0,
+        },
+        damageBonus = attacker.damageIncrease or 0,
+    }
+    
+    local defenderData = {
+        attrs = {
+            [config.attrType.DEF] = BattleAttribute.GetAttribute(defender, BattleAttribute.ATTR_ID.DEF) or defender.def or 0,
+            [config.attrType.BLOCK] = defender.blockRate or 0,
+        },
+        damageReduction = defender.damageReduce or 0,
+    }
+    
+    -- 使用 BattleFormula 计算伤害
+    local damageResult = BattleFormula.CalcDamage(
+        attackerData,
+        defenderData,
+        damageRate,
+        E_ATTACK_TYPE.Physical,
+        nil
+    )
+    
+    if damageResult.isCrit then
+        Logger.Log(string.format("[CalculateDamageWithRate] 暴击! 伤害: %d", damageResult.damage))
+    end
+    
+    return damageResult.damage
+end
+
+--- 计算治疗量
+---@param healer table 治疗者
+---@param target table 目标
+---@param healRate number 治疗倍率（万分比）
+---@return number 治疗量
+function BattleSkill.CalculateHeal(healer, target, healRate)
+    local BattleAttribute = require("modules.battle_attribute")
+    
+    -- 基础治疗量 = 治疗者攻击力 * 治疗倍率
+    local atk = BattleAttribute.GetAttribute(healer, BattleAttribute.ATTR_ID.ATK) or healer.atk or 0
+    local healAmount = math.floor(atk * healRate / 10000)
+    
+    -- 添加随机波动 (90% - 110%)
+    local randomFactor = math.random(9000, 11000) / 10000
+    healAmount = math.floor(healAmount * randomFactor)
+    
+    Logger.Log(string.format("[CalculateHeal] %s 治疗 %s: 基础治疗=%d, 倍率=%.2f%%, 最终=%d",
+        healer.name or "Unknown",
+        target.name or "Unknown",
+        atk,
+        healRate / 100,
+        healAmount))
+    
+    return math.max(1, healAmount)  -- 最小治疗1点
+end
+
+--- 触发伤害相关Buff
+---@param attacker table 攻击者
+---@param defender table 防御者
+---@param damage number 伤害值
+function BattleSkill.TriggerDamageBuffs(attacker, defender, damage)
+    local BattleBuff = require("modules.battle_buff")
+    
+    -- 获取双方的Buff并触发效果
+    local attackerBuffs = BattleBuff.GetAllBuffs(attacker)
+    local defenderBuffs = BattleBuff.GetAllBuffs(defender)
+    
+    -- 触发攻击者攻击时Buff效果
+    if attackerBuffs then
+        for _, buff in ipairs(attackerBuffs) do
+            if buff.effects then
+                for _, effect in ipairs(buff.effects) do
+                    if effect.timing == E_BUFF_TIMING.ON_ATTACK then
+                        BattleBuff.ProcessBuffEffect(buff, attacker, E_BUFF_TIMING.ON_ATTACK)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- 触发防御者受击时Buff效果
+    if defenderBuffs then
+        for _, buff in ipairs(defenderBuffs) do
+            if buff.effects then
+                for _, effect in ipairs(buff.effects) do
+                    if effect.timing == E_BUFF_TIMING.ON_RECEIVE_DAMAGE then
+                        BattleBuff.ProcessBuffEffect(buff, defender, E_BUFF_TIMING.ON_RECEIVE_DAMAGE)
+                    end
+                end
+            end
+        end
+    end
+end
+
+--- 从技能应用Buff
+---@param caster table 施法者
+---@param target table 目标
+---@param buffId number Buff ID
+---@param skill table 技能对象
+function BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill)
+    -- 加载Buff配置
+    local buffConfig = BattleSkill.LoadBuffConfig(buffId)
+    if not buffConfig then
+        Logger.LogWarning(string.format("[ApplyBuffFromSkill] 无法加载Buff配置: %d", buffId))
+        return
+    end
+    
+    -- 使用BattleBuff.Add添加Buff
+    BattleBuff.Add(caster, target, buffConfig)
+    
+    Logger.Log(string.format("[ApplyBuffFromSkill] %s 对 %s 施加Buff [%s]",
+        caster.name or "Unknown",
+        target.name or "Unknown",
+        buffConfig.Name or "Unknown"))
+end
+
+--- 加载Buff配置
+---@param buffId number Buff ID
+---@return table|nil Buff配置
+function BattleSkill.LoadBuffConfig(buffId)
+    local cacheKey = "buff_" .. tostring(buffId)
+    
+    -- 检查缓存
+    if BattleSkill.buffConfigCache and BattleSkill.buffConfigCache[cacheKey] then
+        return BattleSkill.buffConfigCache[cacheKey]
+    end
+    
+    -- 加载配置文件
+    local filePath = "config.buff.buff_" .. tostring(buffId)
+    local success, result = pcall(require, filePath)
+    
+    if success and result and type(result) == "table" then
+        local varName = "buff_" .. tostring(buffId)
+        local buffConfig = result[varName]
+        
+        -- 缓存配置
+        BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
+        BattleSkill.buffConfigCache[cacheKey] = buffConfig
+        
+        return buffConfig
+    end
+    
+    return nil
 end
 
 --- 检查技能释放条件
@@ -504,25 +848,46 @@ end
 ---@param skillId number 技能ID
 ---@return table Lua脚本模块
 function BattleSkill.LoadSkillLua(skillId)
+    -- 确保模块已初始化
+    BattleSkill.InitModule()
+    
     if BattleSkill.skillLuaCache[skillId] then
         return BattleSkill.skillLuaCache[skillId]
     end
 
-    local config = BattleSkill.GetSkillConfig(skillId)
-    if not config or not config.luaFile or config.luaFile == "" then
+    -- 从 SkillConfig 获取Lua路径
+    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
+    if not luaPath or luaPath == "" then
+        Logger.LogWarning("[BattleSkill.LoadSkillLua] 技能 " .. tostring(skillId) .. " 没有配置Lua脚本")
         return nil
     end
 
-    local luaFile = config.luaFile
     -- 移除.lua后缀（如果有）
-    luaFile = string.gsub(luaFile, "%.lua$", "")
+    local luaFile = string.gsub(luaPath, "%.lua$", "")
+    
+    Logger.Log("[BattleSkill.LoadSkillLua] 尝试加载技能Lua: " .. luaFile)
 
+    -- 尝试加载技能Lua脚本
     local success, skillModule = pcall(require, luaFile)
     if not success then
-        Logger.LogError("[BattleSkill.LoadSkillLua] Failed to load skill lua: " .. luaFile .. ", error: " .. tostring(skillModule))
+        Logger.LogWarning("[BattleSkill.LoadSkillLua] 加载技能Lua失败: " .. luaFile .. ", 错误: " .. tostring(skillModule))
+        -- 失败时返回nil，让调用者执行默认攻击
         return nil
     end
 
+    -- 如果模块返回的是布尔值（原工程技能文件只定义全局变量，不返回）
+    -- 从全局变量中获取技能数据
+    if type(skillModule) == "boolean" then
+        -- 构建全局变量名（如 skill_131010301）
+        local globalVarName = "skill_" .. skillId .. "01"
+        skillModule = _G[globalVarName]
+        if not skillModule then
+            Logger.LogWarning("[BattleSkill.LoadSkillLua] 无法从全局变量获取技能数据: " .. globalVarName)
+            return nil
+        end
+    end
+
+    Logger.Log("[BattleSkill.LoadSkillLua] 成功加载技能Lua: " .. luaFile)
     BattleSkill.skillLuaCache[skillId] = skillModule
     return skillModule
 end

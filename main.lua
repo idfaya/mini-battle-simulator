@@ -20,6 +20,10 @@ package.path = package.path
     .. ";" .. script_dir .. "utils/?.lua"
     .. ";" .. script_dir .. "ui/?.lua"
     .. ";" .. script_dir .. "test/?.lua"
+    -- 添加原工程技能Lua脚本路径
+    .. ";" .. script_dir .. "Assets/Lua/Modules/Battle/SkillNewLua/?.lua"
+    .. ";" .. script_dir .. "Assets/Lua/Modules/?.lua"
+    .. ";" .. script_dir .. "Assets/Lua/?.lua"
 
 -- 加载所需工具库
 local Logger = require("utils.logger")
