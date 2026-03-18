@@ -49,13 +49,13 @@ local function CreateHero(heroData, wpType, isLeft)
         maxHp = heroData.maxHp or heroData.hp or 100,
         atk = heroData.atk or 0,
         def = heroData.def or 0,
-        speed = heroData.speed or 0,
+        speed = heroData.spd or heroData.speed or 0,
         
         -- 扩展属性
-        critRate = heroData.critRate or 0,
-        critDamage = heroData.critDamage or 150,
-        hitRate = heroData.hitRate or 100,
-        dodgeRate = heroData.dodgeRate or 0,
+        critRate = heroData.crt or heroData.critRate or 0,
+        critDamage = heroData.crtd or heroData.critDamage or 150,
+        hitRate = heroData.hit or heroData.hitRate or 100,
+        dodgeRate = heroData.res or heroData.dodgeRate or 0,
         damageReduce = heroData.damageReduce or 0,
         damageIncrease = heroData.damageIncrease or 0,
         

@@ -1,313 +1,150 @@
--- 简单战斗测试模块
--- 用于验证模拟器核心功能
+-- 简化版战斗测试 - 只负责阵容配置
 
-local SimpleBattleTest = {}
+-- 设置UTF-8编码（Windows）
+os.execute("chcp 65001 >nul 2>&1")
 
--- 设置包路径
-local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 package.path = package.path
-    .. ";" .. script_dir .. "../?.lua"
-    .. ";" .. script_dir .. "../core/?.lua"
-    .. ";" .. script_dir .. "../modules/?.lua"
-    .. ";" .. script_dir .. "../config/?.lua"
-    .. ";" .. script_dir .. "../utils/?.lua"
+    .. ";./?.lua"
+    .. ";./core/?.lua"
+    .. ";./modules/?.lua"
+    .. ";./config/?.lua"
+    .. ";./utils/?.lua"
 
--- 加载必要的模块
 require("core.battle_types")
 require("core.battle_enum")
 require("core.battle_default_types")
+
+local BattleMain = require("modules.battle_main")
 local AllyData = require("config.ally_data")
 local EnemyData = require("config.enemy_data")
-local BattleFormula = require("core.battle_formula")
+local SkillData = require("config.skill_data")
+local Logger = require("utils.logger")
 
--- 日志函数
+local SimpleBattleTest = {}
+
 local function Log(msg)
     print(string.format("[SIMPLE BATTLE] %s", msg))
 end
 
--- 创建英雄
-local function CreateHero(heroId, level, star, position)
-    local heroData, err = AllyData.ConvertToHeroData(heroId, level, star)
-    if not heroData then
-        return nil, err
+-- 创建英雄数据
+local function CreateHero(heroId, level, star)
+    local heroData = AllyData.ConvertToHeroData(heroId, level, star)
+    if not heroData then return nil end
+    
+    -- 获取英雄技能（查询所有相关的ClassID）
+    local relationConfigId = heroData.config and heroData.config.RelationConfigID or heroId
+    heroData.skillsConfig = {}
+    
+    -- 查询多个ClassID（1310101, 1310102, 1310103等）
+    for i = 1, 5 do
+        local skillClassId = relationConfigId * 100 + i
+        local skills = SkillData.GetSkillsByClass(skillClassId)
+        
+        for _, skill in ipairs(skills) do
+            table.insert(heroData.skillsConfig, {
+                skillId = skill.ID,
+                skillType = skill.Type == 2 and E_SKILL_TYPE_ULTIMATE or E_SKILL_TYPE_NORMAL,
+                name = skill.Name,
+                skillCost = skill.Type == 2 and 100 or 0
+            })
+        end
     end
     
-    -- 注意：ConvertToHeroData 返回的字段是 atk, def, hp
-    -- battle_formula.lua 使用小写字段名 (atk, def, maxHp)
-    return {
-        id = heroId,
-        name = string.format("Hero_%d", heroId),
-        hp = heroData.hp or 1000,
-        maxHp = heroData.maxHp or 1000,
-        atk = heroData.atk or 100,
-        def = heroData.def or 50,
-        spd = heroData.spd or 100,
-        crt = heroData.crt or 0.1,
-        crtd = heroData.crtd or 1.5,
-        hit = heroData.hit or 1.0,
-        res = heroData.res or 0,
-        Class = heroData.class or 2,
-        side = "left",
-        position = position,
-        energy = 0,
-        maxEnergy = 100,
-        isAlive = true,
-        buffs = {}
-    }
+    return heroData
 end
 
--- 创建敌人
-local function CreateEnemy(enemyId, position, heroLevel)
+-- 创建敌人数据
+local function CreateEnemy(enemyId, level)
     local enemyData = EnemyData.GetEnemy(enemyId)
-    if not enemyData then
-        return nil, "Enemy not found"
-    end
+    if not enemyData then return nil end
     
-    -- 敌人等级与英雄等级匹配
-    local level = heroLevel or 60
-    local star = 5  -- 与英雄相同的星级
-    local quality = 4  -- 史诗品质（更高品质）
+    local star, quality = 5, 4
+    local qm = ({1.0, 1.1, 1.2, 1.3, 1.5, 1.8})[quality] or 1.0
     
-    -- 基于等级计算属性，针对简化公式 (damage = atk - def) 进行平衡
-    -- 目标：战斗持续50回合，双方伤害要平衡
-    -- 英雄总HP: 43000, 敌人总HP: 108550 (5个x21710)
-    -- 50回合目标：双方需要能互相承受50回合的伤害
-    -- 调整策略：减少敌人数量到4个，降低敌人ATK，增加敌人HP
-    local baseHP = 12000 + level * 180 + star * 400  -- HP：约30000（能抗更久）
-    local baseATK = 220 + level * 3 + star * 10      -- ATK：约450（降低伤害）
-    local baseDEF = 100 + level * 4 + star * 10      -- DEF：约400（减少受到的伤害）
-    local baseSPD = 80 + level * 0.5                 -- 略低于英雄
-    
-    -- 品质加成
-    local qualityMultipliers = {1.0, 1.1, 1.2, 1.3, 1.5, 1.8}
-    local qm = qualityMultipliers[quality] or 1.0
-    
-    -- battle_formula.lua 使用小写字段名
     return {
         id = enemyId,
         name = string.format("Enemy_%d", enemyId),
-        hp = math.floor(baseHP * qm),
-        maxHp = math.floor(baseHP * qm),
-        atk = math.floor(baseATK * qm),
-        def = math.floor(baseDEF * qm),
-        spd = math.floor(baseSPD),
-        crt = 0.05 + star * 0.005,  -- 较低暴击率
+        hp = math.floor((12000 + level * 180 + star * 400) * qm),
+        maxHp = math.floor((12000 + level * 180 + star * 400) * qm),
+        atk = math.floor((220 + level * 3 + star * 10) * qm),
+        def = math.floor((100 + level * 4 + star * 10) * qm),
+        spd = math.floor(80 + level * 0.5),
+        crt = 0.05 + star * 0.005,
         crtd = 1.5,
         hit = 1.0,
         res = 0,
-        Class = enemyData.Class or 2,
-        side = "right",
-        position = position,
-        energy = 0,
-        maxEnergy = 100,
         isAlive = true,
-        buffs = {}
+        skillsConfig = {{skillId = 1001, skillType = E_SKILL_TYPE_NORMAL, name = "普通攻击"}}
     }
 end
 
--- 计算伤害
-local function CalculateDamage(attacker, defender)
-    -- 使用 BattleFormula.CalcDamage 计算伤害
-    local result = BattleFormula.CalcDamage(attacker, defender, 10000, E_ATTACK_TYPE.Physical)
-    return result.damage, result.isCrit
-end
-
--- 执行攻击
-local function ExecuteAttack(attacker, defender)
-    local damage, isCrit = CalculateDamage(attacker, defender)
-    defender.hp = (defender.hp or defender.HP or 0) - damage
+function SimpleBattleTest.Run()
+    Log("开始简化战斗测试")
     
-    if defender.hp <= 0 then
-        defender.hp = 0
-        defender.isAlive = false
-    end
+    -- 设置日志级别为 DEBUG 以查看详细日志
+    Logger.SetLogLevel(Logger.LOG_LEVELS.DEBUG)
     
-    return {
-        attacker = attacker.name,
-        defender = defender.name,
-        damage = damage,
-        isCrit = isCrit,
-        defenderHP = defender.hp,
-        defenderAlive = defender.isAlive
-    }
-end
-
--- 获取存活单位
-local function GetAliveUnits(team)
-    local alive = {}
-    for _, unit in ipairs(team) do
-        if unit.isAlive then
-            table.insert(alive, unit)
-        end
-    end
-    return alive
-end
-
--- 选择目标
-local function SelectTarget(team)
-    local alive = GetAliveUnits(team)
-    if #alive == 0 then
-        return nil
-    end
-    return alive[math.random(1, #alive)]
-end
-
--- 执行回合
-local function ExecuteRound(round, leftTeam, rightTeam)
-    Log(string.format("===== 回合 %d =====", round))
+    AllyData.Init()
+    SkillData.GetSkill(131010101)
     
-    -- 收集所有存活单位并按速度排序
-    local allUnits = {}
-    for _, unit in ipairs(leftTeam) do
-        if unit.isAlive then
-            table.insert(allUnits, unit)
-        end
-    end
-    for _, unit in ipairs(rightTeam) do
-        if unit.isAlive then
-            table.insert(allUnits, unit)
+    local beginState = {teamLeft = {}, teamRight = {}, seedArray = {123456789, 362436069, 521288629, 88675123}}
+    
+    Log("创建左侧队伍（英雄）：")
+    for _, heroId in ipairs({13101, 13102, 13103}) do
+        local hero = CreateHero(heroId, 60, 5)
+        if hero then
+            table.insert(beginState.teamLeft, hero)
+            Log(string.format("  %s (HP:%d ATK:%d DEF:%d SPD:%d) - %d个技能", hero.name, hero.maxHp, hero.atk, hero.def, hero.spd, #hero.skillsConfig))
         end
     end
     
-    -- 按速度排序 (使用小写字段 spd)
-    table.sort(allUnits, function(a, b)
-        return (a.spd or 0) > (b.spd or 0)
+    Log("创建右侧队伍（敌人）：")
+    for _, enemyId in ipairs({20701, 20702, 20703, 20704}) do
+        local enemy = CreateEnemy(enemyId, 60)
+        if enemy then
+            table.insert(beginState.teamRight, enemy)
+            Log(string.format("  %s (HP:%d ATK:%d DEF:%d)", enemy.name, enemy.maxHp, enemy.atk, enemy.def))
+        end
+    end
+    
+    Log(string.format("阵容配置完成: %d vs %d", #beginState.teamLeft, #beginState.teamRight))
+    
+    local battleFinished = false
+    local battleResult = nil
+    
+    BattleMain.Start(beginState, function(result)
+        battleFinished = true
+        battleResult = result
     end)
     
-    -- 每个单位行动
-    for _, unit in ipairs(allUnits) do
-        if not unit.isAlive then
-            goto continue
-        end
-        
-        -- 选择目标
-        local targetTeam = (unit.side == "left") and rightTeam or leftTeam
-        local target = SelectTarget(targetTeam)
-        
-        if target then
-            -- 执行攻击
-            local result = ExecuteAttack(unit, target)
-            local critStr = result.isCrit and " [暴击!]" or ""
-            Log(string.format("%s 攻击 %s, 造成 %d 伤害%s, %s 剩余 HP: %d/%d",
-                result.attacker, result.defender, result.damage, critStr,
-                result.defender, result.defenderHP, target.maxHp or target.MaxHP or 100))
-            
-            if not result.defenderAlive then
-                Log(string.format("  -> %s 被击败!", result.defender))
-            end
-        end
-        
-        -- 检查战斗是否结束
-        local leftAlive = #GetAliveUnits(leftTeam)
-        local rightAlive = #GetAliveUnits(rightTeam)
-        
-        if leftAlive == 0 or rightAlive == 0 then
-            return true, leftAlive, rightAlive
-        end
-        
-        ::continue::
-    end
+    Log("\n========== 开始战斗 ==========")
     
-    return false, #GetAliveUnits(leftTeam), #GetAliveUnits(rightTeam)
-end
-
--- 运行简单战斗测试
-function SimpleBattleTest.Run()
-    Log("开始简单战斗测试...")
-    Log(string.rep("=", 50))
+    -- 设置更新间隔为0，确保每帧都执行
+    BattleMain.SetUpdateInterval(0)
     
-    -- 初始化数据
-    Log("初始化数据模块...")
-    AllyData.Init()
-    EnemyData.Init()
-    
-    math.randomseed(os.time())
-    
-    -- 创建队伍
-    Log("\n创建战斗队伍...")
-    local leftTeam = {}
-    local rightTeam = {}
-    
-    -- 创建3个英雄
-    local heroIds = {13101, 13102, 13103}
-    for i, heroId in ipairs(heroIds) do
-        local hero, err = CreateHero(heroId, 60, 5, i)
-        if hero then
-            table.insert(leftTeam, hero)
-            Log(string.format("左侧队伍: %s (HP:%.0f ATK:%.0f DEF:%.0f SPD:%.0f)",
-                hero.name, hero.hp or 0, hero.atk or 0, hero.def or 0, hero.spd or 0))
-        else
-            Log(string.format("创建英雄 %d 失败: %s", heroId, tostring(err)))
-        end
-    end
-    
-    -- 创建4个敌人（平衡数量），传入英雄等级使敌人属性匹配
-    local enemyIds = {20701, 20702, 20703, 20704}
-    for i, enemyId in ipairs(enemyIds) do
-        local enemy, err = CreateEnemy(enemyId, i, 60)  -- 60级敌人匹配60级英雄
-        if enemy then
-            table.insert(rightTeam, enemy)
-            Log(string.format("右侧队伍: %s (HP:%d ATK:%d DEF:%d SPD:%d)",
-                enemy.name, enemy.hp or 0, enemy.atk or 0, enemy.def or 0, enemy.spd or 0))
-        else
-            Log(string.format("创建敌人 %d 失败: %s", enemyId, tostring(err)))
-        end
-    end
-    
-    Log(string.format("\n队伍创建完成: 左侧%d人 vs 右侧%d人", #leftTeam, #rightTeam))
-    
-    -- 开始战斗
-    Log("\n开始战斗!")
-    Log(string.rep("=", 50))
-    
+    -- 手动驱动战斗回合
     local maxRounds = 50
-    local winner = nil
+    local round = 0
     
-    for round = 1, maxRounds do
-        local finished, leftAlive, rightAlive = ExecuteRound(round, leftTeam, rightTeam)
+    while not battleFinished and round < maxRounds do
+        BattleMain.Update()
+        round = round + 1
         
-        Log(string.format("回合结束 - 左侧存活: %d, 右侧存活: %d", leftAlive, rightAlive))
-        
-        if finished then
-            if leftAlive > 0 then
-                winner = "left"
-            else
-                winner = "right"
-            end
-            break
-        end
-        
-        if round == maxRounds then
-            Log("达到最大回合数，战斗结束")
-            local leftAlive = #GetAliveUnits(leftTeam)
-            local rightAlive = #GetAliveUnits(rightTeam)
-            if leftAlive > rightAlive then
-                winner = "left"
-            elseif rightAlive > leftAlive then
-                winner = "right"
-            else
-                winner = "draw"
-            end
+        -- 简单的回合间隔
+        if round % 10 == 0 then
+            Log(string.format("--- 已执行 %d 回合 ---", round))
         end
     end
     
-    -- 显示结果
-    Log(string.rep("=", 50))
-    Log("战斗结束!")
-    Log(string.format("获胜方: %s", winner or "未知"))
+    if not battleFinished then
+        Log(string.format("达到最大回合数 %d，强制结束战斗", maxRounds))
+    end
     
-    local leftAlive = #GetAliveUnits(leftTeam)
-    local rightAlive = #GetAliveUnits(rightTeam)
-    Log(string.format("最终存活 - 左侧: %d, 右侧: %d", leftAlive, rightAlive))
-    
-    Log(string.rep("=", 50))
-    Log("简单战斗测试完成!")
-    
-    return {
-        winner = winner,
-        leftAlive = leftAlive,
-        rightAlive = rightAlive
-    }
+    Log("\n========== 战斗结束 ==========")
+    if battleResult then
+        Log(string.format("获胜方: %s", battleResult.winner or "draw"))
+        Log(string.format("结束原因: %s", battleResult.reason or "unknown"))
+    end
 end
 
 return SimpleBattleTest

@@ -360,8 +360,8 @@ function BattleAttribute.GetSpeed(hero)
         return hero.attributes.final[BattleAttribute.ATTR_ID.SPEED]
     end
 
-    -- 回退到直接字段
-    return hero.speed or 0
+    -- 回退到直接字段（支持 spd 和 speed 两种命名）
+    return hero.spd or hero.speed or 0
 end
 
 --- 获取英雄所有属性信息 (用于调试)

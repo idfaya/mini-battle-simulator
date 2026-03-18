@@ -25,6 +25,42 @@ local function GetStarMultiplier(star)
     return 1.0 + (star - 1) * 0.15
 end
 
+-- 属性ID常量定义 (对应原项目 HeroProxy.lua 中的 Attr 定义)
+local ATTR_ID = {
+    HP = 1,              -- 当前生命
+    HP_BASE = 2,         -- 最大生命基础
+    HP_RATE = 3,         -- 最大生命加成（百分比）
+    EX_HP = 4,           -- 额外增加最大生命值
+    HP_MAX = 5,          -- 最大生命
+    ATK_BASE = 6,        -- 攻击基础
+    ATK_RATE = 7,        -- 攻击加成(百分比)
+    EX_ATK = 8,          -- 额外攻击
+    ATK = 9,             -- 攻击
+    DEF_BASE = 10,       -- 防御基础
+    DEF_RATE = 11,       -- 防御加成（百分比）
+    EX_DEF = 12,         -- 额外防御
+    DEF = 13,            -- 防御
+    MANA = 14,           -- 当前能量
+    MANA_INIT = 15,      -- 初始能量
+    MANA_MAX = 16,       -- 能量阈值
+    MANA_GAIN_RATE = 17, -- 能量获取加成(百分比)
+    SPD_BASE = 18,       -- 速度Base
+    SKILL_CD_VALUE = 19, -- 技能cd减少固定值
+    SKILL_CD_PERCENT = 20, -- 技能cd减少百分比
+    CRIT_RATE = 21,      -- 爆击率(百分比)
+    CRIT_DAMAGE = 22,    -- 爆击伤害加成（百分比）
+    ANTI_CRIT_RATE = 23, -- 抗爆击率(百分比)
+    HIT_RATE = 24,       -- 命中率(百分比)
+    DODGE_RATE = 25,     -- 闪避率(百分比)
+    BLOCK_RATE = 26,     -- 格挡率(百分比)
+    BLOCK_DEEPEN = 27,   -- 格挡强度（百分比）
+    ANTI_BLOCK_RATE = 28, -- 精准率（百分比）
+    BREAK_DEF_RATE = 29, -- 破甲率（百分比）
+    SPD_RATE = 101,      -- 速度Rate
+    EX_SPD = 104,        -- 速度Ex
+    SPD = 105,           -- 最终速度
+}
+
 -- 解析嵌套数组格式的技能数据
 local function ParseSkillIDs(skillData)
     local skills = {}
@@ -286,6 +322,34 @@ function AllyData.ConvertToHeroData(allyId, level, star)
     local finalDef = math.floor((baseDef + levelDef) * defRatio * qualityMult * starMult)
     local finalHp = math.floor((baseHp + levelHp) * hpRatio * qualityMult * starMult)
 
+    -- 从 Prop 数组获取所有额外属性
+    local props = ally.ParsedProps or {}
+
+    -- 基础属性（从Prop读取，如果没有则使用默认值）
+    local spd = props[ATTR_ID.SPD_BASE] or 100  -- 速度基础值，默认100
+    local critRate = props[ATTR_ID.CRIT_RATE] or 0
+    local critDamage = props[ATTR_ID.CRIT_DAMAGE] or 5000  -- 默认150%暴击伤害 (5000/10000 + 1)
+    local hitRate = props[ATTR_ID.HIT_RATE] or 10000  -- 默认100%命中
+    local dodgeRate = props[ATTR_ID.DODGE_RATE] or 0
+    local blockRate = props[ATTR_ID.BLOCK_RATE] or 0
+    local manaInit = props[ATTR_ID.MANA_INIT] or 0  -- 初始能量
+
+    -- 读取其他可能的属性（如152, 153, 171, 181等特殊属性）
+    local extraProps = {}
+    for attrId, value in pairs(props) do
+        -- 只读取不在ATTR_ID中定义的属性（即特殊属性）
+        local isStandardAttr = false
+        for _, stdId in pairs(ATTR_ID) do
+            if attrId == stdId then
+                isStandardAttr = true
+                break
+            end
+        end
+        if not isStandardAttr then
+            extraProps[attrId] = value
+        end
+    end
+
     -- 构建技能列表
     local skills = {}
     for _, skill in ipairs(ally.ParsedSkills or {}) do
@@ -309,9 +373,20 @@ function AllyData.ConvertToHeroData(allyId, level, star)
         def = finalDef,
         hp = finalHp,
         maxHp = finalHp,
+        spd = spd,
+        crt = critRate,      -- 暴击率 (百分比，如5000表示50%)
+        crtd = critDamage,   -- 暴击伤害加成
+        hit = hitRate,       -- 命中率
+        res = dodgeRate,     -- 闪避率
+        blk = blockRate,     -- 格挡率
+        mana = manaInit,     -- 初始能量
         skills = skills,
         -- 保留原始配置数据
-        config = ally
+        config = ally,
+        -- 保留原始属性映射
+        props = props,
+        -- 保留额外属性（如152, 153, 171, 181等特殊属性）
+        extraProps = extraProps
     }
 
     return heroData
