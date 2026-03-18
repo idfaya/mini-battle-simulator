@@ -17,6 +17,7 @@ local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
 local PassiveEffectHandler = require("core.passive_effect_handler")
+local BattleSkillSeq = require("modules.battle_skill_seq")
 
 ---@class BattleMain
 local BattleMain = {}
@@ -174,6 +175,10 @@ local function InitSubsystems(beginState)
     PassiveEffectHandler.Init()
     Logger.Debug("  PassiveEffectHandler 初始化完成")
 
+    -- 13. 初始化技能序列模块
+    BattleSkillSeq.Init()
+    Logger.Debug("  BattleSkillSeq 初始化完成")
+
     Logger.Log("BattleMain.InitSubsystems - 所有子系统初始化完成")
 end
 
@@ -191,6 +196,7 @@ local function FinalizeSubsystems()
     BattleActionOrder.OnFinal()
     BattleFormation.OnFinal()
     BattleTimer.OnFinal()
+    BattleSkillSeq.OnFinal()
     BattleEvent.OnFinal()
 
     Logger.Log("BattleMain.FinalizeSubsystems - 所有子系统清理完成")
@@ -373,6 +379,14 @@ function BattleMain.ExecuteHeroAction(hero)
                     target.name or "Unknown", 
                     skill.name or tostring(skill.skillId)))
                 
+                -- 如果是大招，消耗能量
+                if skill.skillType == E_SKILL_TYPE_ULTIMATE then
+                    local energyCost = skill.skillCost or 0
+                    if energyCost > 0 then
+                        BattleEnergy.ConsumeEnergy(hero, energyCost)
+                    end
+                end
+                
                 -- 执行技能
                 BattleSkill.CastSkillInSeq(hero, target, skill.skillId)
             end
@@ -383,7 +397,7 @@ function BattleMain.ExecuteHeroAction(hero)
     BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd, hero)
 
     -- 回合结束增加能量
-    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.TurnEndAddEnergy, hero)
+    BattleEnergy.OnActionEnd(hero)
     
     -- 减少技能冷却
     BattleSkill.ReduceCoolDown(hero, 1)
