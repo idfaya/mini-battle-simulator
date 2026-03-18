@@ -5,8 +5,8 @@ local skillCache = {}
 local configCache = {}
 
 -- 路径配置
-local SKILL_PATH = "skills/skill_%s.lua"
-local CONFIG_PATH = "config/spell/spell_%s.lua"
+local SKILL_PATH = "config.skill.skill_%s"
+local CONFIG_PATH = "config.spell.spell_%s"
 
 -- 日志前缀
 local LOG_TAG = "[SkillLoader]"
@@ -27,14 +27,28 @@ end
 
 --- 加载Lua模块（内部函数）
 -- @param filePath 文件路径
+-- @param skillId 技能ID用于构建全局变量名
 -- @return table|nil, string|nil 成功返回模块，失败返回nil和错误信息
-local function LoadModule(filePath)
+local function LoadModule(filePath, skillId)
     local success, result = pcall(function()
         return require(filePath)
     end)
     
     if success then
-        return result, nil
+        -- 技能文件可能返回布尔值或设置全局变量
+        -- 如果返回的是表，直接使用；否则尝试从全局变量获取
+        if type(result) == "table" then
+            return result, nil
+        else
+            -- 尝试从全局变量获取技能数据
+            local globalName = "skill_" .. tostring(skillId)
+            local skillData = _G[globalName]
+            if type(skillData) == "table" then
+                return skillData, nil
+            else
+                return nil, "Skill data not found in global variable: " .. globalName
+            end
+        end
     else
         return nil, tostring(result)
     end
@@ -56,7 +70,7 @@ function SkillLoader.Load(skillId)
     end
     
     local filePath = GetSkillPath(skillId)
-    local module, err = LoadModule(filePath)
+    local module, err = LoadModule(filePath, skillId)
     
     if module then
         skillCache[id] = module

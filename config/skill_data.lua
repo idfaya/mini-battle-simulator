@@ -6,6 +6,15 @@
 local JSON = require("utils.json")
 local SkillData = {}
 
+-- 本地日志函数
+local function Log(msg)
+    print(msg)
+end
+
+local function LogError(msg)
+    print("[ERROR] " .. msg)
+end
+
 -- 内部数据存储
 local skillMap = {}      -- SkillID -> skill config
 local skillsByClass = {} -- ClassID -> {skill1, skill2, ...}

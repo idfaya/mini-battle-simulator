@@ -25,6 +25,11 @@ package.path = package.path
     .. ";" .. script_dir .. "Assets/Lua/Modules/?.lua"
     .. ";" .. script_dir .. "Assets/Lua/?.lua"
 
+-- 先加载枚举定义（必须在其他模块之前加载）
+require("core.battle_types")
+require("core.battle_enum")
+require("core.battle_default_types")
+
 -- 加载所需工具库
 local Logger = require("utils.logger")
 local Inspect = require("utils.inspect")
@@ -119,6 +124,13 @@ local function Main()
         PrintMenu()
 
         local choice = io.read()
+        if not choice then
+            -- 如果输入为nil（如管道输入结束），退出程序
+            running = false
+            print("")
+            print("输入结束，程序退出")
+            break
+        end
         choice = choice:match("^%s*(.-)%s*$") -- 去除首尾空白
 
         if choice == "1" then
