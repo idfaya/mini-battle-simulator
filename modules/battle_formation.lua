@@ -409,4 +409,302 @@ function BattleFormation.DumpFormation()
     Logger.Debug("==================================")
 end
 
+--- 获取友方死亡数量
+---@param hero table 英雄对象
+---@return number 死亡数量
+function BattleFormation.GetFriendDiedCount(hero)
+    if not hero then
+        return 0
+    end
+    
+    local friendTeam = hero.isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    local diedCount = 0
+    
+    for _, h in ipairs(friendTeam) do
+        if not h.isAlive or h.isDead then
+            diedCount = diedCount + 1
+        end
+    end
+    
+    return diedCount
+end
+
+--- 获取敌方行数
+--- 行定义: 1-3行为前排, 4-5行为中排, 6-8行为后排
+---@param hero table 英雄对象
+---@return number 敌方存活的行数
+function BattleFormation.GetEnemyRowCount(hero)
+    if not hero then
+        return 0
+    end
+    
+    local enemyTeam = hero.isLeft and BattleFormation.teamRight or BattleFormation.teamLeft
+    
+    -- 行定义 (wpType -> row)
+    local wpTypeToRow = {
+        [1] = 1, [2] = 1, [3] = 1,  -- 第一行
+        [4] = 2, [5] = 2,           -- 第二行
+        [6] = 3, [7] = 3, [8] = 3,  -- 第三行
+    }
+    
+    local aliveRows = {}
+    
+    for _, h in ipairs(enemyTeam) do
+        if h.isAlive and not h.isDead then
+            local row = wpTypeToRow[h.wpType] or 1
+            aliveRows[row] = true
+        end
+    end
+    
+    -- 计算有存活的行数
+    local rowCount = 0
+    for _ in pairs(aliveRows) do
+        rowCount = rowCount + 1
+    end
+    
+    return rowCount
+end
+
+--- 获取指定行的存活单位数量
+---@param isLeft boolean 是否左侧队伍
+---@param row number 行号 (1-3)
+---@return number 存活单位数量
+function BattleFormation.GetRowLeftUnitNum(isLeft, row)
+    local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    
+    -- 行定义 (wpType -> row)
+    local wpTypeToRow = {
+        [1] = 1, [2] = 1, [3] = 1,  -- 第一行
+        [4] = 2, [5] = 2,           -- 第二行
+        [6] = 3, [7] = 3, [8] = 3,  -- 第三行
+    }
+    
+    local count = 0
+    for _, hero in ipairs(team) do
+        if hero.isAlive and not hero.isDead then
+            local heroRow = wpTypeToRow[hero.wpType] or 1
+            if heroRow == row then
+                count = count + 1
+            end
+        end
+    end
+    
+    return count
+end
+
+-- ==================== 召唤物系统 ====================
+
+-- 召唤物实例ID计数器（与英雄分开）
+local tokenInstanceIdCounter = 100000
+
+-- 召唤物数据缓存
+local tokenDataCache = {}
+
+--- 生成召唤物实例ID
+---@return number 召唤物实例ID
+local function GenerateTokenInstanceId()
+    tokenInstanceIdCounter = tokenInstanceIdCounter + 1
+    return tokenInstanceIdCounter
+end
+
+--- 创建召唤物
+---@param owner table 召唤者英雄
+---@param tokenId number 召唤物配置ID
+---@param life number 存活回合数
+---@param wpType number 位置类型 (1-8)
+---@return table|nil 召唤物对象
+function BattleFormation.CreateToken(owner, tokenId, life, wpType)
+    if not owner then
+        Logger.LogError("[BattleFormation.CreateToken] owner is nil")
+        return nil
+    end
+    
+    if not tokenId or tokenId <= 0 then
+        Logger.LogError("[BattleFormation.CreateToken] invalid tokenId: " .. tostring(tokenId))
+        return nil
+    end
+    
+    -- 检查位置是否已被占用
+    local existingHero = BattleFormation.FindHeroByCampAndPos(owner.isLeft, wpType)
+    if existingHero and existingHero.isAlive then
+        Logger.LogWarning(string.format("[BattleFormation.CreateToken] Position occupied: isLeft=%s, wpType=%d",
+            tostring(owner.isLeft), wpType))
+        return nil
+    end
+    
+    -- 从配置加载召唤物数据（简化版，实际应从配置表加载）
+    local tokenConfig = tokenDataCache[tokenId] or {
+        name = "召唤物_" .. tokenId,
+        modelId = tokenId,
+        hp = 100,
+        atk = 10,
+        def = 5,
+        speed = 50,
+    }
+    
+    -- 创建召唤物对象
+    local token = {
+        -- 基础信息
+        instanceId = GenerateTokenInstanceId(),
+        configId = tokenId,
+        name = tokenConfig.name,
+        wpType = wpType,
+        camp = owner.camp,
+        isLeft = owner.isLeft,
+        
+        -- 召唤物标识
+        isToken = true,
+        owner = owner,
+        leftLife = life or 3,  -- 默认存活3回合
+        
+        -- 基础属性（简化版，实际应继承主人属性）
+        level = owner.level or 1,
+        hp = tokenConfig.hp,
+        maxHp = tokenConfig.hp,
+        atk = tokenConfig.atk,
+        def = tokenConfig.def,
+        speed = tokenConfig.speed,
+        
+        -- 扩展属性
+        critRate = 0,
+        critDamage = 150,
+        hitRate = 100,
+        dodgeRate = 0,
+        damageReduce = 0,
+        damageIncrease = 0,
+        
+        -- 技能相关
+        skills = {},
+        passiveSkills = {},
+        buffs = {},
+        
+        -- 能量相关
+        energy = 0,
+        maxEnergy = 100,
+        
+        -- 战斗状态
+        isAlive = true,
+        isDead = false,
+        actionForce = 0,
+        
+        -- 是否可以被选中为目标
+        canBeTarget = 1,
+    }
+    
+    -- 添加到队伍
+    local team = owner.isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    table.insert(team, token)
+    
+    -- 更新映射表
+    BattleFormation.heroInstanceMap[token.instanceId] = token
+    local key = tostring(owner.isLeft) .. "_" .. wpType
+    BattleFormation.positionMap[key] = token.instanceId
+    
+    -- 记录到主人的召唤物列表
+    owner.tokens = owner.tokens or {}
+    table.insert(owner.tokens, token)
+    
+    Logger.Debug(string.format("[BattleFormation.CreateToken] Created token: %s (id=%d, owner=%s, wpType=%d, life=%d)",
+        token.name, token.instanceId, owner.name, wpType, token.leftLife))
+    
+    return token
+end
+
+--- 销毁召唤物
+---@param token table 召唤物对象
+---@param hideImmediately boolean 是否立即隐藏（可选）
+function BattleFormation.DestroyToken(token, hideImmediately)
+    if not token then
+        Logger.LogWarning("[BattleFormation.DestroyToken] token is nil")
+        return
+    end
+    
+    if not token.isToken then
+        Logger.LogWarning("[BattleFormation.DestroyToken] not a token: " .. tostring(token.name))
+        return
+    end
+    
+    -- 从主人的召唤物列表中移除
+    if token.owner and token.owner.tokens then
+        for i, t in ipairs(token.owner.tokens) do
+            if t.instanceId == token.instanceId then
+                table.remove(token.owner.tokens, i)
+                break
+            end
+        end
+    end
+    
+    -- 从队伍中移除
+    local team = token.isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    for i, h in ipairs(team) do
+        if h.instanceId == token.instanceId then
+            table.remove(team, i)
+            break
+        end
+    end
+    
+    -- 从映射表中移除
+    BattleFormation.heroInstanceMap[token.instanceId] = nil
+    local key = tostring(token.isLeft) .. "_" .. token.wpType
+    BattleFormation.positionMap[key] = nil
+    
+    -- 标记为销毁
+    token.isAlive = false
+    token.isDead = true
+    
+    Logger.Debug(string.format("[BattleFormation.DestroyToken] Destroyed token: %s (id=%d, hideImmediately=%s)",
+        token.name, token.instanceId, tostring(hideImmediately)))
+end
+
+--- 获取召唤物的所有者
+---@param token table 召唤物对象
+---@return table|nil 所有者英雄
+function BattleFormation.GetTokenOwner(token)
+    if not token or not token.isToken then
+        return nil
+    end
+    return token.owner
+end
+
+--- 获取英雄的所有召唤物
+---@param hero table 英雄对象
+---@return table 召唤物列表
+function BattleFormation.GetHeroTokens(hero)
+    if not hero then
+        return {}
+    end
+    return hero.tokens or {}
+end
+
+--- 检查是否是召唤物
+---@param hero table 英雄/召唤物对象
+---@return boolean 是否是召唤物
+function BattleFormation.IsToken(hero)
+    if not hero then
+        return false
+    end
+    return hero.isToken == true
+end
+
+--- 减少召唤物存活回合
+---@param token table 召唤物对象
+---@return boolean 是否还存活
+function BattleFormation.ReduceTokenLife(token)
+    if not token or not token.isToken then
+        return false
+    end
+    
+    token.leftLife = (token.leftLife or 0) - 1
+    
+    Logger.Debug(string.format("[BattleFormation.ReduceTokenLife] Token %s life reduced to %d",
+        token.name, token.leftLife))
+    
+    if token.leftLife <= 0 then
+        BattleFormation.DestroyToken(token, false)
+        return false
+    end
+    
+    return true
+end
+
 return BattleFormation

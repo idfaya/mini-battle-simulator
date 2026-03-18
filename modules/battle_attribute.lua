@@ -175,17 +175,31 @@ end
 ---@param attrId number 属性ID
 ---@return number 属性值
 function BattleAttribute.GetAttribute(hero, attrId)
-    if not hero or not hero.attributes then
+    if not hero then
         return GetAttrDefaultValue(attrId)
     end
 
-    -- 优先返回最终计算值
-    if hero.attributes.final[attrId] then
-        return hero.attributes.final[attrId]
+    -- 如果存在 attributes 结构，优先使用
+    if hero.attributes then
+        -- 优先返回最终计算值
+        if hero.attributes.final and hero.attributes.final[attrId] then
+            return hero.attributes.final[attrId]
+        end
+
+        -- 返回基础值
+        if hero.attributes.base and hero.attributes.base[attrId] then
+            return hero.attributes.base[attrId]
+        end
     end
 
-    -- 返回基础值
-    return hero.attributes.base[attrId] or GetAttrDefaultValue(attrId)
+    -- 如果没有 attributes 结构，检查直接属性字段
+    local fieldName = GetAttrFieldName(attrId)
+    if fieldName and hero[fieldName] then
+        return hero[fieldName]
+    end
+
+    -- 返回默认值
+    return GetAttrDefaultValue(attrId)
 end
 
 --- 设置指定属性的基础值

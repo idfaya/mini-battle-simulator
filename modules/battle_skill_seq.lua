@@ -14,11 +14,23 @@ local ultimateSkillQueue = {}
 -- 被动技能队列: { [heroId] = { {hero, skill, buffSubType, funcName}, ... } }
 local passiveSkillQueue = {}
 
+-- 隐藏技能队列 (触发技能)
+local hideSkillQueue = {}
+
+-- 无消耗大招队列
+local noCostUltimateQueue = {}
+
 -- 技能序列ID计数器
 local skillSeqIdCounter = 0
 
 -- 被动技能ID计数器
 local passiveSkillIdCounter = 0
+
+-- 隐藏技能ID计数器
+local hideSkillIdCounter = 0
+
+-- 无消耗大招ID计数器
+local noCostUltimateIdCounter = 0
 
 --- 生成技能序列ID
 ---@return number 技能序列ID
@@ -32,6 +44,20 @@ end
 local function GeneratePassiveSkillId()
     passiveSkillIdCounter = passiveSkillIdCounter + 1
     return passiveSkillIdCounter
+end
+
+--- 生成隐藏技能ID
+---@return number 隐藏技能ID
+local function GenerateHideSkillId()
+    hideSkillIdCounter = hideSkillIdCounter + 1
+    return hideSkillIdCounter
+end
+
+--- 生成无消耗大招ID
+---@return number 无消耗大招ID
+local function GenerateNoCostUltimateId()
+    noCostUltimateIdCounter = noCostUltimateIdCounter + 1
+    return noCostUltimateIdCounter
 end
 
 --- 获取英雄速度（用于排序）
@@ -61,8 +87,20 @@ function BattleSkillSeq.Init()
         passiveSkillQueue[heroId] = nil
     end
     
+    -- 清空隐藏技能队列
+    for i = #hideSkillQueue, 1, -1 do
+        hideSkillQueue[i] = nil
+    end
+    
+    -- 清空无消耗大招队列
+    for i = #noCostUltimateQueue, 1, -1 do
+        noCostUltimateQueue[i] = nil
+    end
+    
     skillSeqIdCounter = 0
     passiveSkillIdCounter = 0
+    hideSkillIdCounter = 0
+    noCostUltimateIdCounter = 0
     
     Logger.Debug("BattleSkillSeq.Init() - 技能序列模块已初始化")
 end
@@ -79,8 +117,20 @@ function BattleSkillSeq.OnFinal()
         passiveSkillQueue[heroId] = nil
     end
     
+    -- 清空隐藏技能队列
+    for i = #hideSkillQueue, 1, -1 do
+        hideSkillQueue[i] = nil
+    end
+    
+    -- 清空无消耗大招队列
+    for i = #noCostUltimateQueue, 1, -1 do
+        noCostUltimateQueue[i] = nil
+    end
+    
     skillSeqIdCounter = 0
     passiveSkillIdCounter = 0
+    hideSkillIdCounter = 0
+    noCostUltimateIdCounter = 0
     
     Logger.Debug("BattleSkillSeq.OnFinal() - 技能序列模块已清理")
 end
@@ -102,13 +152,13 @@ function BattleSkillSeq.AddUltimateSkill(hero, skill)
     
     -- 检查英雄是否已死亡
     if hero.isDead or not hero.isAlive then
-        Logger.Warn("[BattleSkillSeq.AddUltimateSkill] Hero is dead, cannot add ultimate skill: " .. tostring(hero.name))
+        Logger.LogWarning("[BattleSkillSeq.AddUltimateSkill] Hero is dead, cannot add ultimate skill: " .. tostring(hero.name))
         return false
     end
     
     -- 检查技能是否为终极技能
     if skill.skillType ~= E_SKILL_TYPE_ULTIMATE then
-        Logger.Warn("[BattleSkillSeq.AddUltimateSkill] Skill is not ultimate type: " .. tostring(skill.skillId))
+        Logger.LogWarning("[BattleSkillSeq.AddUltimateSkill] Skill is not ultimate type: " .. tostring(skill.skillId))
         return false
     end
     
@@ -157,7 +207,7 @@ function BattleSkillSeq.GetSkillInSeq()
             return skillSeqItem
         else
             -- 英雄已死亡，移除该技能
-            Logger.Warn("[BattleSkillSeq.GetSkillInSeq] Hero is dead, removing skill from queue: " .. tostring(skillSeqItem.hero and skillSeqItem.hero.name))
+            Logger.LogWarning("[BattleSkillSeq.GetSkillInSeq] Hero is dead, removing skill from queue: " .. tostring(skillSeqItem.hero and skillSeqItem.hero.name))
             table.remove(ultimateSkillQueue, 1)
         end
     end
@@ -253,7 +303,7 @@ function BattleSkillSeq.InsertPassiveSkillFunc(hero, skill, buffSubType, funcNam
     
     -- 检查英雄是否已死亡
     if hero.isDead or not hero.isAlive then
-        Logger.Warn("[BattleSkillSeq.InsertPassiveSkillFunc] Hero is dead, cannot add passive skill: " .. tostring(hero.name))
+        Logger.LogWarning("[BattleSkillSeq.InsertPassiveSkillFunc] Hero is dead, cannot add passive skill: " .. tostring(hero.name))
         return false
     end
     
@@ -409,6 +459,185 @@ function BattleSkillSeq.Dump()
     end
     
     Logger.Debug("=========================================")
+end
+
+-- ==================== 隐藏技能功能 ====================
+
+--- 添加隐藏技能到队列
+---@param heroSrc table 施法者英雄
+---@param heroDest table 目标英雄（可为nil）
+---@param skillId number 技能ID
+---@return boolean 是否添加成功
+function BattleSkillSeq.AddHideSkill(heroSrc, heroDest, skillId)
+    if not heroSrc then
+        Logger.Error("[BattleSkillSeq.AddHideSkill] heroSrc is nil")
+        return false
+    end
+    
+    if not skillId or skillId <= 0 then
+        Logger.Error("[BattleSkillSeq.AddHideSkill] invalid skillId: " .. tostring(skillId))
+        return false
+    end
+    
+    -- 检查英雄是否已死亡
+    if heroSrc.isDead or not heroSrc.isAlive then
+        Logger.LogWarning("[BattleSkillSeq.AddHideSkill] Hero is dead, cannot add hide skill: " .. tostring(heroSrc.name))
+        return false
+    end
+    
+    -- 创建隐藏技能项
+    local hideSkillItem = {
+        id = GenerateHideSkillId(),
+        heroSrc = heroSrc,
+        heroDest = heroDest,
+        skillId = skillId,
+        addTime = os.time(),
+    }
+    
+    table.insert(hideSkillQueue, hideSkillItem)
+    
+    Logger.Debug(string.format("[BattleSkillSeq.AddHideSkill] Added hide skill [%d] for hero [%s] -> [%s], queue size=%d",
+        skillId, tostring(heroSrc.name), tostring(heroDest and heroDest.name or "nil"), #hideSkillQueue))
+    
+    return true
+end
+
+--- 获取下一个隐藏技能
+---@return table|nil 隐藏技能项 {heroSrc, heroDest, skillId, id, addTime}
+function BattleSkillSeq.GetHideSkillInSeq()
+    while #hideSkillQueue > 0 do
+        local hideSkillItem = hideSkillQueue[1]
+        
+        -- 检查施法者是否仍然存活
+        if hideSkillItem.heroSrc and not hideSkillItem.heroSrc.isDead and hideSkillItem.heroSrc.isAlive then
+            table.remove(hideSkillQueue, 1)
+            
+            Logger.Debug(string.format("[BattleSkillSeq.GetHideSkillInSeq] Got hide skill [%d] for hero [%s], remaining queue size=%d",
+                hideSkillItem.skillId, tostring(hideSkillItem.heroSrc.name), #hideSkillQueue))
+            
+            return hideSkillItem
+        else
+            -- 施法者已死亡，移除该技能
+            Logger.LogWarning("[BattleSkillSeq.GetHideSkillInSeq] Hero is dead, removing hide skill from queue")
+            table.remove(hideSkillQueue, 1)
+        end
+    end
+    
+    return nil
+end
+
+--- 检查是否有隐藏技能在队列中
+---@return boolean 是否有隐藏技能
+function BattleSkillSeq.HasHideSkillInSeq()
+    -- 清理已死亡英雄的技能
+    for i = #hideSkillQueue, 1, -1 do
+        local item = hideSkillQueue[i]
+        if not item.heroSrc or item.heroSrc.isDead or not item.heroSrc.isAlive then
+            table.remove(hideSkillQueue, i)
+        end
+    end
+    
+    return #hideSkillQueue > 0
+end
+
+--- 获取隐藏技能队列数量
+---@return number 队列中的隐藏技能数量
+function BattleSkillSeq.GetHideSkillCount()
+    return #hideSkillQueue
+end
+
+-- ==================== 无消耗大招功能 ====================
+
+--- 添加无消耗大招到队列
+---@param heroSrc table 施法者英雄
+---@param heroDest table 目标英雄（可为nil）
+---@return boolean 是否添加成功
+function BattleSkillSeq.AddUltimateSkillNoCost(heroSrc, heroDest)
+    if not heroSrc then
+        Logger.Error("[BattleSkillSeq.AddUltimateSkillNoCost] heroSrc is nil")
+        return false
+    end
+    
+    -- 检查英雄是否已死亡
+    if heroSrc.isDead or not heroSrc.isAlive then
+        Logger.LogWarning("[BattleSkillSeq.AddUltimateSkillNoCost] Hero is dead, cannot add no-cost ultimate: " .. tostring(heroSrc.name))
+        return false
+    end
+    
+    -- 获取英雄的终极技能
+    local ultimateSkill = nil
+    for _, skill in ipairs(heroSrc.skills or {}) do
+        if skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            ultimateSkill = skill
+            break
+        end
+    end
+    
+    if not ultimateSkill then
+        Logger.LogWarning("[BattleSkillSeq.AddUltimateSkillNoCost] Hero has no ultimate skill: " .. tostring(heroSrc.name))
+        return false
+    end
+    
+    -- 创建无消耗大招项
+    local noCostItem = {
+        id = GenerateNoCostUltimateId(),
+        heroSrc = heroSrc,
+        heroDest = heroDest,
+        skill = ultimateSkill,
+        noCost = true,
+        addTime = os.time(),
+    }
+    
+    table.insert(noCostUltimateQueue, noCostItem)
+    
+    Logger.Debug(string.format("[BattleSkillSeq.AddUltimateSkillNoCost] Added no-cost ultimate [%s] for hero [%s], queue size=%d",
+        tostring(ultimateSkill.name), tostring(heroSrc.name), #noCostUltimateQueue))
+    
+    return true
+end
+
+--- 获取下一个无消耗大招
+---@return table|nil 无消耗大招项 {heroSrc, heroDest, skill, noCost, id, addTime}
+function BattleSkillSeq.GetNoCostUltimateInSeq()
+    while #noCostUltimateQueue > 0 do
+        local noCostItem = noCostUltimateQueue[1]
+        
+        -- 检查施法者是否仍然存活
+        if noCostItem.heroSrc and not noCostItem.heroSrc.isDead and noCostItem.heroSrc.isAlive then
+            table.remove(noCostUltimateQueue, 1)
+            
+            Logger.Debug(string.format("[BattleSkillSeq.GetNoCostUltimateInSeq] Got no-cost ultimate [%s] for hero [%s], remaining queue size=%d",
+                tostring(noCostItem.skill.name), tostring(noCostItem.heroSrc.name), #noCostUltimateQueue))
+            
+            return noCostItem
+        else
+            -- 施法者已死亡，移除该技能
+            Logger.LogWarning("[BattleSkillSeq.GetNoCostUltimateInSeq] Hero is dead, removing no-cost ultimate from queue")
+            table.remove(noCostUltimateQueue, 1)
+        end
+    end
+    
+    return nil
+end
+
+--- 检查是否有无消耗大招在队列中
+---@return boolean 是否有无消耗大招
+function BattleSkillSeq.HasNoCostUltimateInSeq()
+    -- 清理已死亡英雄的技能
+    for i = #noCostUltimateQueue, 1, -1 do
+        local item = noCostUltimateQueue[i]
+        if not item.heroSrc or item.heroSrc.isDead or not item.heroSrc.isAlive then
+            table.remove(noCostUltimateQueue, i)
+        end
+    end
+    
+    return #noCostUltimateQueue > 0
+end
+
+--- 获取无消耗大招队列数量
+---@return number 队列中的无消耗大招数量
+function BattleSkillSeq.GetNoCostUltimateCount()
+    return #noCostUltimateQueue
 end
 
 return BattleSkillSeq

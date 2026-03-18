@@ -697,20 +697,26 @@ function BattleSkill.CheckSingleCondition(hero, skill, condition)
     if conditionType == E_SKILL_CONDITION.Round then
         -- 回合数条件
         local round = condition.round or condition.value or 0
-        -- TODO: 获取当前回合数进行判断
-        return true
+        -- 获取当前回合数进行判断
+        local BattleMain = require("modules.battle_main")
+        local currentRound = BattleMain.GetCurrentRound and BattleMain.GetCurrentRound() or 0
+        return currentRound >= round
 
     elseif conditionType == E_SKILL_CONDITION.EnemyRowCount then
         -- 敌方行数条件
         local count = condition.count or condition.value or 0
-        -- TODO: 获取敌方行数进行判断
-        return true
+        -- 获取敌方行数进行判断
+        local BattleFormation = require("modules.battle_formation")
+        local enemyRowCount = BattleFormation.GetEnemyRowCount and BattleFormation.GetEnemyRowCount(hero) or 0
+        return enemyRowCount >= count
 
     elseif conditionType == E_SKILL_CONDITION.FriendDiedNumLargerThan then
         -- 友方死亡数量条件
         local num = condition.num or condition.value or 0
-        -- TODO: 获取友方死亡数量进行判断
-        return true
+        -- 获取友方死亡数量进行判断
+        local BattleFormation = require("modules.battle_formation")
+        local diedCount = BattleFormation.GetFriendDiedCount and BattleFormation.GetFriendDiedCount(hero) or 0
+        return diedCount >= num
 
     else
         -- 自定义条件，尝试调用Lua脚本中的条件检查函数

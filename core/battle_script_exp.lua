@@ -382,41 +382,75 @@ end
 
 --- 释放隐藏技能（不消耗能量，不进入冷却）
 ---@param instanceIdSrc number 施法者实例ID
----@param instanceIdDest number 目标实例ID
+---@param instanceIdDest number 目标实例ID (-1表示无目标)
 ---@param classId number 技能类别ID
 ---@return boolean 是否释放成功
 function BattleScriptExp.CastHideSkill(instanceIdSrc, instanceIdDest, classId)
     local srcHero = GetHeroByInstanceId(instanceIdSrc)
-    local destHero = GetHeroByInstanceId(instanceIdDest)
     
     if not IsHeroValid(srcHero, "CastHideSkill") then
         return false
     end
     
-    -- TODO: 实现隐藏技能释放逻辑
-    Logger.Debug(string.format("[BattleScriptExp.CastHideSkill] src=%d, dest=%d, classId=%d", 
-        instanceIdSrc, instanceIdDest or 0, classId))
+    -- 检查目标
+    local destHero = nil
+    if instanceIdDest and instanceIdDest ~= -1 then
+        destHero = GetHeroByInstanceId(instanceIdDest)
+        if destHero then
+            -- 检查目标是否可以被选为目标
+            if destHero.canBeTarget == 0 then
+                Logger.Warn("[BattleScriptExp.CastHideSkill] Target cannot be targeted")
+                return false
+            end
+        end
+    end
     
-    return true
+    -- 添加到隐藏技能队列
+    local BattleSkillSeq = require("modules.battle_skill_seq")
+    local success = BattleSkillSeq.AddHideSkill(srcHero, destHero, classId)
+    
+    if success then
+        Logger.Debug(string.format("[BattleScriptExp.CastHideSkill] Successfully queued hide skill: src=%s, dest=%s, classId=%d",
+            tostring(srcHero.name), tostring(destHero and destHero.name or "nil"), classId))
+    end
+    
+    return success
 end
 
 --- 添加无消耗的大招技能
 ---@param instanceIdSrc number 施法者实例ID
----@param instanceIdDest number 目标实例ID
+---@param instanceIdDest number 目标实例ID (-1表示无目标)
 ---@return boolean 是否成功
 function BattleScriptExp.AddUltimateSkillNoCost(instanceIdSrc, instanceIdDest)
     local srcHero = GetHeroByInstanceId(instanceIdSrc)
-    local destHero = GetHeroByInstanceId(instanceIdDest)
     
     if not IsHeroValid(srcHero, "AddUltimateSkillNoCost") then
         return false
     end
     
-    -- TODO: 实现无消耗大招添加逻辑
-    Logger.Debug(string.format("[BattleScriptExp.AddUltimateSkillNoCost] src=%d, dest=%d", 
-        instanceIdSrc, instanceIdDest or 0))
+    -- 检查目标
+    local destHero = nil
+    if instanceIdDest and instanceIdDest ~= -1 then
+        destHero = GetHeroByInstanceId(instanceIdDest)
+        if destHero then
+            -- 检查目标是否可以被选为目标
+            if destHero.canBeTarget == 0 then
+                Logger.Warn("[BattleScriptExp.AddUltimateSkillNoCost] Target cannot be targeted")
+                return false
+            end
+        end
+    end
     
-    return true
+    -- 添加到无消耗大招队列
+    local BattleSkillSeq = require("modules.battle_skill_seq")
+    local success = BattleSkillSeq.AddUltimateSkillNoCost(srcHero, destHero)
+    
+    if success then
+        Logger.Debug(string.format("[BattleScriptExp.AddUltimateSkillNoCost] Successfully queued no-cost ultimate: src=%s, dest=%s",
+            tostring(srcHero.name), tostring(destHero and destHero.name or "nil")))
+    end
+    
+    return success
 end
 
 -- ==================== Target Selection Functions ====================
@@ -590,10 +624,10 @@ end
 -- ==================== Summon/Revive Functions ====================
 
 --- 创建召唤物
----@param instanceId number 召唤者实例ID
----@param tokenId number 召唤物ID
+---@param instanceId number 施法者实例ID
+---@param tokenId number 召唤物配置ID
 ---@param life number 存活回合数
----@param wpType number 位置类型
+---@param wpType number 位置类型 (1-8)
 ---@return number|nil 召唤物实例ID
 function BattleScriptExp.CreateToken(instanceId, tokenId, life, wpType)
     local hero = GetHeroByInstanceId(instanceId)
@@ -602,25 +636,41 @@ function BattleScriptExp.CreateToken(instanceId, tokenId, life, wpType)
         return nil
     end
     
-    -- TODO: 实现召唤物创建逻辑
-    Logger.Debug(string.format("[BattleScriptExp.CreateToken] summoner=%d, tokenId=%d, life=%d, wpType=%d", 
-        instanceId, tokenId, life, wpType))
+    -- 创建召唤物
+    local token = BattleFormation.CreateToken(hero, tokenId, life, wpType)
     
-    return nil
+    if token then
+        Logger.Debug(string.format("[BattleScriptExp.CreateToken] Successfully created token: summoner=%s, tokenId=%d, tokenInstanceId=%d, life=%d, wpType=%d",
+            hero.name, tokenId, token.instanceId, life, wpType))
+        return token.instanceId
+    else
+        Logger.LogWarning(string.format("[BattleScriptExp.CreateToken] Failed to create token: summoner=%s, tokenId=%d",
+            hero.name, tokenId))
+        return nil
+    end
 end
 
 --- 销毁召唤物
 ---@param instanceId number 召唤物实例ID
 ---@param hideImmediately boolean 是否立即隐藏
 function BattleScriptExp.DestroyToken(instanceId, hideImmediately)
-    local hero = GetHeroByInstanceId(instanceId)
+    local token = GetHeroByInstanceId(instanceId)
     
-    if not IsHeroValid(hero, "DestroyToken") then
+    if not token then
+        Logger.LogError("[BattleScriptExp.DestroyToken] token not found: " .. tostring(instanceId))
         return
     end
     
-    -- TODO: 实现召唤物销毁逻辑
-    Logger.Debug(string.format("[BattleScriptExp.DestroyToken] instanceId=%d, hideImmediately=%s", 
+    -- 检查是否是召唤物
+    if not BattleFormation.IsToken(token) then
+        Logger.LogWarning("[BattleScriptExp.DestroyToken] not a token: " .. tostring(token.name))
+        return
+    end
+    
+    -- 销毁召唤物
+    BattleFormation.DestroyToken(token, hideImmediately)
+    
+    Logger.Debug(string.format("[BattleScriptExp.DestroyToken] Successfully destroyed token: instanceId=%d, hideImmediately=%s",
         instanceId, tostring(hideImmediately)))
 end
 
