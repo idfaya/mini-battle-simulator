@@ -52,9 +52,35 @@ function BattleSkill.Init(hero, skillsConfig)
     hero.skillData.skillInstances = {}
     hero.skillData.coolDowns = {}
 
+    -- 如果 skillsConfig 为空，尝试从 hero.skills 构建
     if not skillsConfig or #skillsConfig == 0 then
         Logger.LogWarning("[BattleSkill.Init] skillsConfig is empty for hero: " .. tostring(hero.name))
-        return
+        
+        -- 从 hero.skills 构建 skillsConfig
+        if hero.skills and #hero.skills > 0 then
+            skillsConfig = {}
+            for _, skillData in ipairs(hero.skills) do
+                local skillId
+                if type(skillData) == "table" then
+                    skillId = skillData.skillId
+                else
+                    skillId = skillData
+                end
+                
+                if skillId then
+                    table.insert(skillsConfig, {
+                        skillId = skillId,
+                        skillType = E_SKILL_TYPE_NORMAL,
+                        name = "Skill_" .. tostring(skillId),
+                        skillCost = 0
+                    })
+                end
+            end
+            Logger.Log(string.format("[BattleSkill.Init] 从 hero.skills 构建了 %d 个技能配置", #skillsConfig))
+        else
+            Logger.LogWarning("[BattleSkill.Init] hero.skills 也为空，无法初始化技能")
+            return
+        end
     end
 
     Logger.Log(string.format("[BattleSkill.Init] %s 接收到 %d 个技能配置", tostring(hero.name), #skillsConfig))
@@ -65,11 +91,15 @@ function BattleSkill.Init(hero, skillsConfig)
             i, tostring(skillId), tostring(skillConfig.name), tostring(skillConfig.skillType)))
         if skillId then
             local skill = BattleSkill.CreateSkillInstance(skillId, skillConfig)
-            table.insert(hero.skills, skill)
-            hero.skillData.skillInstances[skillId] = skill
-            hero.skillData.coolDowns[skillId] = 0
-            Logger.Log(string.format("[BattleSkill.Init] 成功创建技能实例: %s (type=%s)", 
-                tostring(skill.name), tostring(skill.skillType)))
+            if skill then
+                table.insert(hero.skills, skill)
+                hero.skillData.skillInstances[skillId] = skill
+                hero.skillData.coolDowns[skillId] = 0
+                Logger.Log(string.format("[BattleSkill.Init] 成功创建技能实例: %s (type=%s)", 
+                    tostring(skill.name), tostring(skill.skillType)))
+            else
+                Logger.LogWarning(string.format("[BattleSkill.Init] 技能 %s 创建失败，跳过", tostring(skillId)))
+            end
         end
     end
 
@@ -296,24 +326,25 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
 
     -- 加载并执行技能Lua脚本
     local executed = false
-    if skill.luaFile and skill.luaFile ~= "" then
-        local skillLua = BattleSkill.LoadSkillLua(skillId)
-        if skillLua then
-            -- 检查是否有Execute函数（自定义技能脚本）
-            if skillLua.Execute then
-                local success = skillLua.Execute(hero, targets, skill)
-                if success then
-                    executed = true
-                else
-                    Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
-                end
+    
+    -- 始终加载技能配置文件（skill_{ID}.lua），不管 luaFile 是否为空
+    -- luaFile 不为空时，表示有额外的自定义脚本（War/ActiveSkills/{LuaFile}.lua）
+    local skillLua = BattleSkill.LoadSkillLua(skillId)
+    if skillLua then
+        -- 检查是否有Execute函数（自定义技能脚本）
+        if skillLua.Execute then
+            local success = skillLua.Execute(hero, targets, skill)
+            if success then
+                executed = true
             else
-                -- 原工程技能文件（数据配置），使用SkillExecutor执行
-                local SkillExecutor = require("core.skill_executor")
-                executed = SkillExecutor.ExecuteSkill(hero, targets, skillLua, skill)
-                if executed then
-                    Logger.Log("[BattleSkill.CastSkillInSeq] 使用SkillExecutor执行技能: " .. tostring(skillId))
-                end
+                Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
+            end
+        else
+            -- 原工程技能文件（数据配置），使用SkillExecutor执行 actData 中的关键帧
+            local SkillExecutor = require("core.skill_executor")
+            executed = SkillExecutor.ExecuteSkill(hero, targets, skillLua, skill)
+            if executed then
+                Logger.Log("[BattleSkill.CastSkillInSeq] 使用SkillExecutor执行技能关键帧: " .. tostring(skillId))
             end
         end
     end
@@ -891,8 +922,15 @@ function BattleSkill.LoadSkillLua(skillId)
     -- 如果模块返回的是布尔值（原工程技能文件只定义全局变量，不返回）
     -- 从全局变量中获取技能数据
     if type(skillModule) == "boolean" then
-        -- 构建全局变量名（如 skill_131010301）
-        local globalVarName = "skill_" .. skillId .. "01"
+        -- 从luaFile中提取技能ID（如 config.skill.skill_131010101 -> 131010101）
+        local loadedSkillId = string.match(luaFile, "skill_(%d+)$")
+        if not loadedSkillId then
+            Logger.LogWarning("[BattleSkill.LoadSkillLua] 无法从路径提取技能ID: " .. luaFile)
+            return nil
+        end
+        
+        -- 构建全局变量名（如 skill_131010101）
+        local globalVarName = "skill_" .. loadedSkillId
         skillModule = _G[globalVarName]
         if not skillModule then
             Logger.LogWarning("[BattleSkill.LoadSkillLua] 无法从全局变量获取技能数据: " .. globalVarName)

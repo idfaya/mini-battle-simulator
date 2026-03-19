@@ -1,5 +1,9 @@
 local JSON = require("utils.json")
+local SkillData = require("config.skill_data")
 local AllyData = {}
+
+-- 配置目录路径（从bin目录运行时的相对路径）
+local CONFIG_DIR = "../config/"
 
 -- 内部数据存储
 local allyInfoMap = {}      -- AllyID -> ally info
@@ -92,7 +96,7 @@ end
 
 -- 加载 ally info 数据
 local function LoadAllyInfo()
-    local file = io.open("config/res_ally_info.json", "r")
+    local file = io.open(CONFIG_DIR .. "res_ally_info.json", "r")
     if not file then
         error("Failed to open res_ally_info.json")
         return
@@ -146,7 +150,7 @@ end
 
 -- 加载 ally level 数据
 local function LoadAllyLevel()
-    local file = io.open("config/res_ally_level.json", "r")
+    local file = io.open(CONFIG_DIR .. "res_ally_level.json", "r")
     if not file then
         error("Failed to open res_ally_level.json")
         return
@@ -162,43 +166,27 @@ local function LoadAllyLevel()
     end
 
     for _, levelInfo in ipairs(data) do
-        allyLevelMap[levelInfo.LevelId] = levelInfo
+        local levelId = levelInfo.Level or levelInfo.LevelId
+        if levelId then
+            allyLevelMap[levelId] = levelInfo
+        end
     end
 end
 
--- 初始化模块
-function AllyData.Init()
+-- 初始化
+local function Init()
     LoadAllyInfo()
     LoadAllyLevel()
 end
 
--- 获取指定ID的盟友
-function AllyData.GetAlly(allyId)
+-- 获取盟友信息
+function AllyData.GetAllyInfo(allyId)
     return allyInfoMap[allyId]
 end
 
--- 获取盟友名称 (根据ModelID生成)
-function AllyData.GetAllyName(allyId)
-    local ally = allyInfoMap[allyId]
-    if not ally then
-        return nil
-    end
-    return string.format("Hero_%d", ally.ModelID)
-end
-
--- 获取指定职业的所有盟友 (1=前排, 2=中排, 3=后排)
-function AllyData.GetAlliesByClass(class)
-    return alliesByClass[class] or {}
-end
-
--- 获取指定阵营的所有盟友
-function AllyData.GetAlliesByFaction(faction)
-    return alliesByFaction[faction] or {}
-end
-
--- 获取指定品质的所有盟友 (1-6)
-function AllyData.GetAlliesByQuality(quality)
-    return alliesByQuality[quality] or {}
+-- 获取等级信息
+function AllyData.GetLevelInfo(level)
+    return allyLevelMap[level]
 end
 
 -- 获取所有盟友
@@ -206,157 +194,137 @@ function AllyData.GetAllAllies()
     return allAllies
 end
 
--- 获取所有玩家可用英雄 (IsHero = 1)
+-- 获取可玩英雄列表
 function AllyData.GetPlayableHeroes()
     return playableHeroes
 end
 
--- 获取玩家可用英雄数量
-function AllyData.GetPlayableHeroCount()
-    return #playableHeroes
+-- 按职业获取盟友
+function AllyData.GetAlliesByClass(class)
+    return alliesByClass[class] or {}
 end
 
--- 按职业获取玩家可用英雄
-function AllyData.GetPlayableHeroesByClass(class)
-    local result = {}
-    for _, hero in ipairs(playableHeroes) do
-        if hero.Class == class then
-            table.insert(result, hero)
+-- 按阵营获取盟友
+function AllyData.GetAlliesByFaction(faction)
+    return alliesByFaction[faction] or {}
+end
+
+-- 按品质获取盟友
+function AllyData.GetAlliesByQuality(quality)
+    return alliesByQuality[quality] or {}
+end
+
+-- 获取盟友名称
+function AllyData.GetAllyName(allyId)
+    local ally = allyInfoMap[allyId]
+    if ally then
+        -- 配置中没有Name字段，使用AllyID作为名称
+        return ally.Name or ("Hero_" .. tostring(allyId))
+    end
+    return "Unknown"
+end
+
+-- 计算英雄属性
+function AllyData.CalculateHeroAttributes(allyId, level, star)
+    local ally = allyInfoMap[allyId]
+    if not ally then
+        return nil
+    end
+
+    local levelInfo = allyLevelMap[level]
+    if not levelInfo then
+        return nil
+    end
+
+    -- 基础属性 (使用配置中的基础数值)
+    local baseHp = ally.HpBaseNum or 1000
+    local baseAtk = ally.AtkBaseNum or 100
+    local baseDef = ally.DefBaseNum or 50
+    local baseSpd = 100  -- 默认速度
+
+    -- 品质 (1-6，用于索引成长数组)
+    local quality = ally.BaseQuality or ally.Quality or 1
+    local qualityIndex = math.min(6, math.max(1, quality))
+
+    -- 等级成长 (从配置数组中获取对应品质的成长值)
+    local hpGrowth = levelInfo.LevelBaseHp and levelInfo.LevelBaseHp[qualityIndex] or 0
+    local atkGrowth = levelInfo.LevelBaseAtk and levelInfo.LevelBaseAtk[qualityIndex] or 0
+    local defGrowth = levelInfo.LevelBaseDef and levelInfo.LevelBaseDef[qualityIndex] or 0
+
+    -- 星级倍率
+    local starMultiplier = GetStarMultiplier(star)
+
+    -- 最终属性 = 基础属性 + 等级成长 + 星级加成
+    local finalHp = math.floor((baseHp + hpGrowth) * starMultiplier)
+    local finalAtk = math.floor((baseAtk + atkGrowth) * starMultiplier)
+    local finalDef = math.floor((baseDef + defGrowth) * starMultiplier)
+    local finalSpd = baseSpd
+
+    return {
+        hp = finalHp,
+        maxHp = finalHp,
+        atk = finalAtk,
+        def = finalDef,
+        spd = finalSpd,
+        level = level,
+        star = star,
+        quality = quality,
+        class = ally.Class,
+        faction = ally.Faction
+    }
+end
+
+-- 根据英雄等级计算技能等级
+local function CalculateSkillLevel(heroLevel)
+    -- 技能等级 = 英雄等级 // 10 + 1，最大为5级
+    return math.min(5, math.floor(heroLevel / 10) + 1)
+end
+
+-- 获取指定ClassID和等级的技能，如果不存在则降级查找
+local function GetSkillByClassAndLevel(classId, level)
+    -- 从指定等级开始向下查找，直到找到存在的技能
+    for l = level, 1, -1 do
+        local skillId = classId * 100 + l
+        local skill = SkillData.GetSkill(skillId)
+        if skill then
+            return skill
         end
     end
-    return result
+    return nil
 end
 
--- 按品质获取玩家可用英雄
-function AllyData.GetPlayableHeroesByQuality(quality)
-    local result = {}
-    for _, hero in ipairs(playableHeroes) do
-        if (hero.BaseQuality or hero.Quality or 1) == quality then
-            table.insert(result, hero)
-        end
-    end
-    return result
-end
-
--- 获取等级成长数据
-function AllyData.GetLevelData(level)
-    return allyLevelMap[level]
-end
-
--- 获取职业名称
-function AllyData.GetClassName(class)
-    local classNames = {
-        [1] = "前排",
-        [2] = "中排",
-        [3] = "后排"
-    }
-    return classNames[class] or "未知"
-end
-
--- 获取阵营名称
-function AllyData.GetFactionName(faction)
-    local factionNames = {
-        [1] = "阵营1",
-        [2] = "阵营2",
-        [3] = "阵营3"
-    }
-    return factionNames[faction] or "未知"
-end
-
--- 获取品质名称
-function AllyData.GetQualityName(quality)
-    local qualityNames = {
-        [1] = "普通",
-        [2] = "优秀",
-        [3] = "精良",
-        [4] = "史诗",
-        [5] = "传说",
-        [6] = "神话"
-    }
-    return qualityNames[quality] or "未知"
-end
-
--- 转换盟友配置为战斗用英雄数据
+-- 转换为战斗使用的英雄数据格式
 function AllyData.ConvertToHeroData(allyId, level, star)
     local ally = allyInfoMap[allyId]
     if not ally then
         return nil
     end
 
-    level = level or 1
-    star = star or ally.DefaultStar or 1
-
-    -- 获取等级成长数据
-    local levelData = allyLevelMap[level]
-    local levelAtk = 0
-    local levelDef = 0
-    local levelHp = 0
-
-    if levelData then
-        -- LevelBaseAtk/Def/Hp 是数组，根据品质索引获取
-        local qualityIndex = ally.BaseQuality or 1
-        levelAtk = levelData.LevelBaseAtk[qualityIndex] or 0
-        levelDef = levelData.LevelBaseDef[qualityIndex] or 0
-        levelHp = levelData.LevelBaseHp[qualityIndex] or 0
+    local attrs = AllyData.CalculateHeroAttributes(allyId, level, star)
+    if not attrs then
+        return nil
     end
 
-    -- 计算基础属性
-    local baseAtk = ally.AtkBaseNum or 0
-    local baseDef = ally.DefBaseNum or 0
-    local baseHp = ally.HpBaseNum or 0
-
-    -- 获取品质倍率
-    local quality = ally.BaseQuality or 1
-    local qualityMult = QUALITY_MULTIPLIERS[quality] or 1.0
-
-    -- 获取星级倍率
-    local starMult = GetStarMultiplier(star)
-
-    -- 获取属性比例 (百分比，需要除以10000)
-    local atkRatio = (ally.AtkBaseRadio or 10000) / 10000
-    local defRatio = (ally.DefBaseRadio or 10000) / 10000
-    local hpRatio = (ally.HpBaseRadio or 10000) / 10000
-
-    -- 计算最终属性
-    local finalAtk = math.floor((baseAtk + levelAtk) * atkRatio * qualityMult * starMult)
-    local finalDef = math.floor((baseDef + levelDef) * defRatio * qualityMult * starMult)
-    local finalHp = math.floor((baseHp + levelHp) * hpRatio * qualityMult * starMult)
-
-    -- 从 Prop 数组获取所有额外属性
-    local props = ally.ParsedProps or {}
-
-    -- 基础属性（从Prop读取，如果没有则使用默认值）
-    local spd = props[ATTR_ID.SPD_BASE] or 100  -- 速度基础值，默认100
-    local critRate = props[ATTR_ID.CRIT_RATE] or 0
-    local critDamage = props[ATTR_ID.CRIT_DAMAGE] or 5000  -- 默认150%暴击伤害 (5000/10000 + 1)
-    local hitRate = props[ATTR_ID.HIT_RATE] or 10000  -- 默认100%命中
-    local dodgeRate = props[ATTR_ID.DODGE_RATE] or 0
-    local blockRate = props[ATTR_ID.BLOCK_RATE] or 0
-    local manaInit = props[ATTR_ID.MANA_INIT] or 0  -- 初始能量
-
-    -- 读取其他可能的属性（如152, 153, 171, 181等特殊属性）
-    local extraProps = {}
-    for attrId, value in pairs(props) do
-        -- 只读取不在ATTR_ID中定义的属性（即特殊属性）
-        local isStandardAttr = false
-        for _, stdId in pairs(ATTR_ID) do
-            if attrId == stdId then
-                isStandardAttr = true
-                break
-            end
+    -- 构建技能配置 (根据英雄等级选择合适的技能等级)
+    local skillsConfig = {}
+    local relationConfigId = ally.RelationConfigID or allyId
+    local skillLevel = CalculateSkillLevel(level)
+    
+    -- 查询多个ClassID，但只选择对应等级的技能
+    -- 技能ID格式: classId * 100 + level，如 131840101 表示 classId=1318401, level=1
+    for i = 1, 5 do
+        local skillClassId = relationConfigId * 100 + i
+        -- 获取技能，如果不存在则降级查找
+        local skill = GetSkillByClassAndLevel(skillClassId, skillLevel)
+        
+        if skill then
+            table.insert(skillsConfig, {
+                skillId = skill.ID,
+                skillType = skill.Type,
+                name = skill.Name,
+                skillCost = skill.Type == 2 and 100 or 0
+            })
         end
-        if not isStandardAttr then
-            extraProps[attrId] = value
-        end
-    end
-
-    -- 构建技能列表
-    local skills = {}
-    for _, skill in ipairs(ally.ParsedSkills or {}) do
-        table.insert(skills, {
-            id = skill.skillId,
-            level = skill.level
-        })
     end
 
     -- 构建英雄数据
@@ -366,71 +334,23 @@ function AllyData.ConvertToHeroData(allyId, level, star)
         name = AllyData.GetAllyName(allyId),
         level = level,
         star = star,
-        quality = quality,
+        quality = attrs.quality,
         class = ally.Class,
         faction = ally.Faction,
-        atk = finalAtk,
-        def = finalDef,
-        hp = finalHp,
-        maxHp = finalHp,
-        spd = spd,
-        crt = critRate,      -- 暴击率 (百分比，如5000表示50%)
-        crtd = critDamage,   -- 暴击伤害加成
-        hit = hitRate,       -- 命中率
-        res = dodgeRate,     -- 闪避率
-        blk = blockRate,     -- 格挡率
-        mana = manaInit,     -- 初始能量
-        skills = skills,
+        atk = attrs.atk,
+        def = attrs.def,
+        hp = attrs.hp,
+        maxHp = attrs.maxHp,
+        spd = attrs.spd,
+        skillsConfig = skillsConfig,
         -- 保留原始配置数据
-        config = ally,
-        -- 保留原始属性映射
-        props = props,
-        -- 保留额外属性（如152, 153, 171, 181等特殊属性）
-        extraProps = extraProps
+        config = ally
     }
 
     return heroData
 end
 
--- 批量转换多个盟友
-function AllyData.ConvertAlliesToHeroData(allyList)
-    local heroes = {}
-    for _, info in ipairs(allyList) do
-        local hero = AllyData.ConvertToHeroData(info.allyId, info.level, info.star)
-        if hero then
-            table.insert(heroes, hero)
-        end
-    end
-    return heroes
-end
-
--- 打印盟友信息 (调试用)
-function AllyData.PrintAllyInfo(allyId)
-    local ally = allyInfoMap[allyId]
-    if not ally then
-        print(string.format("Ally %d not found", allyId))
-        return
-    end
-
-    print(string.format("=== Ally %d Info ===", allyId))
-    print(string.format("ModelID: %d", ally.ModelID))
-    print(string.format("Class: %d (%s)", ally.Class, AllyData.GetClassName(ally.Class)))
-    print(string.format("Faction: %d", ally.Faction))
-    print(string.format("Quality: %d (%s)", ally.BaseQuality or 1, AllyData.GetQualityName(ally.BaseQuality)))
-    print(string.format("DefaultStar: %d, FinalStar: %d", ally.DefaultStar or 1, ally.FinalStar or 1))
-    print(string.format("Base Stats - ATK: %d, DEF: %d, HP: %d", ally.AtkBaseNum or 0, ally.DefBaseNum or 0, ally.HpBaseNum or 0))
-    print(string.format("Base Ratios - ATK: %.2f%%, DEF: %.2f%%, HP: %.2f%%",
-        (ally.AtkBaseRadio or 10000) / 100,
-        (ally.DefBaseRadio or 10000) / 100,
-        (ally.HpBaseRadio or 10000) / 100))
-
-    print("Skills:")
-    for _, skill in ipairs(ally.ParsedSkills or {}) do
-        print(string.format("  - SkillID: %d, Level: %d", skill.skillId, skill.level))
-    end
-end
-
 -- 自动初始化
-AllyData.Init()
+Init()
 
 return AllyData

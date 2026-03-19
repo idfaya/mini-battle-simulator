@@ -28,10 +28,14 @@ function SkillConfig.Init()
     Log("初始化完成")
 end
 
+-- 配置目录路径（从bin目录运行时的相对路径）
+local CONFIG_DIR = "../config/"
+
 function SkillConfig.LoadSkillConfig()
     local json = require("utils.json")
     -- 尝试多个可能的路径
     local paths = {
+        CONFIG_DIR .. "res_skill.json",
         "config/res_skill.json",
         "Assets/Res/Data/res_skill.json",
         "../Assets/Res/Data/res_skill.json",
@@ -116,7 +120,8 @@ function SkillConfig.GetSkillLuaPath(skillId)
     -- 命名规则: skill_{完整技能ID}.lua
     -- 完整技能ID = ClassID * 100 + SkillLevel
     -- 例如: ClassID=1310101, SkillLevel=1 -> 131010101 -> skill_131010101.lua
-    local fullSkillId = config.ClassID * 100 + config.SkillLevel
+    -- 注意: 技能Lua文件只实现了等级1的版本，所以总是使用等级1
+    local fullSkillId = config.ClassID * 100 + 1  -- 总是使用等级1的脚本
     local luaFileName = string.format("skill_%d", fullSkillId)
     
     -- 从本地config目录加载技能Lua

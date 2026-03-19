@@ -15,20 +15,19 @@ local function LogError(msg)
     print("[ERROR] " .. msg)
 end
 
+-- 配置目录路径（从bin目录运行时的相对路径）
+local CONFIG_DIR = "../config/"
+
 -- 内部数据存储
 local skillMap = {}      -- SkillID -> skill config
 local skillsByClass = {} -- ClassID -> {skill1, skill2, ...}
 
 --- 加载技能配置数据
 local function LoadSkillData()
-    local file = io.open("config/res_skill.json", "r")
+    local file = io.open(CONFIG_DIR .. "res_skill.json", "r")
     if not file then
-        -- 尝试其他路径
-        file = io.open("MiniBattleSimulator/config/res_skill.json", "r")
-        if not file then
-            LogError("[SkillData] Failed to open res_skill.json")
-            return
-        end
+        LogError("[SkillData] Failed to open res_skill.json")
+        return
     end
 
     local content = file:read("*a")

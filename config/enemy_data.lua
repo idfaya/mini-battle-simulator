@@ -6,6 +6,9 @@
 local JSON = require("utils.json")
 local EnemyData = {}
 
+-- 配置目录路径（从bin目录运行时的相对路径）
+local CONFIG_DIR = "../config/"
+
 -- 内部数据存储
 local _enemyData = {}      -- 敌人基础数据 (res_enemy.json)
 local _enemyInfoData = {}  -- 敌人详细信息 (res_enemy_info.json)
@@ -25,12 +28,56 @@ local MONSTER_TYPE_NAMES = {
     [2] = "BOSS"
 }
 
---- 获取模块所在目录路径
-local function getModulePath()
-    local info = debug.getinfo(1, "S")
-    local path = info.source:sub(2) -- 去掉开头的 "@"
-    path = path:gsub("\\", "/")
-    return path:match("(.*/)") or ""
+-- 星级倍率
+local STAR_MULTIPLIERS = {
+    [1] = 1.0,
+    [2] = 1.1,
+    [3] = 1.2,
+    [4] = 1.3,
+    [5] = 1.5,
+    [6] = 1.8,
+    [7] = 2.2
+}
+
+-- 获取星级倍率
+local function GetStarMultiplier(star)
+    return STAR_MULTIPLIERS[star] or 1.0
+end
+
+-- 计算敌人等级成长值
+-- 参考 Hero 的成长曲线，但稍微简化
+local function CalculateEnemyLevelGrowth(level, class)
+    -- 基础成长系数
+    local baseGrowthRate = 0.05  -- 每级 5% 成长
+    
+    -- 根据职业调整成长倾向
+    local hpRate, atkRate, defRate
+    if class == 1 then  -- 前排: HP成长高
+        hpRate = 1.2
+        atkRate = 0.8
+        defRate = 1.1
+    elseif class == 2 then  -- 中排: 平衡
+        hpRate = 1.0
+        atkRate = 1.0
+        defRate = 1.0
+    else  -- 后排: ATK成长高
+        hpRate = 0.8
+        atkRate = 1.2
+        defRate = 0.9
+    end
+    
+    -- 计算成长值 (从1级到当前等级的累计成长)
+    local levelDiff = level - 1
+    if levelDiff <= 0 then
+        return 0, 0, 0
+    end
+    
+    -- 成长公式: 基础值 * 成长率 * 等级差 * 职业系数
+    local hpGrowth = math.floor(100 * baseGrowthRate * levelDiff * hpRate)
+    local atkGrowth = math.floor(20 * baseGrowthRate * levelDiff * atkRate)
+    local defGrowth = math.floor(15 * baseGrowthRate * levelDiff * defRate)
+    
+    return hpGrowth, atkGrowth, defGrowth
 end
 
 --- 加载 JSON 文件
@@ -59,10 +106,8 @@ function EnemyData.Init()
         return true
     end
 
-    local basePath = getModulePath()
-
     -- 加载 res_enemy.json
-    local enemyArray = loadJsonFile(basePath .. "res_enemy.json")
+    local enemyArray = loadJsonFile(CONFIG_DIR .. "res_enemy.json")
     if enemyArray then
         for _, enemy in ipairs(enemyArray) do
             if enemy.ID then
@@ -76,7 +121,7 @@ function EnemyData.Init()
     end
 
     -- 加载 res_enemy_info.json
-    local infoArray = loadJsonFile(basePath .. "res_enemy_info.json")
+    local infoArray = loadJsonFile(CONFIG_DIR .. "res_enemy_info.json")
     if infoArray then
         for _, info in ipairs(infoArray) do
             if info.AllyID then
@@ -191,62 +236,62 @@ function EnemyData.ConvertToHeroData(enemyId)
     local enemyInfo = EnemyData.GetEnemyInfo(enemyId)
     local name = enemyInfo and enemyInfo.EnemyName or string.format("Enemy_%d", enemyId)
 
-    -- 基础属性计算系数
+    -- 敌人属性配置
     local level = enemy.Level or 1
     local star = enemy.Star or 1
     local quality = enemy.Quality or 1
     local monsterType = enemy.MonsterType or 0
+    local class = enemy.Class or 2
 
     -- 根据职业确定基础属性倾向
     local baseHp, baseAtk, baseDef, baseSpeed
-    local class = enemy.Class or 2
 
     if class == 1 then
         -- 前排: 高血量、高防御、中等攻击、低速度
-        baseHp = 6000
-        baseAtk = 180
-        baseDef = 200
+        baseHp = 3000
+        baseAtk = 120
+        baseDef = 150
         baseSpeed = 80
     elseif class == 2 then
         -- 中排: 平衡型
-        baseHp = 4000
-        baseAtk = 250
-        baseDef = 120
+        baseHp = 2200
+        baseAtk = 150
+        baseDef = 100
         baseSpeed = 100
     else
         -- 后排: 高攻击、低血量、中等速度
-        baseHp = 2800
-        baseAtk = 320
-        baseDef = 80
+        baseHp = 1800
+        baseAtk = 180
+        baseDef = 70
         baseSpeed = 110
     end
 
-    -- 等级成长系数 (每级提升约 5%)
-    local levelMultiplier = 1 + (level - 1) * 0.05
+    -- 计算等级成长
+    local hpGrowth, atkGrowth, defGrowth = CalculateEnemyLevelGrowth(level, class)
 
-    -- 星级成长系数 (每星提升约 15%)
-    local starMultiplier = 1 + (star - 1) * 0.15
-
-    -- 品质成长系数
-    local qualityMultipliers = {1.0, 1.2, 1.5, 2.0, 2.5, 3.0}
+    -- 轻微的品质调整 (10%-30%)
+    local qualityMultipliers = {1.0, 1.1, 1.15, 1.2, 1.25, 1.3}
     local qualityMultiplier = qualityMultipliers[quality] or 1.0
 
-    -- 怪物类型系数 (精英和BOSS更强)
-    local typeMultipliers = {[0] = 1.0, [1] = 1.5, [2] = 3.0}
+    -- 怪物类型系数 (精英和BOSS有轻微加成)
+    local typeMultipliers = {[0] = 1.0, [1] = 1.2, [2] = 1.5}
     local typeMultiplier = typeMultipliers[monsterType] or 1.0
 
-    -- 计算最终属性
-    local totalMultiplier = levelMultiplier * starMultiplier * qualityMultiplier * typeMultiplier
+    -- 星级倍率
+    local starMultiplier = GetStarMultiplier(star)
+
+    -- 计算最终属性 = (基础 + 成长) * 品质 * 类型 * 星级
+    local totalMultiplier = qualityMultiplier * typeMultiplier * starMultiplier
 
     local heroData = {
         id = enemyId,
         name = name,
-        hp = math.floor(baseHp * totalMultiplier),
-        atk = math.floor(baseAtk * totalMultiplier),
-        def = math.floor(baseDef * totalMultiplier),
-        speed = math.floor(baseSpeed * (1 + (level - 1) * 0.02)), -- 速度成长较慢
-        critRate = 0.10 + (quality * 0.02), -- 品质越高暴击率越高
-        critDmg = 1.5 + (star * 0.1), -- 星级越高暴击伤害越高
+        hp = math.floor((baseHp + hpGrowth) * totalMultiplier),
+        atk = math.floor((baseAtk + atkGrowth) * totalMultiplier),
+        def = math.floor((baseDef + defGrowth) * totalMultiplier),
+        speed = baseSpeed,
+        critRate = 0.05 + (quality * 0.01), -- 品质越高暴击率越高
+        critDmg = 1.3 + (star * 0.05), -- 星级越高暴击伤害越高
         skills = {},
 
         -- 保留原始敌人数据供参考
@@ -260,21 +305,81 @@ function EnemyData.ConvertToHeroData(enemyId)
         _quality = quality,
     }
 
-    -- 处理技能 (只使用 SkillIDs，不包含 SkillIDsBossWarning)
+    -- 处理技能 (使用 SkillIDs 和 SkillIDsBossWarning)
     local skillList = {}
+    local skillsConfig = {}
+    local processedSkillIds = {}  -- 用于去重
 
+    -- 辅助函数：添加技能
+    local function AddSkill(skillId)
+        if not skillId or processedSkillIds[skillId] then return end
+        processedSkillIds[skillId] = true
+        
+        table.insert(skillList, skillId)
+        
+        -- 构建 skillsConfig 格式 (与 ally_data.lua 一致)
+        -- 敌人技能ID已经是完整格式，直接使用
+        local skillType = 1  -- 默认普通攻击
+        local skillCost = 0
+        
+        -- 根据技能ID判断类型
+        -- 技能ID最后两位表示等级，倒数第三位表示类型
+        -- 例如: 207010101 -> 类型=E_SKILL_TYPE_NORMAL (普通攻击)
+        --       207010201 -> 类型=E_SKILL_TYPE_NORMAL (普通技能)
+        --       207010301 -> 类型=E_SKILL_TYPE_ULTIMATE (大招)
+        local classId = math.floor(skillId / 100)  -- 去掉等级部分
+        local lastDigit = classId % 10
+        
+        if lastDigit == 2 then
+            skillType = E_SKILL_TYPE_NORMAL  -- 普通技能（无能量消耗）
+        elseif lastDigit == 3 then
+            skillType = E_SKILL_TYPE_ULTIMATE  -- 大招
+            skillCost = 100  -- 大招消耗100能量
+        end
+        
+        table.insert(skillsConfig, {
+            skillId = skillId,
+            skillType = skillType,
+            name = "EnemySkill_" .. skillId,
+            skillCost = skillCost
+        })
+    end
+
+    -- 读取 SkillIDs
     if enemy.SkillIDs and #enemy.SkillIDs > 0 then
         for _, skillId in ipairs(enemy.SkillIDs) do
-            table.insert(skillList, skillId)
+            AddSkill(skillId)
+        end
+    end
+
+    -- 读取 SkillIDsBossWarning (Boss警告技能，也是实际可用的技能)
+    if enemy.SkillIDsBossWarning and #enemy.SkillIDsBossWarning > 0 then
+        for _, skillId in ipairs(enemy.SkillIDsBossWarning) do
+            AddSkill(skillId)
         end
     end
 
     -- 如果没有技能，添加默认普通攻击
     if #skillList == 0 then
-        heroData.skills = {10000} -- 默认普通攻击技能ID
+        local defaultSkillId = 1001  -- 默认普通攻击技能ID
+        heroData.skills = {{skillId = defaultSkillId, level = 1}} -- 与 ally_data.lua 格式一致
+        skillsConfig = {
+            {
+                skillId = defaultSkillId,
+                skillType = 1,
+                name = "普通攻击",
+                skillCost = 0
+            }
+        }
     else
-        heroData.skills = skillList
+        -- 将 skillList 转换为与 ally_data.lua 相同的格式
+        heroData.skills = {}
+        for _, sid in ipairs(skillList) do
+            table.insert(heroData.skills, {skillId = sid, level = 1})
+        end
     end
+    
+    heroData.skillsConfig = skillsConfig
 
     return heroData
 end

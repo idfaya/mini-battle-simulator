@@ -319,26 +319,59 @@ end
 ---@param hero table 英雄对象
 ---@return table 技能对象
 local function SelectAvailableSkill(hero)
-    if not hero.skills or #hero.skills == 0 then
-        return nil
+    -- 优先使用 skillsConfig（包含完整的技能配置信息）
+    local skillsConfig = hero.skillsConfig
+    if not skillsConfig or #skillsConfig == 0 then
+        -- 回退到旧的 skills 格式
+        if not hero.skills or #hero.skills == 0 then
+            return nil
+        end
+        -- 将旧的格式转换为技能对象格式
+        -- skills 可能是 {skillId, level} 对象数组，也可能是数字数组
+        skillsConfig = {}
+        for _, skillData in ipairs(hero.skills) do
+            local skillId, skillType, skillName, skillCost
+            if type(skillData) == "table" then
+                -- 新格式: {skillId = xxx, level = yyy}
+                skillId = skillData.skillId
+                skillType = E_SKILL_TYPE_NORMAL
+                skillName = "Skill_" .. tostring(skillId)
+                skillCost = 0
+            else
+                -- 旧格式: 数字ID
+                skillId = skillData
+                skillType = E_SKILL_TYPE_NORMAL
+                skillName = "Skill_" .. tostring(skillId)
+                skillCost = 0
+            end
+            table.insert(skillsConfig, {
+                skillId = skillId,
+                skillType = skillType,
+                name = skillName,
+                skillCost = skillCost
+            })
+        end
     end
     
-    -- 遍历所有技能，找到冷却完成且能量足够的大招技能
-    for _, skill in ipairs(hero.skills) do
-        if skill.skillId and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+    -- 从 hero.skillData.skillInstances 中获取实际可用的技能
+    local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
+    
+    -- 遍历所有可用技能，找到冷却完成且能量足够的大招技能
+    for skillId, skill in pairs(availableSkills) do
+        if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
             -- 检查冷却
-            local cd = BattleSkill.GetSkillCurCoolDown(hero, skill.skillId)
+            local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
             if cd == 0 then
                 -- 检查能量
                 local energyCost = skill.skillCost or 0
                 if hero.curEnergy and hero.curEnergy >= energyCost then
                     Logger.Log(string.format("[SelectAvailableSkill] %s 选择大招: %s (能量:%d/%d)", 
-                        hero.name or "Unknown", skill.name or tostring(skill.skillId),
+                        hero.name or "Unknown", skill.name or tostring(skillId),
                         hero.curEnergy, energyCost))
                     return skill
                 else
                     Logger.Log(string.format("[SelectAvailableSkill] %s 能量不足，无法使用大招 %s (能量:%d/%d)", 
-                        hero.name or "Unknown", skill.name or tostring(skill.skillId),
+                        hero.name or "Unknown", skill.name or tostring(skillId),
                         hero.curEnergy or 0, energyCost))
                 end
             end
@@ -346,14 +379,20 @@ local function SelectAvailableSkill(hero)
     end
     
     -- 如果没有可用的大招，使用普通攻击
-    for _, skill in ipairs(hero.skills) do
-        if skill.skillId and skill.skillType == E_SKILL_TYPE_NORMAL then
+    for skillId, skill in pairs(availableSkills) do
+        if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
             return skill
         end
     end
     
-    -- 默认返回第一个技能
-    return hero.skills[1]
+    -- 默认返回第一个可用技能
+    for _, skill in pairs(availableSkills) do
+        if skill then
+            return skill
+        end
+    end
+    
+    return nil
 end
 
 --- 执行英雄行动
@@ -368,6 +407,11 @@ function BattleMain.ExecuteHeroAction(hero)
 
     -- 智能选择可用技能
     local skill = SelectAvailableSkill(hero)
+    if not skill then
+        Logger.LogWarning(string.format("[ExecuteHeroAction] %s 没有可用技能，跳过行动", hero.name or "Unknown"))
+        return
+    end
+    
     if skill and skill.skillId then
         -- 获取随机敌人作为目标
         local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
