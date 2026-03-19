@@ -33,12 +33,10 @@ local CONFIG_DIR = "../config/"
 
 function SkillConfig.LoadSkillConfig()
     local json = require("utils.json")
-    -- 尝试多个可能的路径
+    -- 只使用本地配置路径
     local paths = {
         CONFIG_DIR .. "res_skill.json",
         "config/res_skill.json",
-        "Assets/Res/Data/res_skill.json",
-        "../Assets/Res/Data/res_skill.json",
     }
     
     local file = nil

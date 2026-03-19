@@ -19,11 +19,9 @@ end
 function BuffConfig.LoadBuffConfig()
     local json = require("utils.json")
     
-    -- 尝试多个可能的路径
+    -- 只使用本地配置路径
     local paths = {
         "config/res_buff_template.json",
-        "Assets/Res/Data/res_buff_template.json",
-        "../Assets/Res/Data/res_buff_template.json",
     }
     
     local file = nil
