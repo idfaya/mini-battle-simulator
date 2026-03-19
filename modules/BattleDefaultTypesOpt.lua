@@ -1,4 +1,7 @@
-require("modules.BattleDefaultTypes")
+-- 先加载 BattleDefaultTypes（如果未加载）
+if not _G.Vector3_Default then
+    require("modules.BattleDefaultTypes")
+end
 
 local function ValueEquals(t1, t2)
     if t1 == t2 then return true end

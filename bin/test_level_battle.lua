@@ -21,6 +21,7 @@ print("")
 
 -- 加载必要模块
 require("core.battle_enum")
+require("modules.BattleDefaultTypesOpt")  -- 技能脚本依赖此模块
 local AllyData = require("config.ally_data")
 local EnemyData = require("config.enemy_data")
 local BattleMain = require("modules.battle_main")
@@ -59,6 +60,18 @@ local function LoadAllEnemyIds()
     for _, enemy in ipairs(enemies) do
         if enemy.ID then
             table.insert(allEnemyIds, enemy.ID)
+        end
+    end
+end
+
+-- 加载所有Boss ID (MonsterType=2)
+local allBossIds = {}
+local function LoadAllBossIds()
+    local bosses = EnemyData.GetEnemiesByMonsterType(2)
+    allBossIds = {}
+    for _, boss in ipairs(bosses) do
+        if boss.ID then
+            table.insert(allBossIds, boss.ID)
         end
     end
 end
@@ -110,23 +123,11 @@ local function CreateEnemy(enemyId, level)
     local enemyData = EnemyData.ConvertToHeroData(enemyId)
     if not enemyData then return nil end
     
-    -- 获取敌人技能
-    local enemyConfig = EnemyData.GetEnemy(enemyId)
-    enemyData.skillsConfig = {}
-    
-    if enemyConfig and enemyConfig.Skill then
-        for _, skillId in ipairs(enemyConfig.Skill) do
-            if skillId > 0 then
-                local skillConfig = SkillData.GetSkill(skillId)
-                if skillConfig then
-                    table.insert(enemyData.skillsConfig, {
-                        skillId = skillId,
-                        skillType = skillConfig.Type == 2 and E_SKILL_TYPE_ULTIMATE or E_SKILL_TYPE_NORMAL,
-                        name = skillConfig.Name,
-                        skillCost = skillConfig.Type == 2 and 100 or 0
-                    })
-                end
-            end
+    -- skillsConfig 已由 EnemyData.ConvertToHeroData 自动生成
+    -- 只需要转换 skillType 为战斗系统使用的枚举值
+    if enemyData.skillsConfig then
+        for _, cfg in ipairs(enemyData.skillsConfig) do
+            cfg.skillType = cfg.skillType == 2 and E_SKILL_TYPE_ULTIMATE or E_SKILL_TYPE_NORMAL
         end
     end
     
@@ -141,18 +142,35 @@ local function Main()
     -- 加载所有可用ID
     LoadAllHeroIds()
     LoadAllEnemyIds()
+    LoadAllBossIds()
     
-    print(string.format("可用英雄: %d, 可用敌人: %d", #allHeroIds, #allEnemyIds))
+    print(string.format("可用英雄: %d, 可用小怪: %d, 可用Boss: %d", #allHeroIds, #allEnemyIds, #allBossIds))
     print("")
     
-    if #allHeroIds == 0 or #allEnemyIds == 0 then
-        print("错误: 无法加载英雄或敌人配置")
+    if #allHeroIds == 0 then
+        print("错误: 无法加载英雄配置")
         return
     end
     
-    -- 随机选择英雄和敌人
+    -- 随机选择英雄
     local selectedHeroIds = RandomSelect(allHeroIds, heroCount)
-    local selectedEnemyIds = RandomSelect(allEnemyIds, enemyCount)
+    
+    -- 随机选择一个Boss作为主敌人
+    local selectedEnemyIds = {}
+    if #allBossIds > 0 then
+        local randomBossId = allBossIds[math.random(#allBossIds)]
+        table.insert(selectedEnemyIds, randomBossId)
+        print(string.format("\n【本场Boss】ID: %d", randomBossId))
+    end
+    
+    -- 如果还有剩余敌人数量，用小怪填充
+    local remainingCount = enemyCount - #selectedEnemyIds
+    if remainingCount > 0 and #allEnemyIds > 0 then
+        local selectedMobs = RandomSelect(allEnemyIds, remainingCount)
+        for _, mobId in ipairs(selectedMobs) do
+            table.insert(selectedEnemyIds, mobId)
+        end
+    end
     
     -- 计算等级范围 (目标等级 ± 10级)
     local minLevel = math.max(1, targetLevel - 10)
@@ -180,8 +198,11 @@ local function Main()
         local enemy = CreateEnemy(enemyId, level)
         if enemy then
             table.insert(enemies, enemy)
-            print(string.format("  %d. %s (Lv.%d)", 
-                i, enemy.name, level))
+            -- 判断是否是Boss (MonsterType=2)
+            local isBoss = enemy._monsterType == 2
+            local prefix = isBoss and "【BOSS】" or ""
+            print(string.format("  %d. %s%s (Lv.%d %s)", 
+                i, prefix, enemy.name, level, enemy._monsterTypeName or ""))
         end
     end
     
