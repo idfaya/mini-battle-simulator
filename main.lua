@@ -30,6 +30,9 @@ require("core.battle_types")
 require("core.battle_enum")
 require("core.battle_default_types")
 
+-- 加载 BattleDefaultTypesOpt（技能脚本依赖此模块）
+require("modules.BattleDefaultTypesOpt")
+
 -- 加载所需工具库
 local Logger = require("utils.logger")
 local Inspect = require("utils.inspect")

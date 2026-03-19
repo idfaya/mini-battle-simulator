@@ -902,7 +902,10 @@ function BattleSkill.LoadSkillLua(skillId)
     -- 从 SkillConfig 获取Lua路径
     local luaPath = SkillConfig.GetSkillLuaPath(skillId)
     if not luaPath or luaPath == "" then
-        Logger.LogWarning("[BattleSkill.LoadSkillLua] 技能 " .. tostring(skillId) .. " 没有配置Lua脚本")
+        -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
+        if skillId ~= 1001 then
+            Logger.Log("[BattleSkill.LoadSkillLua] 技能 " .. tostring(skillId) .. " 没有配置Lua脚本，使用默认普通攻击")
+        end
         return nil
     end
 
