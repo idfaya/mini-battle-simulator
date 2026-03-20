@@ -5,6 +5,7 @@
 
 local Logger = require("utils.logger")
 local SkillConfig = require("config.skill_config")
+local BattleEvent = require("core.battle_event")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -160,7 +161,8 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 从 res_skill.json 加载的数据
         skillParam = skillParam,
         skillBuffs = skillBuffs,
-        skillCost = skillCost,
+        -- 优先使用传入的 skillConfig.skillCost，否则使用 SkillConfig 中的值
+        skillCost = mergedConfig.skillCost or skillCost or 0,
 
         -- 技能目标配置
         castTarget = mergedConfig.castTarget or E_CAST_TARGET.Enemy,
@@ -951,8 +953,11 @@ end
 ---@param skill table 技能对象
 ---@param targets table 目标列表
 function BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
-    -- TODO: 触发技能释放事件，通知其他系统
-    -- 例如：触发被动技能、记录战斗日志等
+    -- 触发技能释放事件，通知其他系统
+    local target = targets and targets[1] or nil
+    if target then
+        BattleEvent.Publish("SkillCast", hero, target, skill.name or "未知技能")
+    end
 end
 
 --- 获取英雄的所有技能

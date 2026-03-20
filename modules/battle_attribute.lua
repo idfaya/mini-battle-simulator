@@ -65,11 +65,12 @@ local function GetAttrDefaultValue(attrId)
 end
 
 --- 初始化英雄属性
----@param hero table 英雄对象
+---@param hero table 英雄对象 (可选，不传则为模块初始化)
 ---@param attributeMap table 属性映射表 { [attrId] = value, ... }
 function BattleAttribute.Init(hero, attributeMap)
+    -- 如果没有传入hero，只是模块初始化，直接返回
     if not hero then
-        Logger.LogWarning("BattleAttribute.Init - hero 为空")
+        -- 模块级初始化，无需处理
         return
     end
 

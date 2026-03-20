@@ -61,7 +61,7 @@ local BORDERS = {
 -- 显示配置
 local DISPLAY_CONFIG = {
     CARD_WIDTH = 28,
-    CARD_HEIGHT = 10,
+    CARD_HEIGHT = 12,
     HP_BAR_WIDTH = 20,
     ENERGY_BAR_WIDTH = 20,
     MAX_LOG_LINES = 8,
@@ -106,16 +106,9 @@ end
 
 --- 清屏
 function BattleDisplay.ClearScreen()
-    -- Windows使用cls，Unix使用clear
-    if package.config:sub(1, 1) == "\\" then
-        os.execute("cls")
-    else
-        os.execute("clear")
-    end
-    -- 备用方案：打印空行
-    for i = 1, 50 do
-        print("")
-    end
+    -- 使用ANSI转义码清屏，比调用系统命令更可靠
+    io.write("\27[2J\27[H")
+    io.flush()
 end
 
 --- 绘制水平线
@@ -168,17 +161,22 @@ function BattleDisplay.ShowHpBar(current, max, width)
     local hpColor = GetHpColor(percent)
     local bar = string.rep(filledChar, filled) .. string.rep(emptyChar, empty)
     
-    local hpText = string.format("%d/%d", current, max)
-    -- 将数字居中显示在条上
-    local textStart = math.floor((width - #hpText) / 2)
-    if textStart > 0 and textStart + #hpText <= width then
-        bar = bar:sub(1, textStart) .. hpText .. bar:sub(textStart + #hpText + 1)
-    end
-    
+    -- 只返回HP条，不嵌入数字，避免长度不固定导致错位
     return ColorText("[" .. bar .. "]", hpColor)
 end
 
---- 绘制能量条
+--- 获取HP数值文本（单独显示在HP条下方）
+---@param current number 当前HP
+---@param max number 最大HP
+---@return string HP数值字符串
+function BattleDisplay.ShowHpText(current, max)
+    current = math.max(0, math.min(current, max))
+    local percent = current / max
+    local hpColor = GetHpColor(percent)
+    return ColorText(string.format("%d/%d", current, max), hpColor)
+end
+
+--- 绘制能量条（只返回条，不返回数值）
 ---@param points number 当前能量点数
 ---@param maxPoints number 最大能量点数
 ---@param width number 条宽度 (可选，默认20)
@@ -197,15 +195,22 @@ function BattleDisplay.ShowEnergyBar(points, maxPoints, width)
         else
             bar = bar .. ColorText("◇", COLORS.BRIGHT_BLACK)
         end
-        if i < maxPoints then
-            bar = bar .. ""
-        end
     end
     
-    return "[" .. bar .. "] " .. ColorText(tostring(points) .. "/" .. maxPoints, energyColor)
+    return "[" .. bar .. "]"
 end
 
---- 绘制能量条(Bar类型)
+--- 获取能量数值文本
+---@param points number 当前能量点数
+---@param maxPoints number 最大能量点数
+---@return string 能量数值字符串
+function BattleDisplay.ShowEnergyText(points, maxPoints)
+    points = math.max(0, math.min(points, maxPoints))
+    local energyColor = COLORS.BRIGHT_YELLOW
+    return ColorText(tostring(points) .. "/" .. maxPoints, energyColor)
+end
+
+--- 绘制能量条(Bar类型)（只返回条，不返回百分比）
 ---@param current number 当前能量
 ---@param max number 最大能量
 ---@param width number 条宽度
@@ -217,13 +222,23 @@ function BattleDisplay.ShowEnergyBarType(current, max, width)
     local filled = math.floor(width * percent)
     local empty = width - filled
     
-    local filledChar = "█"
-    local emptyChar = "░"
+    local filledChar = "="
+    local emptyChar = "-"
     
     local bar = string.rep(filledChar, filled) .. string.rep(emptyChar, empty)
-    local energyText = string.format("%d%%", math.floor(percent * 100))
     
-    return ColorText("[" .. bar .. "] " .. energyText, COLORS.BRIGHT_YELLOW)
+    return ColorText("[" .. bar .. "]", COLORS.BRIGHT_YELLOW)
+end
+
+--- 获取能量百分比文本
+---@param current number 当前能量
+---@param max number 最大能量
+---@return string 能量百分比字符串
+function BattleDisplay.ShowEnergyPercent(current, max)
+    current = math.max(0, math.min(current, max))
+    local percent = current / max
+    local energyText = string.format("%d%%", math.floor(percent * 100))
+    return ColorText(energyText, COLORS.BRIGHT_YELLOW)
 end
 
 -- ==================== Buff列表绘制 ====================
@@ -247,19 +262,21 @@ end
 ---@param buffList table Buff列表
 ---@param x number 显示位置X (控制台列)
 ---@param y number 显示位置Y (控制台行)
+---@return table { plain = 纯文本, colored = 带颜色文本 }
 function BattleDisplay.ShowBuffList(buffList, x, y)
     if not buffList or #buffList == 0 then
-        return
+        return { plain = "", colored = "" }
     end
     
     -- 限制显示的buff数量
     local maxDisplay = 4
     local displayCount = math.min(#buffList, maxDisplay)
     
-    local buffIcons = ""
+    local buffIconsPlain = ""
+    local buffIconsColored = ""
     for i = 1, displayCount do
         local buff = buffList[i]
-        local icon = buff.icon or "●"
+        local icon = buff.icon or "*"
         local color = GetBuffTypeColor(buff.mainType)
         
         -- 显示层数
@@ -268,15 +285,17 @@ function BattleDisplay.ShowBuffList(buffList, x, y)
             stackText = tostring(buff.stackCount)
         end
         
-        buffIcons = buffIcons .. ColorText(icon .. stackText, color) .. " "
+        buffIconsPlain = buffIconsPlain .. icon .. stackText .. " "
+        buffIconsColored = buffIconsColored .. ColorText(icon .. stackText, color) .. " "
     end
     
     -- 如果还有更多buff，显示省略号
     if #buffList > maxDisplay then
-        buffIcons = buffIcons .. ColorText("...", COLORS.BRIGHT_BLACK)
+        buffIconsPlain = buffIconsPlain .. "..."
+        buffIconsColored = buffIconsColored .. ColorText("...", COLORS.BRIGHT_BLACK)
     end
     
-    return buffIcons
+    return { plain = buffIconsPlain, colored = buffIconsColored }
 end
 
 --- 获取Buff详细描述
@@ -305,13 +324,15 @@ end
 
 --- 显示技能冷却状态
 ---@param hero table 英雄对象
----@return string 技能冷却字符串
+---@return table 技能冷却字符串 { plain = 纯文本, colored = 带颜色文本, displayWidth = 显示宽度 }
 local function ShowSkillCooldowns(hero)
     if not hero or not hero.skills then
-        return ""
+        return { plain = "", colored = "", displayWidth = 0 }
     end
     
-    local cooldownText = ""
+    local cooldownTextPlain = ""
+    local cooldownTextColored = ""
+    local displayWidth = 0
     local skillCount = 0
     
     for _, skill in ipairs(hero.skills) do
@@ -327,15 +348,29 @@ local function ShowSkillCooldowns(hero)
         local maxCd = skill.maxCoolDown or 0
         
         if cd > 0 then
-            cooldownText = cooldownText .. ColorText(skillName .. "(" .. cd .. ")", COLORS.BRIGHT_RED) .. " "
+            local text = skillName .. "(" .. cd .. ")"
+            cooldownTextPlain = cooldownTextPlain .. text
+            cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(" .. cd .. ")", COLORS.BRIGHT_RED)
+            displayWidth = displayWidth + #text
         else
-            cooldownText = cooldownText .. ColorText(skillName .. "(✓)", COLORS.BRIGHT_GREEN) .. " "
+            local text = skillName .. "(✓)"
+            cooldownTextPlain = cooldownTextPlain .. text
+            cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(✓)", COLORS.BRIGHT_GREEN)
+            -- ✓ 可能占用2个字符宽度
+            displayWidth = displayWidth + #skillName + 1 + 2 -- skillName + ( + ✓(2) + )
+        end
+        
+        -- 不是最后一个技能才加空格
+        if skillCount < 2 then
+            cooldownTextPlain = cooldownTextPlain .. " "
+            cooldownTextColored = cooldownTextColored .. " "
+            displayWidth = displayWidth + 1
         end
         
         skillCount = skillCount + 1
     end
     
-    return cooldownText
+    return { plain = cooldownTextPlain, colored = cooldownTextColored, displayWidth = displayWidth }
 end
 
 -- ==================== 英雄卡片绘制 ====================
@@ -360,64 +395,116 @@ function BattleDisplay.ShowHeroCard(hero, x, y)
     
     -- 英雄名称行
     local name = hero.name or "Unknown"
-    if #name > width - 4 then
-        name = name:sub(1, width - 4)
+    -- 内容区域宽度 = 总宽度 - 2(左右边框)
+    local contentWidth = width - 2
+    if #name > contentWidth - 2 then
+        name = name:sub(1, contentWidth - 2)
     end
-    local namePadding = width - 4 - #name
-    local nameLine = " " .. name .. string.rep(" ", namePadding) .. " "
+    -- 左右各一个空格，所以padding = contentWidth - 2(空格) - #name
+    local namePadding = contentWidth - 2 - #name
+    local nameLineContent = " " .. name .. string.rep(" ", namePadding) .. " "
+    -- 始终显示边框，死亡时只改变文字颜色
     if isDead then
-        nameLine = ColorText(nameLine, COLORS.BRIGHT_BLACK)
+        nameLineContent = ColorText(nameLineContent, COLORS.BRIGHT_BLACK)
     else
-        nameLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. ColorText(nameLine, teamColor) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+        nameLineContent = ColorText(nameLineContent, teamColor)
     end
+    local nameLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. nameLineContent .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
     table.insert(lines, nameLine)
     
     -- 分隔线
     table.insert(lines, teamColor .. BORDERS.T_LEFT .. string.rep(BORDERS.HORIZONTAL, width - 2) .. BORDERS.T_RIGHT .. COLORS.RESET)
     
     -- HP条
-    local hpBar = BattleDisplay.ShowHpBar(hero.hp or 0, hero.maxHp or 100, width - 4)
-    local hpLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " " .. hpBar .. " " .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    -- ShowHpBar 返回的格式是 [████░░░░░░]，包含 [] 共2个字符
+    -- 所以传入的宽度应该是 contentWidth - 2，这样返回的总长度 = contentWidth
+    local hpBar = BattleDisplay.ShowHpBar(hero.hp or 0, hero.maxHp or 100, contentWidth - 2)
+    local hpLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. hpBar .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
     table.insert(lines, hpLine)
     
+    -- HP数值（单独一行，右对齐）
+    local hpTextPlain = string.format("%d/%d", hero.hp or 0, hero.maxHp or 100)
+    local hpTextColored = BattleDisplay.ShowHpText(hero.hp or 0, hero.maxHp or 100)
+    -- 内容区域宽度 = 总宽度 - 2(左右边框)，右侧一个空格
+    local hpTextPadding = contentWidth - 1 - #hpTextPlain
+    if hpTextPadding < 0 then hpTextPadding = 0 end
+    local hpTextLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. string.rep(" ", hpTextPadding) .. hpTextColored .. " " .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    table.insert(lines, hpTextLine)
+    
     -- 能量条
+    -- 注意：能量系统使用 hero.curEnergy 而不是 hero.energy
+    local curEnergy = hero.curEnergy or hero.energy or 0
+    local maxEnergy = hero.maxEnergy or 100
+    
+    -- ShowEnergyBar 返回 [◆◆◇◇◇]，长度 = maxPoints + 2
+    -- 传入 maxPoints，返回长度 = maxPoints + 2，需要 contentWidth - 2
     local energyLine = ""
+    local energyTextPlain = ""
+    local energyTextColored = ""
     if hero.energyType == E_ENERGY_TYPE.Point then
-        local energyBar = BattleDisplay.ShowEnergyBar(hero.energy or 0, hero.maxEnergy or 5, width - 4)
-        energyLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " " .. energyBar .. " " .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+        local maxPoints = maxEnergy
+        local energyBar = BattleDisplay.ShowEnergyBar(curEnergy, maxPoints, maxPoints)
+        energyLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. energyBar .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+        energyTextPlain = tostring(curEnergy) .. "/" .. maxPoints
+        energyTextColored = BattleDisplay.ShowEnergyText(curEnergy, maxPoints)
     else
-        local energyBar = BattleDisplay.ShowEnergyBarType(hero.energy or 0, hero.maxEnergy or 100, width - 4)
-        energyLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " " .. energyBar .. " " .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+        -- ShowEnergyBarType 返回 [====----]，长度 = width + 2
+        local barWidth = contentWidth - 2
+        local energyBar = BattleDisplay.ShowEnergyBarType(curEnergy, maxEnergy, barWidth)
+        energyLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. energyBar .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+        local percent = math.floor((curEnergy / maxEnergy) * 100)
+        energyTextPlain = percent .. "%"
+        energyTextColored = BattleDisplay.ShowEnergyPercent(curEnergy, maxEnergy)
     end
     table.insert(lines, energyLine)
     
+    -- 能量数值（单独一行，右对齐）
+    local energyTextPadding = contentWidth - 1 - #energyTextPlain
+    if energyTextPadding < 0 then energyTextPadding = 0 end
+    local energyTextLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. string.rep(" ", energyTextPadding) .. energyTextColored .. " " .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    table.insert(lines, energyTextLine)
+    
     -- Buff列表
     local buffList = BattleBuff.GetAllBuffs(hero)
-    local buffText = BattleDisplay.ShowBuffList(buffList, 0, 0) or ""
-    local buffPadding = width - 4 - #buffText
+    local buffResult = BattleDisplay.ShowBuffList(buffList, 0, 0) or { plain = "", colored = "" }
+    -- Buff列表
+    -- "Buff:" 前缀占 5 个字符
+    local buffPadding = contentWidth - 5 - #buffResult.plain
     if buffPadding < 0 then buffPadding = 0 end
-    local buffLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " Buff:" .. buffText .. string.rep(" ", buffPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    local buffLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. "Buff:" .. buffResult.colored .. string.rep(" ", buffPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
     table.insert(lines, buffLine)
     
     -- 技能冷却
-    local cooldownText = ShowSkillCooldowns(hero)
-    local cdPadding = width - 4 - #cooldownText
+    local cooldownResult = ShowSkillCooldowns(hero)
+    -- 使用 displayWidth 计算 padding，因为 ✓ 可能占用2个字符宽度
+    local cdPadding = contentWidth - cooldownResult.displayWidth
     if cdPadding < 0 then cdPadding = 0 end
-    local cdLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " " .. cooldownText .. string.rep(" ", cdPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    local cdLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. cooldownResult.colored .. string.rep(" ", cdPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
     table.insert(lines, cdLine)
     
     -- 状态信息
-    local statusText = ""
+    -- 注意：Unicode字符(♥☠⚠)在终端中可能占用0、1或2个字符宽度，需要根据实际情况调整
+    -- 从截图看，这些字符似乎不占用宽度（或者和后续字符重叠显示）
+    local statusTextPlain = ""
+    local statusTextColored = ""
+    local statusDisplayWidth = 0
     if isDead then
-        statusText = ColorText(" ☠ 已阵亡 ", COLORS.BRIGHT_RED)
+        statusTextPlain = "☠ 已阵亡"
+        statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_RED)
+        statusDisplayWidth = 0 + 1 + 3 -- ☠(0) + 空格(1) + 已阵亡(3)
     elseif BattleBuff.IsHeroUnderControl(hero) then
-        statusText = ColorText(" ⚠ 被控制 ", COLORS.BRIGHT_YELLOW)
+        statusTextPlain = "⚠ 被控制"
+        statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_YELLOW)
+        statusDisplayWidth = 0 + 1 + 3 -- ⚠(0) + 空格(1) + 被控制(3)
     else
-        statusText = ColorText(" ♥ 存活 ", COLORS.BRIGHT_GREEN)
+        statusTextPlain = "♥ 存活"
+        statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_GREEN)
+        statusDisplayWidth = 0 + 1 + 2 -- ♥(0) + 空格(1) + 存活(2)
     end
-    local statusPadding = width - 4 - #statusText
+    -- 计算padding使总长度 = contentWidth
+    local statusPadding = contentWidth - statusDisplayWidth
     if statusPadding < 0 then statusPadding = 0 end
-    local statusLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. " " .. statusText .. string.rep(" ", statusPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
+    local statusLine = teamColor .. BORDERS.VERTICAL .. COLORS.RESET .. statusTextColored .. string.rep(" ", statusPadding) .. teamColor .. BORDERS.VERTICAL .. COLORS.RESET
     table.insert(lines, statusLine)
     
     -- 卡片底部边框
@@ -436,7 +523,7 @@ function BattleDisplay.ShowBattleField(teamLeft, teamRight)
     teamRight = teamRight or BattleFormation.teamRight
     
     print("")
-    print(ColorText("                    ⚔ BATTLE FIELD ⚔", COLORS.BRIGHT_WHITE))
+    print(ColorText("                    [ BATTLE FIELD ]", COLORS.BRIGHT_WHITE))
     print("")
     
     -- 显示队伍标题

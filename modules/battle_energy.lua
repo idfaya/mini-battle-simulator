@@ -89,6 +89,11 @@ function BattleEnergy.ConsumeEnergy(hero, amount)
     
     Logger.Log(string.format("[BattleEnergy] %s 能量消耗: %d - %d = %d/%d",
         hero.name or "Unknown", oldEnergy, amount, data.curEnergy, data.maxEnergy))
+    
+    -- 发布能量消耗事件
+    local BattleEvent = require("core.battle_event")
+    BattleEvent.Publish("ENERGY_CONSUMED", hero, amount)
+    
     return true
 end
 

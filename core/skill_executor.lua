@@ -109,6 +109,7 @@ function SkillExecutor.ExecuteDamage(hero, targets, damageConfig, skillParam)
     
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattleFormula = require("core.battle_formula")
+    local BattleEvent = require("core.battle_event")
     
     -- 从skillParam获取伤害倍率
     local damageRate = 10000  -- 默认100%
@@ -125,10 +126,13 @@ function SkillExecutor.ExecuteDamage(hero, targets, damageConfig, skillParam)
             -- CalcDamage返回 { damage, isCrit, isBlock }
             local damageResult = BattleFormula.CalcDamage(hero, target, damageRate)
             local finalDamage = damageResult.damage or 0
+            local isCrit = damageResult.isCrit or false
             
             -- 应用伤害
             if finalDamage > 0 then
                 BattleDmgHeal.ApplyDamage(target, finalDamage, hero)
+                -- 发布伤害事件
+                BattleEvent.Publish("Damage", target, finalDamage, isCrit)
                 Log(string.format("  -> %s 受到 %d 点伤害", target.name or "Unknown", finalDamage))
             end
         end
@@ -185,6 +189,7 @@ function SkillExecutor.ExecuteHeal(hero, targets, healConfig)
     end
     
     local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local BattleEvent = require("core.battle_event")
     
     Log(string.format("[SkillExecutor.ExecuteHeal] %s 治疗 %d 个目标", 
         hero.name or "Unknown", #targets))
@@ -194,6 +199,8 @@ function SkillExecutor.ExecuteHeal(hero, targets, healConfig)
             local healValue = healConfig.healValue or 0
             if healValue > 0 then
                 BattleDmgHeal.ApplyHeal(target, healValue, hero)
+                -- 发布治疗事件
+                BattleEvent.Publish("Heal", target, healValue)
                 Log(string.format("  -> %s 恢复 %d 点HP", target.name or "Unknown", healValue))
             end
         end

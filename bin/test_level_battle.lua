@@ -1,7 +1,8 @@
 --[[
     等级输入随机战斗测试脚本
-    使用方法: lua test_level_battle.lua [等级] [英雄数量] [敌人数量]
-    示例: lua test_level_battle.lua 50 3 4
+    使用方法: lua test_level_battle.lua [等级] [英雄数量] [敌人数量] [更新速度(毫秒)]
+    示例: lua test_level_battle.lua 50 3 4 500
+    更新速度: 0=极速(无延迟), 100=快, 500=正常, 1000=慢
 --]]
 
 -- 设置UTF-8编码
@@ -14,9 +15,11 @@ package.path = package.path .. ";../?.lua"
 local targetLevel = tonumber(arg[1]) or 50
 local heroCount = tonumber(arg[2]) or 3
 local enemyCount = tonumber(arg[3]) or 4
+local updateSpeed = tonumber(arg[4]) or 200  -- 默认200毫秒
 
 print(string.format("=== 等级 %d 随机战斗测试 ===", targetLevel))
 print(string.format("英雄数量: %d, 敌人数量: %d", heroCount, enemyCount))
+print(string.format("更新速度: %d毫秒 (0=极速)", updateSpeed))
 print("")
 
 -- 加载必要模块
@@ -27,9 +30,11 @@ local EnemyData = require("config.enemy_data")
 local BattleMain = require("modules.battle_main")
 local SkillData = require("config.skill_data")
 local Logger = require("utils.logger")
+local BattleDisplay = require("ui.battle_display")
+local BattleEvent = require("core.battle_event")
 
--- 设置日志级别为 INFO，显示战斗过程
-Logger.SetLogLevel(Logger.LOG_LEVELS.INFO)
+-- 设置日志级别为 WARN，减少日志干扰显示
+Logger.SetLogLevel(Logger.LOG_LEVELS.WARN)
 
 -- 加载所有英雄和敌人配置
 local allHeroIds = {}
@@ -134,6 +139,15 @@ local function CreateEnemy(enemyId, level)
     return enemyData
 end
 
+-- 简单的睡眠函数（毫秒）
+local function Sleep(ms)
+    if ms <= 0 then return end
+    local start = os.clock()
+    while (os.clock() - start) * 1000 < ms do
+        -- 忙等待
+    end
+end
+
 -- 主函数
 local function Main()
     -- 初始化随机种子
@@ -207,20 +221,17 @@ local function Main()
     end
     
     print("\n" .. string.rep("=", 50))
-    print("【战斗开始】")
-    print("")
+    print("战斗即将开始...")
+    Sleep(500)  -- 短暂延迟让用户看清阵容
+    
+    -- 清屏准备战斗显示
+    BattleDisplay.ClearScreen()
     
     -- 执行战斗（使用回调方式获取结果）
     local battleResult = nil
     local battleFinished = false
     
-    -- 检查英雄数据
-    print(string.format("[调试] 英雄数量: %d, 敌人数量: %d", #heroes, #enemies))
-    for i, hero in ipairs(heroes) do
-        print(string.format("[调试] 英雄 %d: %s, atk=%d, spd=%d", i, hero.name, hero.atk, hero.spd))
-    end
-    
-    -- 设置更新间隔为0，确保每次Update都执行
+    -- 设置更新间隔
     BattleMain.SetUpdateInterval(0)
     
     BattleMain.Start({
@@ -232,66 +243,90 @@ local function Main()
         battleFinished = true
     end)
     
+    -- 在 BattleMain.Start 之后注册事件监听器（因为 Start 会调用 BattleEvent.Init 清空监听器）
+    BattleEvent.AddListener("Damage", function(target, amount, isCrit)
+        local critMark = isCrit and " ⚡" or ""
+        local msg = string.format("%s 受到 %d 点伤害%s", target.name, amount, critMark)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    BattleEvent.AddListener("Heal", function(target, amount)
+        local msg = string.format("%s 恢复 %d 点生命", target.name, amount)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    BattleEvent.AddListener("BUFF_ADDED", function(caster, target, buff)
+        local msg = string.format("%s 获得 Buff [%s]", target.name, buff.name)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    BattleEvent.AddListener("SkillCast", function(hero, target, skillName)
+        local msg = string.format("%s 对 %s 使用 [%s]", hero.name, target.name, skillName)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    -- 监听能量消耗事件，立即刷新显示
+    BattleEvent.AddListener("ENERGY_CONSUMED", function(hero, amount)
+        BattleDisplay.Refresh()
+    end)
+    
     -- 驱动战斗循环
     local maxSteps = 20000
     local step = 0
-    local lastRound = 0
-    local lastHPLeft = 0
-    local lastHPRight = 0
+    local lastRound = -1
+    local lastActionHero = nil
     
     while not battleFinished and step < maxSteps do
         BattleMain.Update()
         step = step + 1
         
-        -- 每100步检查一次战斗状态并输出简要信息
-        if step % 100 == 0 then
-            -- 获取当前战斗状态
-            local currentRound = 0
-            local totalHPLeft = 0
-            local totalHPRight = 0
-            
-            -- 尝试获取战斗信息（如果模块支持）
-            local BattleFormation = require("modules.battle_formation")
-            if BattleFormation and BattleFormation.GetAllHeroes then
-                local allHeroes = BattleFormation.GetAllHeroes()
-                for _, hero in ipairs(allHeroes or {}) do
-                    if hero then
-                        local hp = hero.hp or 0
-                        if hero.side == "left" then
-                            totalHPLeft = totalHPLeft + hp
-                        elseif hero.side == "right" then
-                            totalHPRight = totalHPRight + hp
-                        end
-                    end
-                end
-            end
-            
-            -- 如果HP有变化，输出战斗进展
-            if totalHPLeft ~= lastHPLeft or totalHPRight ~= lastHPRight then
-                print(string.format("  步数 %d | 英雄方 HP: %d | 敌人方 HP: %d", 
-                    step, totalHPLeft, totalHPRight))
-                lastHPLeft = totalHPLeft
-                lastHPRight = totalHPRight
-            end
+        -- 获取当前回合和行动英雄
+        local currentRound = BattleMain.GetCurrentRound()
+        local BattleFormation = require("modules.battle_formation")
+        local BattleActionOrder = require("modules.battle_action_order")
+        
+        -- 检测回合变化或行动英雄变化
+        local currentActionHero = nil
+        if BattleActionOrder and BattleActionOrder.GetCurrentHero then
+            currentActionHero = BattleActionOrder.GetCurrentHero()
         end
         
-        -- 每5000步输出一次进度
-        if step % 5000 == 0 then
-            print(string.format("  ...战斗中，已执行 %d 步", step))
+        local shouldRefresh = false
+        
+        -- 回合变化时刷新
+        if currentRound ~= lastRound then
+            BattleDisplay.AddBattleLog(string.format("========== 回合 %d ==========", currentRound))
+            lastRound = currentRound
+            shouldRefresh = true
+        end
+        
+        -- 行动英雄变化时刷新
+        if currentActionHero and currentActionHero ~= lastActionHero then
+            lastActionHero = currentActionHero
+            shouldRefresh = true
+        end
+        
+        -- 定期刷新（确保事件被显示）
+        if step % 10 == 0 then
+            shouldRefresh = true
+        end
+        
+        -- 执行刷新
+        if shouldRefresh then
+            BattleDisplay.Refresh()
+            
+            -- 根据速度设置添加延迟
+            if updateSpeed > 0 then
+                Sleep(updateSpeed)
+            end
         end
     end
     
-    -- 输出结果
-    print("\n【战斗结果】")
+    -- 显示最终战斗结果
+    BattleDisplay.ClearScreen()
+    BattleDisplay.ShowVictoryScreen(battleResult and battleResult.winner)
+    
     if battleResult then
-        if battleResult.winner == "left" then
-            print("✓ 英雄方胜利!")
-        elseif battleResult.winner == "right" then
-            print("✗ 敌人方胜利!")
-        else
-            print("△ 战斗平局!")
-        end
-        
         if battleResult.totalRound then
             print(string.format("\n总回合数: %d", battleResult.totalRound))
         end
@@ -303,6 +338,7 @@ local function Main()
     
     -- 清理
     BattleMain.Quit()
+    BattleDisplay.ClearBattleLog()
 end
 
 -- 运行主函数

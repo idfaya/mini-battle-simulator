@@ -7,6 +7,7 @@
 local Logger = require("utils.logger")
 local BattleFormula = require("core.battle_formula")
 local BattleAttribute = require("modules.battle_attribute")
+local BattleEvent = require("core.battle_event")
 
 ---@class BattleDmgHeal
 local BattleDmgHeal = {}
@@ -193,6 +194,9 @@ function BattleDmgHeal.MakeDmg(attacker, defender, atkType, dmgParam, isShowDmg,
             BattleDmgHeal.Bloodthirsty(attacker, result.damage)
         end
 
+        -- 发布伤害事件
+        BattleEvent.Publish("Damage", defender, result.damage, result.isCrit)
+
         Logger.Debug(string.format("[BattleDmgHeal.MakeDmg] %s 对 %s 造成 %d 点伤害 (暴击:%s, 格挡:%s)",
             attacker.name or "Unknown",
             defender.name or "Unknown",
@@ -308,6 +312,9 @@ function BattleDmgHeal.MakeHeal(caster, target, healVal)
         -- 更新统计
         damageStats.totalHealDone = damageStats.totalHealDone + actualHeal
         damageStats.totalHealReceived = damageStats.totalHealReceived + actualHeal
+
+        -- 发布治疗事件
+        BattleEvent.Publish("Heal", target, actualHeal)
 
         Logger.Debug(string.format("[BattleDmgHeal.MakeHeal] %s 治疗 %s %d 点生命值 (实际:%d)",
             caster.name or "Unknown",
