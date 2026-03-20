@@ -322,6 +322,61 @@ end
 
 -- ==================== 技能冷却显示 ====================
 
+--- 计算字符串的显示宽度（中文字符算2个宽度）
+---@param str string 字符串
+---@return number 显示宽度
+local function GetDisplayWidth(str)
+    local width = 0
+    for i = 1, #str do
+        local byte = str:byte(i)
+        -- UTF-8中文字符：第一个字节 >= 0xE0 (224)
+        if byte >= 224 then
+            width = width + 2
+        elseif byte < 128 then
+            -- ASCII字符
+            width = width + 1
+        end
+        -- 忽略UTF-8后续字节 (128-191)
+    end
+    return width
+end
+
+--- 截断字符串到指定显示宽度（中文字符算2个宽度）
+---@param str string 原始字符串
+---@param maxWidth number 最大显示宽度
+---@return string 截断后的字符串
+local function TruncateToWidth(str, maxWidth)
+    local result = ""
+    local width = 0
+    local i = 1
+    while i <= #str do
+        local byte = str:byte(i)
+        if byte >= 224 then
+            -- UTF-8中文字符（3字节）
+            if width + 2 > maxWidth then break end
+            result = result .. str:sub(i, i + 2)
+            width = width + 2
+            i = i + 3
+        elseif byte >= 192 then
+            -- UTF-8双字节字符
+            if width + 2 > maxWidth then break end
+            result = result .. str:sub(i, i + 1)
+            width = width + 2
+            i = i + 2
+        elseif byte < 128 then
+            -- ASCII字符
+            if width + 1 > maxWidth then break end
+            result = result .. str:sub(i, i)
+            width = width + 1
+            i = i + 1
+        else
+            -- UTF-8后续字节，跳过
+            i = i + 1
+        end
+    end
+    return result
+end
+
 --- 显示技能冷却状态
 ---@param hero table 英雄对象
 ---@return table 技能冷却字符串 { plain = 纯文本, colored = 带颜色文本, displayWidth = 显示宽度 }
@@ -339,25 +394,27 @@ local function ShowSkillCooldowns(hero)
         if skillCount >= 3 then break end -- 最多显示3个技能
         
         local skillName = skill.name or "Skill"
-        -- 缩短技能名
-        if #skillName > 4 then
-            skillName = skillName:sub(1, 4)
+        -- 缩短技能名到4个显示宽度（中文字符算2个宽度）
+        if GetDisplayWidth(skillName) > 4 then
+            skillName = TruncateToWidth(skillName, 4)
         end
         
         local cd = skill.coolDown or 0
         local maxCd = skill.maxCoolDown or 0
+        local skillNameWidth = GetDisplayWidth(skillName)
         
         if cd > 0 then
             local text = skillName .. "(" .. cd .. ")"
             cooldownTextPlain = cooldownTextPlain .. text
             cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(" .. cd .. ")", COLORS.BRIGHT_RED)
-            displayWidth = displayWidth + #text
+            -- 数字和括号都是单字节
+            displayWidth = displayWidth + skillNameWidth + 1 + #tostring(cd) + 1
         else
             local text = skillName .. "(✓)"
             cooldownTextPlain = cooldownTextPlain .. text
             cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(✓)", COLORS.BRIGHT_GREEN)
-            -- ✓ 可能占用2个字符宽度
-            displayWidth = displayWidth + #skillName + 1 + 2 -- skillName + ( + ✓(2) + )
+            -- ✓ 占用1个字符宽度
+            displayWidth = displayWidth + skillNameWidth + 1 + 1 + 1
         end
         
         -- 不是最后一个技能才加空格
@@ -483,23 +540,25 @@ function BattleDisplay.ShowHeroCard(hero, x, y)
     table.insert(lines, cdLine)
     
     -- 状态信息
-    -- 注意：Unicode字符(♥☠⚠)在终端中可能占用0、1或2个字符宽度，需要根据实际情况调整
-    -- 从截图看，这些字符似乎不占用宽度（或者和后续字符重叠显示）
+    -- 注意：中文字符在终端中占用2个字符宽度
     local statusTextPlain = ""
     local statusTextColored = ""
     local statusDisplayWidth = 0
     if isDead then
         statusTextPlain = "☠ 已阵亡"
         statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_RED)
-        statusDisplayWidth = 0 + 1 + 3 -- ☠(0) + 空格(1) + 已阵亡(3)
+        -- ☠(1) + 空格(1) + 已(2) + 阵(2) + 亡(2) = 8
+        statusDisplayWidth = 1 + 1 + 2 + 2 + 2
     elseif BattleBuff.IsHeroUnderControl(hero) then
         statusTextPlain = "⚠ 被控制"
         statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_YELLOW)
-        statusDisplayWidth = 0 + 1 + 3 -- ⚠(0) + 空格(1) + 被控制(3)
+        -- ⚠(1) + 空格(1) + 被(2) + 控(2) + 制(2) = 8
+        statusDisplayWidth = 1 + 1 + 2 + 2 + 2
     else
         statusTextPlain = "♥ 存活"
         statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_GREEN)
-        statusDisplayWidth = 0 + 1 + 2 -- ♥(0) + 空格(1) + 存活(2)
+        -- ♥(1) + 空格(1) + 存(2) + 活(2) = 6
+        statusDisplayWidth = 1 + 1 + 2 + 2
     end
     -- 计算padding使总长度 = contentWidth
     local statusPadding = contentWidth - statusDisplayWidth
@@ -515,7 +574,7 @@ end
 
 -- ==================== 战场显示 ====================
 
---- 显示战场 (双方队伍)
+--- 显示战场 (双方队伍，上下排列)
 ---@param teamLeft table 左侧队伍
 ---@param teamRight table 右侧队伍
 function BattleDisplay.ShowBattleField(teamLeft, teamRight)
@@ -526,85 +585,95 @@ function BattleDisplay.ShowBattleField(teamLeft, teamRight)
     print(ColorText("                    [ BATTLE FIELD ]", COLORS.BRIGHT_WHITE))
     print("")
     
-    -- 显示队伍标题
-    local leftTitle = ColorText("【左侧队伍】", COLORS.BRIGHT_CYAN)
-    local rightTitle = ColorText("【右侧队伍】", COLORS.BRIGHT_MAGENTA)
-    local gap = string.rep(" ", DISPLAY_CONFIG.TEAM_GAP)
-    print(leftTitle .. string.rep(" ", DISPLAY_CONFIG.CARD_WIDTH * 2 + DISPLAY_CONFIG.TEAM_GAP - 16) .. rightTitle)
+    -- 显示上方队伍（左侧队伍）
+    local leftTitle = ColorText("【上方队伍 - 左侧】", COLORS.BRIGHT_CYAN)
+    print(leftTitle)
     print("")
     
-    -- 准备所有英雄卡片
+    -- 准备左侧队伍卡片
     local leftCards = {}
     for _, hero in ipairs(teamLeft) do
         table.insert(leftCards, BattleDisplay.ShowHeroCard(hero))
     end
     
+    -- 显示左侧队伍卡片（每行3个）
+    local cardsPerRow = 3
+    for row = 1, math.ceil(#leftCards / cardsPerRow) do
+        local heroes = {}
+        for i = 1, cardsPerRow do
+            local idx = (row - 1) * cardsPerRow + i
+            if idx <= #teamLeft then
+                table.insert(heroes, teamLeft[idx])
+            end
+        end
+        
+        -- 生成卡片行
+        local cardLines = {}
+        for _, hero in ipairs(heroes) do
+            table.insert(cardLines, BattleDisplay.ShowHeroCard(hero))
+        end
+        
+        -- 打印卡片行
+        local maxCardHeight = DISPLAY_CONFIG.CARD_HEIGHT
+        for lineIdx = 1, maxCardHeight do
+            local line = ""
+            for _, card in ipairs(cardLines) do
+                if card[lineIdx] then
+                    line = line .. card[lineIdx] .. "  "
+                else
+                    line = line .. string.rep(" ", DISPLAY_CONFIG.CARD_WIDTH + 2)
+                end
+            end
+            print(line)
+        end
+        print("")
+    end
+    
+    -- 显示队伍分隔
+    print(ColorText(string.rep("─", 70), COLORS.BRIGHT_BLACK))
+    print("")
+    
+    -- 显示下方队伍（右侧队伍）
+    local rightTitle = ColorText("【下方队伍 - 右侧】", COLORS.BRIGHT_MAGENTA)
+    print(rightTitle)
+    print("")
+    
+    -- 准备右侧队伍卡片
     local rightCards = {}
     for _, hero in ipairs(teamRight) do
         table.insert(rightCards, BattleDisplay.ShowHeroCard(hero))
     end
     
-    -- 计算最大行数
-    local maxCards = math.max(#leftCards, #rightCards)
-    local cardsPerRow = 2 -- 每行显示2个英雄
-    
-    -- 显示英雄卡片 (左右并排)
-    for row = 1, math.ceil(maxCards / cardsPerRow) do
-        -- 获取当前行的英雄
-        local leftHeroes = {}
-        local rightHeroes = {}
-        
+    -- 显示右侧队伍卡片（每行3个）
+    for row = 1, math.ceil(#rightCards / cardsPerRow) do
+        local heroes = {}
         for i = 1, cardsPerRow do
             local idx = (row - 1) * cardsPerRow + i
-            if idx <= #teamLeft then
-                table.insert(leftHeroes, teamLeft[idx])
-            end
             if idx <= #teamRight then
-                table.insert(rightHeroes, teamRight[idx])
+                table.insert(heroes, teamRight[idx])
             end
         end
         
         -- 生成卡片行
-        local leftCardLines = {}
-        for _, hero in ipairs(leftHeroes) do
-            table.insert(leftCardLines, BattleDisplay.ShowHeroCard(hero))
+        local cardLines = {}
+        for _, hero in ipairs(heroes) do
+            table.insert(cardLines, BattleDisplay.ShowHeroCard(hero))
         end
         
-        local rightCardLines = {}
-        for _, hero in ipairs(rightHeroes) do
-            table.insert(rightCardLines, BattleDisplay.ShowHeroCard(hero))
-        end
-        
-        -- 合并打印左右卡片
+        -- 打印卡片行
         local maxCardHeight = DISPLAY_CONFIG.CARD_HEIGHT
         for lineIdx = 1, maxCardHeight do
             local line = ""
-            
-            -- 左侧卡片
-            for _, card in ipairs(leftCardLines) do
+            for _, card in ipairs(cardLines) do
                 if card[lineIdx] then
                     line = line .. card[lineIdx] .. "  "
                 else
                     line = line .. string.rep(" ", DISPLAY_CONFIG.CARD_WIDTH + 2)
                 end
             end
-            
-            -- 中间间隔
-            line = line .. string.rep(" ", DISPLAY_CONFIG.TEAM_GAP)
-            
-            -- 右侧卡片
-            for _, card in ipairs(rightCardLines) do
-                if card[lineIdx] then
-                    line = line .. card[lineIdx] .. "  "
-                else
-                    line = line .. string.rep(" ", DISPLAY_CONFIG.CARD_WIDTH + 2)
-                end
-            end
-            
             print(line)
         end
-        
-        print("") -- 行间隔
+        print("")
     end
 end
 

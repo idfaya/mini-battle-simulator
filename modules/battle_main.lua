@@ -144,12 +144,7 @@ local function InitSubsystems(beginState)
                 Logger.Log(string.format("  [%d] skillId=%s, name=%s, type=%s", 
                     i, tostring(cfg.skillId), tostring(cfg.name), tostring(cfg.skillType)))
             end
-            -- 如果没有技能配置，添加默认的普通攻击
-            if #skillsConfig == 0 then
-                skillsConfig = {
-                    { skillId = 1001, skillType = E_SKILL_TYPE_NORMAL, name = "普通攻击" }
-                }
-            end
+            -- 初始化技能系统（不添加默认技能，保持原项目逻辑）
             BattleSkill.Init(hero, skillsConfig)
         end
     end

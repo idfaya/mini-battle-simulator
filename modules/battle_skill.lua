@@ -79,8 +79,10 @@ function BattleSkill.Init(hero, skillsConfig)
             end
             Logger.Log(string.format("[BattleSkill.Init] 从 hero.skills 构建了 %d 个技能配置", #skillsConfig))
         else
-            Logger.LogWarning("[BattleSkill.Init] hero.skills 也为空，无法初始化技能")
-            return
+            -- 没有技能时报错
+            local errorMsg = string.format("[BattleSkill.Init] 错误：英雄 %s 没有配置任何技能！请检查英雄数据配置。", tostring(hero.name))
+            Logger.LogError(errorMsg)
+            error(errorMsg)
         end
     end
 

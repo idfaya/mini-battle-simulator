@@ -40,18 +40,14 @@ Logger.SetLogLevel(Logger.LOG_LEVELS.WARN)
 local allHeroIds = {}
 local allEnemyIds = {}
 
--- 从res_ally_info.json加载英雄ID
+-- 从AllyData加载有技能的英雄ID
 local function LoadAllHeroIds()
-    local JSON = require("utils.json")
-    local file = io.open("../config/res_ally_info.json", "r")
-    if file then
-        local content = file:read("*a")
-        file:close()
-        local data = JSON.JsonDecode(content)
-        for _, hero in ipairs(data) do
-            if hero.IsHero == 1 then
-                table.insert(allHeroIds, hero.AllyID)
-            end
+    local AllyData = require("config.ally_data")
+    local heroes = AllyData.GetPlayableHeroes()
+    allHeroIds = {}
+    for _, hero in ipairs(heroes) do
+        if hero.AllyID then
+            table.insert(allHeroIds, hero.AllyID)
         end
     end
 end

@@ -359,24 +359,10 @@ function EnemyData.ConvertToHeroData(enemyId)
         end
     end
 
-    -- 如果没有技能，添加默认普通攻击
-    if #skillList == 0 then
-        local defaultSkillId = 1001  -- 默认普通攻击技能ID
-        heroData.skills = {{skillId = defaultSkillId, level = 1}} -- 与 ally_data.lua 格式一致
-        skillsConfig = {
-            {
-                skillId = defaultSkillId,
-                skillType = 1,
-                name = "普通攻击",
-                skillCost = 0
-            }
-        }
-    else
-        -- 将 skillList 转换为与 ally_data.lua 相同的格式
-        heroData.skills = {}
-        for _, sid in ipairs(skillList) do
-            table.insert(heroData.skills, {skillId = sid, level = 1})
-        end
+    -- 将 skillList 转换为与 ally_data.lua 相同的格式
+    heroData.skills = {}
+    for _, sid in ipairs(skillList) do
+        table.insert(heroData.skills, {skillId = sid, level = 1})
     end
     
     heroData.skillsConfig = skillsConfig
@@ -424,7 +410,30 @@ function EnemyData.GetHeroesByLevelRange(minLevel, maxLevel, count)
     return result
 end
 
---- 获取指定怪物类型的敌人
+--- 检查敌人是否有技能
+-- @param enemy 敌人数据
+-- @return boolean 是否有技能
+local function EnemyHasSkills(enemy)
+    if not enemy then return false end
+    
+    -- 检查 SkillIDs
+    if enemy.SkillIDs then
+        for _ in pairs(enemy.SkillIDs) do
+            return true
+        end
+    end
+    
+    -- 检查 SkillIDsBossWarning
+    if enemy.SkillIDsBossWarning then
+        for _ in pairs(enemy.SkillIDsBossWarning) do
+            return true
+        end
+    end
+    
+    return false
+end
+
+--- 获取指定怪物类型的敌人（只返回有技能的敌人）
 -- @param monsterType 怪物类型 (0=普通, 1=精英, 2=BOSS)
 -- @return 符合条件的敌人列表
 function EnemyData.GetEnemiesByMonsterType(monsterType)
@@ -432,7 +441,10 @@ function EnemyData.GetEnemiesByMonsterType(monsterType)
     local result = {}
     for id, enemy in pairs(_enemyData) do
         if type(id) == "number" and enemy.MonsterType == monsterType then
-            table.insert(result, enemy)
+            -- 只添加有技能的敌人
+            if EnemyHasSkills(enemy) then
+                table.insert(result, enemy)
+            end
         end
     end
     return result

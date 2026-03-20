@@ -194,9 +194,34 @@ function AllyData.GetAllAllies()
     return allAllies
 end
 
--- 获取可玩英雄列表
+-- 检查盟友是否有技能
+-- @param ally 盟友数据
+-- @return boolean 是否有技能
+local function AllyHasSkills(ally)
+    if not ally then return false end
+    
+    -- 检查 ParsedSkills
+    if ally.ParsedSkills and #ally.ParsedSkills > 0 then
+        return true
+    end
+    
+    -- 检查 ParsedInitSkills
+    if ally.ParsedInitSkills and #ally.ParsedInitSkills > 0 then
+        return true
+    end
+    
+    return false
+end
+
+-- 获取可玩英雄列表（只返回有技能的英雄）
 function AllyData.GetPlayableHeroes()
-    return playableHeroes
+    local result = {}
+    for _, hero in ipairs(playableHeroes) do
+        if AllyHasSkills(hero) then
+            table.insert(result, hero)
+        end
+    end
+    return result
 end
 
 -- 按职业获取盟友
@@ -276,8 +301,13 @@ end
 
 -- 根据英雄等级计算技能等级
 local function CalculateSkillLevel(heroLevel)
-    -- 技能等级 = 英雄等级 // 10 + 1，最大为5级
-    return math.min(5, math.floor(heroLevel / 10) + 1)
+    -- 技能等级 = 英雄等级 // 30 + 1，最大为5级
+    -- 等级1-29: 技能等级1
+    -- 等级30-59: 技能等级2
+    -- 等级60-89: 技能等级3
+    -- 等级90-119: 技能等级4
+    -- 等级120+: 技能等级5
+    return math.min(5, math.floor(heroLevel / 30) + 1)
 end
 
 -- 获取指定ClassID和等级的技能，如果不存在则降级查找
@@ -305,27 +335,35 @@ function AllyData.ConvertToHeroData(allyId, level, star)
         return nil
     end
 
-    -- 构建技能配置 (根据英雄等级选择合适的技能等级)
+    -- 构建技能配置
+    -- ParsedSkills 中存储的是技能类别ID（ClassId），需要通过 classId * 100 + level 计算实际技能ID
     local skillsConfig = {}
-    local relationConfigId = ally.RelationConfigID or allyId
-    local skillLevel = CalculateSkillLevel(level)
-    
-    -- 查询多个ClassID，但只选择对应等级的技能
-    -- 技能ID格式: classId * 100 + level，如 131840101 表示 classId=1318401, level=1
-    for i = 1, 5 do
-        local skillClassId = relationConfigId * 100 + i
-        -- 获取技能，如果不存在则降级查找
-        local skill = GetSkillByClassAndLevel(skillClassId, skillLevel)
-        
-        if skill then
-            table.insert(skillsConfig, {
-                skillId = skill.ID,
-                skillType = skill.Type,
-                name = skill.Name,
-                skillCost = skill.Type == 2 and 100 or 0
-            })
+    if ally.ParsedSkills and #ally.ParsedSkills > 0 then
+        local skillLevel = CalculateSkillLevel(level)
+        for _, skillInfo in ipairs(ally.ParsedSkills) do
+            local classId = skillInfo.skillId
+            -- 计算实际技能ID: classId * 100 + level
+            local skillId = classId * 100 + skillLevel
+            local skill = SkillData.GetSkill(skillId)
+            -- 如果指定等级不存在，尝试降级查找
+            if not skill then
+                for l = skillLevel - 1, 1, -1 do
+                    skillId = classId * 100 + l
+                    skill = SkillData.GetSkill(skillId)
+                    if skill then break end
+                end
+            end
+            if skill then
+                table.insert(skillsConfig, {
+                    skillId = skill.ID,
+                    skillType = skill.Type,
+                    name = skill.Name,
+                    skillCost = skill.Type == 3 and 100 or 0  -- 大招消耗100能量
+                })
+            end
         end
     end
+    -- 注意：RelationConfigID 是羁绊系统用的字段，不是技能配置，不应该用来查询技能
 
     -- 构建英雄数据
     local heroData = {
