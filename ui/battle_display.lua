@@ -60,12 +60,12 @@ local BORDERS = {
 
 -- 显示配置
 local DISPLAY_CONFIG = {
-    CARD_WIDTH = 28,
+    CARD_WIDTH = 25,  -- 从28减小到25，适应3个卡片一行（25*3+4=79<80）
     CARD_HEIGHT = 12,
-    HP_BAR_WIDTH = 20,
-    ENERGY_BAR_WIDTH = 20,
+    HP_BAR_WIDTH = 18,  -- 从20减小到18
+    ENERGY_BAR_WIDTH = 18,  -- 从20减小到18
     MAX_LOG_LINES = 8,
-    TEAM_GAP = 4,
+    TEAM_GAP = 2,  -- 从4减小到2
 }
 
 -- 战斗日志缓存
@@ -976,6 +976,44 @@ function BattleDisplay.ShowLoading(progress, message)
     if progress >= 1 then
         print("")
     end
+end
+
+-- ==================== 事件监听器注册 ====================
+
+local BattleEvent = require("core.battle_event")
+
+--- 注册战斗显示相关的事件监听器
+-- 应在 BattleMain.Start 之后调用（因为 Start 会清空监听器）
+function BattleDisplay.RegisterEventListeners()
+    -- 伤害事件
+    BattleEvent.AddListener("Damage", function(target, amount, isCrit)
+        local critMark = isCrit and " ⚡" or ""
+        local msg = string.format("%s 受到 %d 点伤害%s", target.name, amount, critMark)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    -- 治疗事件
+    BattleEvent.AddListener("Heal", function(target, amount)
+        local msg = string.format("%s 恢复 %d 点生命", target.name, amount)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    -- Buff添加事件
+    BattleEvent.AddListener("BUFF_ADDED", function(caster, target, buff)
+        local msg = string.format("%s 获得 Buff [%s]", target.name, buff.name)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    -- 技能施放事件
+    BattleEvent.AddListener("SkillCast", function(hero, target, skillName)
+        local msg = string.format("%s 对 %s 使用 [%s]", hero.name, target.name, skillName)
+        BattleDisplay.AddBattleLog(msg)
+    end)
+    
+    -- 能量消耗事件
+    BattleEvent.AddListener("ENERGY_CONSUMED", function(hero, amount)
+        BattleDisplay.Refresh()
+    end)
 end
 
 return BattleDisplay

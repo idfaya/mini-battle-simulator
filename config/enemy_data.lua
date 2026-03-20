@@ -450,6 +450,32 @@ function EnemyData.GetEnemiesByMonsterType(monsterType)
     return result
 end
 
+--- 获取所有Boss ID列表（MonsterType=2，且有技能）
+-- @return Boss ID列表
+function EnemyData.GetAllBossIds()
+    EnemyData.Init()
+    local result = {}
+    for id, enemy in pairs(_enemyData) do
+        if type(id) == "number" and enemy.MonsterType == 2 and EnemyHasSkills(enemy) then
+            table.insert(result, id)
+        end
+    end
+    return result
+end
+
+--- 获取所有普通敌人ID列表（MonsterType=0，且有技能）
+-- @return 普通敌人ID列表
+function EnemyData.GetAllNormalEnemyIds()
+    EnemyData.Init()
+    local result = {}
+    for id, enemy in pairs(_enemyData) do
+        if type(id) == "number" and enemy.MonsterType == 0 and EnemyHasSkills(enemy) then
+            table.insert(result, id)
+        end
+    end
+    return result
+end
+
 --- 重新加载数据（用于调试）
 function EnemyData.Reload()
     _enemyData = {}
