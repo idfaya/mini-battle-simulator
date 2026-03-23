@@ -3,13 +3,16 @@
 
 local SkillExecutor = {}
 
+-- 使用Logger模块
+local Logger = require("utils.logger")
+
 -- 本地日志函数
 local function Log(msg)
-    print("[SkillExecutor] " .. msg)
+    Logger.Debug("[SkillExecutor] " .. msg)
 end
 
 local function LogError(msg)
-    print("[SkillExecutor] [ERROR] " .. msg)
+    Logger.LogError("[SkillExecutor] " .. msg)
 end
 
 --- 原工程使用的字符串转表函数
@@ -128,11 +131,9 @@ function SkillExecutor.ExecuteDamage(hero, targets, damageConfig, skillParam)
             local finalDamage = damageResult.damage or 0
             local isCrit = damageResult.isCrit or false
             
-            -- 应用伤害
+            -- 应用伤害（ApplyDamage 会触发 Damage 事件）
             if finalDamage > 0 then
                 BattleDmgHeal.ApplyDamage(target, finalDamage, hero)
-                -- 发布伤害事件
-                BattleEvent.Publish("Damage", target, finalDamage, isCrit)
                 Log(string.format("  -> %s 受到 %d 点伤害", target.name or "Unknown", finalDamage))
             end
         end

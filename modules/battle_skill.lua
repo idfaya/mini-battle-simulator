@@ -6,6 +6,7 @@
 local Logger = require("utils.logger")
 local SkillConfig = require("config.skill_config")
 local BattleEvent = require("core.battle_event")
+local BattleVisualEvents = require("ui.battle_visual_events")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -328,6 +329,9 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
         return false
     end
 
+    -- 先触发技能释放事件（在造成伤害之前）
+    BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
+    
     -- 加载并执行技能Lua脚本
     local executed = false
     
@@ -368,9 +372,6 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
         Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗能量: %d, 剩余能量: %d", 
             hero.name or "Unknown", skill.skillCost, hero.curEnergy))
     end
-
-    -- 触发技能释放事件
-    BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
 
     Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skillId) .. ", hero: " .. tostring(hero.name))
     return true
@@ -421,32 +422,27 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
             if isHealSkill then
                 -- 执行治疗
                 local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
-                local curHp = BattleAttribute.GetHeroCurHp(target)
-                local maxHp = BattleAttribute.GetHeroMaxHp(target)
-                local newHp = math.min(maxHp, curHp + healAmount)
-                BattleAttribute.SetHpByVal(target, newHp)
                 
-                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 治疗 %d 点生命 (HP: %d -> %d)",
+                -- 使用 ApplyHeal 应用治疗（会触发事件）
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyHeal(target, healAmount, hero)
+                
+                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 治疗 %d 点生命",
                     hero.name or "Unknown",
                     target.name or "Unknown",
-                    healAmount,
-                    curHp,
-                    newHp))
+                    healAmount))
             else
                 -- 执行伤害
                 local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
                 
-                -- 应用伤害
-                local curHp = BattleAttribute.GetHeroCurHp(target)
-                local newHp = math.max(0, curHp - damage)
-                BattleAttribute.SetHpByVal(target, newHp)
+                -- 使用 ApplyDamage 应用伤害（会触发事件）
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
 
-                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害 (HP: %d -> %d)",
+                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害",
                     hero.name or "Unknown",
                     target.name or "Unknown",
-                    damage,
-                    curHp,
-                    newHp))
+                    damage))
                 
                 -- 触发伤害相关Buff
                 BattleSkill.TriggerDamageBuffs(hero, target, damage)
@@ -955,11 +951,15 @@ end
 ---@param skill table 技能对象
 ---@param targets table 目标列表
 function BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
-    -- 触发技能释放事件，通知其他系统
+    -- 触发技能释放事件，通知其他系统（旧版兼容）
     local target = targets and targets[1] or nil
     if target then
         BattleEvent.Publish("SkillCast", hero, target, skill.name or "未知技能")
     end
+    
+    -- 触发可视化技能释放开始事件
+    BattleEvent.Publish(BattleVisualEvents.SKILL_CAST_STARTED, 
+        BattleVisualEvents.BuildSkillCastEvent(BattleVisualEvents.SKILL_CAST_STARTED, hero, skill, targets))
 end
 
 --- 获取英雄的所有技能

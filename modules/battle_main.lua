@@ -16,8 +16,10 @@ local BattleBuff = require("modules.battle_buff")
 local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
-local PassiveEffectHandler = require("core.passive_effect_handler")
+local PassiveEffectHandler = require("modules.passive_effect_handler")
 local BattleSkillSeq = require("modules.battle_skill_seq")
+local BattleVisualEvents = require("ui.battle_visual_events")
+local ConsoleRenderer = require("ui.console_renderer")
 
 ---@class BattleMain
 local BattleMain = {}
@@ -31,7 +33,7 @@ local isRunning = false
 local isPaused = false
 
 -- 更新间隔（秒）
-local updateInterval = 0.033  -- 默认约 30 FPS
+local updateInterval = 0  -- 默认无间隔，每次调用都执行
 
 -- 上次更新时间戳
 local lastUpdateTime = 0
@@ -174,6 +176,10 @@ local function InitSubsystems(beginState)
     BattleSkillSeq.Init()
     Logger.Debug("  BattleSkillSeq 初始化完成")
 
+    -- 14. 初始化控制台渲染器
+    ConsoleRenderer.Init()
+    Logger.Debug("  ConsoleRenderer 初始化完成")
+
     Logger.Log("BattleMain.InitSubsystems - 所有子系统初始化完成")
 end
 
@@ -181,6 +187,7 @@ end
 local function FinalizeSubsystems()
     Logger.Log("BattleMain.FinalizeSubsystems - 开始清理子系统")
 
+    ConsoleRenderer.OnFinal()
     PassiveEffectHandler.OnFinal()
     BattlePassiveSkill.OnFinal()
     BattleDmgHeal.OnFinal()
@@ -243,8 +250,24 @@ local function TriggerBattleEnd(winner, reason)
         onBattleEndCallback(battleResult)
     end
 
-    -- 发布战斗结束事件
+    -- 发布战斗结束事件（旧版兼容）
     BattleEvent.Publish("BattleEnd", battleResult)
+    
+    -- 触发可视化战斗结束事件
+    BattleEvent.Publish(BattleVisualEvents.BATTLE_ENDED, {
+        eventType = BattleVisualEvents.BATTLE_ENDED,
+        winner = winner,
+        reason = reason,
+    })
+    
+    -- 触发胜利/失败/平局事件
+    if winner == "left" or winner == "right" then
+        BattleEvent.Publish(BattleVisualEvents.VICTORY, BattleVisualEvents.BuildBattleResultEvent(
+            BattleVisualEvents.VICTORY, winner, {}))
+    elseif winner == "draw" then
+        BattleEvent.Publish(BattleVisualEvents.DRAW, BattleVisualEvents.BuildBattleResultEvent(
+            BattleVisualEvents.DRAW, winner, {}))
+    end
 end
 
 --- 战斗逻辑 - 开始下一个行动
@@ -264,17 +287,26 @@ local function BeginNextAction()
     local hero = BattleActionOrder.Run()
 
     if hero then
-        Logger.Log(string.format("========== 回合 %d ==========", currentRound + 1))
+        -- 增加回合数（在行动开始前，确保事件和显示同步）
+        currentRound = currentRound + 1
+        
+        -- 注意：回合日志在 BattleDriver 中输出，避免重复
         Logger.Log(string.format("[行动] 英雄 %s 开始行动", hero.name or "Unknown"))
+
+        -- 触发回合开始事件
+        BattleEvent.Publish(BattleVisualEvents.TURN_STARTED, BattleVisualEvents.BuildTurnEvent(
+            BattleVisualEvents.TURN_STARTED, currentRound, hero))
 
         -- 执行英雄行动
         BattleMain.ExecuteHeroAction(hero)
 
         -- 行动结束
         BattleActionOrder.OnHeroActionFinish(hero)
-
-        -- 增加回合数
-        currentRound = currentRound + 1
+        
+        -- 触发回合结束事件
+        BattleEvent.Publish(BattleVisualEvents.TURN_ENDED, BattleVisualEvents.BuildTurnEvent(
+            BattleVisualEvents.TURN_ENDED, currentRound, hero))
+        
         Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
     end
 end
@@ -304,8 +336,15 @@ function BattleMain.Start(beginState, onBattleEnd)
     isRunning = true
     lastUpdateTime = os.clock()
 
-    -- 发布战斗开始事件
+    -- 发布战斗开始事件（旧版兼容）
     BattleEvent.Publish("BattleStart", battleBeginState)
+    
+    -- 触发可视化战斗开始事件
+    BattleEvent.Publish(BattleVisualEvents.BATTLE_STARTED, {
+        eventType = BattleVisualEvents.BATTLE_STARTED,
+        teamLeft = beginState.teamLeft,
+        teamRight = beginState.teamRight,
+    })
 
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end

@@ -1,9 +1,30 @@
+---
+--- Console Renderer
+--- 控制台渲染器 - 订阅战斗可视化事件，用文本方式呈现战斗
+---
+--- 该模块订阅 BattleVisualEvents 定义的事件，使用 ANSI 颜色代码
+--- 和 ASCII 字符在控制台中呈现战斗画面。
+---
+--- 未来可扩展：
+--- - WebRenderer: 用 2D Sprite 呈现
+--- - UnityRenderer: 用 3D Animation 呈现
+---
+
+local Logger = require("utils.logger")
+local BattleEvent = require("core.battle_event")
+local BattleVisualEvents = require("ui.battle_visual_events")
+local BattleFormation = require("modules.battle_formation")
+
+---@class ConsoleRenderer
 local ConsoleRenderer = {}
 
--- 颜色代码定义 (ANSI)
-ConsoleRenderer.Colors = {
+-- ==================== 配置常量 ====================
+
+-- ANSI 颜色代码
+local COLORS = {
     RESET = "\27[0m",
     BOLD = "\27[1m",
+    BLACK = "\27[30m",
     RED = "\27[31m",
     GREEN = "\27[32m",
     YELLOW = "\27[33m",
@@ -11,6 +32,7 @@ ConsoleRenderer.Colors = {
     MAGENTA = "\27[35m",
     CYAN = "\27[36m",
     WHITE = "\27[37m",
+    BRIGHT_BLACK = "\27[90m",
     BRIGHT_RED = "\27[91m",
     BRIGHT_GREEN = "\27[92m",
     BRIGHT_YELLOW = "\27[93m",
@@ -20,241 +42,923 @@ ConsoleRenderer.Colors = {
     BRIGHT_WHITE = "\27[97m",
 }
 
--- 检测操作系统
-local isWindows = package.config:sub(1, 1) == "\\"
+-- 边框字符
+local BORDERS = {
+    TOP_LEFT = "╔",
+    TOP_RIGHT = "╗",
+    BOTTOM_LEFT = "╚",
+    BOTTOM_RIGHT = "╝",
+    HORIZONTAL = "═",
+    VERTICAL = "║",
+    T_LEFT = "╠",
+    T_RIGHT = "╣",
+}
 
--- 内部缓冲区用于批量输出
-local outputBuffer = {}
-local useBuffer = false
+-- 显示配置
+local CONFIG = {
+    CARD_WIDTH = 25,
+    CARD_HEIGHT = 12,
+    HP_BAR_WIDTH = 18,
+    ENERGY_BAR_WIDTH = 18,
+    MAX_LOG_LINES = 8,
+}
 
--- 清屏
-function ConsoleRenderer.Clear()
-    if isWindows then
-        os.execute("cls")
-    else
-        io.write("\27[2J\27[H")
-    end
-    ConsoleRenderer.Flush()
-end
+-- 状态
+local isInitialized = false
+local battleLogCache = {}
+local maxLogCacheSize = 50
 
--- 设置光标位置 (1-based)
-function ConsoleRenderer.SetCursorPosition(x, y)
-    x = math.max(1, math.floor(x))
-    y = math.max(1, math.floor(y))
-    io.write(string.format("\27[%d;%dH", y, x))
-    if not useBuffer then
-        io.flush()
-    end
-end
+-- ==================== 初始化与清理 ====================
 
--- 隐藏光标
-function ConsoleRenderer.HideCursor()
-    io.write("\27[?25l")
-    if not useBuffer then
-        io.flush()
-    end
-end
-
--- 显示光标
-function ConsoleRenderer.ShowCursor()
-    io.write("\27[?25h")
-    if not useBuffer then
-        io.flush()
-    end
-end
-
--- 设置文本颜色
-function ConsoleRenderer.SetColor(colorCode)
-    local color = ConsoleRenderer.Colors[colorCode]
-    if color then
-        io.write(color)
-        if not useBuffer then
-            io.flush()
-        end
-    end
-end
-
--- 重置颜色
-function ConsoleRenderer.ResetColor()
-    io.write(ConsoleRenderer.Colors.RESET)
-    if not useBuffer then
-        io.flush()
-    end
-end
-
--- 绘制进度条
-function ConsoleRenderer.DrawProgressBar(progress, width)
-    width = width or 20
-    progress = math.max(0, math.min(1, progress))
-    local filled = math.floor(progress * width)
-    local empty = width - filled
-    local bar = string.rep("█", filled) .. string.rep("░", empty)
-    io.write(bar)
-    if not useBuffer then
-        io.flush()
-    end
-end
-
--- 绘制边框
-function ConsoleRenderer.DrawBox(x, y, width, height)
-    if width < 2 or height < 2 then
+--- 初始化控制台渲染器
+function ConsoleRenderer.Init()
+    if isInitialized then
         return
     end
-
-    -- 左上角
-    ConsoleRenderer.SetCursorPosition(x, y)
-    io.write("┌")
-
-    -- 上边
-    ConsoleRenderer.DrawHorizontalLine(x + 1, y, width - 2, "─")
-
-    -- 右上角
-    ConsoleRenderer.SetCursorPosition(x + width - 1, y)
-    io.write("┐")
-
-    -- 左边和右边
-    for i = 1, height - 2 do
-        ConsoleRenderer.SetCursorPosition(x, y + i)
-        io.write("│")
-        ConsoleRenderer.SetCursorPosition(x + width - 1, y + i)
-        io.write("│")
-    end
-
-    -- 左下角
-    ConsoleRenderer.SetCursorPosition(x, y + height - 1)
-    io.write("└")
-
-    -- 下边
-    ConsoleRenderer.DrawHorizontalLine(x + 1, y + height - 1, width - 2, "─")
-
-    -- 右下角
-    ConsoleRenderer.SetCursorPosition(x + width - 1, y + height - 1)
-    io.write("┘")
-
-    if not useBuffer then
-        io.flush()
-    end
+    
+    -- 订阅战斗可视化事件
+    ConsoleRenderer.RegisterEventListeners()
+    
+    isInitialized = true
+    Logger.Log("[ConsoleRenderer] 控制台渲染器初始化完成")
 end
 
--- 绘制水平线
-function ConsoleRenderer.DrawHorizontalLine(x, y, width, char)
-    char = char or "─"
-    ConsoleRenderer.SetCursorPosition(x, y)
-    io.write(string.rep(char, width))
-    if not useBuffer then
-        io.flush()
-    end
+--- 清理控制台渲染器
+function ConsoleRenderer.OnFinal()
+    -- 取消订阅事件（逐个移除）
+    BattleEvent.RemoveListener(BattleVisualEvents.BATTLE_STARTED, ConsoleRenderer.OnBattleStarted)
+    BattleEvent.RemoveListener(BattleVisualEvents.BATTLE_ENDED, ConsoleRenderer.OnBattleEnded)
+    BattleEvent.RemoveListener(BattleVisualEvents.VICTORY, ConsoleRenderer.OnVictory)
+    BattleEvent.RemoveListener(BattleVisualEvents.DEFEAT, ConsoleRenderer.OnDefeat)
+    BattleEvent.RemoveListener(BattleVisualEvents.DRAW, ConsoleRenderer.OnDraw)
+    BattleEvent.RemoveListener(BattleVisualEvents.TURN_STARTED, ConsoleRenderer.OnTurnStarted)
+    BattleEvent.RemoveListener(BattleVisualEvents.TURN_ENDED, ConsoleRenderer.OnTurnEnded)
+    BattleEvent.RemoveListener(BattleVisualEvents.HERO_STATE_CHANGED, ConsoleRenderer.OnHeroStateChanged)
+    BattleEvent.RemoveListener(BattleVisualEvents.HERO_DIED, ConsoleRenderer.OnHeroDied)
+    BattleEvent.RemoveListener(BattleVisualEvents.DAMAGE_DEALT, ConsoleRenderer.OnDamageDealt)
+    BattleEvent.RemoveListener(BattleVisualEvents.HEAL_RECEIVED, ConsoleRenderer.OnHealReceived)
+    BattleEvent.RemoveListener(BattleVisualEvents.SKILL_CAST_STARTED, ConsoleRenderer.OnSkillCastStarted)
+    BattleEvent.RemoveListener(BattleVisualEvents.BUFF_ADDED, ConsoleRenderer.OnBuffAdded)
+    BattleEvent.RemoveListener(BattleVisualEvents.BUFF_REMOVED, ConsoleRenderer.OnBuffRemoved)
+    BattleEvent.RemoveListener(BattleVisualEvents.DODGE, ConsoleRenderer.OnDodge)
+    BattleEvent.RemoveListener(BattleVisualEvents.CRIT, ConsoleRenderer.OnCrit)
+    BattleEvent.RemoveListener(BattleVisualEvents.BLOCK, ConsoleRenderer.OnBlock)
+    
+    isInitialized = false
+    Logger.Log("[ConsoleRenderer] 控制台渲染器已清理")
 end
 
--- 绘制垂直线
-function ConsoleRenderer.DrawVerticalLine(x, y, height, char)
-    char = char or "│"
-    for i = 0, height - 1 do
-        ConsoleRenderer.SetCursorPosition(x, y + i)
-        io.write(char)
-    end
-    if not useBuffer then
-        io.flush()
-    end
+--- 注册事件监听器
+function ConsoleRenderer.RegisterEventListeners()
+    -- 战斗开始/结束
+    BattleEvent.AddListener(BattleVisualEvents.BATTLE_STARTED, ConsoleRenderer.OnBattleStarted, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.BATTLE_ENDED, ConsoleRenderer.OnBattleEnded, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.VICTORY, ConsoleRenderer.OnVictory, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.DEFEAT, ConsoleRenderer.OnDefeat, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.DRAW, ConsoleRenderer.OnDraw, "ConsoleRenderer")
+    
+    -- 回合事件
+    BattleEvent.AddListener(BattleVisualEvents.TURN_STARTED, ConsoleRenderer.OnTurnStarted, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.TURN_ENDED, ConsoleRenderer.OnTurnEnded, "ConsoleRenderer")
+    
+    -- 英雄状态
+    BattleEvent.AddListener(BattleVisualEvents.HERO_STATE_CHANGED, ConsoleRenderer.OnHeroStateChanged, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.HERO_DIED, ConsoleRenderer.OnHeroDied, "ConsoleRenderer")
+    
+    -- 战斗动作
+    BattleEvent.AddListener(BattleVisualEvents.DAMAGE_DEALT, ConsoleRenderer.OnDamageDealt, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.HEAL_RECEIVED, ConsoleRenderer.OnHealReceived, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_CAST_STARTED, ConsoleRenderer.OnSkillCastStarted, "ConsoleRenderer")
+    
+    -- Buff事件
+    BattleEvent.AddListener(BattleVisualEvents.BUFF_ADDED, ConsoleRenderer.OnBuffAdded, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.BUFF_REMOVED, ConsoleRenderer.OnBuffRemoved, "ConsoleRenderer")
+    
+    -- 特殊事件
+    BattleEvent.AddListener(BattleVisualEvents.DODGE, ConsoleRenderer.OnDodge, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.CRIT, ConsoleRenderer.OnCrit, "ConsoleRenderer")
+    BattleEvent.AddListener(BattleVisualEvents.BLOCK, ConsoleRenderer.OnBlock, "ConsoleRenderer")
 end
 
--- 在指定位置打印文本
-function ConsoleRenderer.PrintAt(x, y, text)
-    ConsoleRenderer.SetCursorPosition(x, y)
-    io.write(tostring(text))
-    if not useBuffer then
-        io.flush()
-    end
+-- ==================== 工具函数 ====================
+
+--- 给文本添加颜色
+local function ColorText(text, color)
+    return color .. text .. COLORS.RESET
 end
 
--- 获取终端尺寸
-function ConsoleRenderer.GetTerminalSize()
-    local width, height = 80, 24
-
-    if not isWindows then
-        -- Unix-like 系统使用 stty
-        local handle = io.popen("stty size 2>/dev/null")
-        if handle then
-            local result = handle:read("*a")
-            handle:close()
-            if result then
-                local h, w = result:match("(%d+) (%d+)")
-                if h and w then
-                    height = tonumber(h)
-                    width = tonumber(w)
-                end
-            end
-        end
+--- 获取HP颜色
+local function GetHpColor(hpPercent)
+    if hpPercent > 0.6 then
+        return COLORS.BRIGHT_GREEN
+    elseif hpPercent > 0.3 then
+        return COLORS.BRIGHT_YELLOW
     else
-        -- Windows 使用 mode 命令
-        local handle = io.popen("mode con")
-        if handle then
-            local result = handle:read("*a")
-            handle:close()
-            if result then
-                local w = result:match("Columns:%s*(%d+)")
-                local h = result:match("Lines:%s*(%d+)")
-                if w then
-                    width = tonumber(w)
-                end
-                if h then
-                    height = tonumber(h)
-                end
-            end
-        end
+        return COLORS.BRIGHT_RED
     end
-
-    return width, height
 end
 
--- 刷新输出
-function ConsoleRenderer.Flush()
+--- 获取队伍颜色
+local function GetTeamColor(isLeft)
+    return isLeft and COLORS.BRIGHT_CYAN or COLORS.BRIGHT_MAGENTA
+end
+
+--- 清屏
+function ConsoleRenderer.ClearScreen()
+    io.write("\27[2J\27[H")
     io.flush()
 end
 
--- 启用/禁用缓冲模式
-function ConsoleRenderer.SetBufferMode(enabled)
-    useBuffer = enabled
-end
-
--- 保存光标位置
-function ConsoleRenderer.SaveCursor()
-    io.write("\27[s")
-    if not useBuffer then
-        io.flush()
+--- 添加战斗日志
+function ConsoleRenderer.AddBattleLog(message)
+    if not message then
+        return
+    end
+    
+    table.insert(battleLogCache, 1, message)
+    
+    if #battleLogCache > maxLogCacheSize then
+        table.remove(battleLogCache)
     end
 end
 
--- 恢复光标位置
-function ConsoleRenderer.RestoreCursor()
-    io.write("\27[u")
-    if not useBuffer then
-        io.flush()
+-- ==================== 事件处理器 ====================
+
+--- 战斗开始
+function ConsoleRenderer.OnBattleStarted(data)
+    ConsoleRenderer.ClearScreen()
+    print("")
+    print(ColorText("╔══════════════════════════════════════════════════════════════════════╗", COLORS.BRIGHT_WHITE))
+    print(ColorText("║                    BATTLE STARTED                                    ║", COLORS.BRIGHT_GREEN))
+    print(ColorText("╚══════════════════════════════════════════════════════════════════════╝", COLORS.BRIGHT_WHITE))
+    print("")
+end
+
+--- 战斗结束
+function ConsoleRenderer.OnBattleEnded(data)
+    print("")
+    print(ColorText("═══════════════════════════════════════════════════════════════════════", COLORS.BRIGHT_BLACK))
+    print(ColorText("                        BATTLE ENDED                                   ", COLORS.BRIGHT_WHITE))
+    print(ColorText("═══════════════════════════════════════════════════════════════════════", COLORS.BRIGHT_BLACK))
+    print("")
+end
+
+--- 胜利
+function ConsoleRenderer.OnVictory(data)
+    local victoryArt = {
+        "╔══════════════════════════════════════════════════════════════════════╗",
+        "║                                                                      ║",
+        "║   ██╗   ██╗██╗ ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗            ║",
+        "║   ██║   ██║██║██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗╚██╗ ██╔╝            ║",
+        "║   ██║   ██║██║██║        ██║   ██║   ██║██████╔╝ ╚████╔╝             ║",
+        "║   ╚██╗ ██╔╝██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝              ║",
+        "║    ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║               ║",
+        "║     ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝               ║",
+        "║                                                                      ║",
+        "╚══════════════════════════════════════════════════════════════════════╝",
+    }
+    
+    print("")
+    for _, line in ipairs(victoryArt) do
+        print(ColorText(line, COLORS.BRIGHT_GREEN))
+    end
+    
+    local winnerText = data.winner == "left" and "左侧队伍获胜！" or "右侧队伍获胜！"
+    print("")
+    print(ColorText("                    " .. winnerText, COLORS.BRIGHT_GREEN))
+    print("")
+end
+
+--- 失败
+function ConsoleRenderer.OnDefeat(data)
+    local defeatArt = {
+        "╔══════════════════════════════════════════════════════════════════════╗",
+        "║                                                                      ║",
+        "║   ██████╗ ███████╗███████╗███████╗ █████╗ ████████╗                  ║",
+        "║   ██╔══██╗██╔════╝██╔════╝██╔════╝██╔══██╗╚══██╔══╝                  ║",
+        "║   ██║  ██║█████╗  █████╗  █████╗  ███████║   ██║                     ║",
+        "║   ██║  ██║██╔══╝  ██╔══╝  ██╔══╝  ██╔══██║   ██║                     ║",
+        "║   ██████╔╝███████╗██║     ███████╗██║  ██║   ██║                     ║",
+        "║   ╚═════╝ ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝                     ║",
+        "║                                                                      ║",
+        "╚══════════════════════════════════════════════════════════════════════╝",
+    }
+    
+    print("")
+    for _, line in ipairs(defeatArt) do
+        print(ColorText(line, COLORS.BRIGHT_RED))
+    end
+    print("")
+end
+
+--- 平局
+function ConsoleRenderer.OnDraw(data)
+    local drawArt = {
+        "╔══════════════════════════════════════════════════════════════════════╗",
+        "║                                                                      ║",
+        "║   ██████╗ ██████╗  █████╗ ██╗    ██╗                                 ║",
+        "║   ██╔══██╗██╔══██╗██╔══██╗██║    ██║                                 ║",
+        "║   ██║  ██║██████╔╝███████║██║ █╗ ██║                                 ║",
+        "║   ██║  ██║██╔══██╗██╔══██║██║███╗██║                                 ║",
+        "║   ██████╔╝██║  ██║██║  ██║╚███╔███╔╝                                 ║",
+        "║   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝                                  ║",
+        "║                                                                      ║",
+        "╚══════════════════════════════════════════════════════════════════════╝",
+    }
+    
+    print("")
+    for _, line in ipairs(drawArt) do
+        print(ColorText(line, COLORS.BRIGHT_YELLOW))
+    end
+    print("")
+    print(ColorText("                        平局！", COLORS.BRIGHT_YELLOW))
+    print("")
+end
+
+--- 回合开始
+function ConsoleRenderer.OnTurnStarted(data)
+    -- 先刷新 Battle Field（显示上一回合结束后的状态）
+    ConsoleRenderer.Refresh()
+    
+    -- 再显示回合信息
+    print("")
+    local roundText = string.format("═══════════════════ ROUND %3d ═══════════════════", data.round)
+    print(ColorText(roundText, COLORS.BRIGHT_WHITE))
+
+    if data.heroName then
+        local heroText = string.format("→ %s 的回合", data.heroName)
+        local teamColor = GetTeamColor(data.team == "left")
+        print(ColorText(heroText, teamColor))
     end
 end
 
--- 清除从光标到行尾
-function ConsoleRenderer.ClearLineEnd()
-    io.write("\27[K")
-    if not useBuffer then
-        io.flush()
+--- 回合结束
+function ConsoleRenderer.OnTurnEnded(data)
+    -- 回合结束可以不做特殊显示，或者显示分隔线
+end
+
+--- 英雄状态变化
+function ConsoleRenderer.OnHeroStateChanged(data)
+    -- 状态变化时更新显示（可选：实时刷新英雄卡片）
+    -- 在控制台中，我们只在关键事件时刷新
+end
+
+--- 英雄阵亡
+function ConsoleRenderer.OnHeroDied(data)
+    local msg = string.format("☠ %s 阵亡了！", data.heroName)
+    print(ColorText(msg, COLORS.BRIGHT_RED))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- 伤害事件
+function ConsoleRenderer.OnDamageDealt(data)
+    local color = data.isCrit and COLORS.BRIGHT_RED or COLORS.RED
+    local critMark = data.isCrit and " ⚡暴击⚡ " or " "
+    local dodgeMark = data.isDodged and " 闪避!" or ""
+    local blockMark = data.isBlocked and " 格挡!" or ""
+    
+    local msg
+    if data.isDodged then
+        msg = string.format("%s 闪避了 %s 的攻击", data.targetName, data.attackerName)
+        color = COLORS.BRIGHT_YELLOW
+    elseif data.damage > 0 then
+        msg = string.format("%s%s对 %s 造成 %d 点伤害%s", 
+            data.attackerName or "未知", critMark, data.targetName, data.damage, blockMark)
+    else
+        return -- 无伤害不显示
+    end
+    
+    -- 使用io.write和flush确保立即输出
+    io.write(ColorText("⚔ " .. msg, color) .. "\n")
+    io.flush()
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- 治疗事件
+function ConsoleRenderer.OnHealReceived(data)
+    local color = COLORS.BRIGHT_GREEN
+    local msg = string.format("%s 恢复 %d 点生命", data.targetName, data.healAmount)
+    
+    if data.healerName then
+        msg = string.format("%s 治疗 %s %d 点生命", data.healerName, data.targetName, data.healAmount)
+    end
+    
+    print(ColorText("✚ " .. msg, color))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- 技能释放开始
+function ConsoleRenderer.OnSkillCastStarted(data)
+    local teamColor = GetTeamColor(data.heroId and string.find(data.heroId, "left"))
+    local msg = string.format("%s 使用技能 【%s】", data.heroName, data.skillName)
+    
+    if data.targets and #data.targets > 0 then
+        local targetNames = {}
+        for _, t in ipairs(data.targets) do
+            table.insert(targetNames, t.name)
+        end
+        msg = msg .. " → " .. table.concat(targetNames, ", ")
+    end
+    
+    print("")
+    print(ColorText("▶ " .. msg, teamColor))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- Buff添加
+function ConsoleRenderer.OnBuffAdded(data)
+    local typeColor = COLORS.BRIGHT_WHITE
+    if data.buffType == E_BUFF_MAIN_TYPE.GOOD then
+        typeColor = COLORS.BRIGHT_GREEN
+    elseif data.buffType == E_BUFF_MAIN_TYPE.BAD then
+        typeColor = COLORS.BRIGHT_RED
+    elseif data.buffType == E_BUFF_MAIN_TYPE.CONTROL then
+        typeColor = COLORS.BRIGHT_MAGENTA
+    end
+    
+    local stackText = data.stackCount > 1 and string.format(" x%d", data.stackCount) or ""
+    local msg = string.format("%s 获得 [%s%s]", data.targetName, data.buffName, stackText)
+    
+    print(ColorText("✦ " .. msg, typeColor))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- Buff移除
+function ConsoleRenderer.OnBuffRemoved(data)
+    local msg = string.format("%s 的 [%s] 效果消失", data.targetName, data.buffName)
+    print(ColorText("✧ " .. msg, COLORS.BRIGHT_BLACK))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- 闪避
+function ConsoleRenderer.OnDodge(data)
+    local msg = string.format("%s 闪避了 %s 的攻击！", data.targetName, data.attackerName)
+    print(ColorText("↷ " .. msg, COLORS.BRIGHT_YELLOW))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+--- 暴击
+function ConsoleRenderer.OnCrit(data)
+    -- 暴击通常在伤害事件中一起显示
+end
+
+--- 格挡
+function ConsoleRenderer.OnBlock(data)
+    local msg = string.format("%s 格挡了部分伤害！", data.targetName)
+    print(ColorText("🛡 " .. msg, COLORS.BRIGHT_BLUE))
+    ConsoleRenderer.AddBattleLog(msg)
+end
+
+-- ==================== 显示功能 ====================
+
+--- 显示英雄卡片（简化版）
+function ConsoleRenderer.ShowHeroCard(hero)
+    if not hero then
+        return
+    end
+    
+    local teamColor = GetTeamColor(hero.isLeft)
+    local hpPercent = hero.hp / hero.maxHp
+    local hpColor = GetHpColor(hpPercent)
+    
+    -- 简化卡片显示
+    print(string.format("%s%s%s", teamColor, hero.name, COLORS.RESET))
+    
+    -- HP条
+    local filled = math.floor(CONFIG.HP_BAR_WIDTH * hpPercent)
+    local empty = CONFIG.HP_BAR_WIDTH - filled
+    local hpBar = string.rep("█", filled) .. string.rep("░", empty)
+    print(string.format("  HP: %s%s%s %d/%d", hpColor, hpBar, COLORS.RESET, hero.hp, hero.maxHp))
+    
+    -- 能量
+    print(string.format("  Energy: %d/%d", hero.energy or 0, hero.maxEnergy or 100))
+    print("")
+end
+
+--- 显示战场
+function ConsoleRenderer.ShowBattleField()
+    local teamLeft = BattleFormation.teamLeft
+    local teamRight = BattleFormation.teamRight
+    
+    if not teamLeft or not teamRight then
+        return
+    end
+    
+    print("")
+    print(ColorText("【左侧队伍】", COLORS.BRIGHT_CYAN))
+    for _, hero in ipairs(teamLeft) do
+        if hero.isAlive then
+            ConsoleRenderer.ShowHeroCard(hero)
+        end
+    end
+    
+    print(ColorText("【右侧队伍】", COLORS.BRIGHT_MAGENTA))
+    for _, hero in ipairs(teamRight) do
+        if hero.isAlive then
+            ConsoleRenderer.ShowHeroCard(hero)
+        end
     end
 end
 
--- 清除整行
-function ConsoleRenderer.ClearLine()
-    io.write("\27[2K")
-    if not useBuffer then
-        io.flush()
+--- 显示战斗日志
+function ConsoleRenderer.ShowBattleLog()
+    if #battleLogCache == 0 then
+        return
+    end
+    
+    print("")
+    print(ColorText("【战斗日志】", COLORS.BRIGHT_WHITE))
+    print(ColorText("────────────────────────────────────────────────────────────────────", COLORS.BRIGHT_BLACK))
+    
+    local displayCount = math.min(#battleLogCache, CONFIG.MAX_LOG_LINES)
+    for i = displayCount, 1, -1 do
+        local msg = battleLogCache[i]
+        if msg then
+            print("  " .. msg)
+        end
     end
 end
 
--- 移动光标到指定行
-function ConsoleRenderer.MoveToLine(line)
-    io.write(string.format("\27[%dH", line))
-    if not useBuffer then
-        io.flush()
+--- 清空战斗日志
+function ConsoleRenderer.ClearBattleLog()
+    battleLogCache = {}
+end
+
+-- ==================== 战场显示功能（从 BattleDisplay 合并）====================
+
+--- 获取字符串的显示宽度（中文字符算2个宽度）
+---@param str string 字符串
+---@return number 显示宽度
+local function GetDisplayWidth(str)
+    local width = 0
+    for i = 1, #str do
+        local byte = str:byte(i)
+        -- UTF-8中文字符：第一个字节 >= 0xE0 (224)
+        if byte >= 224 then
+            width = width + 2
+        elseif byte < 128 then
+            -- ASCII字符
+            width = width + 1
+        end
+        -- 忽略UTF-8后续字节 (128-191)
     end
+    return width
+end
+
+--- 显示技能冷却状态
+---@param hero table 英雄对象
+---@return table {plain, colored, displayWidth}
+local function ShowSkillCooldowns(hero)
+    if not hero or not hero.skills then
+        return { plain = "", colored = "", displayWidth = 0 }
+    end
+    
+    local cooldownTextPlain = ""
+    local cooldownTextColored = ""
+    local displayWidth = 0
+    local skillCount = 0
+    
+    for _, skill in ipairs(hero.skills) do
+        if skillCount >= 3 then break end -- 最多显示3个技能
+        
+        local skillName = skill.name or "Skill"
+        -- 缩短技能名到4个显示宽度
+        if #skillName > 4 then
+            skillName = skillName:sub(1, 4)
+        end
+        
+        local cd = skill.coolDown or 0
+        local skillNameWidth = #skillName
+        
+        if cd > 0 then
+            local text = skillName .. "(" .. cd .. ")"
+            cooldownTextPlain = cooldownTextPlain .. text
+            cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(" .. cd .. ")", COLORS.BRIGHT_RED)
+            displayWidth = displayWidth + skillNameWidth + 1 + #tostring(cd) + 1
+        else
+            local text = skillName .. "(✓)"
+            cooldownTextPlain = cooldownTextPlain .. text
+            cooldownTextColored = cooldownTextColored .. ColorText(skillName .. "(✓)", COLORS.BRIGHT_GREEN)
+            displayWidth = displayWidth + skillNameWidth + 3
+        end
+        
+        -- 不是最后一个技能才加空格
+        if skillCount < 2 then
+            cooldownTextPlain = cooldownTextPlain .. " "
+            cooldownTextColored = cooldownTextColored .. " "
+            displayWidth = displayWidth + 1
+        end
+        
+        skillCount = skillCount + 1
+    end
+    
+    return { plain = cooldownTextPlain, colored = cooldownTextColored, displayWidth = displayWidth }
+end
+
+--- 显示HP条
+---@param current number 当前HP
+---@param max number 最大HP
+---@param width number 条宽度
+---@return string 格式化后的HP条
+local function ShowHpBar(current, max, width)
+    width = width or 20
+    current = math.max(0, math.min(current, max))
+    local percent = max > 0 and current / max or 0
+    local filled = math.floor(width * percent)
+    local empty = width - filled
+    
+    local filledChar = "█"
+    local emptyChar = "░"
+    
+    local hpColor = GetHpColor(percent)
+    local bar = string.rep(filledChar, filled) .. string.rep(emptyChar, empty)
+    
+    -- 返回带颜色的HP条（包括[]）
+    return ColorText("[" .. bar .. "]", hpColor)
+end
+
+--- 显示能量条（Bar类型，使用=和-）
+---@param current number 当前能量
+---@param max number 最大能量
+---@param width number 条宽度
+---@return string 格式化后的能量条
+local function ShowEnergyBar(current, max, width)
+    width = width or 20
+    local percent = max > 0 and current / max or 0
+    local filled = math.floor(width * percent)
+    local empty = width - filled
+    
+    local bar = "["
+    for i = 1, filled do
+        bar = bar .. "="
+    end
+    for i = 1, empty do
+        bar = bar .. "-"
+    end
+    bar = bar .. "]"
+    
+    return ColorText(bar, COLORS.BRIGHT_YELLOW)
+end
+
+--- 显示能量条（Point类型，使用◆和◇）
+---@param points number 当前能量点数
+---@param maxPoints number 最大能量点数
+---@return string 能量条字符串
+local function ShowEnergyBarPoints(points, maxPoints)
+    points = math.max(0, math.min(points, maxPoints))
+    
+    local bar = "["
+    for i = 1, maxPoints do
+        if i <= points then
+            bar = bar .. ColorText("◆", COLORS.BRIGHT_YELLOW)
+        else
+            bar = bar .. ColorText("◇", COLORS.BRIGHT_BLACK)
+        end
+    end
+    bar = bar .. "]"
+    
+    return bar
+end
+
+--- 获取能量数值文本（Point类型）
+---@param points number 当前能量点数
+---@param maxPoints number 最大能量点数
+---@return string 能量数值字符串
+local function ShowEnergyText(points, maxPoints)
+    points = math.max(0, math.min(points, maxPoints))
+    return ColorText(tostring(points) .. "/" .. maxPoints, COLORS.BRIGHT_YELLOW)
+end
+
+--- 获取能量百分比文本
+---@param current number 当前能量
+---@param max number 最大能量
+---@return string 能量百分比字符串
+local function ShowEnergyPercent(current, max)
+    current = math.max(0, math.min(current, max))
+    local percent = current / max
+    local energyText = string.format("%d%%", math.floor(percent * 100))
+    return ColorText(energyText, COLORS.BRIGHT_YELLOW)
+end
+
+--- 获取Buff类型颜色
+---@param mainType number Buff主类型
+---@return string 颜色代码
+local function GetBuffTypeColor(mainType)
+    if mainType == E_BUFF_MAIN_TYPE.GOOD then
+        return COLORS.BRIGHT_GREEN
+    elseif mainType == E_BUFF_MAIN_TYPE.BAD then
+        return COLORS.BRIGHT_RED
+    else
+        return COLORS.BRIGHT_YELLOW
+    end
+end
+
+--- 显示Buff列表
+---@param buffList table Buff列表
+---@return table {plain, colored}
+local function ShowBuffList(buffList)
+    if not buffList or #buffList == 0 then
+        return { plain = "", colored = "" }
+    end
+    
+    -- 限制显示的buff数量
+    local maxDisplay = 4
+    local displayCount = math.min(#buffList, maxDisplay)
+    
+    local buffIconsPlain = ""
+    local buffIconsColored = ""
+    for i = 1, displayCount do
+        local buff = buffList[i]
+        local icon = buff.icon or "*"
+        local color = GetBuffTypeColor(buff.mainType)
+        
+        -- 显示层数
+        local stackText = ""
+        if buff.stackCount and buff.stackCount > 1 then
+            stackText = tostring(buff.stackCount)
+        end
+        
+        buffIconsPlain = buffIconsPlain .. icon .. stackText .. " "
+        buffIconsColored = buffIconsColored .. ColorText(icon .. stackText, color) .. " "
+    end
+    
+    -- 如果还有更多buff，显示省略号
+    if #buffList > maxDisplay then
+        buffIconsPlain = buffIconsPlain .. "..."
+        buffIconsColored = buffIconsColored .. ColorText("...", COLORS.BRIGHT_BLACK)
+    end
+    
+    return { plain = buffIconsPlain, colored = buffIconsColored }
+end
+
+--- 获取HP颜色
+---@param percent number HP百分比
+---@return string 颜色代码
+local function GetHpColor(percent)
+    if percent > 0.5 then
+        return COLORS.BRIGHT_GREEN
+    elseif percent > 0.25 then
+        return COLORS.BRIGHT_YELLOW
+    else
+        return COLORS.BRIGHT_RED
+    end
+end
+
+--- 显示英雄卡片（完整版）
+---@param hero table 英雄对象
+---@return table 卡片行列表
+function ConsoleRenderer.ShowHeroCardFull(hero)
+    if not hero then
+        return {}
+    end
+    
+    local BattleAttribute = require("modules.battle_attribute")
+    
+    -- 卡片配置（与 BattleDisplay 保持一致）
+    local CARD_WIDTH = 25
+    local CONTENT_WIDTH = CARD_WIDTH - 2  -- 去掉左右边框
+    
+    local heroName = hero.name or "Unknown"
+    local curHp = BattleAttribute.GetHeroCurHp(hero) or 0
+    local maxHp = BattleAttribute.GetHeroMaxHp(hero) or 1
+    local hpPercent = maxHp > 0 and curHp / maxHp or 0
+    local energy = hero.curEnergy or 0
+    local maxEnergy = 100
+    local isDead = hero.isDead or not hero.isAlive
+    
+    local hpColor = GetHpColor(hpPercent)
+    local teamColor = hero.isLeft and COLORS.BRIGHT_CYAN or COLORS.BRIGHT_MAGENTA
+    local statusIcon = isDead and "☠" or "♥"
+    local statusText = isDead and "已阵亡" or "存活"
+    
+    -- 获取Buff列表（直接从hero.buffs获取）
+    local buffText = ""
+    if hero.buffs and #hero.buffs > 0 then
+        for i, buff in ipairs(hero.buffs) do
+            if i <= 3 then
+                buffText = buffText .. (buff.name or "Buff") .. " "
+            end
+        end
+    end
+    
+    -- 构建卡片行
+    local card = {}
+    
+    -- 顶部边框
+    table.insert(card, teamColor .. "╔" .. string.rep("═", CARD_WIDTH - 2) .. "╗" .. COLORS.RESET)
+    
+    -- 英雄名称行（居中）
+    if #heroName > CONTENT_WIDTH - 2 then
+        heroName = heroName:sub(1, CONTENT_WIDTH - 2)
+    end
+    local namePadding = CONTENT_WIDTH - 2 - #heroName
+    local nameLeftPad = math.floor(namePadding / 2)
+    local nameRightPad = namePadding - nameLeftPad
+    local nameContent = string.rep(" ", nameLeftPad) .. heroName .. string.rep(" ", nameRightPad)
+    if isDead then
+        nameContent = ColorText(nameContent, COLORS.BRIGHT_BLACK)
+    else
+        nameContent = ColorText(nameContent, teamColor)
+    end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. " " .. nameContent .. " " .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 分隔线
+    table.insert(card, teamColor .. "╠" .. string.rep("═", CARD_WIDTH - 2) .. "╣" .. COLORS.RESET)
+    
+    -- HP条（HP条长度 = CONTENT_WIDTH，包含[]）
+    local hpBar = ShowHpBar(curHp, maxHp, CONTENT_WIDTH - 2)
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. hpBar .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- HP数值（右对齐，带颜色）
+    local hpTextPlain = string.format("%d/%d", curHp, maxHp)
+    local hpTextColored = ColorText(hpTextPlain, hpColor)
+    local hpPadding = CONTENT_WIDTH - 1 - #hpTextPlain
+    if hpPadding < 0 then hpPadding = 0 end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. string.rep(" ", hpPadding) .. hpTextColored .. " " .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 能量条（根据能量类型选择显示方式）
+    local curEnergy = hero.curEnergy or hero.energy or 0
+    local maxEnergy = hero.maxEnergy or 100
+    local energyLine = ""
+    local energyTextPlain = ""
+    local energyTextColored = ""
+    
+    if hero.energyType == E_ENERGY_TYPE.Point then
+        -- Point类型：显示点数
+        local maxPoints = maxEnergy
+        energyLine = ShowEnergyBarPoints(curEnergy, maxPoints)
+        energyTextPlain = tostring(curEnergy) .. "/" .. maxPoints
+        energyTextColored = ShowEnergyText(curEnergy, maxPoints)
+    else
+        -- Bar类型：显示百分比条
+        energyLine = ShowEnergyBar(curEnergy, maxEnergy, CONTENT_WIDTH - 2)
+        local percent = math.floor((curEnergy / maxEnergy) * 100)
+        energyTextPlain = percent .. "%"
+        energyTextColored = ShowEnergyPercent(curEnergy, maxEnergy)
+    end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. energyLine .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 能量数值（右对齐，带颜色）
+    local energyPadding = CONTENT_WIDTH - 1 - #energyTextPlain
+    if energyPadding < 0 then energyPadding = 0 end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. string.rep(" ", energyPadding) .. energyTextColored .. " " .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- Buff列表（使用ShowBuffList显示图标和层数）
+    local buffResult = ShowBuffList(hero.buffs)
+    local buffPadding = CONTENT_WIDTH - 5 - #buffResult.plain
+    if buffPadding < 0 then buffPadding = 0 end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. "Buff:" .. buffResult.colored .. string.rep(" ", buffPadding) .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 技能冷却（显示实际技能状态）
+    local cooldownResult = ShowSkillCooldowns(hero)
+    local cdPadding = CONTENT_WIDTH - cooldownResult.displayWidth
+    if cdPadding < 0 then cdPadding = 0 end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. cooldownResult.colored .. string.rep(" ", cdPadding) .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 状态行（考虑中文字符宽度）
+    local statusTextPlain = ""
+    local statusTextColored = ""
+    local statusDisplayWidth = 0
+    if isDead then
+        statusTextPlain = "☠ 已阵亡"
+        statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_RED)
+        -- ☠(1) + 空格(1) + 已(2) + 阵(2) + 亡(2) = 8
+        statusDisplayWidth = 8
+    else
+        statusTextPlain = "♥ 存活"
+        statusTextColored = ColorText(statusTextPlain, COLORS.BRIGHT_GREEN)
+        -- ♥(1) + 空格(1) + 存(2) + 活(2) = 6
+        statusDisplayWidth = 6
+    end
+    local statusPadding = CONTENT_WIDTH - statusDisplayWidth
+    if statusPadding < 0 then statusPadding = 0 end
+    table.insert(card, teamColor .. "║" .. COLORS.RESET .. statusTextColored .. string.rep(" ", statusPadding) .. teamColor .. "║" .. COLORS.RESET)
+    
+    -- 底部边框
+    table.insert(card, teamColor .. "╚" .. string.rep("═", CARD_WIDTH - 2) .. "╝" .. COLORS.RESET)
+    
+    return card
+end
+
+--- 显示战场（完整版）
+function ConsoleRenderer.ShowBattleFieldFull()
+    local BattleFormation = require("modules.battle_formation")
+    local BattleMain = require("modules.battle_main")
+    
+    local teamLeft = BattleFormation.teamLeft
+    local teamRight = BattleFormation.teamRight
+    local currentRound = BattleMain.GetCurrentRound and BattleMain.GetCurrentRound() or 0
+    
+    print("")
+    local titleText = string.format("              BATTLE FIELD - ROUND %3d", currentRound)
+    local borderText = string.rep("═", #titleText + 4)
+    print(ColorText("╔" .. borderText .. "╗", COLORS.BRIGHT_WHITE))
+    print(ColorText("║  " .. titleText .. "  ║", COLORS.BRIGHT_WHITE))
+    print(ColorText("╚" .. borderText .. "╝", COLORS.BRIGHT_WHITE))
+    print("")
+    
+    -- 显示左侧队伍
+    print(ColorText("【上方队伍 - 左侧】", COLORS.BRIGHT_CYAN))
+    print("")
+    
+    local cardsPerRow = 3
+    for row = 1, math.ceil(#teamLeft / cardsPerRow) do
+        local heroes = {}
+        for i = 1, cardsPerRow do
+            local idx = (row - 1) * cardsPerRow + i
+            if idx <= #teamLeft then
+                table.insert(heroes, teamLeft[idx])
+            end
+        end
+        
+        local cardLines = {}
+        for _, hero in ipairs(heroes) do
+            table.insert(cardLines, ConsoleRenderer.ShowHeroCardFull(hero))
+        end
+        
+        local maxCardHeight = 12
+        for lineIdx = 1, maxCardHeight do
+            local line = ""
+            for _, card in ipairs(cardLines) do
+                if card[lineIdx] then
+                    line = line .. card[lineIdx] .. "  "
+                else
+                    line = line .. string.rep(" ", 25 + 2)
+                end
+            end
+            print(line)
+        end
+        print("")
+    end
+    
+    print(ColorText(string.rep("─", 70), COLORS.BRIGHT_BLACK))
+    print("")
+    
+    -- 显示右侧队伍
+    print(ColorText("【下方队伍 - 右侧】", COLORS.BRIGHT_MAGENTA))
+    print("")
+    
+    for row = 1, math.ceil(#teamRight / cardsPerRow) do
+        local heroes = {}
+        for i = 1, cardsPerRow do
+            local idx = (row - 1) * cardsPerRow + i
+            if idx <= #teamRight then
+                table.insert(heroes, teamRight[idx])
+            end
+        end
+        
+        local cardLines = {}
+        for _, hero in ipairs(heroes) do
+            table.insert(cardLines, ConsoleRenderer.ShowHeroCardFull(hero))
+        end
+        
+        local maxCardHeight = 12
+        for lineIdx = 1, maxCardHeight do
+            local line = ""
+            for _, card in ipairs(cardLines) do
+                if card[lineIdx] then
+                    line = line .. card[lineIdx] .. "  "
+                else
+                    line = line .. string.rep(" ", 25 + 2)
+                end
+            end
+            print(line)
+        end
+        print("")
+    end
+end
+
+--- 显示行动顺序
+function ConsoleRenderer.ShowActionOrder()
+    local BattleFormation = require("modules.battle_formation")
+    local allHeroes = BattleFormation.GetAllAliveHeroes()
+    
+    -- 按行动力排序
+    table.sort(allHeroes, function(a, b)
+        return (a.actionForce or 0) > (b.actionForce or 0)
+    end)
+    
+    print("")
+    print(ColorText("【行动顺序】", COLORS.BRIGHT_WHITE))
+    
+    local orderStr = ""
+    for i, hero in ipairs(allHeroes) do
+        if i > 1 then
+            orderStr = orderStr .. " → "
+        end
+        local shortName = hero.name and hero.name:sub(1, 3) or "???"
+        orderStr = orderStr .. shortName
+    end
+    print(" " .. orderStr)
+end
+
+--- 刷新显示（合并 BattleDisplay.Refresh）
+function ConsoleRenderer.Refresh()
+    -- 显示战场
+    ConsoleRenderer.ShowBattleFieldFull()
+    
+    -- 显示行动顺序
+    ConsoleRenderer.ShowActionOrder()
 end
 
 return ConsoleRenderer

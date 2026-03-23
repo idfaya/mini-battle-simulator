@@ -5,6 +5,7 @@
 
 local Logger = require("utils.logger")
 local BattleEvent = require("core.battle_event")
+local BattleVisualEvents = require("ui.battle_visual_events")
 
 local BattleBuff = {}
 
@@ -185,8 +186,15 @@ function BattleBuff.Add(caster, target, buffConfig)
         -- 触发添加时效果
         BattleBuff.ProcessBuffEffect(newBuff, target, E_BUFF_TIMING.ON_ADD)
         
-        -- 发布Buff添加事件
+        -- 发布Buff添加事件（旧版兼容）
         BattleEvent.Publish("BUFF_ADDED", caster, target, newBuff)
+        
+        -- 触发可视化Buff添加事件
+        BattleEvent.Publish(BattleVisualEvents.BUFF_ADDED, BattleVisualEvents.BuildBuffEvent(
+            BattleVisualEvents.BUFF_ADDED, caster, target, newBuff))
+        
+        -- 触发目标状态变化事件
+        BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
         
         return true
     end
@@ -207,8 +215,15 @@ local function RemoveBuffById(target, buffId)
             -- 触发移除时效果
             BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
             
-            -- 发布Buff移除事件
+            -- 发布Buff移除事件（旧版兼容）
             BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
+            
+            -- 触发可视化Buff移除事件
+            BattleEvent.Publish(BattleVisualEvents.BUFF_REMOVED, BattleVisualEvents.BuildBuffEvent(
+                BattleVisualEvents.BUFF_REMOVED, buff.caster, target, buff))
+            
+            -- 触发目标状态变化事件
+            BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
             
             table.remove(buffList, i)
             Logger.Debug(string.format("BattleBuff.RemoveBuffById: 移除Buff [%s] ID=%d", 

@@ -8,6 +8,7 @@ local Logger = require("utils.logger")
 local BattleFormula = require("core.battle_formula")
 local BattleAttribute = require("modules.battle_attribute")
 local BattleEvent = require("core.battle_event")
+local BattleVisualEvents = require("ui.battle_visual_events")
 
 ---@class BattleDmgHeal
 local BattleDmgHeal = {}
@@ -183,7 +184,7 @@ function BattleDmgHeal.MakeDmg(attacker, defender, atkType, dmgParam, isShowDmg,
 
     -- 应用伤害到防御者
     if result.damage > 0 then
-        BattleDmgHeal.ApplyDamage(defender, result.damage)
+        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker)
 
         -- 更新统计
         damageStats.totalDamageDealt = damageStats.totalDamageDealt + result.damage
@@ -194,8 +195,10 @@ function BattleDmgHeal.MakeDmg(attacker, defender, atkType, dmgParam, isShowDmg,
             BattleDmgHeal.Bloodthirsty(attacker, result.damage)
         end
 
-        -- 发布伤害事件
+        -- 发布伤害事件（旧版兼容）
         BattleEvent.Publish("Damage", defender, result.damage, result.isCrit)
+        
+        -- 注意：可视化伤害事件在 ApplyDamage 中触发，避免重复
 
         Logger.Debug(string.format("[BattleDmgHeal.MakeDmg] %s 对 %s 造成 %d 点伤害 (暴击:%s, 格挡:%s)",
             attacker.name or "Unknown",
@@ -251,7 +254,7 @@ function BattleDmgHeal.MakeDmgPlus(attacker, defender, atkType, dmgParam)
 
     -- 应用伤害
     if result.damage > 0 then
-        BattleDmgHeal.ApplyDamage(defender, result.damage)
+        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker)
 
         -- 更新统计
         damageStats.totalDamageDealt = damageStats.totalDamageDealt + result.damage
@@ -305,16 +308,17 @@ function BattleDmgHeal.MakeHeal(caster, target, healVal)
     local actualHeal = math.min(finalHeal, maxHp - curHp)
 
     if actualHeal > 0 then
-        -- 应用治疗
-        local newHp = curHp + actualHeal
-        BattleAttribute.SetHpByVal(target, newHp)
+        -- 使用 ApplyHeal 应用治疗（包含事件触发）
+        BattleDmgHeal.ApplyHeal(target, actualHeal, caster)
 
         -- 更新统计
         damageStats.totalHealDone = damageStats.totalHealDone + actualHeal
         damageStats.totalHealReceived = damageStats.totalHealReceived + actualHeal
 
-        -- 发布治疗事件
+        -- 发布治疗事件（旧版兼容）
         BattleEvent.Publish("Heal", target, actualHeal)
+        
+        -- 注意：可视化治疗事件在 ApplyHeal 中触发，避免重复
 
         Logger.Debug(string.format("[BattleDmgHeal.MakeHeal] %s 治疗 %s %d 点生命值 (实际:%d)",
             caster.name or "Unknown",
@@ -459,7 +463,8 @@ end
 --- 应用伤害到目标（内部函数）
 ---@param target table 目标
 ---@param damage number 伤害值
-function BattleDmgHeal.ApplyDamage(target, damage)
+---@param attacker table 攻击者（可选）
+function BattleDmgHeal.ApplyDamage(target, damage, attacker)
     if not target or damage <= 0 then
         return
     end
@@ -468,6 +473,19 @@ function BattleDmgHeal.ApplyDamage(target, damage)
     local newHp = math.max(0, curHp - damage)
 
     BattleAttribute.SetHpByVal(target, newHp)
+    
+    -- 触发旧版伤害事件（用于 BattleDisplay 战斗日志）
+    BattleEvent.Publish("Damage", target, damage, false)
+    
+    -- 触发可视化伤害事件
+    local BattleVisualEvents = require("ui.battle_visual_events")
+    BattleEvent.Publish(BattleVisualEvents.DAMAGE_DEALT, BattleVisualEvents.BuildDamageDealt(
+        attacker, target, damage, {
+            damageType = 1, -- 物理伤害
+        }))
+    
+    -- 触发目标状态变化事件
+    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
 end
 
 --- 将英雄数据转换为 BattleFormula 需要的格式
@@ -493,6 +511,30 @@ function BattleDmgHeal.ConvertHeroToFormulaData(hero)
         damageBonus = hero.damageIncrease or 0,
         damageReduction = hero.damageReduce or 0,
     }
+end
+
+--- 应用治疗到目标
+---@param target table 目标
+---@param heal number 治疗值
+---@param caster table 施法者（可选）
+function BattleDmgHeal.ApplyHeal(target, heal, caster)
+    if not target or heal <= 0 then
+        return
+    end
+
+    local curHp = BattleAttribute.GetHeroCurHp(target)
+    local maxHp = target.maxHp or 100
+    local newHp = math.min(maxHp, curHp + heal)
+
+    BattleAttribute.SetHpByVal(target, newHp)
+    
+    -- 触发可视化治疗事件
+    local BattleVisualEvents = require("ui.battle_visual_events")
+    BattleEvent.Publish(BattleVisualEvents.HEAL_RECEIVED, BattleVisualEvents.BuildHealReceived(
+        caster, target, heal, {}))
+    
+    -- 触发目标状态变化事件
+    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
 end
 
 --- 获取伤害统计

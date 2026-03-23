@@ -7,7 +7,7 @@ local BattleDriver = {}
 
 -- 依赖模块
 local BattleMain = require("modules.battle_main")
-local BattleDisplay = require("ui.battle_display")
+local ConsoleRenderer = require("ui.console_renderer")
 local BattleEvent = require("core.battle_event")
 local BattleFormation = require("modules.battle_formation")
 local BattleActionOrder = require("modules.battle_action_order")
@@ -37,39 +37,7 @@ local function Sleep(ms)
     end
 end
 
---- 检查是否需要刷新显示
----@return boolean 是否需要刷新
-local function ShouldRefresh()
-    -- 获取当前回合和行动英雄
-    local currentRound = BattleMain.GetCurrentRound()
-    local currentActionHero = nil
-    
-    if BattleActionOrder and BattleActionOrder.GetCurrentHero then
-        currentActionHero = BattleActionOrder.GetCurrentHero()
-    end
-    
-    local shouldRefresh = false
-    
-    -- 回合变化时刷新
-    if currentRound ~= _lastRound then
-        BattleDisplay.AddBattleLog(string.format("========== 回合 %d ==========", currentRound))
-        _lastRound = currentRound
-        shouldRefresh = true
-    end
-    
-    -- 行动英雄变化时刷新
-    if currentActionHero and currentActionHero ~= _lastActionHero then
-        _lastActionHero = currentActionHero
-        shouldRefresh = true
-    end
-    
-    -- 定期刷新（确保事件被显示）
-    if _step % _config.refreshInterval == 0 then
-        shouldRefresh = true
-    end
-    
-    return shouldRefresh
-end
+
 
 --- 初始化战斗驱动
 ---@param config table 配置参数
@@ -103,7 +71,10 @@ function BattleDriver.Start(battleConfig, onBattleEnd)
     _battleResult = nil
     
     -- 清屏准备战斗显示
-    BattleDisplay.ClearScreen()
+    ConsoleRenderer.ClearScreen()
+    
+    -- 显示初始战场
+    ConsoleRenderer.Refresh()
     
     -- 启动战斗
     BattleMain.Start(battleConfig, function(result)
@@ -135,14 +106,9 @@ function BattleDriver.Update()
     BattleMain.Update()
     _step = _step + 1
     
-    -- 检查是否需要刷新显示
-    if ShouldRefresh() then
-        BattleDisplay.Refresh()
-        
-        -- 根据速度设置添加延迟
-        if _config.updateInterval > 0 then
-            Sleep(_config.updateInterval)
-        end
+    -- 根据速度设置添加延迟
+    if _config.updateInterval > 0 then
+        Sleep(_config.updateInterval)
     end
     
     return true
@@ -177,7 +143,7 @@ end
 --- 清理资源
 function BattleDriver.Cleanup()
     BattleMain.Quit()
-    BattleDisplay.ClearBattleLog()
+    ConsoleRenderer.ClearBattleLog()
     _isRunning = false
     _battleFinished = false
     _battleResult = nil

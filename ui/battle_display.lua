@@ -581,8 +581,13 @@ function BattleDisplay.ShowBattleField(teamLeft, teamRight)
     teamLeft = teamLeft or BattleFormation.teamLeft
     teamRight = teamRight or BattleFormation.teamRight
     
+    -- 获取当前回合数
+    local BattleMain = require("modules.battle_main")
+    local currentRound = BattleMain.GetCurrentRound and BattleMain.GetCurrentRound() or 0
+    
     print("")
-    print(ColorText("                    [ BATTLE FIELD ]", COLORS.BRIGHT_WHITE))
+    local titleText = string.format("              [ BATTLE FIELD - ROUND %3d ]", currentRound)
+    print(ColorText(titleText, COLORS.BRIGHT_WHITE))
     print("")
     
     -- 显示上方队伍（左侧队伍）
@@ -683,22 +688,10 @@ end
 ---@param round number 当前回合
 ---@param maxRound number 最大回合数
 function BattleDisplay.ShowRoundInfo(round, maxRound)
-    round = round or BattleMain.GetCurrentRound() or 0
-    maxRound = maxRound or 100
-    
-    local percent = round / maxRound
-    local roundColor = COLORS.BRIGHT_GREEN
-    if percent > 0.7 then
-        roundColor = COLORS.BRIGHT_RED
-    elseif percent > 0.4 then
-        roundColor = COLORS.BRIGHT_YELLOW
-    end
-    
+    -- 注意：回合显示在 ConsoleRenderer.OnTurnStarted 中处理，避免重复
+    -- 这里只显示分隔线
     local roundText = string.format(" ╔══════════════════════════════════════════════════════════════════╗")
     print(ColorText(roundText, COLORS.BRIGHT_WHITE))
-    
-    roundText = string.format(" ║                    ROUND %3d / %3d                               ║", round, maxRound)
-    print(ColorText(roundText, roundColor))
     
     roundText = string.format(" ╚══════════════════════════════════════════════════════════════════╝")
     print(ColorText(roundText, COLORS.BRIGHT_WHITE))
@@ -889,9 +882,11 @@ end
 
 --- 刷新整个显示
 function BattleDisplay.Refresh()
-    BattleDisplay.ClearScreen()
+    -- 注意：ConsoleRenderer 负责主要的战斗信息显示（回合、伤害、技能等）
+    -- BattleDisplay 只负责在回合结束时显示当前战场状态
+    -- 不清屏，避免覆盖 ConsoleRenderer 的输出
     
-    -- 显示回合信息
+    -- 显示回合信息（分隔线）
     BattleDisplay.ShowRoundInfo()
     
     -- 显示战场
@@ -905,8 +900,7 @@ function BattleDisplay.Refresh()
     end)
     BattleDisplay.ShowActionOrder(allHeroes)
     
-    -- 显示战斗日志
-    BattleDisplay.ShowBattleLog()
+    -- 注意：战斗日志由 ConsoleRenderer 处理，这里不再显示
 end
 
 -- ==================== 其他显示功能 ====================
@@ -984,33 +978,9 @@ local BattleEvent = require("core.battle_event")
 
 --- 注册战斗显示相关的事件监听器
 -- 应在 BattleMain.Start 之后调用（因为 Start 会清空监听器）
+-- 注意：战斗日志由 ConsoleRenderer 处理，这里不再重复添加
 function BattleDisplay.RegisterEventListeners()
-    -- 伤害事件
-    BattleEvent.AddListener("Damage", function(target, amount, isCrit)
-        local critMark = isCrit and " ⚡" or ""
-        local msg = string.format("%s 受到 %d 点伤害%s", target.name, amount, critMark)
-        BattleDisplay.AddBattleLog(msg)
-    end)
-    
-    -- 治疗事件
-    BattleEvent.AddListener("Heal", function(target, amount)
-        local msg = string.format("%s 恢复 %d 点生命", target.name, amount)
-        BattleDisplay.AddBattleLog(msg)
-    end)
-    
-    -- Buff添加事件
-    BattleEvent.AddListener("BUFF_ADDED", function(caster, target, buff)
-        local msg = string.format("%s 获得 Buff [%s]", target.name, buff.name)
-        BattleDisplay.AddBattleLog(msg)
-    end)
-    
-    -- 技能施放事件
-    BattleEvent.AddListener("SkillCast", function(hero, target, skillName)
-        local msg = string.format("%s 对 %s 使用 [%s]", hero.name, target.name, skillName)
-        BattleDisplay.AddBattleLog(msg)
-    end)
-    
-    -- 能量消耗事件
+    -- 能量消耗事件 - 刷新显示
     BattleEvent.AddListener("ENERGY_CONSUMED", function(hero, amount)
         BattleDisplay.Refresh()
     end)

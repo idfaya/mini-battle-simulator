@@ -29,7 +29,7 @@ local AllyData = require("config.ally_data")
 local EnemyData = require("config.enemy_data")
 local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")
-local BattleDisplay = require("ui.battle_display")
+-- 注意：BattleDisplay 已合并到 ConsoleRenderer，不再单独使用
 local Logger = require("utils.logger")
 local ArrayUtils = require("utils.array_utils")
 
@@ -150,15 +150,9 @@ local function Main()
         battleResult = result
     end)
     
-    -- 在 BattleMain.Start 之后注册事件监听器
-    BattleDisplay.RegisterEventListeners()
-    
     -- 驱动战斗直到结束
+    -- 注意：ConsoleRenderer 在 BattleMain.Start 中自动初始化并注册事件监听器
     BattleDriver.RunUntilEnd()
-    
-    -- 显示最终战斗结果
-    BattleDisplay.ClearScreen()
-    BattleDisplay.ShowVictoryScreen(battleResult and battleResult.winner)
     
     local status = BattleDriver.GetStatus()
     if battleResult then
