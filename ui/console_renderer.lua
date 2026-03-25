@@ -838,7 +838,7 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     local maxHp = BattleAttribute.GetHeroMaxHp(hero) or 1
     
     -- 职业图标
-    local jobIcon = JOB_ICONS[hero.job] or JOB_ICONS[hero.profession] or "⚔️"
+    local jobIcon = JOB_ICONS[hero.class] or JOB_ICONS[hero.job] or "⚔️"
     -- 位置标识（前后排）
     local positionIcon = ""
     if hero.position then

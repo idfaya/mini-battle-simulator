@@ -247,19 +247,19 @@ function EnemyData.ConvertToHeroData(enemyId)
     local baseHp, baseAtk, baseDef, baseSpeed
 
     if class == 1 then
-        -- 前排: 高血量、高防御、中等攻击、低速度
+        -- 职业1 (倾向坦克): 高血量、高防御、中等攻击、低速度
         baseHp = 3000
         baseAtk = 120
         baseDef = 150
         baseSpeed = 80
     elseif class == 2 then
-        -- 中排: 平衡型
+        -- 职业2 (倾向平衡/输出): 平衡型
         baseHp = 2200
         baseAtk = 150
         baseDef = 100
         baseSpeed = 100
     else
-        -- 后排: 高攻击、低血量、中等速度
+        -- 职业3 (倾向高输出): 高攻击、低血量、中等速度
         baseHp = 1800
         baseAtk = 180
         baseDef = 70
@@ -293,6 +293,7 @@ function EnemyData.ConvertToHeroData(enemyId)
         critRate = 0.05 + (quality * 0.01), -- 品质越高暴击率越高
         critDmg = 1.3 + (star * 0.05), -- 星级越高暴击伤害越高
         skills = {},
+        class = class, -- 添加 class 字段以便渲染器使用
 
         -- 保留原始敌人数据供参考
         _originalEnemy = enemy,

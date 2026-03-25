@@ -71,10 +71,12 @@ function BattleDriver.Start(battleConfig, onBattleEnd)
     _battleResult = nil
     
     -- 清屏准备战斗显示
-    ConsoleRenderer.ClearScreen()
-    
-    -- 显示初始战场
-    ConsoleRenderer.Refresh()
+    if not battleConfig.disableDefaultRenderer then
+        ConsoleRenderer.ClearScreen()
+        
+        -- 显示初始战场
+        ConsoleRenderer.Refresh()
+    end
     
     -- 启动战斗
     BattleMain.Start(battleConfig, function(result)

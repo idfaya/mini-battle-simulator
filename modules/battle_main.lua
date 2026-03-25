@@ -176,9 +176,14 @@ local function InitSubsystems(beginState)
     BattleSkillSeq.Init()
     Logger.Debug("  BattleSkillSeq 初始化完成")
 
-    -- 14. 初始化控制台渲染器
-    ConsoleRenderer.Init()
-    Logger.Debug("  ConsoleRenderer 初始化完成")
+    -- 14. 初始化渲染器
+    if beginState.renderer then
+        beginState.renderer.Init()
+        Logger.Debug("  自定义渲染器初始化完成")
+    elseif not beginState.disableDefaultRenderer then
+        ConsoleRenderer.Init()
+        Logger.Debug("  ConsoleRenderer 初始化完成")
+    end
 
     Logger.Log("BattleMain.InitSubsystems - 所有子系统初始化完成")
 end
@@ -283,14 +288,27 @@ local function BeginNextAction()
         return
     end
 
-    -- 运行行动顺序系统，获取下一个行动的英雄
-    local hero = BattleActionOrder.Run()
+    -- 循环运行行动顺序系统，直到找到下一个行动的英雄（跳过空转帧）
+    local hero = nil
+    local safetyCounter = 0
+    while not hero and safetyCounter < 1000 do
+        hero = BattleActionOrder.Run()
+        safetyCounter = safetyCounter + 1
+        
+        -- 如果没有人行动，检查一下战斗是否因为其他原因结束（虽然不太可能，但为了安全）
+        if not hero then
+            local isEndLoop, winnerLoop, reasonLoop = CheckBattleEnd()
+            if isEndLoop then
+                TriggerBattleEnd(winnerLoop, reasonLoop)
+                return
+            end
+        end
+    end
 
     if hero then
-        -- 增加回合数（在行动开始前，确保事件和显示同步）
+        -- 增加回合数
         currentRound = currentRound + 1
         
-        -- 注意：回合日志在 BattleDriver 中输出，避免重复
         Logger.Log(string.format("[行动] 英雄 %s 开始行动", hero.name or "Unknown"))
 
         -- 触发回合开始事件

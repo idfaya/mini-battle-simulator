@@ -205,7 +205,8 @@ function BattleVisualEvents.BuildTurnEvent(eventType, round, hero)
     return {
         eventType = eventType,
         round = round,
-        heroId = hero and hero.id,
+        hero = hero, -- 传递完整的英雄对象以供详细显示
+        heroId = hero and (hero.instanceId or hero.id),
         heroName = hero and hero.name,
         team = hero and (hero.isLeft and "left" or "right"),
     }
