@@ -110,9 +110,9 @@ function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
     params = params or {}
     return {
         eventType = BattleVisualEvents.DAMAGE_DEALT,
-        attackerId = attacker and attacker.id,
+        attackerId = attacker and (attacker.instanceId or attacker.id),
         attackerName = attacker and attacker.name,
-        targetId = target.id,
+        targetId = target.instanceId or target.id,
         targetName = target.name,
         damage = damage,
         isCrit = params.isCrit or false,
@@ -134,9 +134,9 @@ function BattleVisualEvents.BuildHealReceived(healer, target, healAmount, params
     params = params or {}
     return {
         eventType = BattleVisualEvents.HEAL_RECEIVED,
-        healerId = healer and healer.id,
+        healerId = healer and (healer.instanceId or healer.id),
         healerName = healer and healer.name,
-        targetId = target.id,
+        targetId = target.instanceId or target.id,
         targetName = target.name,
         healAmount = healAmount,
         isCrit = params.isCrit or false,

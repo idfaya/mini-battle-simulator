@@ -18,6 +18,16 @@ local BattleFormation = require("modules.battle_formation")
 ---@class ConsoleRenderer
 local ConsoleRenderer = {}
 
+-- 临时状态缓存
+local tempState = {
+    -- 伤害数字缓存：heroId => { value, type } (按回合记录，不自动消失)
+    damageNumbers = {},
+    -- 高亮状态缓存：heroId => { type, time }
+    highlight = {},
+    -- 本回合是否已经刷新过（用于减少冗余显示）
+    hasRefreshedThisTurn = false,
+}
+
 -- ==================== 配置常量 ====================
 
 -- ANSI 颜色代码
@@ -55,9 +65,11 @@ local BORDERS = {
 }
 
 -- 显示配置
+-- 每行3个卡片，每个卡片宽度 = (80 - 2*2) / 3 ≈ 25
+-- 80列终端 - 2个间距(2*2=4) = 76，76/3 ≈ 25
 local CONFIG = {
     CARD_WIDTH = 25,
-    CARD_HEIGHT = 12,
+    CARD_HEIGHT = 12,  -- 增加1行用于显示伤害数字
     HP_BAR_WIDTH = 18,
     ENERGY_BAR_WIDTH = 18,
     MAX_LOG_LINES = 8,
@@ -75,6 +87,11 @@ function ConsoleRenderer.Init()
     if isInitialized then
         return
     end
+    
+    -- 清空临时状态
+    tempState.damageNumbers = {}
+    tempState.highlight = {}
+    tempState.hasRefreshedThisTurn = false
     
     -- 订阅战斗可视化事件
     ConsoleRenderer.RegisterEventListeners()
@@ -186,6 +203,11 @@ end
 
 --- 战斗开始
 function ConsoleRenderer.OnBattleStarted(data)
+    -- 清空临时状态
+    tempState.damageNumbers = {}
+    tempState.highlight = {}
+    tempState.hasRefreshedThisTurn = false
+    
     ConsoleRenderer.ClearScreen()
     print("")
     print(ColorText("╔══════════════════════════════════════════════════════════════════════╗", COLORS.BRIGHT_WHITE))
@@ -277,14 +299,15 @@ end
 
 --- 回合开始
 function ConsoleRenderer.OnTurnStarted(data)
-    -- 先刷新 Battle Field（显示上一回合结束后的状态）
-    ConsoleRenderer.Refresh()
+    -- 1. 先清空上一回合的伤害数字记录
+    tempState.damageNumbers = {}
+    tempState.hasRefreshedThisTurn = false
     
-    -- 再显示回合信息
+    -- 2. 显示回合信息
     print("")
     local roundText = string.format("═══════════════════ ROUND %3d ═══════════════════", data.round)
     print(ColorText(roundText, COLORS.BRIGHT_WHITE))
-
+    
     if data.heroName then
         local heroText = string.format("→ %s 的回合", data.heroName)
         local teamColor = GetTeamColor(data.team == "left")
@@ -294,7 +317,10 @@ end
 
 --- 回合结束
 function ConsoleRenderer.OnTurnEnded(data)
-    -- 回合结束可以不做特殊显示，或者显示分隔线
+    -- 如果这一回合没有任何重要事件触发过刷新，则在回合结束时刷新一次
+    if not tempState.hasRefreshedThisTurn then
+        ConsoleRenderer.Refresh()
+    end
 end
 
 --- 英雄状态变化
@@ -308,6 +334,10 @@ function ConsoleRenderer.OnHeroDied(data)
     local msg = string.format("☠ %s 阵亡了！", data.heroName)
     print(ColorText(msg, COLORS.BRIGHT_RED))
     ConsoleRenderer.AddBattleLog(msg)
+    
+    -- 英雄阵亡后刷新战场
+    tempState.hasRefreshedThisTurn = true
+    ConsoleRenderer.Refresh()
 end
 
 --- 伤害事件
@@ -324,6 +354,32 @@ function ConsoleRenderer.OnDamageDealt(data)
     elseif data.damage > 0 then
         msg = string.format("%s%s对 %s 造成 %d 点伤害%s", 
             data.attackerName or "未知", critMark, data.targetName, data.damage, blockMark)
+            
+        -- 记录伤害数字到目标（直接覆盖最新伤害）
+        local heroId = data.targetId
+        if heroId then
+            tempState.damageNumbers[heroId] = {
+                value = -data.damage,
+                type = data.isCrit and "crit" or "damage"
+            }
+        end
+        
+        -- 高亮攻击者
+        local attackerId = data.attackerId
+        if attackerId then
+            tempState.highlight[attackerId] = {
+                type = "attack",
+                time = os.clock()
+            }
+        end
+        
+        -- 高亮目标（被攻击）
+        if heroId then
+            tempState.highlight[heroId] = {
+                type = "defend",
+                time = os.clock()
+            }
+        end
     else
         return -- 无伤害不显示
     end
@@ -332,6 +388,10 @@ function ConsoleRenderer.OnDamageDealt(data)
     io.write(ColorText("⚔ " .. msg, color) .. "\n")
     io.flush()
     ConsoleRenderer.AddBattleLog(msg)
+    
+    -- 立即刷新战场显示，显示伤害数字
+    tempState.hasRefreshedThisTurn = true
+    ConsoleRenderer.Refresh()
 end
 
 --- 治疗事件
@@ -343,8 +403,30 @@ function ConsoleRenderer.OnHealReceived(data)
         msg = string.format("%s 治疗 %s %d 点生命", data.healerName, data.targetName, data.healAmount)
     end
     
+    -- 记录治疗数字到目标（直接覆盖最新治疗）
+    local targetId = data.targetId
+    if targetId then
+        tempState.damageNumbers[targetId] = {
+            value = "+" .. data.healAmount,
+            type = "heal"
+        }
+    end
+    
+    -- 高亮治疗者
+    local healerId = data.healerId
+    if healerId then
+        tempState.highlight[healerId] = {
+            type = "heal",
+            time = os.clock()
+        }
+    end
+    
     print(ColorText("✚ " .. msg, color))
     ConsoleRenderer.AddBattleLog(msg)
+    
+    -- 治疗后刷新战场
+    tempState.hasRefreshedThisTurn = true
+    ConsoleRenderer.Refresh()
 end
 
 --- 技能释放开始
@@ -486,21 +568,44 @@ end
 
 -- ==================== 战场显示功能（从 BattleDisplay 合并）====================
 
---- 获取字符串的显示宽度（中文字符算2个宽度）
+--- 获取字符串的实际显示宽度（处理中文、emoji和ANSI序列）
 ---@param str string 字符串
 ---@return number 显示宽度
 local function GetDisplayWidth(str)
+    if not str then return 0 end
+    
+    -- 1. 移除 ANSI 转义序列（颜色代码等）
+    local cleanStr = str:gsub("\27%[[%d;]*%a", "")
+    
     local width = 0
-    for i = 1, #str do
-        local byte = str:byte(i)
-        -- UTF-8中文字符：第一个字节 >= 0xE0 (224)
-        if byte >= 224 then
-            width = width + 2
+    local i = 1
+    while i <= #cleanStr do
+        local byte = cleanStr:byte(i)
+        
+        -- UTF-8 变体选择器 (U+FE0E, U+FE0F): EF B8 8E, EF B8 8F
+        -- 这些字符在终端中宽度为 0，必须跳过
+        if byte == 0xEF and cleanStr:byte(i+1) == 0xB8 and (cleanStr:byte(i+2) == 0x8E or cleanStr:byte(i+2) == 0x8F) then
+            i = i + 3
         elseif byte < 128 then
-            -- ASCII字符
+            -- ASCII 字符
             width = width + 1
+            i = i + 1
+        elseif byte >= 192 and byte < 224 then
+            -- 2 字节字符 (如 U+0080 - U+07FF)
+            width = width + 1
+            i = i + 2
+        elseif byte >= 224 and byte < 240 then
+            -- 3 字节字符 (如 中文 U+0800 - U+FFFF)
+            width = width + 2
+            i = i + 3
+        elseif byte >= 240 then
+            -- 4 字节字符 (如 Emoji U+10000 - U+10FFFF)
+            width = width + 2
+            i = i + 4
+        else
+            -- 无效字节，按 1 宽度跳过
+            i = i + 1
         end
-        -- 忽略UTF-8后续字节 (128-191)
     end
     return width
 end
@@ -715,12 +820,31 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     local BattleAttribute = require("modules.battle_attribute")
     
     -- 卡片配置（与 BattleDisplay 保持一致）
-    local CARD_WIDTH = 25
+    local CARD_WIDTH = CONFIG.CARD_WIDTH
     local CONTENT_WIDTH = CARD_WIDTH - 2  -- 去掉左右边框
+    
+    -- 职业图标映射
+    local JOB_ICONS = {
+        [1] = "🛡️", -- 坦克
+        [2] = "⚔️", -- 战士/物理输出
+        [3] = "🔮", -- 法师/法术输出
+        [4] = "💚", -- 治疗
+        [5] = "✨", -- 辅助
+        [6] = "🏹", -- 射手
+    }
     
     local heroName = hero.name or "Unknown"
     local curHp = BattleAttribute.GetHeroCurHp(hero) or 0
     local maxHp = BattleAttribute.GetHeroMaxHp(hero) or 1
+    
+    -- 职业图标
+    local jobIcon = JOB_ICONS[hero.job] or JOB_ICONS[hero.profession] or "⚔️"
+    -- 位置标识（前后排）
+    local positionIcon = ""
+    if hero.position then
+        -- 位置1-2为前排，3-6为后排
+        positionIcon = hero.position <= 2 and "前排" or "后排"
+    end
     local hpPercent = maxHp > 0 and curHp / maxHp or 0
     local energy = hero.curEnergy or 0
     local maxEnergy = 100
@@ -730,6 +854,37 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     local teamColor = hero.isLeft and COLORS.BRIGHT_CYAN or COLORS.BRIGHT_MAGENTA
     local statusIcon = isDead and "☠" or "♥"
     local statusText = isDead and "已阵亡" or "存活"
+    
+    -- 获取英雄ID（instanceId 或 id）
+    local heroId = hero.instanceId or hero.id
+    
+    -- 检查高亮状态（2秒内的高亮）
+    local highlight = tempState.highlight[heroId]
+    local highlightColor = teamColor
+    if highlight and (os.clock() - highlight.time) < 2 then
+        if highlight.type == "attack" then
+            highlightColor = COLORS.BRIGHT_YELLOW -- 攻击方黄色边框
+        elseif highlight.type == "defend" then
+            highlightColor = COLORS.BRIGHT_RED -- 被攻击方红色边框
+        elseif highlight.type == "heal" then
+            highlightColor = COLORS.BRIGHT_GREEN -- 治疗方绿色边框
+        end
+    end
+    
+    -- 检查伤害数字（按回合记录，不自动消失）
+    local damageText = ""
+    local damageColor = ""
+    local dmgInfo = tempState.damageNumbers[heroId]
+    if dmgInfo then
+        damageText = tostring(dmgInfo.value)
+        if dmgInfo.type == "crit" then
+            damageColor = COLORS.BRIGHT_RED .. COLORS.BOLD
+        elseif dmgInfo.type == "damage" then
+            damageColor = COLORS.RED
+        elseif dmgInfo.type == "heal" then
+            damageColor = COLORS.BRIGHT_GREEN
+        end
+    end
     
     -- 获取Buff列表（直接从hero.buffs获取）
     local buffText = ""
@@ -744,37 +899,59 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     -- 构建卡片行
     local card = {}
     
-    -- 顶部边框
-    table.insert(card, teamColor .. "╔" .. string.rep("═", CARD_WIDTH - 2) .. "╗" .. COLORS.RESET)
+    -- 1. 顶部边框
+    table.insert(card, highlightColor .. "╔" .. string.rep("═", CARD_WIDTH - 2) .. "╗" .. COLORS.RESET)
     
-    -- 英雄名称行（居中）
-    if #heroName > CONTENT_WIDTH - 2 then
-        heroName = heroName:sub(1, CONTENT_WIDTH - 2)
+    -- 2. 伤害数字行（独立一行，居中显示）
+    if damageText ~= "" then
+        local dmgDisplayWidth = GetDisplayWidth(damageText)
+        local dmgPadding = CONTENT_WIDTH - dmgDisplayWidth
+        local dmgLeftPad = math.floor(dmgPadding / 2)
+        local dmgRightPad = dmgPadding - dmgLeftPad
+        local dmgLine = string.rep(" ", dmgLeftPad) .. damageColor .. damageText .. COLORS.RESET .. string.rep(" ", dmgRightPad)
+        table.insert(card, highlightColor .. "║" .. COLORS.RESET .. dmgLine .. highlightColor .. "║" .. COLORS.RESET)
+    else
+        -- 无伤害时显示空行
+        table.insert(card, highlightColor .. "║" .. string.rep(" ", CONTENT_WIDTH) .. highlightColor .. "║" .. COLORS.RESET)
     end
-    local namePadding = CONTENT_WIDTH - 2 - #heroName
+    
+    -- 2. 英雄名称行
+    local nameWithPrefix = jobIcon .. " " .. heroName
+    if positionIcon ~= "" then
+        nameWithPrefix = nameWithPrefix .. " " .. positionIcon
+    end
+    
+    local nameDisplayWidth = GetDisplayWidth(nameWithPrefix)
+    while nameDisplayWidth > CONTENT_WIDTH - 2 and #nameWithPrefix > 0 do
+        nameWithPrefix = nameWithPrefix:sub(1, -2)
+        nameDisplayWidth = GetDisplayWidth(nameWithPrefix)
+    end
+    
+    local namePadding = CONTENT_WIDTH - 2 - nameDisplayWidth
     local nameLeftPad = math.floor(namePadding / 2)
     local nameRightPad = namePadding - nameLeftPad
-    local nameContent = string.rep(" ", nameLeftPad) .. heroName .. string.rep(" ", nameRightPad)
-    if isDead then
-        nameContent = ColorText(nameContent, COLORS.BRIGHT_BLACK)
-    else
-        nameContent = ColorText(nameContent, teamColor)
-    end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. " " .. nameContent .. " " .. teamColor .. "║" .. COLORS.RESET)
+    
+    local nameText = string.rep(" ", nameLeftPad) .. nameWithPrefix .. string.rep(" ", nameRightPad)
+    local nameColor = isDead and COLORS.BRIGHT_BLACK or highlightColor
+    
+    -- 构建名称行：边框 + 空格 + 着色名称 + 空格 + 边框
+    -- CONTENT_WIDTH = CARD_WIDTH - 2，去掉左右边框后剩余宽度
+    -- 名称行内容宽度 = CONTENT_WIDTH - 2（左右各1个空格）
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. " " .. nameColor .. nameText .. COLORS.RESET .. " " .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 分隔线
-    table.insert(card, teamColor .. "╠" .. string.rep("═", CARD_WIDTH - 2) .. "╣" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "╠" .. string.rep("═", CARD_WIDTH - 2) .. "╣" .. COLORS.RESET)
     
     -- HP条（HP条长度 = CONTENT_WIDTH，包含[]）
     local hpBar = ShowHpBar(curHp, maxHp, CONTENT_WIDTH - 2)
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. hpBar .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. hpBar .. highlightColor .. "║" .. COLORS.RESET)
     
     -- HP数值（右对齐，带颜色）
     local hpTextPlain = string.format("%d/%d", curHp, maxHp)
     local hpTextColored = ColorText(hpTextPlain, hpColor)
     local hpPadding = CONTENT_WIDTH - 1 - #hpTextPlain
     if hpPadding < 0 then hpPadding = 0 end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. string.rep(" ", hpPadding) .. hpTextColored .. " " .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. string.rep(" ", hpPadding) .. hpTextColored .. " " .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 能量条（根据能量类型选择显示方式）
     local curEnergy = hero.curEnergy or hero.energy or 0
@@ -796,24 +973,24 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
         energyTextPlain = percent .. "%"
         energyTextColored = ShowEnergyPercent(curEnergy, maxEnergy)
     end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. energyLine .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. energyLine .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 能量数值（右对齐，带颜色）
     local energyPadding = CONTENT_WIDTH - 1 - #energyTextPlain
     if energyPadding < 0 then energyPadding = 0 end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. string.rep(" ", energyPadding) .. energyTextColored .. " " .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. string.rep(" ", energyPadding) .. energyTextColored .. " " .. highlightColor .. "║" .. COLORS.RESET)
     
     -- Buff列表（使用ShowBuffList显示图标和层数）
     local buffResult = ShowBuffList(hero.buffs)
     local buffPadding = CONTENT_WIDTH - 5 - #buffResult.plain
     if buffPadding < 0 then buffPadding = 0 end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. "Buff:" .. buffResult.colored .. string.rep(" ", buffPadding) .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. "Buff:" .. buffResult.colored .. string.rep(" ", buffPadding) .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 技能冷却（显示实际技能状态）
     local cooldownResult = ShowSkillCooldowns(hero)
     local cdPadding = CONTENT_WIDTH - cooldownResult.displayWidth
     if cdPadding < 0 then cdPadding = 0 end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. cooldownResult.colored .. string.rep(" ", cdPadding) .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. cooldownResult.colored .. string.rep(" ", cdPadding) .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 状态行（考虑中文字符宽度）
     local statusTextPlain = ""
@@ -832,10 +1009,10 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     end
     local statusPadding = CONTENT_WIDTH - statusDisplayWidth
     if statusPadding < 0 then statusPadding = 0 end
-    table.insert(card, teamColor .. "║" .. COLORS.RESET .. statusTextColored .. string.rep(" ", statusPadding) .. teamColor .. "║" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "║" .. COLORS.RESET .. statusTextColored .. string.rep(" ", statusPadding) .. highlightColor .. "║" .. COLORS.RESET)
     
     -- 底部边框
-    table.insert(card, teamColor .. "╚" .. string.rep("═", CARD_WIDTH - 2) .. "╝" .. COLORS.RESET)
+    table.insert(card, highlightColor .. "╚" .. string.rep("═", CARD_WIDTH - 2) .. "╝" .. COLORS.RESET)
     
     return card
 end
@@ -876,14 +1053,21 @@ function ConsoleRenderer.ShowBattleFieldFull()
             table.insert(cardLines, ConsoleRenderer.ShowHeroCardFull(hero))
         end
         
-        local maxCardHeight = 12
+        local maxCardHeight = CONFIG.CARD_HEIGHT
         for lineIdx = 1, maxCardHeight do
             local line = ""
-            for _, card in ipairs(cardLines) do
+            for i, card in ipairs(cardLines) do
                 if card[lineIdx] then
-                    line = line .. card[lineIdx] .. "  "
+                    line = line .. card[lineIdx]
+                    -- 只有不是最后一个卡片才加间距
+                    if i < #cardLines then
+                        line = line .. "  "
+                    end
                 else
-                    line = line .. string.rep(" ", 25 + 2)
+                    line = line .. string.rep(" ", CONFIG.CARD_WIDTH)
+                    if i < #cardLines then
+                        line = line .. "  "
+                    end
                 end
             end
             print(line)
@@ -898,6 +1082,7 @@ function ConsoleRenderer.ShowBattleFieldFull()
     print(ColorText("【下方队伍 - 右侧】", COLORS.BRIGHT_MAGENTA))
     print("")
     
+    local cardsPerRow = 3
     for row = 1, math.ceil(#teamRight / cardsPerRow) do
         local heroes = {}
         for i = 1, cardsPerRow do
@@ -912,14 +1097,20 @@ function ConsoleRenderer.ShowBattleFieldFull()
             table.insert(cardLines, ConsoleRenderer.ShowHeroCardFull(hero))
         end
         
-        local maxCardHeight = 12
+        local maxCardHeight = CONFIG.CARD_HEIGHT
         for lineIdx = 1, maxCardHeight do
             local line = ""
-            for _, card in ipairs(cardLines) do
+            for i, card in ipairs(cardLines) do
                 if card[lineIdx] then
-                    line = line .. card[lineIdx] .. "  "
+                    line = line .. card[lineIdx]
+                    if i < #cardLines then
+                        line = line .. "  "
+                    end
                 else
-                    line = line .. string.rep(" ", 25 + 2)
+                    line = line .. string.rep(" ", CONFIG.CARD_WIDTH)
+                    if i < #cardLines then
+                        line = line .. "  "
+                    end
                 end
             end
             print(line)
