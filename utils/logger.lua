@@ -108,6 +108,18 @@ function Logger.Debug(message)
     log(LOG_LEVELS.DEBUG, message)
 end
 
+function Logger.Error(message)
+    Logger.LogError(message)
+end
+
+function Logger.Warn(message)
+    Logger.LogWarning(message)
+end
+
+function Logger.Info(message)
+    Logger.Log(message)
+end
+
 Logger.LOG_LEVELS = LOG_LEVELS
 
 return Logger

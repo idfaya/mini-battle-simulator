@@ -15,8 +15,19 @@ local function LogError(msg)
     print("[ERROR] " .. msg)
 end
 
--- 配置目录路径（从bin目录运行时的相对路径）
-local CONFIG_DIR = "../config/"
+local function OpenConfigFile(fileName)
+    local paths = {
+        "config/" .. fileName,
+        "../config/" .. fileName,
+    }
+    for _, path in ipairs(paths) do
+        local file = io.open(path, "r")
+        if file then
+            return file
+        end
+    end
+    return nil
+end
 
 -- 内部数据存储
 local skillMap = {}      -- SkillID -> skill config
@@ -24,7 +35,7 @@ local skillsByClass = {} -- ClassID -> {skill1, skill2, ...}
 
 --- 加载技能配置数据
 local function LoadSkillData()
-    local file = io.open(CONFIG_DIR .. "res_skill.json", "r")
+    local file = OpenConfigFile("res_skill.json")
     if not file then
         LogError("[SkillData] Failed to open res_skill.json")
         return

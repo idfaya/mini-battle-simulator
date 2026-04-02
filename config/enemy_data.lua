@@ -6,8 +6,20 @@
 local JSON = require("utils.json")
 local EnemyData = {}
 
--- 配置目录路径（从bin目录运行时的相对路径）
-local CONFIG_DIR = "../config/"
+local function GetConfigFilePath(fileName)
+    local paths = {
+        "config/" .. fileName,
+        "../config/" .. fileName,
+    }
+    for _, path in ipairs(paths) do
+        local file = io.open(path, "r")
+        if file then
+            file:close()
+            return path
+        end
+    end
+    return nil
+end
 
 -- 内部数据存储
 local _enemyData = {}      -- 敌人基础数据 (res_enemy.json)
@@ -107,7 +119,8 @@ function EnemyData.Init()
     end
 
     -- 加载 res_enemy.json
-    local enemyArray = loadJsonFile(CONFIG_DIR .. "res_enemy.json")
+    local enemyPath = GetConfigFilePath("res_enemy.json")
+    local enemyArray = enemyPath and loadJsonFile(enemyPath) or nil
     if enemyArray then
         for _, enemy in ipairs(enemyArray) do
             if enemy.ID then
@@ -121,7 +134,8 @@ function EnemyData.Init()
     end
 
     -- 加载 res_enemy_info.json
-    local infoArray = loadJsonFile(CONFIG_DIR .. "res_enemy_info.json")
+    local infoPath = GetConfigFilePath("res_enemy_info.json")
+    local infoArray = infoPath and loadJsonFile(infoPath) or nil
     if infoArray then
         for _, info in ipairs(infoArray) do
             if info.AllyID then

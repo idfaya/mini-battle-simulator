@@ -7,6 +7,11 @@ local Logger = require("utils.logger")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 
+-- 确保枚举已加载
+if not E_BUFF_SPEC_SUBTYPE then
+    require("core.battle_enum")
+end
+
 local BattleBuff = {}
 
 -- Buff存储表: { [heroId] = { buff1, buff2, ... } }
@@ -32,13 +37,20 @@ local E_BUFF_TIMING = {
 }
 
 -- 控制类Buff子类型
-local CONTROL_SUBTYPES = {
-    [E_BUFF_SPEC_SUBTYPE.STUN] = true,
-    [E_BUFF_SPEC_SUBTYPE.Frozen] = true,
-    [E_BUFF_SPEC_SUBTYPE.SILENT] = true,
-    [E_BUFF_SPEC_SUBTYPE.Charm] = true,
-    [E_BUFF_SPEC_SUBTYPE.Charm2] = true,
-}
+local CONTROL_SUBTYPES = {}
+
+-- 延迟初始化控制类Buff子类型（确保枚举已加载）
+local function InitControlSubtypes()
+    if E_BUFF_SPEC_SUBTYPE then
+        CONTROL_SUBTYPES = {
+            [E_BUFF_SPEC_SUBTYPE.STUN] = true,
+            [E_BUFF_SPEC_SUBTYPE.Frozen] = true,
+            [E_BUFF_SPEC_SUBTYPE.SILENT] = true,
+            [E_BUFF_SPEC_SUBTYPE.Charm] = true,
+            [E_BUFF_SPEC_SUBTYPE.Charm2] = true,
+        }
+    end
+end
 
 --- 初始化Buff系统
 function BattleBuff.Init()
@@ -47,6 +59,8 @@ function BattleBuff.Init()
         heroBuffs[k] = nil
     end
     buffIdCounter = 0
+    -- 初始化控制类Buff子类型
+    InitControlSubtypes()
     Logger.Debug("BattleBuff.Init() - Buff系统已初始化")
 end
 

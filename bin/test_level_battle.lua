@@ -5,68 +5,49 @@
     更新速度: 0=极速(无延迟), 100=快, 500=正常, 1000=慢
 --]]
 
--- 设置UTF-8编码
 os.execute("chcp 65001 >nul 2>&1")
 
--- 添加上级目录到路径（bin的父目录是项目根目录）
 package.path = package.path .. ";../?.lua"
 
--- 解析命令行参数
 local targetLevel = tonumber(arg[1]) or 50
 local heroCount = tonumber(arg[2]) or 3
 local enemyCount = tonumber(arg[3]) or 4
-local updateSpeed = tonumber(arg[4]) or 200  -- 默认200毫秒
+local updateSpeed = tonumber(arg[4]) or 200
 
 print(string.format("=== 等级 %d 随机战斗测试 ===", targetLevel))
 print(string.format("英雄数量: %d, 敌人数量: %d", heroCount, enemyCount))
 print(string.format("更新速度: %d毫秒 (0=极速)", updateSpeed))
 print("")
 
--- 加载必要模块
 require("core.battle_enum")
 require("modules.BattleDefaultTypesOpt")
-local AllyData = require("config.ally_data")
-local EnemyData = require("config.enemy_data")
 local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")
--- 注意：BattleDisplay 已合并到 ConsoleRenderer，不再单独使用
 local Logger = require("utils.logger")
+local AllyData = require("config.ally_data")
+local EnemyData = require("config.enemy_data")
 local ArrayUtils = require("utils.array_utils")
 
--- 设置日志级别为 WARN，减少日志干扰显示
 Logger.SetLogLevel(Logger.LOG_LEVELS.WARN)
 
--- 简单的睡眠函数（毫秒）
 local function Sleep(ms)
     if ms <= 0 then return end
     local start = os.clock()
     while (os.clock() - start) * 1000 < ms do
-        -- 忙等待
     end
 end
 
--- 主函数
 local function Main()
-    -- 初始化随机种子
     math.randomseed(os.time())
-    
-    -- 加载所有可用ID
+
     local allHeroIds = {}
-    local allEnemyIds = {}
-    local allBossIds = {}
-    
-    -- 从AllyData加载有技能的英雄ID
-    local heroes = AllyData.GetPlayableHeroes()
-    for _, hero in ipairs(heroes) do
-        if hero.AllyID then
-            table.insert(allHeroIds, hero.AllyID)
-        end
+    local allHeroes = AllyData.GetPlayableHeroes()
+    for _, hero in ipairs(allHeroes) do
+        if hero.AllyID then table.insert(allHeroIds, hero.AllyID) end
     end
-    
-    -- 从EnemyData加载敌人ID
-    allEnemyIds = EnemyData.GetAllNormalEnemyIds()
-    allBossIds = EnemyData.GetAllBossIds()
-    
+    local allEnemyIds = EnemyData.GetAllEnemyIds()
+    local allBossIds = EnemyData.GetAllBossIds()
+
     print(string.format("可用英雄: %d, 可用小怪: %d, 可用Boss: %d", #allHeroIds, #allEnemyIds, #allBossIds))
     print("")
     
@@ -75,10 +56,8 @@ local function Main()
         return
     end
     
-    -- 随机选择英雄
     local selectedHeroIds = ArrayUtils.RandomSelect(allHeroIds, heroCount)
     
-    -- 随机选择一个Boss作为主敌人
     local selectedEnemyIds = {}
     if #allBossIds > 0 then
         local randomBossId = allBossIds[math.random(#allBossIds)]
@@ -86,7 +65,6 @@ local function Main()
         print(string.format("\n【本场Boss】ID: %d", randomBossId))
     end
     
-    -- 如果还有剩余敌人数量，用小怪填充
     local remainingCount = enemyCount - #selectedEnemyIds
     if remainingCount > 0 and #allEnemyIds > 0 then
         local selectedMobs = ArrayUtils.RandomSelect(allEnemyIds, remainingCount)
@@ -95,11 +73,9 @@ local function Main()
         end
     end
     
-    -- 计算等级范围 (目标等级 ± 10级)
     local minLevel = math.max(1, targetLevel - 10)
     local maxLevel = targetLevel + 10
     
-    -- 创建英雄阵容
     local heroes = {}
     print("【英雄阵容】")
     for i, heroId in ipairs(selectedHeroIds) do
@@ -113,7 +89,6 @@ local function Main()
         end
     end
     
-    -- 创建敌人阵容
     local enemies = {}
     print("\n【敌人阵容】")
     for i, enemyId in ipairs(selectedEnemyIds) do
@@ -121,7 +96,6 @@ local function Main()
         local enemy = BattleHeroFactory.CreateEnemy(enemyId, level)
         if enemy then
             table.insert(enemies, enemy)
-            -- 判断是否是Boss (MonsterType=2)
             local isBoss = enemy._monsterType == 2
             local prefix = isBoss and "【BOSS】" or ""
             print(string.format("  %d. %s%s (Lv.%d %s)", 
@@ -131,16 +105,14 @@ local function Main()
     
     print("\n" .. string.rep("=", 50))
     print("战斗即将开始...")
-    Sleep(500)  -- 短暂延迟让用户看清阵容
+    Sleep(500)
     
-    -- 初始化战斗驱动
     BattleDriver.Init({
         maxSteps = 20000,
         updateInterval = updateSpeed,
         refreshInterval = 10
     })
     
-    -- 启动战斗
     local battleResult = nil
     BattleDriver.Start({
         teamLeft = heroes,
@@ -150,8 +122,6 @@ local function Main()
         battleResult = result
     end)
     
-    -- 驱动战斗直到结束
-    -- 注意：ConsoleRenderer 在 BattleMain.Start 中自动初始化并注册事件监听器
     BattleDriver.RunUntilEnd()
     
     local status = BattleDriver.GetStatus()
@@ -165,9 +135,7 @@ local function Main()
         print(string.format("执行步数: %d", status.step))
     end
     
-    -- 清理
     BattleDriver.Cleanup()
 end
 
--- 运行主函数
 Main()

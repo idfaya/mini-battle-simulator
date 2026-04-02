@@ -2,8 +2,19 @@ local JSON = require("utils.json")
 local SkillData = require("config.skill_data")
 local AllyData = {}
 
--- 配置目录路径（从bin目录运行时的相对路径）
-local CONFIG_DIR = "../config/"
+local function OpenConfigFile(fileName)
+    local paths = {
+        "config/" .. fileName,
+        "../config/" .. fileName,
+    }
+    for _, path in ipairs(paths) do
+        local file = io.open(path, "r")
+        if file then
+            return file
+        end
+    end
+    return nil
+end
 
 -- 内部数据存储
 local allyInfoMap = {}      -- AllyID -> ally info
@@ -96,7 +107,7 @@ end
 
 -- 加载 ally info 数据
 local function LoadAllyInfo()
-    local file = io.open(CONFIG_DIR .. "res_ally_info.json", "r")
+    local file = OpenConfigFile("res_ally_info.json")
     if not file then
         error("Failed to open res_ally_info.json")
         return
@@ -150,7 +161,7 @@ end
 
 -- 加载 ally level 数据
 local function LoadAllyLevel()
-    local file = io.open(CONFIG_DIR .. "res_ally_level.json", "r")
+    local file = OpenConfigFile("res_ally_level.json")
     if not file then
         error("Failed to open res_ally_level.json")
         return

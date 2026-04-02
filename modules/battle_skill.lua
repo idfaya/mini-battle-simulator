@@ -1,10 +1,17 @@
 ---
 --- Battle Skill Module
 --- 管理英雄技能、冷却和技能释放
+--- 支持原始技能和Roguelike技能
 ---
+
+-- 确保枚举已加载
+if not E_CAST_TARGET then
+    require("core.battle_enum")
+end
 
 local Logger = require("utils.logger")
 local SkillConfig = require("config.skill_config")
+local SkillRglConfig = require("config.skill_rgl_config")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 
@@ -29,8 +36,15 @@ function BattleSkill.InitModule()
         return
     end
     SkillConfig.Init()
+    SkillRglConfig.Init()
     isInitialized = true
-    Logger.Log("[BattleSkill] 模块初始化完成")
+    Logger.Log("[BattleSkill] 模块初始化完成 (支持Roguelike技能)")
+end
+
+--- 判断是否为Roguelike技能ID
+function BattleSkill.IsRglSkillId(skillId)
+    if not skillId then return false end
+    return skillId >= 800000001 and skillId <= 800020000
 end
 
 --- 生成唯一技能实例ID
@@ -118,13 +132,17 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     -- 确保模块已初始化
     BattleSkill.InitModule()
     
-    -- 从 SkillConfig 获取配置
-    local skillType = SkillConfig.GetSkillType(skillId)
-    local skillParam = SkillConfig.GetSkillParam(skillId)
-    local skillBuffs = SkillConfig.GetSkillBuffs(skillId)
-    local skillCooldown = SkillConfig.GetSkillCooldown(skillId)
-    local skillCost = SkillConfig.GetSkillCost(skillId)
-    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
+    -- 判断是否为Roguelike技能
+    local isRgl = BattleSkill.IsRglSkillId(skillId)
+    local configModule = isRgl and SkillRglConfig or SkillConfig
+    
+    -- 从配置模块获取配置
+    local skillType = configModule.GetSkillType(skillId)
+    local skillParam = configModule.GetSkillParam(skillId)
+    local skillBuffs = configModule.GetSkillBuffs(skillId)
+    local skillCooldown = configModule.GetSkillCooldown(skillId)
+    local skillCost = configModule.GetSkillCost(skillId)
+    local luaPath = configModule.GetSkillLuaPath(skillId)
     
     -- 合并配置
     local config = BattleSkill.GetSkillConfig(skillId)
@@ -145,6 +163,30 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
             finalSkillType = E_SKILL_TYPE_PASSIVE
         end
     end
+    
+    -- 如果是Roguelike被动技能，标记为已激活
+    local isPassiveActive = false
+    if isRgl and finalSkillType == E_SKILL_TYPE_PASSIVE then
+        isPassiveActive = true
+    end
+
+    -- 确定技能名称：
+    -- 1. 如果是Roguelike技能，优先使用Roguelike配置的Name
+    -- 2. 否则使用传入的name
+    -- 3. 最后是默认格式
+    local skillName = nil
+    if isRgl then
+        local rglCfg = configModule.GetSkillConfig(skillId)
+        if rglCfg and rglCfg.Name then
+            skillName = rglCfg.Name
+        end
+    end
+    if not skillName then
+        skillName = mergedConfig.name
+    end
+    if not skillName then
+        skillName = "Skill_" .. skillId
+    end
 
     local skill = {
         -- 基础信息
@@ -152,7 +194,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         skillId = skillId,
         skillType = finalSkillType,
         level = mergedConfig.level or 1,
-        name = mergedConfig.name or ("Skill_" .. skillId),
+        name = skillName,
 
         -- 冷却相关
         coolDown = 0,
@@ -186,10 +228,25 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
 
         -- 额外数据
         extraData = mergedConfig.extraData or {},
+        
+        -- Roguelike技能特有数据
+        isRglSkill = isRgl,
+        isPassiveActive = isPassiveActive,
+        rglConfig = isRgl and configModule.GetSkillConfig(skillId) or nil,
     }
     
-    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d) Lua路径: %s", 
-        skillId, skillType or 0, skill.luaFile or "nil"))
+    -- 调试输出
+    if isRgl then
+        Logger.Log(string.format("[BattleSkill.CreateSkillInstance] Roguelike技能 %d: isRgl=%s, rglConfig=%s", 
+            skillId, tostring(isRgl), tostring(skill.rglConfig)))
+        if skill.rglConfig then
+            Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   ClassID=%s, Name=%s", 
+                tostring(skill.rglConfig.ClassID), tostring(skill.rglConfig.Name)))
+        end
+    end
+    
+    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d, Roguelike:%s) Lua路径: %s", 
+        skillId, skillType or 0, tostring(isRgl), skill.luaFile or "nil"))
 
     return skill
 end
@@ -332,6 +389,10 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     -- 先触发技能释放事件（在造成伤害之前）
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
     
+    -- 触发攻击前被动技能 (NormalAtkStart)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, {target = targets[1]})
+    
     -- 加载并执行技能Lua脚本
     local executed = false
     
@@ -357,11 +418,16 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
         end
     end
     
+    local totalDamage = 0
+
     -- 如果没有执行技能Lua脚本，执行默认的普通攻击伤害
     if not executed then
         Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击")
-        BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
+        totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     end
+
+    -- 触发攻击后被动技能 (NormalAtkFinish)，传递伤害信息供吸血等技能使用
+    BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {damageDealt = totalDamage})
 
     -- 设置冷却
     BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
@@ -377,17 +443,19 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     return true
 end
 
---- 执行默认普通攻击
+--- 执行默认普通攻击（带被动技能触发）
 ---@param hero table 攻击者
 ---@param targets table 目标列表
 ---@param skill table 技能对象
-function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
+---@return number 总伤害值（用于吸血等被动技能）
+function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     if not hero or not targets or #targets == 0 then
-        return
+        return 0
     end
 
     local BattleAttribute = require("modules.battle_attribute")
     local SkillLoader = require("core.skill_loader")
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
 
     -- 尝试加载技能配置
     local skillId = skill and skill.skillId
@@ -406,7 +474,7 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
     if skill and skill.damageData and skill.damageData.damageRate then
         -- 使用技能对象中的damageData（百分比转万分比）
         damageRate = skill.damageData.damageRate * 100
-        Logger.Log(string.format("[ExecuteDefaultAttack] 使用技能配置伤害倍率: %d%%", skill.damageData.damageRate))
+        Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] 使用技能配置伤害倍率: %d%%", skill.damageData.damageRate))
     elseif spellConfig and spellConfig.Trigger and spellConfig.Trigger.damageData then
         -- 使用配置文件中的damageData
         damageRate = spellConfig.Trigger.damageData.damageRate or 10000
@@ -415,6 +483,8 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
     -- 检查是否是治疗技能
     local isHealSkill = skill and skill.healData and skill.healData.healRate
     local healRate = isHealSkill and skill.healData.healRate * 100 or 0
+
+    local totalDamage = 0
 
     -- 对每个目标执行效果
     for _, target in ipairs(targets) do
@@ -427,25 +497,38 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
                 BattleDmgHeal.ApplyHeal(target, healAmount, hero)
                 
-                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 治疗 %d 点生命",
+                Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 治疗 %d 点生命",
                     hero.name or "Unknown",
                     target.name or "Unknown",
                     healAmount))
             else
-                -- 执行伤害
+                -- 计算伤害
                 local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
+                totalDamage = totalDamage + damage
+                
+                -- 触发目标受击前被动技能 (DefBeforeDmg)
+                BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, {attacker = hero, damage = damage})
                 
                 -- 使用 ApplyDamage 应用伤害（会触发事件）
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
                 BattleDmgHeal.ApplyDamage(target, damage, hero)
 
-                Logger.Log(string.format("[ExecuteDefaultAttack] %s 对 %s 造成 %d 点伤害",
+                Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
                     hero.name or "Unknown",
                     target.name or "Unknown",
                     damage))
                 
+                -- 触发目标受击后被动技能 (DefAfterDmg)
+                BattlePassiveSkill.RunSkillOnDefAfterDmg(target, {attacker = hero, damage = damage})
+                
                 -- 触发伤害相关Buff
                 BattleSkill.TriggerDamageBuffs(hero, target, damage)
+                
+                -- 检查是否击杀
+                if target.isDead or target.hp <= 0 then
+                    -- 触发击杀被动技能 (DmgMakeKill)
+                    BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
+                end
             end
         end
     end
@@ -459,6 +542,16 @@ function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
             end
         end
     end
+
+    return totalDamage
+end
+
+--- 执行默认普通攻击（向后兼容）
+---@param hero table 攻击者
+---@param targets table 目标列表
+---@param skill table 技能对象
+function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
+    BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
 end
 
 --- 计算伤害
@@ -899,8 +992,12 @@ function BattleSkill.LoadSkillLua(skillId)
         return BattleSkill.skillLuaCache[skillId]
     end
 
-    -- 从 SkillConfig 获取Lua路径
-    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
+    -- 判断是否为Roguelike技能
+    local isRgl = BattleSkill.IsRglSkillId(skillId)
+    local configModule = isRgl and SkillRglConfig or SkillConfig
+
+    -- 从配置模块获取Lua路径
+    local luaPath = configModule.GetSkillLuaPath(skillId)
     if not luaPath or luaPath == "" then
         -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
         if skillId ~= 1001 then

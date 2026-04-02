@@ -63,6 +63,7 @@ local JOB_ICONS = {
 local isInitialized = false
 local frameBuffer = {}
 local colorBuffer = {}
+local fastMode = false
 
 -- 战斗状态数据
 local battleState = {
@@ -435,6 +436,9 @@ end
 
 --- 触发一帧渲染
 function ViewportRenderer.RenderFrame()
+    if fastMode then
+        return
+    end
     ClearBuffer()
     DrawScene()
     DrawHUD()
@@ -444,14 +448,28 @@ end
 --- 播放动画等待（阻塞主逻辑的替代方案：实际在协程或Update中运行）
 --- 纯Lua环境下，我们通过简单的空循环或os.execute来实现停顿
 local function Wait(seconds)
-    local start = os.clock()
-    while os.clock() - start < seconds do
-        -- 空循环等待
+    if fastMode then
+        return
+    end
+    if not seconds or seconds <= 0 then
+        return
+    end
+    local ms = math.floor(seconds * 1000)
+    if ms <= 0 then
+        return
+    end
+    if package.config:sub(1, 1) == "\\" then
+        os.execute(string.format("powershell -NoProfile -Command \"Start-Sleep -Milliseconds %d\" >nul 2>&1", ms))
+    else
+        os.execute(string.format("sleep %.3f", seconds))
     end
 end
 
 --- 播放一个视觉特效帧序列
 local function PlayVisualEffect(frames)
+    if fastMode then
+        return
+    end
     for i = 1, frames do
         ViewportRenderer.RenderFrame()
         Wait(0.1) -- 约 10fps 的动画速度
@@ -461,6 +479,9 @@ end
 -- ==================== 事件处理器 ====================
 
 function ViewportRenderer.OnBattleStarted(data)
+    if fastMode then
+        return
+    end
     battleState.round = 0
     battleState.logs = {}
     battleState.effects.floatingTexts = {}
@@ -561,6 +582,19 @@ function ViewportRenderer.OnBattleEnded(data)
     ViewportRenderer.RenderFrame()
 end
 
+--- 被动技能触发
+function ViewportRenderer.OnPassiveSkillTriggered(data)
+    local msg = string.format("【被动】%s 触发 %s (%s)", 
+        data.heroName or "未知", 
+        data.skillName or "未知技能",
+        data.triggerType or "")
+    if data.extraInfo and data.extraInfo ~= "" then
+        msg = msg .. " " .. data.extraInfo
+    end
+    AddLog(msg, COLORS.BRIGHT_MAGENTA)
+    ViewportRenderer.RenderFrame()
+end
+
 -- ==================== 生命周期 ====================
 
 function ViewportRenderer.Init()
@@ -573,9 +607,15 @@ function ViewportRenderer.Init()
     BattleEvent.AddListener(BattleVisualEvents.HEAL_RECEIVED, ViewportRenderer.OnHealReceived)
     BattleEvent.AddListener(BattleVisualEvents.HERO_DIED, ViewportRenderer.OnHeroDied)
     BattleEvent.AddListener(BattleVisualEvents.BATTLE_ENDED, ViewportRenderer.OnBattleEnded)
+    -- 监听被动技能触发事件
+    BattleEvent.AddListener("PassiveSkillTriggered", ViewportRenderer.OnPassiveSkillTriggered)
     
     isInitialized = true
     Logger.Log("[ViewportRenderer] 初始化完成")
+end
+
+function ViewportRenderer.SetFastMode(enabled)
+    fastMode = enabled == true
 end
 
 return ViewportRenderer

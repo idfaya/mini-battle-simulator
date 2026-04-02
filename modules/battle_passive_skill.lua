@@ -1,977 +1,750 @@
 ---
 --- Battle Passive Skill Module
---- 战斗被动技能模块 - 管理英雄的被动技能触发
+--- 战斗被动技能模块 - 完全按照原项目实现移植
 ---
 
 local Logger = require("utils.logger")
-local BattleEvent = require("core.battle_event")
 
 ---@class BattlePassiveSkill
 local BattlePassiveSkill = {}
 
--- 被动技能触发时机枚举
-BattlePassiveSkill.E_TRIGGER_TIMING = {
-    BATTLE_BEGIN = 1,       -- 战斗开始时
-    BATTLE_END = 2,         -- 战斗结束时
-    ROUND_BEGIN = 3,        -- 回合开始时
-    ROUND_END = 4,          -- 回合结束时
-    ACTION_BEGIN = 5,       -- 英雄行动开始时
-    ACTION_END = 6,         -- 英雄行动结束时
-    HP_CHANGE = 7,          -- HP变化时
-    MP_CHANGE = 8,          -- MP变化时
-    ENERGY_CHANGE = 9,      -- 能量变化时
-    ON_ATTACK = 10,         -- 攻击时
-    ON_DEFEND = 11,         -- 受击时
-    ON_DAMAGE = 12,         -- 造成伤害时
-    ON_RECEIVE_DAMAGE = 13, -- 受到伤害时
-    ON_HEAL = 14,           -- 治疗时
-    ON_RECEIVE_HEAL = 15,   -- 受到治疗时
-    ON_KILL = 16,           -- 击杀时
-    ON_DEATH = 17,          -- 死亡时
-    ON_BUFF_ADD = 18,       -- Buff添加时
-    ON_BUFF_REMOVE = 19,    -- Buff移除时
-    ON_SKILL_CAST = 20,     -- 技能释放时
+-- 触发时机到委托的映射表
+local triggerTime2Delegate = {}
+
+-- 触发限制保护
+local triggerLimitProtect = {}
+
+-- 忽略HP检查的触发时机
+local triggerTimeIgnoreHp = {
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill] = true,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.Dying] = true,
 }
 
--- 英雄被动技能存储表: { [heroId] = { skill1, skill2, ... } }
-local heroPassiveSkills = {}
+-- 友方触发时机映射
+local triggerTime2Friend = {
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendAfterDmg] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendAtkBeforeDmg] = E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmg,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendTurnBegin] = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendNormalAtkStart] = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendDmgMakeDeath] = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeDeath,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendDmgCauseDeath] = E_PASSIVE_SKILL_TRIGGER_TIME.DmgCauseDeath,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendCasterBuff] = E_PASSIVE_SKILL_TRIGGER_TIME.CasterBuff,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendReceiveBuff] = E_PASSIVE_SKILL_TRIGGER_TIME.ReceiveBuff,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendHpChg] = E_PASSIVE_SKILL_TRIGGER_TIME.HpChg,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendUltimateAtkStart] = E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendPayHp] = E_PASSIVE_SKILL_TRIGGER_TIME.PayHp,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendDying] = E_PASSIVE_SKILL_TRIGGER_TIME.Dying,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendAfterHeal] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendAfterRecover] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterRecover,
+}
 
--- 技能实例ID计数器
-local skillInstanceIdCounter = 0
+-- 敌方触发时机映射
+local triggerTime2Enemy = {
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyUltimateAtkStart] = E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyDefBeforeDotDmgCalc] = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmgCalc,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyDefAfterBurnDmg] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterBurnDmg,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyTurnBegin] = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyAfterReceiveBuff] = E_PASSIVE_SKILL_TRIGGER_TIME.AfterReceiveBuff,
+}
 
---- 生成唯一技能实例ID
----@return number 技能实例ID
-local function GenerateSkillInstanceId()
-    skillInstanceIdCounter = skillInstanceIdCounter + 1
-    return skillInstanceIdCounter
+-- 友方集结触发时机映射
+local triggerTime2FriendCollect = {
+    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendCollectMakeDeath] = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeDeath,
+}
+
+-- 触发限制配置
+local triggerLimitConfig = {
+    [E_PASSIVE_SKILL_TRIGGER_TIME.BuffChg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmgCalc] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmgCalc] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.Died] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeHealCalc] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.CasterBuff] = 20,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.ReceiveBuff] = 20,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDotDmg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkAfterHeal] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkFinish] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.HpChg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyUltimateAtkStart] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.CriticalRateChg] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeDeath] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DmgCauseDeath] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDotDmgCalc] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.TurnEndAddEnergy] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.EnterBuffSubType] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.LeaveBuffSubType] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.Dying] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.Revive] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.CollectAtkStart] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.CollectAtkFinish] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmgCalc] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterBurnDmg] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.PayHp] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmgUnifiedPoint] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeHeal] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.BeControl] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.ReviveFriend] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.ReviveByFriend] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.JudgeRoundEnd] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AfterReceiveBuff] = 50,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AfterCasterBuff] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.TransferEnd] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmgBeforeShield] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmgBeforeShield] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterRecover] = 30,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStartU3] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.BeforeBattleEnd] = 10,
+    [E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEndActionForceUpdated] = 10,
+}
+
+--- 重置系统
+local function Reset()
+    triggerTime2Delegate = {}
+    for k, v in pairs(E_PASSIVE_SKILL_TRIGGER_TIME) do
+        triggerTime2Delegate[v] = {}
+    end
+    triggerLimitProtect = {}
 end
 
---- 初始化被动技能系统
-function BattlePassiveSkill.Init()
-    -- 清空所有英雄的被动技能
-    for k, _ in pairs(heroPassiveSkills) do
-        heroPassiveSkills[k] = nil
-    end
-    skillInstanceIdCounter = 0
-    Logger.Debug("BattlePassiveSkill.Init() - 被动技能系统已初始化")
-end
+--- 创建被动技能上下文
+local function CreatePassiveSkillContext(hero, heroTrigger, skill, extraParam)
+    local data = {}
+    data.OwnerUnitID = hero.instanceId or hero.id
+    data.TriggerUnitID = heroTrigger.instanceId or heroTrigger.id
 
---- 清理被动技能系统
-function BattlePassiveSkill.OnFinal()
-    for k, _ in pairs(heroPassiveSkills) do
-        heroPassiveSkills[k] = nil
-    end
-    skillInstanceIdCounter = 0
-    Logger.Debug("BattlePassiveSkill.OnFinal() - 被动技能系统已清理")
-end
-
---- 获取英雄的被动技能列表
----@param hero table 英雄对象
----@return table|nil 被动技能列表
-local function GetHeroPassiveSkillList(hero)
-    if not hero or not hero.id then
-        return nil
-    end
-    if not heroPassiveSkills[hero.id] then
-        heroPassiveSkills[hero.id] = {}
-    end
-    return heroPassiveSkills[hero.id]
-end
-
---- 创建被动技能实例
----@param hero table 英雄对象
----@param skillConfig table 技能配置
----@return table|nil 被动技能实例
-local function CreatePassiveSkillInstance(hero, skillConfig)
-    if not skillConfig or not skillConfig.skillId then
-        Logger.Error("[BattlePassiveSkill.CreatePassiveSkillInstance] 无效的技能配置")
-        return nil
-    end
-
-    local skill = {
-        instanceId = GenerateSkillInstanceId(),
-        skillId = skillConfig.skillId,
-        name = skillConfig.name or "Unknown Passive Skill",
-        desc = skillConfig.desc or "",
-        level = skillConfig.level or 1,
-        triggerTiming = skillConfig.triggerTiming or {},
-        triggerCondition = skillConfig.triggerCondition or {},
-        effects = skillConfig.effects or {},
-        luaFile = skillConfig.luaFile or skillConfig.LuaFile or "",
-        luaFuncName = skillConfig.luaFuncName or "",
-        buffSubType = skillConfig.buffSubType or 0,
-        maxTriggerCount = skillConfig.maxTriggerCount or -1, -- -1表示无限制
-        curTriggerCount = 0,
-        cooldown = skillConfig.cooldown or 0,
-        curCooldown = 0,
-        owner = hero,
-        config = skillConfig,
-    }
-
-    return skill
-end
-
---- 添加被动技能到英雄
----@param hero table 英雄对象
----@param skillConfig table 技能配置 {skillId, name, triggerTiming, effects, ...}
----@return boolean 是否成功添加
-function BattlePassiveSkill.InsertPassiveSkill(hero, skillConfig)
-    if not hero or not hero.id then
-        Logger.Error("[BattlePassiveSkill.InsertPassiveSkill] 无效的英雄对象")
-        return false
-    end
-
-    if not skillConfig or not skillConfig.skillId then
-        Logger.Error("[BattlePassiveSkill.InsertPassiveSkill] 无效的技能配置")
-        return false
-    end
-
-    local skillList = GetHeroPassiveSkillList(hero)
-    if not skillList then
-        return false
-    end
-
-    -- 检查是否已存在相同技能
-    for _, existingSkill in ipairs(skillList) do
-        if existingSkill.skillId == skillConfig.skillId then
-            Logger.Warn(string.format("[BattlePassiveSkill.InsertPassiveSkill] 英雄 [%s] 已存在被动技能 [%s]",
-                tostring(hero.name), tostring(skillConfig.name)))
-            return false
+    if skill then
+        data.OwnerSkillId = skill.skillId
+        data.OwnerSkillCsv = {}
+        data.OwnerSkillCsv.classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+        
+        -- 复制技能参数
+        local skillParam = skill.skillParam or skill.rglConfig and skill.rglConfig.SkillParam or {}
+        for k, v in ipairs(skillParam) do
+            data.OwnerSkillCsv["param" .. k] = v
         end
+
+        data.OwnerSkillCsv.coolDown = skill.coolDown or 0
     end
 
-    -- 创建被动技能实例
-    local skill = CreatePassiveSkillInstance(hero, skillConfig)
-    if not skill then
-        return false
-    end
+    data.extraParam = extraParam
 
-    table.insert(skillList, skill)
-    Logger.Info(string.format("[BattlePassiveSkill.InsertPassiveSkill] 英雄 [%s] 添加被动技能 [%s] ID=%d",
-        tostring(hero.name), tostring(skill.name), skill.instanceId))
+    local context = {}
+    context.data = data
 
-    -- 发布被动技能添加事件
-    BattleEvent.Publish("PASSIVE_SKILL_ADDED", hero, skill)
-
-    return true
-end
-
---- 从英雄移除被动技能
----@param hero table 英雄对象
----@param skillId number 技能ID
----@return boolean 是否成功移除
-function BattlePassiveSkill.RemovePassiveSkill(hero, skillId)
-    if not hero or not hero.id then
-        Logger.Error("[BattlePassiveSkill.RemovePassiveSkill] 无效的英雄对象")
-        return false
-    end
-
-    local skillList = GetHeroPassiveSkillList(hero)
-    if not skillList then
-        return false
-    end
-
-    for i, skill in ipairs(skillList) do
-        if skill.skillId == skillId then
-            -- 发布被动技能移除事件
-            BattleEvent.Publish("PASSIVE_SKILL_REMOVED", hero, skill)
-
-            table.remove(skillList, i)
-            Logger.Info(string.format("[BattlePassiveSkill.RemovePassiveSkill] 英雄 [%s] 移除被动技能 [%s] ID=%d",
-                tostring(hero.name), tostring(skill.name), skill.instanceId))
-            return true
-        end
-    end
-
-    Logger.Warn(string.format("[BattlePassiveSkill.RemovePassiveSkill] 英雄 [%s] 未找到技能ID=%d",
-        tostring(hero.name), skillId))
-    return false
-end
-
---- 检查技能触发条件
----@param hero table 英雄对象
----@param skill table 被动技能
----@param context table 触发上下文
----@return boolean 是否满足条件
-local function CheckTriggerCondition(hero, skill, context)
-    if not skill.triggerCondition then
-        return true
-    end
-
-    local condition = skill.triggerCondition
-
-    -- 检查最大触发次数
-    if skill.maxTriggerCount > 0 and skill.curTriggerCount >= skill.maxTriggerCount then
-        return false
-    end
-
-    -- 检查冷却
-    if skill.curCooldown > 0 then
-        return false
-    end
-
-    -- 检查HP条件
-    if condition.hpPercent then
-        local hpPercent = hero.hp and hero.maxHp and (hero.hp / hero.maxHp * 100) or 100
-        if condition.hpPercent.min and hpPercent < condition.hpPercent.min then
-            return false
-        end
-        if condition.hpPercent.max and hpPercent > condition.hpPercent.max then
-            return false
-        end
-    end
-
-    -- 检查MP条件
-    if condition.mpPercent then
-        local mpPercent = hero.mp and hero.maxMp and (hero.mp / hero.maxMp * 100) or 100
-        if condition.mpPercent.min and mpPercent < condition.mpPercent.min then
-            return false
-        end
-        if condition.mpPercent.max and mpPercent > condition.mpPercent.max then
-            return false
-        end
-    end
-
-    -- 检查能量条件
-    if condition.energy then
-        local energy = hero.energy or 0
-        if condition.energy.min and energy < condition.energy.min then
-            return false
-        end
-        if condition.energy.max and energy > condition.energy.max then
-            return false
-        end
-    end
-
-    -- 检查回合条件
-    if condition.round then
-        local round = context and context.round or 0
-        if condition.round.min and round < condition.round.min then
-            return false
-        end
-        if condition.round.max and round > condition.round.max then
-            return false
-        end
-    end
-
-    -- 检查自定义条件
-    if condition.customCheck and type(condition.customCheck) == "function" then
-        if not condition.customCheck(hero, skill, context) then
-            return false
-        end
-    end
-
-    return true
-end
-
---- 加载被动技能Lua脚本
----@param skill table 被动技能
----@return table|nil Lua脚本模块
-local function LoadPassiveSkillLua(skill)
-    if not skill or not skill.luaFile or skill.luaFile == "" then
-        return nil
-    end
-
-    local luaFile = skill.luaFile
-    -- 移除.lua后缀（如果有）
-    luaFile = string.gsub(luaFile, "%.lua$", "")
-
-    local success, skillModule = pcall(require, luaFile)
-    if not success then
-        Logger.Error("[BattlePassiveSkill.LoadPassiveSkillLua] 加载技能Lua失败: " .. luaFile .. ", 错误: " .. tostring(skillModule))
-        return nil
-    end
-
-    return skillModule
+    return context
 end
 
 --- 调用被动技能
----@param hero table 英雄对象
----@param skill table 被动技能
----@param buffSubType number Buff子类型 (可选)
----@param funcName string 要调用的函数名 (可选)
----@param context table 触发上下文 (可选)
----@return boolean 是否调用成功
-function BattlePassiveSkill.CallPassiveSkill(hero, skill, buffSubType, funcName, context)
-    if not hero or not skill then
-        Logger.Error("[BattlePassiveSkill.CallPassiveSkill] 英雄或技能为空")
+local function CallPassiveSkill(hero, battleScriptSkill, extraParam)
+    local context = CreatePassiveSkillContext(battleScriptSkill.src, hero, battleScriptSkill.skill, extraParam)
+
+    -- 简化的条件检查（原项目使用 BattleCondition.CheckConditions）
+    local canTrigger = true
+    if battleScriptSkill.triggerConds then
+        -- 这里可以添加更复杂的条件检查
+        canTrigger = true
+    end
+
+    if canTrigger then
+        local success, err = pcall(function()
+            battleScriptSkill.func(battleScriptSkill.self, context)
+        end)
+        if not success then
+            Logger.Log("[BattlePassiveSkill] 被动技能执行错误: " .. tostring(err))
+        end
+        return true
+    end
+
+    return false
+end
+
+--- 创建技能实体
+local function CreateSkillEntity(luaSkill, luaFunc, src, skill, buffSubType, luaFuncName, triggerTime)
+    local entity = {}
+    entity.self = luaSkill
+    entity.func = luaFunc
+    entity.src = src
+    entity.skill = skill
+    entity.buffSubType = buffSubType
+    entity.luaFuncName = luaFuncName
+    entity.triggerLimit = triggerLimitConfig[triggerTime] or 10
+    entity.triggerConds = nil  -- 可以添加触发条件
+    return entity
+end
+
+--- 创建战斗脚本技能
+local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
+    local skillId = skill.skillId
+    local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+
+    -- 初始化英雄的 luaSkill 表
+    if not hero.luaSkill then
+        hero.luaSkill = {}
+    end
+
+    if hero.luaSkill[skillId] then
+        local self = hero.luaSkill[skillId]
+        local luaFunc = self[luaFuncName]
+        if luaFunc == nil then
+            Logger.Error("[BattlePassiveSkill] 找不到Lua函数: " .. tostring(classId) .. " " .. luaFuncName)
+            return nil
+        end
+        return CreateSkillEntity(self, luaFunc, hero, skill, nil, luaFuncName, triggerTime)
+    end
+
+    -- 加载Lua技能文件
+    local luaFile = "war_" .. tostring(classId)
+    local success, luaSkill = pcall(require, luaFile)
+    if not success or luaSkill == nil then
+        -- 尝试从 config/skill_rgl/ 目录加载
+        success, luaSkill = pcall(require, "config.skill_rgl.skill_" .. skillId)
+        if not success or luaSkill == nil then
+            Logger.Error("[BattlePassiveSkill] 加载Lua文件失败: " .. luaFile .. " 或 skill_" .. skillId)
+            return nil
+        end
+    end
+
+    local context = CreatePassiveSkillContext(hero, {}, skill, nil)
+    local self = luaSkill(context)
+    hero.luaSkill[skillId] = self
+
+    local luaFunc = self[luaFuncName]
+    if luaFunc == nil then
+        Logger.Error("[BattlePassiveSkill] 找不到Lua函数: " .. tostring(classId) .. " " .. luaFuncName)
+        return nil
+    end
+    return CreateSkillEntity(self, luaFunc, hero, skill, nil, luaFuncName, triggerTime)
+end
+
+--- 检查是否可以插入被动技能
+local function CanInsertPassiveSkill(hero, skill, buffSubType, triggerTime, luaFuncName)
+    local delegates = triggerTime2Delegate[triggerTime]
+    if delegates == nil then
+        Logger.Error("[BattlePassiveSkill] 触发时间未配置: " .. tostring(triggerTime))
         return false
     end
 
-    -- 检查英雄状态
-    if hero.isDead or hero.isAlive == false then
-        return false
-    end
+    local heroId = hero.instanceId or hero.id
+    delegates = delegates[heroId]
+    if delegates == nil then return true end
 
-    -- 检查Buff子类型匹配 (如果指定了)
-    if buffSubType and buffSubType ~= 0 and skill.buffSubType ~= buffSubType then
-        return false
-    end
-
-    -- 检查触发条件
-    if not CheckTriggerCondition(hero, skill, context) then
-        return false
-    end
-
-    Logger.Info(string.format("[BattlePassiveSkill.CallPassiveSkill] 英雄 [%s] 触发被动技能 [%s]",
-        tostring(hero.name), tostring(skill.name)))
-
-    local success = false
-
-    -- 1. 执行Lua脚本中的函数
-    if skill.luaFile and skill.luaFile ~= "" then
-        local skillLua = LoadPassiveSkillLua(skill)
-        if skillLua then
-            local targetFunc = funcName or skill.luaFuncName or "Execute"
-            if skillLua[targetFunc] and type(skillLua[targetFunc]) == "function" then
-                local result = skillLua[targetFunc](hero, skill, context)
-                if result then
-                    success = true
-                end
-            elseif skillLua.Execute and type(skillLua.Execute) == "function" then
-                local result = skillLua.Execute(hero, skill, context)
-                if result then
-                    success = true
-                end
+    if skill then
+        for _, battleScriptSkill in ipairs(delegates) do
+            if battleScriptSkill.skill and battleScriptSkill.skill.skillId == skill.skillId 
+               and battleScriptSkill.luaFuncName == luaFuncName then
+                return false
             end
         end
     end
 
-    -- 2. 执行配置的效果
-    if skill.effects then
-        for _, effect in ipairs(skill.effects) do
-            BattlePassiveSkill.ProcessPassiveEffect(hero, skill, effect, context)
-            success = true
-        end
-    end
-
-    -- 更新触发计数和冷却
-    if success then
-        skill.curTriggerCount = skill.curTriggerCount + 1
-        skill.curCooldown = skill.cooldown
-
-        -- 发布被动技能触发事件
-        BattleEvent.Publish("PASSIVE_SKILL_TRIGGERED", hero, skill, context)
-    end
-
-    return success
+    return true
 end
 
---- 处理被动技能效果
----@param hero table 英雄对象
----@param skill table 被动技能
----@param effect table 效果配置
----@param context table 触发上下文
-function BattlePassiveSkill.ProcessPassiveEffect(hero, skill, effect, context)
-    if not effect or not effect.type then
+--- 添加被动技能到触发时机
+local function AddPassiveSkill2TriggerTime(hero, triggerTime, battleScriptSkill, checkRepeat)
+    local delegates = triggerTime2Delegate[triggerTime]
+    if delegates == nil then
+        Logger.Error("[BattlePassiveSkill] 不支持的触发时间: " .. tostring(triggerTime))
         return
     end
 
-    local effectType = effect.type
+    local heroId = hero.instanceId or hero.id
+    if delegates[heroId] == nil then
+        delegates[heroId] = {}
+    end
 
-    if effectType == "buff" then
-        -- 添加Buff效果
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 添加Buff效果", skill.name))
-        BattleEvent.Publish("PASSIVE_ADD_BUFF", hero, effect.buffId, effect.target or "self", effect.duration, effect.stack)
-
-    elseif effectType == "heal" then
-        -- 治疗效果
-        local healValue = effect.value or 0
-        if effect.percent then
-            healValue = (hero.maxHp or 0) * effect.percent / 100
+    if checkRepeat then
+        if CanInsertPassiveSkill(hero, battleScriptSkill.skill, battleScriptSkill.buffSubType, triggerTime, battleScriptSkill.luaFuncName) then
+            table.insert(delegates[heroId], battleScriptSkill)
         end
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 治疗效果 %d", skill.name, healValue))
-        BattleEvent.Publish("PASSIVE_HEAL", hero, healValue, effect.target or "self")
+    else
+        battleScriptSkill.triggerLimit = triggerLimitConfig[triggerTime] or 10
+        table.insert(delegates[heroId], battleScriptSkill)
+    end
+end
 
-    elseif effectType == "damage" then
-        -- 伤害效果
-        local damageValue = effect.value or 0
-        if effect.percent then
-            damageValue = (hero.maxHp or 0) * effect.percent / 100
+--- 添加战斗脚本技能到触发时机
+local function AddBattleScriptSkill2TriggerTime(hero, triggerTime, battleScriptSkill, checkRepeat)
+    -- 检查友方触发时机映射
+    local toFriendTrigger = triggerTime2Friend[triggerTime]
+    if toFriendTrigger then
+        -- 为友方添加技能（简化版，直接添加到自身）
+        AddPassiveSkill2TriggerTime(hero, toFriendTrigger, battleScriptSkill, checkRepeat)
+        return
+    end
+
+    -- 检查敌方触发时机映射
+    local toEnemyTrigger = triggerTime2Enemy[triggerTime]
+    if toEnemyTrigger then
+        -- 为敌方添加技能（简化版，直接添加到自身）
+        AddPassiveSkill2TriggerTime(hero, toEnemyTrigger, battleScriptSkill, checkRepeat)
+        return
+    end
+
+    -- 直接添加到自身
+    AddPassiveSkill2TriggerTime(hero, triggerTime, battleScriptSkill, checkRepeat)
+end
+
+--- 获取被动技能模板
+local function GetPassiveSkillTemplate(skill)
+    local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+    if not classId then
+        Logger.Error("[BattlePassiveSkill] 技能没有classId")
+        return nil
+    end
+
+    -- 尝试加载事件模板
+    local fileName = "event_" .. classId
+    local unitEventTemplate = _G[fileName]
+    
+    -- 如果没有全局模板，尝试从技能配置构建
+    if unitEventTemplate == nil then
+        -- 为Roguelike技能构建默认模板
+        if skill.rglConfig then
+            local triggers = {}
+            local classId = skill.rglConfig.ClassID
+            
+            -- 根据ClassID确定触发时机和函数名
+            if classId >= 8000010 and classId < 8000011 then
+                -- 连击系: 攻击时触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart, luaFuncName = "OnNormalAtkStart" })
+            elseif classId >= 8000011 and classId < 8000012 then
+                -- 反击系: 受击后触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg, luaFuncName = "OnDefAfterDmg" })
+            elseif classId >= 8000050 and classId < 8000051 then
+                -- 吸血系: 造成伤害后触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish, luaFuncName = "OnNormalAtkFinish" })
+            elseif classId >= 8000020 and classId < 8000021 then
+                -- 格挡系: 受击前触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
+            elseif classId >= 8000021 and classId < 8000022 then
+                -- 闪避系: 受击前触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
+            elseif classId >= 8000030 and classId < 8000031 then
+                -- 开局增益系: 回合开始时触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
+            elseif classId >= 8000032 and classId < 8000033 then
+                -- 速度系: 战斗开始时触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin, luaFuncName = "OnBattleBegin" })
+            elseif classId >= 8000100 and classId < 8000101 then
+                -- 法术增益系: 战斗开始时触发
+                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin, luaFuncName = "OnBattleBegin" })
+            end
+            
+            if #triggers > 0 then
+                unitEventTemplate = { triggers = triggers }
+            end
         end
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 伤害效果 %d", skill.name, damageValue))
-        BattleEvent.Publish("PASSIVE_DAMAGE", hero, damageValue, effect.target or "enemy", effect.damageType)
+    end
 
-    elseif effectType == "attr_change" then
-        -- 属性变更
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 属性变更 %s %+d",
-            skill.name, tostring(effect.attr), effect.value or 0))
-        BattleEvent.Publish("PASSIVE_ATTR_CHANGE", hero, effect.attr, effect.value or 0, effect.target or "self")
+    return unitEventTemplate
+end
 
-    elseif effectType == "energy" then
-        -- 能量变化
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 能量变化 %+d",
-            skill.name, effect.value or 0))
-        BattleEvent.Publish("PASSIVE_ENERGY_CHANGE", hero, effect.value or 0, effect.target or "self")
+--- 执行委托
+local function DoRunDelegates(hero, delegates, extraParam, ignoreHeroHp, isMutex)
+    local removeDelegates = {}
+    
+    for k, battleScriptSkill in ipairs(delegates) do
+        local src = battleScriptSkill.src
+        local skill = battleScriptSkill.skill
 
-    elseif effectType == "dispel" then
-        -- 驱散效果
-        Logger.Debug(string.format("[BattlePassiveSkill.ProcessPassiveEffect] 技能 [%s] 驱散效果", skill.name))
-        BattleEvent.Publish("PASSIVE_DISPEL", hero, effect.targetType or "all", effect.target or "self")
+        -- 检查技能是否可以运行
+        local canRunBySkillType = true
+        if skill ~= nil then
+            canRunBySkillType = skill.enable ~= false
+        end
 
-    elseif effectType == "custom" then
-        -- 自定义效果
-        if effect.func and type(effect.func) == "function" then
-            effect.func(hero, skill, effect, context)
+        -- 检查HP（简化版）
+        local canRunByHp = ignoreHeroHp or (src.hp and src.hp > 0) or battleScriptSkill.ignoreHeroHp
+
+        local canRun = canRunBySkillType and canRunByHp
+
+        if canRun then
+            if battleScriptSkill.triggerLimit > 0 then
+                if battleScriptSkill.isRunning then
+                    Logger.Log("[BattlePassiveSkill] 检测到循环触发，暂时跳过")
+                    return
+                end
+
+                battleScriptSkill.isRunning = true
+                CallPassiveSkill(hero, battleScriptSkill, extraParam)
+                battleScriptSkill.triggerLimit = battleScriptSkill.triggerLimit - 1
+                battleScriptSkill.isRunning = false
+            else
+                Logger.Log("[BattlePassiveSkill] 触发次数已达上限")
+            end
+        else
+            if not canRunBySkillType then
+                table.insert(removeDelegates, k)
+            end
+
+            if isMutex then
+                break
+            end
+        end
+    end
+
+    -- 移除无效的技能
+    for k = #removeDelegates, 1, -1 do
+        table.remove(delegates, removeDelegates[k])
+    end
+end
+
+--- 运行委托
+local function RunDelegates(hero, delegateType, extraParam)
+    local delegatesDict = triggerTime2Delegate[delegateType]
+    if delegatesDict == nil then
+        Logger.Error("[BattlePassiveSkill] 错误的触发器类型: " .. tostring(delegateType))
+        return
+    end
+
+    local heroId = hero.instanceId or hero.id
+    local delegates = delegatesDict[heroId]
+
+    if delegates == nil then return end
+
+    if delegateType == E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill then
+        DoRunDelegates(hero, delegates, extraParam, true, true)
+    elseif delegateType == E_PASSIVE_SKILL_TRIGGER_TIME.Dying then
+        DoRunDelegates(hero, delegates, extraParam, true, false)
+    elseif delegateType == E_PASSIVE_SKILL_TRIGGER_TIME.Revive then
+        DoRunDelegates(hero, delegates, extraParam, true, false)
+    else
+        DoRunDelegates(hero, delegates, extraParam, false, false)
+    end
+end
+
+-- ==================== 公共接口 ====================
+
+--- 添加被动技能到触发时机
+function BattlePassiveSkill.AddPassiveSkill2TriggerTime(hero, skill)
+    local unitEventTemplate = GetPassiveSkillTemplate(skill)
+    if unitEventTemplate == nil then 
+        Logger.Error("[BattlePassiveSkill] 无法获取技能模板")
+        return 
+    end
+
+    local triggers = unitEventTemplate.triggers
+    if triggers == nil then
+        Logger.Error("[BattlePassiveSkill] 被动技能没有配置触发条件")
+        return
+    end
+
+    for i = 1, #triggers do
+        local trigger = triggers[i]
+        local triggerTime = trigger.triggerTime
+        local luaFuncName = trigger.luaFuncName
+
+        local battleScriptSkill = CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
+
+        if battleScriptSkill ~= nil then
+            AddBattleScriptSkill2TriggerTime(hero, triggerTime, battleScriptSkill)
+            Logger.Log(string.format("[BattlePassiveSkill] 英雄 [%s] 注册被动技能 [%s] 触发时机 [%d] 函数 [%s]",
+                hero.name or "Unknown", skill.name or "Unknown", triggerTime, luaFuncName))
         end
     end
 end
 
---- 减少所有被动技能的冷却
----@param hero table 英雄对象
-function BattlePassiveSkill.ReduceCooldowns(hero)
-    if not hero or not hero.id then
-        return
+--- 插入被动技能（带排重检查）
+function BattlePassiveSkill.InsertPassiveSkill(heroSkillOwner, heroSkillTrigger, classId, luaFuncName, triggerTime, ignoreHeroHp)
+    if ignoreHeroHp == nil then
+        ignoreHeroHp = false
     end
 
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.curCooldown > 0 then
-            skill.curCooldown = skill.curCooldown - 1
+    -- 查找技能
+    local skill = nil
+    if heroSkillOwner.passiveSkills then
+        for _, s in ipairs(heroSkillOwner.passiveSkills) do
+            if s.classId == classId or (s.rglConfig and s.rglConfig.ClassID == classId) then
+                skill = s
+                break
+            end
         end
+    end
+    
+    if not skill then
+        Logger.Error("[BattlePassiveSkill] 找不到技能: " .. tostring(classId))
+        return
+    end
+
+    local battleScriptSkill = CreateBattleScriptSkill(heroSkillOwner, skill, luaFuncName, triggerTime)
+    if battleScriptSkill then
+        battleScriptSkill.ignoreHeroHp = ignoreHeroHp
+        AddBattleScriptSkill2TriggerTime(heroSkillTrigger, triggerTime, battleScriptSkill, true)
     end
 end
 
---- 通用触发函数
----@param triggerTime number 触发时机 (E_PASSIVE_SKILL_TRIGGER_TIME)
----@param hero table 英雄对象 (可选)
----@param context table 触发上下文 (可选)
-function BattlePassiveSkill.Trigger(triggerTime, hero, context)
-    if not triggerTime then
-        return
-    end
-
-    -- 根据触发时机调用相应的处理函数
-    if triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin then
-        BattlePassiveSkill.RunSkillOnBattleBegin()
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin then
-        if hero then
-            BattlePassiveSkill.RunSkillOnHeroActionBegin(hero)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd then
-        if hero then
-            BattlePassiveSkill.RunSkillOnHeroActionEnd(hero)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.RoundBegin then
-        BattlePassiveSkill.RunSkillOnRoundBegin()
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.RoundEnd then
-        BattlePassiveSkill.RunSkillOnRoundEnd()
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.HpChg then
-        if hero and context and context.delta then
-            BattlePassiveSkill.RunSkillOnHeroHpChange(hero, context.delta)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.ON_ATTACK or triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart then
-        if hero and context and context.target then
-            BattlePassiveSkill.RunSkillOnHeroAttack(hero, context.target)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.ON_DAMAGE or triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish then
-        if hero and context and context.target and context.damage then
-            BattlePassiveSkill.RunSkillOnHeroDealDamage(hero, context.target, context.damage)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.ON_RECEIVE_DAMAGE or triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg then
-        if hero and context and context.attacker and context.damage then
-            BattlePassiveSkill.RunSkillOnHeroReceiveDamage(hero, context.attacker, context.damage)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.ON_DEATH or triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.Died then
-        if hero and context and context.killer then
-            BattlePassiveSkill.RunSkillOnHeroDeath(hero, context.killer)
-        end
-    elseif triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.ON_KILL or triggerTime == E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill then
-        if hero and context and context.victim then
-            BattlePassiveSkill.RunSkillOnHeroKill(hero, context.victim)
+--- 禁用技能
+function BattlePassiveSkill.DisableSkill(hero, skillId)
+    if hero.passiveSkills then
+        for _, passiveSkill in ipairs(hero.passiveSkills) do
+            if passiveSkill.skillId == skillId then
+                passiveSkill.enable = false
+                return
+            end
         end
     end
+    Logger.Error("[BattlePassiveSkill] 找不到被动技能: " .. tostring(skillId))
 end
 
---- 触发战斗开始时的被动技能
+--- 启用技能
+function BattlePassiveSkill.EnableSkill(hero, skillId)
+    if hero.passiveSkills then
+        for _, passiveSkill in ipairs(hero.passiveSkills) do
+            if passiveSkill.skillId == skillId then
+                passiveSkill.enable = true
+                return
+            end
+        end
+    end
+    Logger.Error("[BattlePassiveSkill] 找不到被动技能: " .. tostring(skillId))
+end
+
+-- ==================== 触发函数 ====================
+
 function BattlePassiveSkill.RunSkillOnBattleBegin()
-    Logger.Debug("[BattlePassiveSkill.RunSkillOnBattleBegin] 触发战斗开始被动技能")
+    Logger.Log("[BattlePassiveSkill] 触发战斗开始被动技能")
+    -- 获取所有英雄并触发
+    local BattleFormation = require("modules.battle_formation")
+    local allHeroes = BattleFormation.GetAllHeroes and BattleFormation.GetAllHeroes() or {}
+    for _, hero in ipairs(allHeroes) do
+        RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin)
+    end
+end
 
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            -- 检查是否包含战斗开始时触发时机
-            if skill.triggerTiming then
-                for _, timing in ipairs(skill.triggerTiming) do
-                    if timing == BattlePassiveSkill.E_TRIGGER_TIMING.BATTLE_BEGIN then
-                        BattlePassiveSkill.CallPassiveSkill(skill.owner, skill, nil, nil, { timing = timing })
-                        break
-                    end
-                end
+function BattlePassiveSkill.RunSkillOnSelfTurnBegin(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin)
+end
+
+function BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd)
+end
+
+function BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish)
+end
+
+function BattlePassiveSkill.RunSkillOnDefAfterDmg(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefBeforeDmg(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkBeforeDmg(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmg, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnHeroDied(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.Died)
+end
+
+function BattlePassiveSkill.RunSkillOnHpChg(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.HpChg)
+end
+
+function BattlePassiveSkill.RunSkillOnBuffAdd(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BuffChg)
+end
+
+function BattlePassiveSkill.RunSkillOnBuffDel(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BuffChg)
+end
+
+function BattlePassiveSkill.RunSkillOnUltimateAtkStart(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnUltimateAtkFinish(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkFinish)
+end
+
+function BattlePassiveSkill.RunSkillOnDefAfterHeal(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkAfterHeal(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkAfterHeal, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDying(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.Dying, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnRevive(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.Revive)
+end
+
+function BattlePassiveSkill.RunSkillBeforeBattleEnd(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BeforeBattleEnd)
+end
+
+function BattlePassiveSkill.RunSkillOnJudgeTurnEnd(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.JudgeRoundEnd)
+end
+
+function BattlePassiveSkill.RunSkillOnTurnEndAddEnergy(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.TurnEndAddEnergy, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnCasterBuff(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.CasterBuff, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnReceiveBuff(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.ReceiveBuff, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAfterCasterBuff(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AfterCasterBuff, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAfterReceiveBuff(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AfterReceiveBuff, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnEnterBuffSubType(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.EnterBuffSubType, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnLeaveBuffSubType(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.LeaveBuffSubType, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnPayHp(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.PayHp, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnBeControl(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BeControl)
+end
+
+function BattlePassiveSkill.RunSkillOnCriticalRateChg(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.CriticalRateChg)
+end
+
+function BattlePassiveSkill.RunSkillOnDefAfterBurnDmg(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterBurnDmg)
+end
+
+function BattlePassiveSkill.RunSkillOnDefAfterRecover(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterRecover, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefBeforeDotDmgCalc(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmgCalc, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkBeforeDotDmgCalc(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDotDmgCalc, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkBeforeDmgCalc(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmgCalc, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefBeforeDmgCalc(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmgCalc, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkBeforeDmgBeforeShield(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmgBeforeShield, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefBeforeDmgBeforeShield(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmgBeforeShield, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefBeforeHeal(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeHeal, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnAtkBeforeHealCalc(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeHealCalc, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDmgMakeDeath(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeDeath, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDmgCauseDeath(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DmgCauseDeath, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnDefAfterDmgUnifiedPoint(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmgUnifiedPoint)
+end
+
+function BattlePassiveSkill.RunSkillOnCollectAtkStart(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.CollectAtkStart, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnCollectAtkFinish(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.CollectAtkFinish)
+end
+
+function BattlePassiveSkill.RunSkillOnUltimateAtkU3(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStartU3, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnSelfTurnEndActionForceUpdated(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEndActionForceUpdated)
+end
+
+function BattlePassiveSkill.RunSkillOnTransferFini(hero)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.TransferEnd)
+end
+
+function BattlePassiveSkill.RunSkillOnReviveFriend(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.ReviveFriend, extraParam)
+end
+
+function BattlePassiveSkill.RunSkillOnReviveByFriend(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.ReviveByFriend, extraParam)
+end
+
+-- ==================== 生命周期函数 ====================
+
+function BattlePassiveSkill.Init()
+    Reset()
+    Logger.Log("[BattlePassiveSkill] 初始化完成")
+end
+
+function BattlePassiveSkill.OnFinal()
+    Reset()
+    Logger.Log("[BattlePassiveSkill] 清理完成")
+end
+
+function BattlePassiveSkill.ResetTriggerLimit()
+    for k, _ in pairs(triggerTime2Delegate) do
+        local delegatesDict = triggerTime2Delegate[k]
+        for _, delegates in pairs(delegatesDict) do
+            for _, battleScriptSkill in ipairs(delegates) do
+                battleScriptSkill.triggerLimit = triggerLimitConfig[k] or 10
             end
         end
     end
-end
-
---- 触发战斗结束时的被动技能
-function BattlePassiveSkill.RunSkillOnBattleEnd()
-    Logger.Debug("[BattlePassiveSkill.RunSkillOnBattleEnd] 触发战斗结束被动技能")
-
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            if skill.triggerTiming then
-                for _, timing in ipairs(skill.triggerTiming) do
-                    if timing == BattlePassiveSkill.E_TRIGGER_TIMING.BATTLE_END then
-                        BattlePassiveSkill.CallPassiveSkill(skill.owner, skill, nil, nil, { timing = timing })
-                        break
-                    end
-                end
-            end
-        end
-    end
-end
-
---- 触发回合开始时的被动技能
-function BattlePassiveSkill.RunSkillOnRoundBegin()
-    Logger.Debug("[BattlePassiveSkill.RunSkillOnRoundBegin] 触发回合开始被动技能")
-
-    -- 先减少所有被动技能的冷却
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            if skill.curCooldown > 0 then
-                skill.curCooldown = skill.curCooldown - 1
-            end
-        end
-    end
-
-    -- 触发回合开始被动技能
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            if skill.triggerTiming then
-                for _, timing in ipairs(skill.triggerTiming) do
-                    if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ROUND_BEGIN then
-                        BattlePassiveSkill.CallPassiveSkill(skill.owner, skill, nil, nil, { timing = timing })
-                        break
-                    end
-                end
-            end
-        end
-    end
-end
-
---- 触发回合结束时的被动技能
-function BattlePassiveSkill.RunSkillOnRoundEnd()
-    Logger.Debug("[BattlePassiveSkill.RunSkillOnRoundEnd] 触发回合结束被动技能")
-
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            if skill.triggerTiming then
-                for _, timing in ipairs(skill.triggerTiming) do
-                    if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ROUND_END then
-                        BattlePassiveSkill.CallPassiveSkill(skill.owner, skill, nil, nil, { timing = timing })
-                        break
-                    end
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄行动开始时的被动技能
----@param hero table 英雄对象
-function BattlePassiveSkill.RunSkillOnHeroActionBegin(hero)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroActionBegin] 英雄 [%s] 行动开始触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ACTION_BEGIN then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil, { timing = timing, hero = hero })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄行动结束时的被动技能
----@param hero table 英雄对象
-function BattlePassiveSkill.RunSkillOnHeroActionEnd(hero)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroActionEnd] 英雄 [%s] 行动结束触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ACTION_END then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil, { timing = timing, hero = hero })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄HP变化时的被动技能
----@param hero table 英雄对象
----@param delta number HP变化量 (正数为增加，负数为减少)
-function BattlePassiveSkill.RunSkillOnHeroHpChange(hero, delta)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroHpChange] 英雄 [%s] HP变化 %+d 触发被动技能",
-        tostring(hero.name), delta))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.HP_CHANGE then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, delta = delta, hpPercent = hero.hp / hero.maxHp * 100 })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄MP变化时的被动技能
----@param hero table 英雄对象
----@param delta number MP变化量
-function BattlePassiveSkill.RunSkillOnHeroMpChange(hero, delta)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroMpChange] 英雄 [%s] MP变化 %+d 触发被动技能",
-        tostring(hero.name), delta))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.MP_CHANGE then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, delta = delta, mpPercent = hero.mp / hero.maxMp * 100 })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄能量变化时的被动技能
----@param hero table 英雄对象
----@param delta number 能量变化量
-function BattlePassiveSkill.RunSkillOnHeroEnergyChange(hero, delta)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroEnergyChange] 英雄 [%s] 能量变化 %+d 触发被动技能",
-        tostring(hero.name), delta))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ENERGY_CHANGE then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, delta = delta })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄攻击时的被动技能
----@param hero table 英雄对象
----@param target table 目标对象
-function BattlePassiveSkill.RunSkillOnHeroAttack(hero, target)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroAttack] 英雄 [%s] 攻击触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_ATTACK then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, target = target })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄受击时的被动技能
----@param hero table 英雄对象
----@param attacker table 攻击者
-function BattlePassiveSkill.RunSkillOnHeroDefend(hero, attacker)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroDefend] 英雄 [%s] 受击触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_DEFEND then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, attacker = attacker })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄造成伤害时的被动技能
----@param hero table 英雄对象
----@param target table 目标对象
----@param damage number 伤害值
-function BattlePassiveSkill.RunSkillOnHeroDealDamage(hero, target, damage)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroDealDamage] 英雄 [%s] 造成伤害 %d 触发被动技能",
-        tostring(hero.name), damage))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_DAMAGE then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, target = target, damage = damage })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄受到伤害时的被动技能
----@param hero table 英雄对象
----@param attacker table 攻击者
----@param damage number 伤害值
-function BattlePassiveSkill.RunSkillOnHeroReceiveDamage(hero, attacker, damage)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroReceiveDamage] 英雄 [%s] 受到伤害 %d 触发被动技能",
-        tostring(hero.name), damage))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_RECEIVE_DAMAGE then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, attacker = attacker, damage = damage })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄击杀时的被动技能
----@param hero table 英雄对象
----@param victim table 被击杀者
-function BattlePassiveSkill.RunSkillOnHeroKill(hero, victim)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroKill] 英雄 [%s] 击杀触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_KILL then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, victim = victim })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 触发英雄死亡时的被动技能
----@param hero table 英雄对象
----@param killer table 击杀者
-function BattlePassiveSkill.RunSkillOnHeroDeath(hero, killer)
-    if not hero or not hero.id then
-        return
-    end
-
-    Logger.Debug(string.format("[BattlePassiveSkill.RunSkillOnHeroDeath] 英雄 [%s] 死亡触发被动技能", tostring(hero.name)))
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return
-    end
-
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, timing in ipairs(skill.triggerTiming) do
-                if timing == BattlePassiveSkill.E_TRIGGER_TIMING.ON_DEATH then
-                    BattlePassiveSkill.CallPassiveSkill(hero, skill, nil, nil,
-                        { timing = timing, hero = hero, killer = killer })
-                    break
-                end
-            end
-        end
-    end
-end
-
---- 获取英雄的所有被动技能
----@param hero table 英雄对象
----@return table 被动技能列表
-function BattlePassiveSkill.GetHeroPassiveSkills(hero)
-    if not hero or not hero.id then
-        return {}
-    end
-    return heroPassiveSkills[hero.id] or {}
-end
-
---- 获取英雄指定触发时机的被动技能
----@param hero table 英雄对象
----@param timing number 触发时机
----@return table 被动技能列表
-function BattlePassiveSkill.GetPassiveSkillsByTiming(hero, timing)
-    if not hero or not hero.id or not timing then
-        return {}
-    end
-
-    local skillList = heroPassiveSkills[hero.id]
-    if not skillList then
-        return {}
-    end
-
-    local result = {}
-    for _, skill in ipairs(skillList) do
-        if skill.triggerTiming then
-            for _, skillTiming in ipairs(skill.triggerTiming) do
-                if skillTiming == timing then
-                    table.insert(result, skill)
-                    break
-                end
-            end
-        end
-    end
-
-    return result
-end
-
---- 清除英雄所有被动技能
----@param hero table 英雄对象
-function BattlePassiveSkill.ClearHeroPassiveSkills(hero)
-    if not hero or not hero.id then
-        return
-    end
-
-    local skillList = heroPassiveSkills[hero.id]
-    if skillList then
-        for _, skill in ipairs(skillList) do
-            BattleEvent.Publish("PASSIVE_SKILL_REMOVED", hero, skill)
-        end
-    end
-
-    heroPassiveSkills[hero.id] = nil
-    Logger.Debug(string.format("[BattlePassiveSkill.ClearHeroPassiveSkills] 清除英雄 [%s] 所有被动技能", tostring(hero.name)))
-end
-
---- 重置所有被动技能的触发计数
-function BattlePassiveSkill.ResetAllTriggerCounts()
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        for _, skill in ipairs(skillList) do
-            skill.curTriggerCount = 0
-            skill.curCooldown = 0
-        end
-    end
-    Logger.Debug("[BattlePassiveSkill.ResetAllTriggerCounts] 重置所有被动技能触发计数")
-end
-
---- 获取被动技能统计信息 (用于调试)
----@return table 统计信息
-function BattlePassiveSkill.GetStats()
-    local stats = {
-        heroCount = 0,
-        totalSkillCount = 0,
-        skillsByTiming = {},
-    }
-
-    for heroId, skillList in pairs(heroPassiveSkills) do
-        stats.heroCount = stats.heroCount + 1
-        stats.totalSkillCount = stats.totalSkillCount + #skillList
-
-        for _, skill in ipairs(skillList) do
-            if skill.triggerTiming then
-                for _, timing in ipairs(skill.triggerTiming) do
-                    stats.skillsByTiming[timing] = (stats.skillsByTiming[timing] or 0) + 1
-                end
-            end
-        end
-    end
-
-    return stats
 end
 
 return BattlePassiveSkill

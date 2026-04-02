@@ -168,6 +168,10 @@ local function InitSubsystems(beginState)
     BattlePassiveSkill.Init()
     Logger.Debug("  BattlePassiveSkill 初始化完成")
 
+    -- 11.5 注册Roguelike被动技能到 BattlePassiveSkill 系统
+    -- 被动技能已经在英雄创建时通过 AddPassiveSkill2TriggerTime 注册
+    Logger.Debug("  Roguelike被动技能注册完成")
+
     -- 12. 初始化被动技能效果处理器
     PassiveEffectHandler.Init()
     Logger.Debug("  PassiveEffectHandler 初始化完成")
@@ -364,6 +368,8 @@ function BattleMain.Start(beginState, onBattleEnd)
         teamRight = beginState.teamRight,
     })
 
+    BattlePassiveSkill.RunSkillOnBattleBegin()
+
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
@@ -455,7 +461,7 @@ function BattleMain.ExecuteHeroAction(hero)
     end
 
     -- 触发回合开始被动技能
-    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, hero)
+    BattlePassiveSkill.RunSkillOnSelfTurnBegin(hero)
 
     -- 智能选择可用技能
     local skill = SelectAvailableSkill(hero)
@@ -490,7 +496,7 @@ function BattleMain.ExecuteHeroAction(hero)
     end
 
     -- 触发回合结束被动技能
-    BattlePassiveSkill.Trigger(E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEnd, hero)
+    BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
 
     -- 回合结束增加能量
     BattleEnergy.OnActionEnd(hero)
