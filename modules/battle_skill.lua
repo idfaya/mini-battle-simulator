@@ -115,6 +115,20 @@ function BattleSkill.Init(hero, skillsConfig)
                 hero.skillData.coolDowns[skillId] = 0
                 Logger.Log(string.format("[BattleSkill.Init] 成功创建技能实例: %s (type=%s)", 
                     tostring(skill.name), tostring(skill.skillType)))
+
+                -- 被动技能注册到触发器系统
+                if skill.skillType == E_SKILL_TYPE_PASSIVE or skill.isPassiveActive then
+                    local BattlePassiveSkill = require("modules.battle_passive_skill")
+                    local passiveSkillData = {
+                        skillId = skillId,
+                        classId = skill.rglConfig and skill.rglConfig.ClassID or skillId,
+                        isPassiveActive = true,
+                        name = skill.name,
+                    }
+                    BattlePassiveSkill.AddPassiveSkill2TriggerTime(hero, passiveSkillData)
+                    Logger.Log(string.format("[BattleSkill.Init] 注册被动技能: %s (classId=%s)", 
+                        skill.name, tostring(passiveSkillData.classId)))
+                end
             else
                 Logger.LogWarning(string.format("[BattleSkill.Init] 技能 %s 创建失败，跳过", tostring(skillId)))
             end
