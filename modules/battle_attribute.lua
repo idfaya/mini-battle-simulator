@@ -356,13 +356,14 @@ function BattleAttribute.GetSpeed(hero)
         return 0
     end
 
-    -- 优先使用属性系统中的速度
+    local speed = 0
     if hero.attributes and hero.attributes.final[BattleAttribute.ATTR_ID.SPEED] then
-        return hero.attributes.final[BattleAttribute.ATTR_ID.SPEED]
+        speed = hero.attributes.final[BattleAttribute.ATTR_ID.SPEED]
+    else
+        speed = hero.spd or hero.speed or 0
     end
-
-    -- 回退到直接字段（支持 spd 和 speed 两种命名）
-    return hero.spd or hero.speed or 0
+    local speedBuffPct = ((hero.rglWarSpiritStacks or 0) * 500) + (hero.rglAuraBuff and hero.rglAuraBuff.spd or 0) - (hero.rglSlowPct or 0)
+    return math.max(0, math.floor(speed * (1 + speedBuffPct / 10000)))
 end
 
 --- 获取英雄所有属性信息 (用于调试)

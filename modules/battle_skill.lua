@@ -119,9 +119,10 @@ function BattleSkill.Init(hero, skillsConfig)
                 -- 被动技能注册到触发器系统
                 if skill.skillType == E_SKILL_TYPE_PASSIVE or skill.isPassiveActive then
                     local BattlePassiveSkill = require("modules.battle_passive_skill")
+                    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skillId)
                     local passiveSkillData = {
                         skillId = skillId,
-                        classId = skill.rglConfig and skill.rglConfig.ClassID or skillId,
+                        classId = rglConfig and rglConfig.ClassID or skillId,
                         isPassiveActive = true,
                         name = skill.name,
                     }
@@ -248,6 +249,17 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         isPassiveActive = isPassiveActive,
         rglConfig = isRgl and configModule.GetSkillConfig(skillId) or nil,
     }
+
+    if skill.rglConfig then
+        if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.rglConfig.CoolDownR or 0) > 0 then
+            skill.maxCoolDown = skill.rglConfig.CoolDownR
+        end
+        if not skill.damageData and skill.rglConfig.SkillParam and skill.rglConfig.SkillParam[1] then
+            skill.damageData = {
+                damageRate = skill.rglConfig.SkillParam[1] / 100
+            }
+        end
+    end
     
     -- 调试输出
     if isRgl then
@@ -409,11 +421,12 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     
     -- 加载并执行技能Lua脚本
     local executed = false
+    local specialOnly = BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
     
     -- 始终加载技能配置文件（skill_{ID}.lua），不管 luaFile 是否为空
     -- luaFile 不为空时，表示有额外的自定义脚本（War/ActiveSkills/{LuaFile}.lua）
     local skillLua = BattleSkill.LoadSkillLua(skillId)
-    if skillLua then
+    if skillLua and not specialOnly then
         -- 检查是否有Execute函数（自定义技能脚本）
         if skillLua.Execute then
             local success = skillLua.Execute(hero, targets, skill)
@@ -434,10 +447,15 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     
     local totalDamage = 0
 
-    -- 如果没有执行技能Lua脚本，执行默认的普通攻击伤害
-    if not executed then
+    if specialOnly then
+        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
+        executed = true
+    elseif not executed then
         Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击")
         totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
+        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
+    else
+        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
     end
 
     -- 触发攻击后被动技能 (NormalAtkFinish)，传递伤害信息供吸血等技能使用
@@ -518,10 +536,15 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
             else
                 -- 计算伤害
                 local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
-                totalDamage = totalDamage + damage
+                local damageContext = {
+                    attacker = hero,
+                    target = target,
+                    damage = damage,
+                }
                 
-                -- 触发目标受击前被动技能 (DefBeforeDmg)
-                BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, {attacker = hero, damage = damage})
+                BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
+                damage = math.max(0, math.floor(damageContext.damage or damage))
+                totalDamage = totalDamage + damage
                 
                 -- 使用 ApplyDamage 应用伤害（会触发事件）
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -599,6 +622,8 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
         },
         damageBonus = attacker.damageIncrease or 0,
     }
+    local attackerBuffPct = ((attacker and attacker.rglWarSpiritStacks or 0) * 500) + (attacker and attacker.rglAuraBuff and attacker.rglAuraBuff.atk or 0)
+    attackerData.attrs[config.attrType.ATK] = math.floor(attackerData.attrs[config.attrType.ATK] * (1 + attackerBuffPct / 10000))
     
     local defenderData = {
         attrs = {
@@ -607,6 +632,8 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
         },
         damageReduction = defender.damageReduce or 0,
     }
+    local defenderBuffPct = ((defender and defender.rglWarSpiritStacks or 0) * 500) + (defender and defender.rglAuraBuff and defender.rglAuraBuff.def or 0)
+    defenderData.attrs[config.attrType.DEF] = math.floor(defenderData.attrs[config.attrType.DEF] * (1 + defenderBuffPct / 10000))
     
     -- 使用 BattleFormula 计算伤害
     local damageResult = BattleFormula.CalcDamage(
@@ -1145,6 +1172,753 @@ function BattleSkill.OnFinal()
     BattleSkill.skillConfigCache = {}
     BattleSkill.skillLuaCache = {}
     BattleSkill.skillInstanceIdCounter = 0
+end
+
+-- ============================================================================
+-- 特殊效果处理系统（支持9大流派技能）
+-- ============================================================================
+
+--- 处理连击效果（S1 连击流）
+---@param hero table 攻击者
+---@param targets table 目标列表
+---@param skill table 技能对象
+---@return number 额外攻击次数
+function BattleSkill.ProcessComboEffect(hero, targets, skill)
+    if not skill or not skill.skillParam then return 0 end
+    
+    local comboRate = skill.skillParam[2] or 0  -- 连击概率（万分比）
+    if comboRate <= 0 then return 0 end
+    
+    -- 检查是否有"连击精通"被动提升概率
+    local hasComboMaster = false
+    if hero.skills then
+        for _, s in ipairs(hero.skills) do
+            if s.name == "连击精通" then
+                hasComboMaster = true
+                break
+            end
+        end
+    end
+    
+    if hasComboMaster then
+        comboRate = math.max(comboRate, 5000)  -- 至少50%
+    end
+    
+    local roll = math.random(1, 10000)
+    if roll <= comboRate then
+        Logger.Log(string.format("[ProcessComboEffect] %s 触发连击！概率: %d%%", 
+            hero.name or "Unknown", comboRate / 100))
+        return 1
+    end
+    
+    return 0
+end
+
+--- 处理追击效果（A1 追击流）
+---@param hero table 攻击者
+---@param target table 被击杀的目标
+---@param skill table 技能对象
+function BattleSkill.ProcessPursuitEffect(hero, target, skill)
+    if not target or not target.isDead then return false end
+    
+    -- 检查是否有"追击"被动
+    local hasPursuit = false
+    if hero.skills then
+        for _, s in ipairs(hero.skills) do
+            if s.name == "追击" then
+                hasPursuit = true
+                break
+            end
+        end
+    end
+    
+    if hasPursuit then
+        local pursuitRate = 10000  -- 100%追击
+        local roll = math.random(1, 10000)
+        if roll <= pursuitRate then
+            Logger.Log(string.format("[ProcessPursuitEffect] %s 触发追击！目标: %s", 
+                hero.name or "Unknown", target.name or "Unknown"))
+            
+            -- 选择新目标进行追击攻击
+            local newTarget = BattleSkill.SelectLowestHpEnemy(hero)
+            if newTarget and not newTarget.isDead then
+                BattleSkill.CastSmallSkill(hero, newTarget)
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+--- 选择血量最低的敌人（用于斩杀/收割）
+---@param hero table 英雄对象
+---@return table|nil 目标
+function BattleSkill.SelectLowestHpEnemy(hero)
+    local BattleFormation = require("modules.battle_formation")
+    local enemies = BattleFormation.GetEnemyTeam(hero)
+    
+    if not enemies or #enemies == 0 then return nil end
+    
+    local lowestHpTarget = nil
+    local lowestHpRatio = 1.0
+    
+    for _, enemy in ipairs(enemies) do
+        if enemy and not enemy.isDead and enemy.hp and enemy.maxHp and enemy.maxHp > 0 then
+            local hpRatio = enemy.hp / enemy.maxHp
+            if hpRatio < lowestHpRatio then
+                lowestHpRatio = hpRatio
+                lowestHpTarget = enemy
+            end
+        end
+    end
+    
+    return lowestHpTarget
+end
+
+--- 选择随机存活敌人（用于连击风暴等）
+---@param hero table 英雄对象
+---@param count number 数量
+---@return table 目标列表
+function BattleSkill.SelectRandomAliveEnemies(hero, count)
+    local BattleFormation = require("modules.battle_formation")
+    local enemies = BattleFormation.GetEnemyTeam(hero)
+    
+    if not enemies or #enemies == 0 then return {} end
+    
+    local aliveEnemies = {}
+    for _, enemy in ipairs(enemies) do
+        if enemy and not enemy.isDead then
+            table.insert(aliveEnemies, enemy)
+        end
+    end
+    
+    -- 随机打乱并选择指定数量
+    local selected = {}
+    local shuffled = {}
+    for i, e in ipairs(aliveEnemies) do
+        shuffled[i] = e
+    end
+    
+    for i = #shuffled, 2, -1 do
+        local j = math.random(1, i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+    
+    for i = 1, math.min(count, #shuffled) do
+        table.insert(selected, shuffled[i])
+    end
+    
+    return selected
+end
+
+--- 处理中毒效果（T1 毒爆流）
+---@param target table 目标
+---@param layers number 中毒层数
+function BattleSkill.ApplyPoison(target, layers)
+    if not target or layers <= 0 then return end
+    
+    -- 初始化中毒数据
+    target.poisonStacks = (target.poisonStacks or 0) + layers
+    target.poisonDamagePerLayer = 200  -- 每层每回合损失2%最大生命值（万分比）
+    
+    Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)", 
+        target.name or "Unknown", layers, target.poisonStacks))
+end
+
+--- 处理感染效果（中毒自动加深）
+---@param target table 目标
+function BattleSkill.ProcessInfectEffect(target)
+    if not target or not target.poisonStacks or target.poisonStacks <= 0 then return end
+    
+    -- 每回合自动+1层
+    target.poisonStacks = target.poisonStacks + 1
+    Logger.Log(string.format("[ProcessInfectEffect] %s 中毒加深，当前层数: %d", 
+        target.name or "Unknown", target.poisonStacks))
+end
+
+--- 处理毒性爆发（引爆所有中毒）
+---@param hero table 施法者
+---@param skill table 技能对象
+function BattleSkill.ProcessPoisonBurst(hero, skill)
+    local BattleFormation = require("modules.battle_formation")
+    local enemies = BattleFormation.GetEnemyTeam(hero)
+    
+    if not enemies or #enemies == 0 then return 0 end
+    
+    local totalBurstDamage = 0
+    local burstRate = 5000  -- 每层50%伤害（万分比）
+    
+    for _, enemy in ipairs(enemies) do
+        if enemy and not enemy.isDead and enemy.poisonStacks and enemy.poisonStacks > 0 then
+            local stacks = enemy.poisonStacks
+            local burstDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, burstRate * stacks)
+            
+            -- 应用爆发伤害
+            local BattleDmgHeal = require("modules.battle_dmg_heal")
+            BattleDmgHeal.ApplyDamage(enemy, burstDamage, hero)
+            
+            totalBurstDamage = totalBurstDamage + burstDamage
+            
+            Logger.Log(string.format("[ProcessPoisonBurst] %s 对 %s 造成毒性爆发伤害: %d (层数: %d)", 
+                hero.name or "Unknown", enemy.name or "Unknown", burstDamage, stacks))
+            
+            -- 清除中毒层数
+            enemy.poisonStacks = 0
+        end
+    end
+    
+    return totalBurstDamage
+end
+
+--- 处理治疗技能的双向效果（H1 圣光流）
+---@param hero table 施法者
+---@param target table 目标
+---@param skill table 技能对象
+function BattleSkill.ProcessHolyLightEffect(hero, target, skill)
+    if not target then return 0 end
+    
+    local isAlly = BattleSkill.IsAlly(hero, target)
+    
+    if isAlly then
+        -- 对友方：回复10%最大生命值
+        local healRate = 1000  -- 10%（万分比）
+        local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
+        
+        local BattleDmgHeal = require("modules.battle_dmg_heal")
+        BattleDmgHeal.ApplyHeal(target, healAmount, hero)
+        
+        Logger.Log(string.format("[ProcessHolyLightEffect] %s 治疗 %s: %d 点生命", 
+            hero.name or "Unknown", target.name or "Unknown", healAmount))
+        return healAmount
+    else
+        -- 对敌方：造成100%伤害（已在默认流程中处理）
+        Logger.Log(string.format("[ProcessHolyLightEffect] %s 对敌人 %s 使用圣光攻击", 
+            hero.name or "Unknown", target.name or "Unknown"))
+    end
+    return 0
+end
+
+--- 判断是否为友方
+---@param hero table 英雄
+---@param target table 目标
+---@return boolean 是否为友方
+function BattleSkill.IsAlly(hero, target)
+    if not hero or not target then return false end
+    return hero.isLeft == target.isLeft
+end
+
+function BattleSkill.SelectLowestHpAlly(hero)
+    local BattleFormation = require("modules.battle_formation")
+    local allies = BattleFormation.GetFriendTeam(hero)
+    local lowestHpTarget = nil
+    local lowestHpRatio = 1.0
+
+    for _, ally in ipairs(allies) do
+        if ally and ally.isAlive and not ally.isDead and ally.maxHp and ally.maxHp > 0 and ally.hp < ally.maxHp then
+            local hpRatio = ally.hp / ally.maxHp
+            if hpRatio < lowestHpRatio then
+                lowestHpRatio = hpRatio
+                lowestHpTarget = ally
+            end
+        end
+    end
+
+    return lowestHpTarget
+end
+
+function BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
+    if not skill then
+        return false
+    end
+
+    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skill.skillId)
+    if not rglConfig then
+        return false
+    end
+
+    local classId = rglConfig.ClassID
+    local skillLevel = rglConfig.SkillLevel
+
+    if classId == 8000400 and skillLevel >= 3 then
+        return true
+    end
+    if classId == 8000300 and skillLevel >= 3 then
+        return true
+    end
+    if classId == 8000100 and skillLevel >= 3 then
+        return true
+    end
+    if classId == 8000500 and skillLevel == 4 then
+        return true
+    end
+    if classId == 8000600 and skillLevel >= 3 then
+        return true
+    end
+    if classId == 8000600 and skillLevel == 1 then
+        return BattleSkill.SelectLowestHpAlly(hero) ~= nil
+    end
+    if classId >= 8000700 and classId <= 8000900 and skillLevel >= 3 then
+        return true
+    end
+
+    return false
+end
+
+--- 处理群疗效果（H1 圣光流 L3）
+---@param hero table 施法者
+---@param skill table 技能对象
+function BattleSkill.ProcessGroupHeal(hero, skill)
+    local BattleFormation = require("modules.battle_formation")
+    local allies = BattleFormation.GetFriendTeam(hero)
+    
+    if not allies or #allies == 0 then return 0 end
+    
+    local healCount = skill and skill.skillParam and skill.skillParam[2] or 3
+    local healRate = skill and skill.skillParam and skill.skillParam[1] or 2000  -- 20%
+    
+    -- 按血量排序，选择最少的友军
+    local sortedAllies = {}
+    for _, ally in ipairs(allies) do
+        if ally and not ally.isDead and ally.hp and ally.maxHp then
+            ally.hpRatio = ally.hp / ally.maxHp
+            table.insert(sortedAllies, ally)
+        end
+    end
+    
+    table.sort(sortedAllies, function(a, b) return a.hpRatio < b.hpRatio end)
+    
+    local totalHealed = 0
+    for i = 1, math.min(healCount, #sortedAllies) do
+        local target = sortedAllies[i]
+        local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
+        
+        local BattleDmgHeal = require("modules.battle_dmg_heal")
+        BattleDmgHeal.ApplyHeal(target, healAmount, hero)
+        
+        totalHealed = totalHealed + healAmount
+        
+        Logger.Log(string.format("[ProcessGroupHeal] %s 治疗 %s: %d 点生命 (血量比例: %.1f%%)", 
+            hero.name or "Unknown", target.name or "Unknown", healAmount, target.hpRatio * 100))
+    end
+    
+    return totalHealed
+end
+
+--- 处理全体治疗+清负面（H1 圣光流 L4）
+---@param hero table 施法者
+---@param skill table 技能对象
+function BattleSkill.ProcessFullHealAndCleanse(hero, skill)
+    local BattleFormation = require("modules.battle_formation")
+    local allies = BattleFormation.GetFriendTeam(hero)
+    
+    if not allies or #allies == 0 then return 0 end
+    
+    local totalHealed = 0
+    
+    for _, ally in ipairs(allies) do
+        if ally and not ally.isDead then
+            -- 回复100%生命
+            local healAmount = ally.maxHp - ally.hp
+            
+            if healAmount > 0 then
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyHeal(ally, healAmount, hero)
+                totalHealed = totalHealed + healAmount
+            end
+            
+            local BattleBuff = require("modules.battle_buff")
+            if BattleBuff.RemoveAllDebuffs then
+                BattleBuff.RemoveAllDebuffs(ally)
+            elseif BattleBuff.ClearAllBuffs then
+                BattleBuff.ClearAllBuffs(ally)
+            end
+            
+            Logger.Log(string.format("[ProcessFullHealAndCleanse] %s 完全治愈并净化 %s", 
+                hero.name or "Unknown", ally.name or "Unknown"))
+        end
+    end
+    
+    return totalHealed
+end
+
+--- 处理多目标攻击（双连斩、毒雾、连锁闪电等）
+---@param hero table 攻击者
+---@param skill table 技能对象
+---@return table 目标列表
+function BattleSkill.SelectMultiTargets(hero, skill)
+    if not skill or not skill.skillParam then 
+        return {} 
+    end
+    
+    local targetCount = skill.skillParam[2] or 1
+    
+    if targetCount <= 1 then
+        -- 单目标，选择默认目标
+        local defaultTarget = BattleSkill.SelectTarget(hero, skill)
+        return defaultTarget or {}
+    end
+    
+    -- 多目标：随机选择存活的敌人
+    return BattleSkill.SelectRandomAliveEnemies(hero, targetCount)
+end
+
+--- 处理全场攻击（收割、陨石术、暴风雪、雷暴术、圣光普照等）
+---@param hero table 攻击者
+---@param skill table 技能对象
+---@return table 所有存活敌人
+function BattleSkill.SelectAllAliveTargets(hero)
+    local BattleFormation = require("modules.battle_formation")
+    local enemies = BattleFormation.GetEnemyTeam(hero)
+    
+    if not enemies then return {} end
+    
+    local aliveTargets = {}
+    for _, enemy in ipairs(enemies) do
+        if enemy and not enemy.isDead then
+            table.insert(aliveTargets, enemy)
+        end
+    end
+    
+    return aliveTargets
+end
+
+--- 处理增益Buff（B1 战意流）
+---@param hero table 施法者
+---@param targets table 目标列表
+---@param skill table 技能对象
+function BattleSkill.ApplyBuffToTargets(hero, targets, skill)
+    if not skill then return 0 end
+    local total = 0
+    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skill.skillId)
+    local atkPct = 0
+    local defPct = 0
+    local spdPct = 0
+    local duration = 3
+
+    if rglConfig and rglConfig.SkillLevel == 3 then
+        atkPct = 2000
+    elseif rglConfig and rglConfig.SkillLevel == 4 then
+        atkPct = 5000
+        defPct = 5000
+        spdPct = 5000
+    end
+
+    for _, target in ipairs(targets) do
+        if target and not target.isDead then
+            target.rglAuraBuff = target.rglAuraBuff or {atk = 0, def = 0, spd = 0, turns = 0}
+            target.rglAuraBuff.atk = math.max(target.rglAuraBuff.atk or 0, atkPct)
+            target.rglAuraBuff.def = math.max(target.rglAuraBuff.def or 0, defPct)
+            target.rglAuraBuff.spd = math.max(target.rglAuraBuff.spd or 0, spdPct)
+            target.rglAuraBuff.turns = math.max(target.rglAuraBuff.turns or 0, duration)
+            total = total + 1
+        end
+    end
+    Logger.Log(string.format("[ApplyBuffToTargets] %s 施加战意增益: atk=%d def=%d spd=%d turn=%d target=%d",
+        hero.name or "Unknown", atkPct, defPct, spdPct, duration, total))
+    return total
+end
+
+function BattleSkill.ApplyBurn(target, stacks, turns)
+    if not target or stacks <= 0 then
+        return
+    end
+    target.rglBurnStacks = (target.rglBurnStacks or 0) + stacks
+    target.rglBurnTurns = math.max(target.rglBurnTurns or 0, turns or 2)
+    Logger.Log(string.format("[ApplyBurn] %s 燃烧层数: %d (总计: %d, 回合: %d)",
+        target.name or "Unknown", stacks, target.rglBurnStacks, target.rglBurnTurns))
+end
+
+function BattleSkill.ApplyFreeze(target, turns, slowPct)
+    if not target then
+        return
+    end
+    target.rglFrozenTurns = math.max(target.rglFrozenTurns or 0, turns or 1)
+    target.rglSlowPct = math.max(target.rglSlowPct or 0, slowPct or 0)
+    target.rglSlowTurns = math.max(target.rglSlowTurns or 0, turns or 1)
+    Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
+        target.name or "Unknown", target.rglFrozenTurns, target.rglSlowPct or 0))
+end
+
+function BattleSkill.ProcessTurnStartStatus(hero)
+    if not hero or hero.isDead then
+        return false
+    end
+
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+
+    if hero.rglAuraBuff and (hero.rglAuraBuff.turns or 0) > 0 then
+        hero.rglAuraBuff.turns = hero.rglAuraBuff.turns - 1
+        if hero.rglAuraBuff.turns <= 0 then
+            hero.rglAuraBuff = nil
+        end
+    end
+
+    if (hero.rglBurnTurns or 0) > 0 and (hero.rglBurnStacks or 0) > 0 then
+        local burnDamage = math.max(1, math.floor((hero.maxHp or 0) * 0.02 * hero.rglBurnStacks))
+        BattleDmgHeal.ApplyDamage(hero, burnDamage, hero)
+        hero.rglBurnTurns = hero.rglBurnTurns - 1
+        if hero.rglBurnTurns <= 0 then
+            hero.rglBurnStacks = 0
+        end
+        Logger.Log(string.format("[ProcessTurnStartStatus] %s 受到燃烧伤害: %d", hero.name or "Unknown", burnDamage))
+    end
+
+    if (hero.rglFrozenTurns or 0) > 0 then
+        hero.rglFrozenTurns = hero.rglFrozenTurns - 1
+        Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))
+        return false
+    end
+
+    if (hero.rglSlowTurns or 0) > 0 then
+        hero.rglSlowTurns = hero.rglSlowTurns - 1
+        if hero.rglSlowTurns <= 0 then
+            hero.rglSlowPct = 0
+        end
+    end
+
+    return hero.isAlive and not hero.isDead
+end
+
+function BattleSkill.ProcessChainLightning(hero, hitCount, damageRate)
+    local totalDamage = 0
+    for _ = 1, hitCount do
+        local target = BattleSkill.SelectRandomAliveEnemies(hero, 1)
+        if target and target[1] then
+            local damage = BattleSkill.CalculateDamageWithRate(hero, target[1], damageRate)
+            local BattleDmgHeal = require("modules.battle_dmg_heal")
+            BattleDmgHeal.ApplyDamage(target[1], damage, hero)
+            totalDamage = totalDamage + damage
+        end
+    end
+    Logger.Log(string.format("[ProcessChainLightning] %s 连锁命中次数=%d 总伤害=%d",
+        hero.name or "Unknown", hitCount, totalDamage))
+    return totalDamage
+end
+
+--- 统一处理技能特殊效果入口
+---@param hero table 攻击者
+---@param targets table 目标列表
+---@param skill table 技能对象
+function BattleSkill.ProcessSpecialEffects(hero, targets, skill)
+    if not skill then return end
+    
+    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skill.skillId)
+    local classId = rglConfig and rglConfig.ClassID or 0
+    local skillLevel = rglConfig and rglConfig.SkillLevel or 1
+    
+    -- 根据ClassID和SkillLevel处理不同流派的特殊效果
+    
+    -- A1 追击流 (8000100)
+    if classId == 8000100 then
+        if skillLevel == 3 then
+            local lowestHpTarget = BattleSkill.SelectLowestHpEnemy(hero)
+            if lowestHpTarget then
+                local damage = BattleSkill.CalculateDamageWithRate(hero, lowestHpTarget, 20000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(lowestHpTarget, damage, hero)
+                Logger.Log(string.format("[ProcessSpecialEffects] %s 对最低血目标 %s 执行斩杀，伤害=%d",
+                    hero.name or "Unknown", lowestHpTarget.name or "Unknown", damage))
+                if lowestHpTarget.isDead then
+                    BattleSkill.ProcessPursuitEffect(hero, lowestHpTarget, skill)
+                end
+                return damage
+            end
+        elseif skillLevel == 4 then
+            local allEnemies = BattleSkill.SelectAllAliveTargets(hero)
+            local totalDamage = 0
+            for _, enemy in ipairs(allEnemies) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, enemy, 20000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(enemy, damage, hero)
+                totalDamage = totalDamage + damage
+                
+                if enemy.isDead then
+                    BattleSkill.ProcessPursuitEffect(hero, enemy, skill)
+                end
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放收割，总伤害=%d，目标数=%d",
+                hero.name or "Unknown", totalDamage, #allEnemies))
+            return totalDamage
+        end
+    end
+    
+    -- S1 连击流 (8000300)
+    if classId == 8000300 then
+        if skillLevel == 1 then
+            local extraHits = BattleSkill.ProcessComboEffect(hero, targets, skill)
+            for i = 1, extraHits do
+                if targets and targets[i] then
+                    BattleSkill.CastSmallSkill(hero, targets[i])
+                end
+            end
+        elseif skillLevel == 3 then
+            local totalDamage = 0
+            local multiTargets = BattleSkill.SelectRandomAliveEnemies(hero, 2)
+            for _, target in ipairs(multiTargets) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                totalDamage = totalDamage + damage
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 执行双连斩，目标数=%d，总伤害=%d",
+                hero.name or "Unknown", #multiTargets, totalDamage))
+            return totalDamage
+        elseif skillLevel == 4 then
+            local totalDamage = 0
+            for i = 1, 6 do
+                local randomTarget = BattleSkill.SelectRandomAliveEnemies(hero, 1)
+                if randomTarget and #randomTarget > 0 then
+                    local damage = BattleSkill.CalculateDamageWithRate(hero, randomTarget[1], 10000)
+                    local BattleDmgHeal = require("modules.battle_dmg_heal")
+                    BattleDmgHeal.ApplyDamage(randomTarget[1], damage, hero)
+                    totalDamage = totalDamage + damage
+                    if randomTarget[1].isDead then
+                        BattleSkill.ProcessPursuitEffect(hero, randomTarget[1], skill)
+                    end
+                end
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 执行连击风暴，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        end
+    end
+    
+    -- T1 毒爆流 (8000500)
+    if classId == 8000500 then
+        if skillLevel == 1 or skillLevel == 3 then
+            for _, target in ipairs(targets) do
+                local layers = skillLevel == 1 and 1 or 2
+                BattleSkill.ApplyPoison(target, layers)
+            end
+        elseif skillLevel == 4 then
+            return BattleSkill.ProcessPoisonBurst(hero, skill)
+        end
+    end
+    
+    -- H1 圣光流 (8000600)
+    if classId == 8000600 then
+        if skillLevel == 1 then
+            local ally = BattleSkill.SelectLowestHpAlly(hero)
+            if ally then
+                return BattleSkill.ProcessHolyLightEffect(hero, ally, skill)
+            end
+        elseif skillLevel == 3 then
+            return BattleSkill.ProcessGroupHeal(hero, skill)
+        elseif skillLevel == 4 then
+            return BattleSkill.ProcessFullHealAndCleanse(hero, skill)
+        end
+    end
+    
+    -- B1 战意流 (8000400)
+    if classId == 8000400 then
+        if skillLevel >= 3 then
+            local BattleFormation = require("modules.battle_formation")
+            local allies = BattleFormation.GetFriendTeam(hero)
+            if allies then
+                return BattleSkill.ApplyBuffToTargets(hero, allies, skill)
+            end
+        end
+    end
+    
+    if classId == 8000700 then
+        if skillLevel == 1 then
+            for _, target in ipairs(targets or {}) do
+                BattleSkill.ApplyBurn(target, 1, 2)
+            end
+        elseif skillLevel == 3 then
+            local totalDamage = 0
+            local hitTargets = BattleSkill.SelectRandomAliveEnemies(hero, 3)
+            for _, target in ipairs(hitTargets) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 20000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                BattleSkill.ApplyBurn(target, 2, 2)
+                totalDamage = totalDamage + damage
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放爆裂火球，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        elseif skillLevel == 4 then
+            local totalDamage = 0
+            for _, target in ipairs(BattleSkill.SelectAllAliveTargets(hero)) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 30000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                BattleSkill.ApplyBurn(target, 3, 3)
+                totalDamage = totalDamage + damage
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放陨石术，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        end
+    end
+
+    if classId == 8000800 then
+        if skillLevel == 1 then
+            for _, target in ipairs(targets or {}) do
+                BattleSkill.ApplyFreeze(target, 0, 3000)
+            end
+        elseif skillLevel == 3 then
+            local totalDamage = 0
+            for _, target in ipairs(BattleSkill.SelectAllAliveTargets(hero)) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                BattleSkill.ApplyFreeze(target, 2, 3000)
+                totalDamage = totalDamage + damage
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放冰霜新星，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        elseif skillLevel == 4 then
+            local totalDamage = 0
+            for _, target in ipairs(BattleSkill.SelectAllAliveTargets(hero)) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 15000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                if math.random(1, 10000) <= 5000 then
+                    BattleSkill.ApplyFreeze(target, 2, 3000)
+                end
+                totalDamage = totalDamage + damage
+            end
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放暴风雪，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        end
+    end
+
+    if classId == 8000900 then
+        if skillLevel == 1 then
+            local hasPassive = false
+            if hero.skills then
+                for _, s in ipairs(hero.skills) do
+                    if s.name == "雷电亲和" then
+                        hasPassive = true
+                        break
+                    end
+                end
+            end
+            local chance = hasPassive and 4000 or 2000
+            if math.random(1, 10000) <= chance then
+                return BattleSkill.ProcessChainLightning(hero, 1, 10000)
+            end
+        elseif skillLevel == 3 then
+            return BattleSkill.ProcessChainLightning(hero, 4, 10000)
+        elseif skillLevel == 4 then
+            local totalDamage = 0
+            for _, target in ipairs(BattleSkill.SelectAllAliveTargets(hero)) do
+                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
+                local BattleDmgHeal = require("modules.battle_dmg_heal")
+                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                totalDamage = totalDamage + damage
+            end
+            totalDamage = totalDamage + BattleSkill.ProcessChainLightning(hero, 3, 10000)
+            Logger.Log(string.format("[ProcessSpecialEffects] %s 释放雷暴术，总伤害=%d",
+                hero.name or "Unknown", totalDamage))
+            return totalDamage
+        end
+    end
 end
 
 return BattleSkill

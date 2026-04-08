@@ -184,6 +184,73 @@ local function CreateSkillEntity(luaSkill, luaFunc, src, skill, buffSubType, lua
     return entity
 end
 
+local function CreateBuiltinRglPassiveSkill(hero, skill)
+    local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+    if not classId or classId < 8000100 or classId > 8000900 then
+        return nil
+    end
+
+    local BattleSkill = require("modules.battle_skill")
+    local BattleFormation = require("modules.battle_formation")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local passive = {}
+
+    function passive:OnDmgMakeKill(context)
+        local extraParam = context and context.data and context.data.extraParam or {}
+        local target = extraParam and extraParam.target or nil
+        if classId == 8000100 and target then
+            BattleSkill.ProcessPursuitEffect(hero, target, skill)
+        elseif classId == 8000400 then
+            hero.rglWarSpiritStacks = math.min((hero.rglWarSpiritStacks or 0) + 1, 5)
+        end
+    end
+
+    function passive:OnDefBeforeDmg(context)
+        local extraParam = context and context.data and context.data.extraParam or {}
+        if classId ~= 8000200 or not extraParam then
+            return
+        end
+        local roll = math.random(1, 10000)
+        if roll > 2500 then
+            return
+        end
+        extraParam.damage = math.max(0, math.floor((extraParam.damage or 0) * 0.5))
+        extraParam.blocked = true
+        local attacker = extraParam.attacker
+        if attacker and not attacker.isDead then
+            BattleSkill.CastSmallSkill(hero, attacker)
+        end
+    end
+
+    function passive:OnNormalAtkStart(context)
+        return
+    end
+
+    function passive:OnSelfTurnBegin(context)
+        if classId == 8000500 then
+            local enemyTeam = BattleFormation.GetEnemyTeam(hero)
+            for _, enemy in ipairs(enemyTeam) do
+                if enemy and enemy.isAlive and not enemy.isDead then
+                    BattleSkill.ProcessInfectEffect(enemy)
+                end
+            end
+        elseif classId == 8000600 then
+            local healAmount = BattleSkill.CalculateHeal(hero, hero, 1000)
+            BattleDmgHeal.ApplyHeal(hero, healAmount, hero)
+        end
+    end
+
+    function passive:OnDefAfterDmg(context)
+        return
+    end
+
+    function passive:OnNormalAtkFinish(context)
+        return
+    end
+
+    return passive
+end
+
 --- 创建战斗脚本技能
 local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
     local skillId = skill.skillId
@@ -202,6 +269,15 @@ local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
             return nil
         end
         return CreateSkillEntity(self, luaFunc, hero, skill, nil, luaFuncName, triggerTime)
+    end
+
+    local builtinSkill = CreateBuiltinRglPassiveSkill(hero, skill)
+    if builtinSkill then
+        hero.luaSkill[skillId] = builtinSkill
+        local builtinFunc = builtinSkill[luaFuncName]
+        if builtinFunc then
+            return CreateSkillEntity(builtinSkill, builtinFunc, hero, skill, nil, luaFuncName, triggerTime)
+        end
     end
 
     -- 加载Lua技能文件
@@ -311,41 +387,28 @@ local function GetPassiveSkillTemplate(skill)
     
     -- 如果没有全局模板，尝试从技能配置构建
     if unitEventTemplate == nil then
-        -- 为Roguelike技能构建默认模板
-        if skill.rglConfig then
-            local triggers = {}
-            local classId = skill.rglConfig.ClassID
-            
-            -- 根据ClassID确定触发时机和函数名
-            if classId >= 8000010 and classId < 8000011 then
-                -- 连击系: 攻击时触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart, luaFuncName = "OnNormalAtkStart" })
-            elseif classId >= 8000011 and classId < 8000012 then
-                -- 反击系: 受击后触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg, luaFuncName = "OnDefAfterDmg" })
-            elseif classId >= 8000050 and classId < 8000051 then
-                -- 吸血系: 造成伤害后触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish, luaFuncName = "OnNormalAtkFinish" })
-            elseif classId >= 8000020 and classId < 8000021 then
-                -- 格挡系: 受击前触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
-            elseif classId >= 8000021 and classId < 8000022 then
-                -- 闪避系: 受击前触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
-            elseif classId >= 8000030 and classId < 8000031 then
-                -- 开局增益系: 回合开始时触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
-            elseif classId >= 8000032 and classId < 8000033 then
-                -- 速度系: 战斗开始时触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin, luaFuncName = "OnBattleBegin" })
-            elseif classId >= 8000100 and classId < 8000101 then
-                -- 法术增益系: 战斗开始时触发
-                table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin, luaFuncName = "OnBattleBegin" })
-            end
-            
-            if #triggers > 0 then
-                unitEventTemplate = { triggers = triggers }
-            end
+        local triggers = {}
+        if classId == 8000100 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill, luaFuncName = "OnDmgMakeKill" })
+        elseif classId == 8000200 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
+        elseif classId == 8000300 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart, luaFuncName = "OnNormalAtkStart" })
+        elseif classId == 8000400 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill, luaFuncName = "OnDmgMakeKill" })
+        elseif classId == 8000500 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
+        elseif classId == 8000600 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
+        elseif classId == 8000700 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg, luaFuncName = "OnDefAfterDmg" })
+        elseif classId == 8000800 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg, luaFuncName = "OnDefAfterDmg" })
+        elseif classId == 8000900 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish, luaFuncName = "OnNormalAtkFinish" })
+        end
+        if #triggers > 0 then
+            unitEventTemplate = { triggers = triggers }
         end
     end
 
@@ -536,8 +599,8 @@ function BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, extraParam)
     RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkStart, extraParam)
 end
 
-function BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero)
-    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish)
+function BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, extraParam)
+    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish, extraParam)
 end
 
 function BattlePassiveSkill.RunSkillOnDefAfterDmg(hero, extraParam)

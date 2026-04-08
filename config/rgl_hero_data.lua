@@ -195,32 +195,48 @@ function RglHeroData.ConvertToHeroData(heroId, level, star)
         for _, skillInfo in ipairs(hero.ParsedSkills) do
             local classId = skillInfo.classId
             local skillLevel = skillInfo.level or 1
-            local skillId = classId * 100 + skillLevel
 
-            local rglSkill = SkillRglConfig.GetSkillConfig(skillId)
+            local rglSkill = nil
+            local actualSkillId = classId * 100 + skillLevel
+
+            local levels = SkillRglConfig.GetSkillLevels(classId)
+            if levels and #levels > 0 then
+                for _, lvlCfg in ipairs(levels) do
+                    if lvlCfg.SkillLevel == skillLevel then
+                        rglSkill = lvlCfg
+                        actualSkillId = lvlCfg.ID or actualSkillId
+                        break
+                    end
+                end
+            end
+
+            if not rglSkill then
+                rglSkill = SkillRglConfig.GetSkillConfig(actualSkillId)
+            end
+
             if rglSkill then
                 local skillType = E_SKILL_TYPE_PASSIVE
                 if rglSkill.Type == 1 then
                     skillType = E_SKILL_TYPE_NORMAL
                 elseif rglSkill.Type == 2 then
-                    skillType = E_SKILL_TYPE_NORMAL
+                    skillType = E_SKILL_TYPE_ACTIVE
                 elseif rglSkill.Type == 3 then
                     skillType = E_SKILL_TYPE_ULTIMATE
                 end
 
                 table.insert(skillsConfig, {
-                    skillId = skillId,
+                    skillId = actualSkillId,
                     classId = classId,
                     skillType = skillType,
-                    name = rglSkill.Name or ("RglSkill_" .. skillId),
+                    name = rglSkill.Name or ("RglSkill_" .. actualSkillId),
                     skillCost = rglSkill.Cost or 0
                 })
             else
                 table.insert(skillsConfig, {
-                    skillId = skillId,
+                    skillId = actualSkillId,
                     classId = classId,
                     skillType = E_SKILL_TYPE_NORMAL,
-                    name = "RglSkill_" .. skillId,
+                    name = "RglSkill_" .. actualSkillId,
                     skillCost = 0
                 })
             end

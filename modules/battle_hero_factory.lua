@@ -58,12 +58,10 @@ function BattleHeroFactory.CreateRglHero(heroId, level, star)
     
     if heroData.skillsConfig then
         for _, cfg in ipairs(heroData.skillsConfig) do
-            if cfg.skillType == E_SKILL_TYPE_PASSIVE and (cfg.classId and cfg.classId >= 8000010 and cfg.classId < 8000100) then
-                -- passive skill, keep as is
+            if cfg.skillType == nil then
+                cfg.skillType = E_SKILL_TYPE_NORMAL
             elseif cfg.skillType == 3 or cfg.skillCost and cfg.skillCost > 0 then
                 cfg.skillType = E_SKILL_TYPE_ULTIMATE
-            else
-                cfg.skillType = E_SKILL_TYPE_NORMAL
             end
         end
     end

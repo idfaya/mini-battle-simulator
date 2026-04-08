@@ -135,6 +135,9 @@ local function InitSubsystems(beginState)
     BattleActionOrder.Init(teamLeft, teamRight)
     Logger.Debug("  BattleActionOrder 初始化完成")
 
+    BattlePassiveSkill.Init()
+    Logger.Debug("  BattlePassiveSkill 初始化完成")
+
     -- 8. 初始化技能系统（为每个英雄初始化技能）
     for _, hero in ipairs(allHeroes) do
         if hero then
@@ -163,10 +166,6 @@ local function InitSubsystems(beginState)
     -- 10. 初始化伤害/治疗系统
     BattleDmgHeal.Init()
     Logger.Debug("  BattleDmgHeal 初始化完成")
-
-    -- 11. 初始化被动技能系统
-    BattlePassiveSkill.Init()
-    Logger.Debug("  BattlePassiveSkill 初始化完成")
 
     -- 11.5 注册Roguelike被动技能到 BattlePassiveSkill 系统
     -- 被动技能已经在英雄创建时通过 AddPassiveSkill2TriggerTime 注册
@@ -436,7 +435,23 @@ local function SelectAvailableSkill(hero)
         end
     end
     
-    -- 如果没有可用的大招，使用普通攻击
+    -- 如果没有可用的大招，检查主动技能（不耗能量，有CD冷却）
+    for skillId, skill in pairs(availableSkills) do
+        if skill and skill.skillType == E_SKILL_TYPE_ACTIVE then
+            local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
+            if cd == 0 then
+                Logger.Log(string.format("[SelectAvailableSkill] %s 选择主动技能: %s (CD:%d/%d)",
+                    hero.name or "Unknown", skill.name or tostring(skillId),
+                    cd, skill.maxCoolDown or 0))
+                return skill
+            else
+                Logger.Log(string.format("[SelectAvailableSkill] %s 主动技能冷却中: %s (剩余CD:%d)",
+                    hero.name or "Unknown", skill.name or tostring(skillId), cd))
+            end
+        end
+    end
+    
+    -- 如果没有可用的大招和主动技能，使用普通攻击
     for skillId, skill in pairs(availableSkills) do
         if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
             return skill
@@ -462,6 +477,10 @@ function BattleMain.ExecuteHeroAction(hero)
 
     -- 触发回合开始被动技能
     BattlePassiveSkill.RunSkillOnSelfTurnBegin(hero)
+    if not BattleSkill.ProcessTurnStartStatus(hero) then
+        BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
+        return
+    end
 
     -- 智能选择可用技能
     local skill = SelectAvailableSkill(hero)
