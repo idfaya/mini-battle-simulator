@@ -76,10 +76,7 @@ function SkillRglConfig.GetSkillLuaPath(skillId)
         return nil
     end
     
-    -- 构建Lua文件名: skill_{完整技能ID}.lua
-    -- 完整技能ID = ClassID * 100 + SkillLevel
-    local fullSkillId = config.ClassID * 100 + config.SkillLevel
-    local luaFileName = string.format("skill_%d", fullSkillId)
+    local luaFileName = string.format("skill_%d", skillId)
     
     -- 从 skill_rgl 目录加载
     local luaPath = string.format("config.skill_rgl.%s", luaFileName)

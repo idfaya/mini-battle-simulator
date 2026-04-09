@@ -1,0 +1,29 @@
+skill_80009001 = {}
+
+function skill_80009001.Execute(hero, targets, skill)
+    local BattleSkill = require("modules.battle_skill")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local totalDamage = 0
+    for _, target in ipairs(targets or {}) do
+        if target and not target.isDead then
+            local damage = BattleSkill.CalculateDamageWithRate(hero, target, 11000)
+            BattleDmgHeal.ApplyDamage(target, damage, hero)
+            totalDamage = totalDamage + damage
+        end
+    end
+    local chance = 2000
+    if hero.skills then
+        for _, s in ipairs(hero.skills) do
+            if s.name == "雷电亲和" then
+                chance = 4000
+                break
+            end
+        end
+    end
+    if math.random(1, 10000) <= chance then
+        BattleSkill.ProcessChainLightning(hero, 1, 10000)
+    end
+    return totalDamage > 0
+end
+
+return skill_80009001

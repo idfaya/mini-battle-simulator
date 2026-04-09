@@ -201,6 +201,16 @@ function BattleFormation.GetRandomEnemyInstanceId(hero)
     if not enemyTeam or #enemyTeam == 0 then
         return nil
     end
+
+    if hero and hero.rglForcedTargetId then
+        for _, enemy in ipairs(enemyTeam) do
+            if enemy and not enemy.isDead and enemy.instanceId == hero.rglForcedTargetId then
+                hero.rglForcedTargetId = nil
+                return enemy.instanceId
+            end
+        end
+        hero.rglForcedTargetId = nil
+    end
     
     -- 只选择存活的敌人
     local aliveEnemies = {}
