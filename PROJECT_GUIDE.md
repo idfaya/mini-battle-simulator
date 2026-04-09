@@ -1,5 +1,17 @@
 # Mini Battle Simulator - 项目定位
 
+## 项目文档索引
+
+| 文档 | 路径 | 说明 |
+|-----|------|------|
+| Web 可视化方案 | `design/web-visualization-plan.md` | 服务器驱动 + Canvas 前端架构设计 |
+| 技能设计 | `design/skill.md` | 技能系统设计文档 |
+| UI 重构计划 | `docs/ui-refactor.md` | UI 模块重构方案 |
+| 快速参考 | `QUICK_REFERENCE.md` | 常用命令和代码片段 |
+| 使用指南 | `README.md` | 项目基础使用说明 |
+
+---
+
 ## 项目性质
 **独立小游戏** - 纯 Lua 实现的战斗模拟器
 
