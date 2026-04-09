@@ -1,4 +1,5 @@
 local JSON = require("utils.json")
+local SkillRglConfig = require("config.skill_rgl_config")
 local RglEnemyData = {}
 
 local function GetConfigFilePath(fileName)
@@ -18,6 +19,7 @@ end
 
 local _enemyData = {}
 local _isLoaded = false
+local _skillConfigInited = false
 
 local CLASS_NAMES = {
     [1] = "Front",
@@ -134,6 +136,10 @@ function RglEnemyData.GetMonsterTypeName(monsterType)
 end
 
 function RglEnemyData.ConvertToHeroData(enemyId, overrideLevel)
+    if not _skillConfigInited then
+        SkillRglConfig.Init()
+        _skillConfigInited = true
+    end
     local enemy = RglEnemyData.GetEnemy(enemyId)
     if not enemy then
         print(string.format("[RglEnemyData] Enemy not found: %s", tostring(enemyId)))
@@ -205,8 +211,20 @@ function RglEnemyData.ConvertToHeroData(enemyId, overrideLevel)
 
         local skillType = E_SKILL_TYPE_PASSIVE
         local skillCost = 0
+        local rglConfig = SkillRglConfig.GetSkillConfig(skillId)
 
-        if skillId >= 800010000 and skillId < 800013000 then
+        if rglConfig then
+            if rglConfig.Type == 1 then
+                skillType = E_SKILL_TYPE_NORMAL
+            elseif rglConfig.Type == 2 then
+                skillType = E_SKILL_TYPE_ACTIVE
+            elseif rglConfig.Type == 3 then
+                skillType = E_SKILL_TYPE_ULTIMATE
+                skillCost = rglConfig.Cost or 100
+            elseif rglConfig.Type == 4 then
+                skillType = E_SKILL_TYPE_PASSIVE
+            end
+        elseif skillId >= 800010000 and skillId < 800013000 then
             local lastDigit = (math.floor(skillId / 100)) % 10
             if lastDigit == 1 then
                 skillType = E_SKILL_TYPE_NORMAL

@@ -421,6 +421,7 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     
     -- 加载并执行技能Lua脚本
     local executed = false
+    local totalDamage = 0
     local specialOnly = BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
     
     -- 始终加载技能配置文件（skill_{ID}.lua），不管 luaFile 是否为空
@@ -429,9 +430,13 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     if skillLua and not specialOnly then
         -- 检查是否有Execute函数（自定义技能脚本）
         if skillLua.Execute then
-            local success = skillLua.Execute(hero, targets, skill)
-            if success then
+            hero.__scriptDamageAccumulator = 0
+            local result = skillLua.Execute(hero, targets, skill)
+            local scriptDamage = hero.__scriptDamageAccumulator or 0
+            hero.__scriptDamageAccumulator = nil
+            if result ~= false and result ~= nil or scriptDamage > 0 then
                 executed = true
+                totalDamage = totalDamage + scriptDamage
             else
                 Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
             end
@@ -444,8 +449,6 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
             end
         end
     end
-    
-    local totalDamage = 0
 
     if specialOnly then
         totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)

@@ -473,6 +473,9 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker)
     local newHp = math.max(0, curHp - damage)
 
     BattleAttribute.SetHpByVal(target, newHp)
+    if attacker and attacker.__scriptDamageAccumulator ~= nil then
+        attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + damage
+    end
     
     -- 触发旧版伤害事件（用于 BattleDisplay 战斗日志）
     BattleEvent.Publish("Damage", target, damage, false)

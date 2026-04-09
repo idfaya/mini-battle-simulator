@@ -12,9 +12,6 @@ return function(context)
         if (hero.rglShieldWallTurns or 0) > 0 then
             hero.rglShieldWallTurns = hero.rglShieldWallTurns - 1
         end
-        if (hero.rglCounterStanceHits or 0) > 0 then
-            hero.rglCounterStanceHits = 0
-        end
     end
 
     function self:OnDefBeforeDmg(ctx)
