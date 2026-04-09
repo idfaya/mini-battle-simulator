@@ -8,7 +8,7 @@ function skill_80007001.Execute(hero, targets, skill)
         if target and not target.isDead then
             local damage = BattleSkill.CalculateDamageWithRate(hero, target, 12000)
             BattleDmgHeal.ApplyDamage(target, damage, hero)
-            BattleSkill.ApplyBurn(target, 1, 2)
+            BattleSkill.ApplyBurn(target, 1, 2, hero)
             totalDamage = totalDamage + damage
         end
     end

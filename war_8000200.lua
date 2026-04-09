@@ -1,17 +1,12 @@
 local BattleSkill = require("modules.battle_skill")
+local BattleBuff = require("modules.battle_buff")
 
 return function(context)
     local self = {}
     self.context = context
 
     function self:OnSelfTurnBegin(ctx)
-        local hero = self.context and self.context.src or nil
-        if not hero or hero.isDead then
-            return
-        end
-        if (hero.rglShieldWallTurns or 0) > 0 then
-            hero.rglShieldWallTurns = hero.rglShieldWallTurns - 1
-        end
+        return
     end
 
     function self:OnDefBeforeDmg(ctx)
@@ -25,7 +20,7 @@ return function(context)
             return
         end
 
-        if (hero.rglShieldWallTurns or 0) > 0 then
+        if BattleBuff.GetBuffBySubType(hero, 820003) then
             extraParam.damage = math.max(0, math.floor((extraParam.damage or 0) * 0.5))
             extraParam.blocked = true
             local counterDamage = BattleSkill.CalculateDamageWithRate(hero, attacker, 15000)
@@ -34,8 +29,8 @@ return function(context)
             return
         end
 
-        if (hero.rglCounterStanceHits or 0) > 0 then
-            hero.rglCounterStanceHits = hero.rglCounterStanceHits - 1
+        if BattleBuff.GetBuffBySubType(hero, 820002) then
+            BattleBuff.DelBuffBySubType(hero, 820002, 1)
             local counterDamage = BattleSkill.CalculateDamageWithRate(hero, attacker, 15000)
             local BattleDmgHeal = require("modules.battle_dmg_heal")
             BattleDmgHeal.ApplyDamage(attacker, counterDamage, hero)

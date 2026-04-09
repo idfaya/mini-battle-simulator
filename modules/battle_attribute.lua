@@ -356,13 +356,21 @@ function BattleAttribute.GetSpeed(hero)
         return 0
     end
 
+    local BattleBuff = require("modules.battle_buff")
+
     local speed = 0
     if hero.attributes and hero.attributes.final[BattleAttribute.ATTR_ID.SPEED] then
         speed = hero.attributes.final[BattleAttribute.ATTR_ID.SPEED]
     else
         speed = hero.spd or hero.speed or 0
     end
-    local speedBuffPct = ((hero.rglWarSpiritStacks or 0) * 500) + (hero.rglAuraBuff and hero.rglAuraBuff.spd or 0) - (hero.rglSlowPct or 0)
+    local slowPct = BattleBuff.GetBuffStackNumBySubType(hero, 880001)
+    local warSpiritPct = BattleBuff.GetBuffStackNumBySubType(hero, 840001) * 500
+    local auraSpdPct = 0
+    if BattleBuff.GetBuffBySubType(hero, 840003) then
+        auraSpdPct = 5000
+    end
+    local speedBuffPct = warSpiritPct + auraSpdPct - slowPct
     return math.max(0, math.floor(speed * (1 + speedBuffPct / 10000)))
 end
 

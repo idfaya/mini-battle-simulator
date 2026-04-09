@@ -322,6 +322,8 @@ local function GetPassiveSkillTemplate(skill)
             table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
         elseif classId == 8000600 then
             table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
+        elseif classId == 8000700 then
+            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
         end
         if #triggers > 0 then
             unitEventTemplate = { triggers = triggers }

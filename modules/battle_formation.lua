@@ -197,19 +197,19 @@ end
 ---@param hero table 英雄对象
 ---@return number|nil 随机敌人的实例ID，无敌人返回nil
 function BattleFormation.GetRandomEnemyInstanceId(hero)
+    local BattleBuff = require("modules.battle_buff")
     local enemyTeam = BattleFormation.GetEnemyTeam(hero)
     if not enemyTeam or #enemyTeam == 0 then
         return nil
     end
 
-    if hero and hero.rglForcedTargetId then
+    local tauntBuff = hero and BattleBuff.GetBuffBySubType(hero, 820001) or nil
+    if tauntBuff and tauntBuff.caster then
         for _, enemy in ipairs(enemyTeam) do
-            if enemy and not enemy.isDead and enemy.instanceId == hero.rglForcedTargetId then
-                hero.rglForcedTargetId = nil
+            if enemy and not enemy.isDead and enemy.instanceId == tauntBuff.caster.instanceId then
                 return enemy.instanceId
             end
         end
-        hero.rglForcedTargetId = nil
     end
     
     -- 只选择存活的敌人

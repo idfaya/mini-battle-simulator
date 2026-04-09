@@ -1,5 +1,5 @@
 local BattleSkill = require("modules.battle_skill")
-local BattleDmgHeal = require("modules.battle_dmg_heal")
+local BattleBuff = require("modules.battle_buff")
 
 return function(context)
     local self = {}
@@ -10,8 +10,9 @@ return function(context)
         if not hero or hero.isDead then
             return
         end
-        local healAmount = BattleSkill.CalculateHeal(hero, hero, 1000)
-        BattleDmgHeal.ApplyHeal(hero, healAmount, hero)
+        if not BattleBuff.GetBuff(hero, 860001) then
+            BattleSkill.ApplyBuffFromSkill(hero, hero, 860001, nil)
+        end
     end
 
     return self

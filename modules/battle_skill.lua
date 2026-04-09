@@ -601,6 +601,7 @@ end
 ---@return number 伤害值
 function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
     local BattleAttribute = require("modules.battle_attribute")
+    local BattleBuff = require("modules.battle_buff")
     local BattleFormula = require("core.battle_formula")
     
     -- 确保 BattleFormula 已初始化
@@ -625,7 +626,12 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
         },
         damageBonus = attacker.damageIncrease or 0,
     }
-    local attackerBuffPct = ((attacker and attacker.rglWarSpiritStacks or 0) * 500) + (attacker and attacker.rglAuraBuff and attacker.rglAuraBuff.atk or 0)
+    local attackerBuffPct = (BattleBuff.GetBuffStackNumBySubType(attacker, 840001) * 500)
+    if BattleBuff.GetBuffBySubType(attacker, 840003) then
+        attackerBuffPct = attackerBuffPct + 5000
+    elseif BattleBuff.GetBuffBySubType(attacker, 840002) then
+        attackerBuffPct = attackerBuffPct + 2000
+    end
     attackerData.attrs[config.attrType.ATK] = math.floor(attackerData.attrs[config.attrType.ATK] * (1 + attackerBuffPct / 10000))
     
     local defenderData = {
@@ -635,7 +641,10 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
         },
         damageReduction = defender.damageReduce or 0,
     }
-    local defenderBuffPct = ((defender and defender.rglWarSpiritStacks or 0) * 500) + (defender and defender.rglAuraBuff and defender.rglAuraBuff.def or 0)
+    local defenderBuffPct = (BattleBuff.GetBuffStackNumBySubType(defender, 840001) * 500)
+    if BattleBuff.GetBuffBySubType(defender, 840003) then
+        defenderBuffPct = defenderBuffPct + 5000
+    end
     defenderData.attrs[config.attrType.DEF] = math.floor(defenderData.attrs[config.attrType.DEF] * (1 + defenderBuffPct / 10000))
     
     -- 使用 BattleFormula 计算伤害
@@ -663,6 +672,7 @@ end
 ---@return number 伤害值
 function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
     local BattleAttribute = require("modules.battle_attribute")
+    local BattleBuff = require("modules.battle_buff")
     local BattleFormula = require("core.battle_formula")
     
     -- 确保 BattleFormula 已初始化
@@ -681,6 +691,14 @@ function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
         },
         damageBonus = attacker.damageIncrease or 0,
     }
+    local attackerWarSpirit = BattleBuff.GetBuffStackNumBySubType(attacker, 840001)
+    local attackerAuraAtk = 0
+    if BattleBuff.GetBuffBySubType(attacker, 840003) then
+        attackerAuraAtk = 5000
+    elseif BattleBuff.GetBuffBySubType(attacker, 840002) then
+        attackerAuraAtk = 2000
+    end
+    attackerData.attrs[config.attrType.ATK] = math.floor(attackerData.attrs[config.attrType.ATK] * (1 + ((attackerWarSpirit * 500) + attackerAuraAtk) / 10000))
     
     local defenderData = {
         attrs = {
@@ -689,6 +707,12 @@ function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
         },
         damageReduction = defender.damageReduce or 0,
     }
+    local defenderWarSpirit = BattleBuff.GetBuffStackNumBySubType(defender, 840001)
+    local defenderAuraDef = 0
+    if BattleBuff.GetBuffBySubType(defender, 840003) then
+        defenderAuraDef = 5000
+    end
+    defenderData.attrs[config.attrType.DEF] = math.floor(defenderData.attrs[config.attrType.DEF] * (1 + ((defenderWarSpirit * 500) + defenderAuraDef) / 10000))
     
     -- 使用 BattleFormula 计算伤害
     local damageResult = BattleFormula.CalcDamage(
@@ -713,9 +737,18 @@ end
 ---@return number 治疗量
 function BattleSkill.CalculateHeal(healer, target, healRate)
     local BattleAttribute = require("modules.battle_attribute")
+    local BattleBuff = require("modules.battle_buff")
     
     -- 基础治疗量 = 治疗者攻击力 * 治疗倍率
     local atk = BattleAttribute.GetAttribute(healer, BattleAttribute.ATTR_ID.ATK) or healer.atk or 0
+    local warSpiritPct = BattleBuff.GetBuffStackNumBySubType(healer, 840001) * 500
+    local auraAtkPct = 0
+    if BattleBuff.GetBuffBySubType(healer, 840003) then
+        auraAtkPct = 5000
+    elseif BattleBuff.GetBuffBySubType(healer, 840002) then
+        auraAtkPct = 2000
+    end
+    atk = math.floor(atk * (1 + (warSpiritPct + auraAtkPct) / 10000))
     local healAmount = math.floor(atk * healRate / 10000)
     
     -- 添加随机波动 (90% - 110%)
@@ -738,6 +771,8 @@ end
 ---@param damage number 伤害值
 function BattleSkill.TriggerDamageBuffs(attacker, defender, damage)
     local BattleBuff = require("modules.battle_buff")
+    local ON_ATTACK = 5
+    local ON_RECEIVE_DAMAGE = 8
     
     -- 获取双方的Buff并触发效果
     local attackerBuffs = BattleBuff.GetAllBuffs(attacker)
@@ -748,8 +783,8 @@ function BattleSkill.TriggerDamageBuffs(attacker, defender, damage)
         for _, buff in ipairs(attackerBuffs) do
             if buff.effects then
                 for _, effect in ipairs(buff.effects) do
-                    if effect.timing == E_BUFF_TIMING.ON_ATTACK then
-                        BattleBuff.ProcessBuffEffect(buff, attacker, E_BUFF_TIMING.ON_ATTACK)
+                    if effect.timing == ON_ATTACK then
+                        BattleBuff.ProcessBuffEffect(buff, attacker, ON_ATTACK)
                     end
                 end
             end
@@ -761,8 +796,8 @@ function BattleSkill.TriggerDamageBuffs(attacker, defender, damage)
         for _, buff in ipairs(defenderBuffs) do
             if buff.effects then
                 for _, effect in ipairs(buff.effects) do
-                    if effect.timing == E_BUFF_TIMING.ON_RECEIVE_DAMAGE then
-                        BattleBuff.ProcessBuffEffect(buff, defender, E_BUFF_TIMING.ON_RECEIVE_DAMAGE)
+                    if effect.timing == ON_RECEIVE_DAMAGE then
+                        BattleBuff.ProcessBuffEffect(buff, defender, ON_RECEIVE_DAMAGE)
                     end
                 end
             end
@@ -775,21 +810,31 @@ end
 ---@param target table 目标
 ---@param buffId number Buff ID
 ---@param skill table 技能对象
-function BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill)
-    -- 加载Buff配置
+function BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, override)
+    local BattleBuff = require("modules.battle_buff")
     local buffConfig = BattleSkill.LoadBuffConfig(buffId)
     if not buffConfig then
         Logger.LogWarning(string.format("[ApplyBuffFromSkill] 无法加载Buff配置: %d", buffId))
         return
     end
-    
-    -- 使用BattleBuff.Add添加Buff
+
+    if override then
+        local merged = {}
+        for k, v in pairs(buffConfig) do
+            merged[k] = v
+        end
+        for k, v in pairs(override) do
+            merged[k] = v
+        end
+        buffConfig = merged
+    end
+
     BattleBuff.Add(caster, target, buffConfig)
-    
+
     Logger.Log(string.format("[ApplyBuffFromSkill] %s 对 %s 施加Buff [%s]",
         caster.name or "Unknown",
         target.name or "Unknown",
-        buffConfig.Name or "Unknown"))
+        buffConfig.name or buffConfig.Name or "Unknown"))
 end
 
 --- 加载Buff配置
@@ -806,18 +851,22 @@ function BattleSkill.LoadBuffConfig(buffId)
     -- 加载配置文件
     local filePath = "config.buff.buff_" .. tostring(buffId)
     local success, result = pcall(require, filePath)
-    
-    if success and result and type(result) == "table" then
+
+    if success then
         local varName = "buff_" .. tostring(buffId)
-        local buffConfig = result[varName]
-        
-        -- 缓存配置
-        BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
-        BattleSkill.buffConfigCache[cacheKey] = buffConfig
-        
-        return buffConfig
+        local buffConfig = nil
+        if type(result) == "table" then
+            buffConfig = result[varName] or result
+        else
+            buffConfig = _G[varName]
+        end
+        if buffConfig then
+            BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
+            BattleSkill.buffConfigCache[cacheKey] = buffConfig
+            return buffConfig
+        end
     end
-    
+
     return nil
 end
 
@@ -1318,26 +1367,35 @@ end
 --- 处理中毒效果（T1 毒爆流）
 ---@param target table 目标
 ---@param layers number 中毒层数
-function BattleSkill.ApplyPoison(target, layers)
+function BattleSkill.ApplyPoison(target, layers, caster)
     if not target or layers <= 0 then return end
-    
-    -- 初始化中毒数据
-    target.poisonStacks = (target.poisonStacks or 0) + layers
-    target.poisonDamagePerLayer = 200  -- 每层每回合损失2%最大生命值（万分比）
-    
-    Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)", 
-        target.name or "Unknown", layers, target.poisonStacks))
+
+    local BattleBuff = require("modules.battle_buff")
+    local existingBuff = BattleBuff.GetBuff(target, 850001)
+    if existingBuff then
+        BattleBuff.ModifyBuffStack(target, 850001, layers)
+        Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)",
+            target.name or "Unknown", layers, existingBuff.stackCount))
+        return
+    end
+
+    BattleSkill.ApplyBuffFromSkill(caster or target, target, 850001, nil, {
+        initialStack = layers,
+    })
+    local totalStacks = BattleBuff.GetBuffStackNumBySubType(target, 850001)
+    Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)",
+        target.name or "Unknown", layers, totalStacks))
 end
 
 --- 处理感染效果（中毒自动加深）
 ---@param target table 目标
 function BattleSkill.ProcessInfectEffect(target)
-    if not target or not target.poisonStacks or target.poisonStacks <= 0 then return end
-    
-    -- 每回合自动+1层
-    target.poisonStacks = target.poisonStacks + 1
-    Logger.Log(string.format("[ProcessInfectEffect] %s 中毒加深，当前层数: %d", 
-        target.name or "Unknown", target.poisonStacks))
+    local BattleBuff = require("modules.battle_buff")
+    if not target or BattleBuff.GetBuffStackNumBySubType(target, 850001) <= 0 then return end
+
+    BattleSkill.ApplyPoison(target, 1, target)
+    Logger.Log(string.format("[ProcessInfectEffect] %s 中毒加深，当前层数: %d",
+        target.name or "Unknown", BattleBuff.GetBuffStackNumBySubType(target, 850001)))
 end
 
 --- 处理毒性爆发（引爆所有中毒）
@@ -1345,6 +1403,7 @@ end
 ---@param skill table 技能对象
 function BattleSkill.ProcessPoisonBurst(hero, skill)
     local BattleFormation = require("modules.battle_formation")
+    local BattleBuff = require("modules.battle_buff")
     local enemies = BattleFormation.GetEnemyTeam(hero)
     
     if not enemies or #enemies == 0 then return 0 end
@@ -1353,8 +1412,8 @@ function BattleSkill.ProcessPoisonBurst(hero, skill)
     local burstRate = 5000  -- 每层50%伤害（万分比）
     
     for _, enemy in ipairs(enemies) do
-        if enemy and not enemy.isDead and enemy.poisonStacks and enemy.poisonStacks > 0 then
-            local stacks = enemy.poisonStacks
+        local stacks = enemy and BattleBuff.GetBuffStackNumBySubType(enemy, 850001) or 0
+        if enemy and not enemy.isDead and stacks > 0 then
             local burstDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, burstRate * stacks)
             
             -- 应用爆发伤害
@@ -1366,8 +1425,7 @@ function BattleSkill.ProcessPoisonBurst(hero, skill)
             Logger.Log(string.format("[ProcessPoisonBurst] %s 对 %s 造成毒性爆发伤害: %d (层数: %d)", 
                 hero.name or "Unknown", enemy.name or "Unknown", burstDamage, stacks))
             
-            -- 清除中毒层数
-            enemy.poisonStacks = 0
+            BattleBuff.DelBuffBySubType(enemy, 850001)
         end
     end
     
@@ -1575,11 +1633,11 @@ function BattleSkill.ApplyBuffToTargets(hero, targets, skill)
 
     for _, target in ipairs(targets) do
         if target and not target.isDead then
-            target.rglAuraBuff = target.rglAuraBuff or {atk = 0, def = 0, spd = 0, turns = 0}
-            target.rglAuraBuff.atk = math.max(target.rglAuraBuff.atk or 0, atkPct)
-            target.rglAuraBuff.def = math.max(target.rglAuraBuff.def or 0, defPct)
-            target.rglAuraBuff.spd = math.max(target.rglAuraBuff.spd or 0, spdPct)
-            target.rglAuraBuff.turns = math.max(target.rglAuraBuff.turns or 0, duration)
+            if atkPct > 0 and defPct > 0 and spdPct > 0 then
+                BattleSkill.ApplyBuffFromSkill(hero, target, 840003, skill, { duration = duration })
+            else
+                BattleSkill.ApplyBuffFromSkill(hero, target, 840002, skill, { duration = duration })
+            end
             total = total + 1
         end
     end
@@ -1588,25 +1646,47 @@ function BattleSkill.ApplyBuffToTargets(hero, targets, skill)
     return total
 end
 
-function BattleSkill.ApplyBurn(target, stacks, turns)
+function BattleSkill.ApplyBurn(target, stacks, turns, caster)
     if not target or stacks <= 0 then
         return
     end
-    target.rglBurnStacks = (target.rglBurnStacks or 0) + stacks
-    target.rglBurnTurns = math.max(target.rglBurnTurns or 0, turns or 2)
+    local BattleBuff = require("modules.battle_buff")
+    local actualTurns = turns or 2
+    if caster and BattleBuff.GetBuff(caster, 870002) then
+        actualTurns = actualTurns + 2
+    end
+    local existingBuff = BattleBuff.GetBuff(target, 870001)
+    if existingBuff then
+        existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+        BattleBuff.ModifyBuffStack(target, 870001, stacks)
+    else
+        BattleSkill.ApplyBuffFromSkill(caster or target, target, 870001, nil, {
+            initialStack = stacks,
+            duration = actualTurns,
+        })
+    end
     Logger.Log(string.format("[ApplyBurn] %s 燃烧层数: %d (总计: %d, 回合: %d)",
-        target.name or "Unknown", stacks, target.rglBurnStacks, target.rglBurnTurns))
+        target.name or "Unknown", stacks, BattleBuff.GetBuffStackNumBySubType(target, 870001), actualTurns))
 end
 
 function BattleSkill.ApplyFreeze(target, turns, slowPct)
     if not target then
         return
     end
-    target.rglFrozenTurns = math.max(target.rglFrozenTurns or 0, turns or 1)
-    target.rglSlowPct = math.max(target.rglSlowPct or 0, slowPct or 0)
-    target.rglSlowTurns = math.max(target.rglSlowTurns or 0, turns or 1)
+    if slowPct and slowPct > 0 then
+        BattleSkill.ApplyBuffFromSkill(target, target, 880001, nil, {
+            initialStack = slowPct,
+            maxStack = slowPct,
+            duration = math.max(turns or 0, 2),
+        })
+    end
+    if turns and turns > 0 then
+        BattleSkill.ApplyBuffFromSkill(target, target, 880002, nil, {
+            duration = turns,
+        })
+    end
     Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
-        target.name or "Unknown", target.rglFrozenTurns, target.rglSlowPct or 0))
+        target.name or "Unknown", turns or 0, slowPct or 0))
 end
 
 function BattleSkill.ProcessTurnStartStatus(hero)
@@ -1614,36 +1694,12 @@ function BattleSkill.ProcessTurnStartStatus(hero)
         return false
     end
 
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local BattleBuff = require("modules.battle_buff")
+    BattleBuff.OnRoundBegin(hero)
 
-    if hero.rglAuraBuff and (hero.rglAuraBuff.turns or 0) > 0 then
-        hero.rglAuraBuff.turns = hero.rglAuraBuff.turns - 1
-        if hero.rglAuraBuff.turns <= 0 then
-            hero.rglAuraBuff = nil
-        end
-    end
-
-    if (hero.rglBurnTurns or 0) > 0 and (hero.rglBurnStacks or 0) > 0 then
-        local burnDamage = math.max(1, math.floor((hero.maxHp or 0) * 0.02 * hero.rglBurnStacks))
-        BattleDmgHeal.ApplyDamage(hero, burnDamage, hero)
-        hero.rglBurnTurns = hero.rglBurnTurns - 1
-        if hero.rglBurnTurns <= 0 then
-            hero.rglBurnStacks = 0
-        end
-        Logger.Log(string.format("[ProcessTurnStartStatus] %s 受到燃烧伤害: %d", hero.name or "Unknown", burnDamage))
-    end
-
-    if (hero.rglFrozenTurns or 0) > 0 then
-        hero.rglFrozenTurns = hero.rglFrozenTurns - 1
+    if BattleBuff.IsHeroUnderControl(hero) then
         Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))
         return false
-    end
-
-    if (hero.rglSlowTurns or 0) > 0 then
-        hero.rglSlowTurns = hero.rglSlowTurns - 1
-        if hero.rglSlowTurns <= 0 then
-            hero.rglSlowPct = 0
-        end
     end
 
     return hero.isAlive and not hero.isDead

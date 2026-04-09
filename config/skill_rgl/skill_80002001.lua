@@ -8,7 +8,7 @@ function skill_80002001.Execute(hero, targets, skill)
         if target and not target.isDead then
             local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
             BattleDmgHeal.ApplyDamage(target, damage, hero)
-            target.rglForcedTargetId = hero.instanceId
+            BattleSkill.ApplyBuffFromSkill(hero, target, 820001, skill)
             totalDamage = totalDamage + damage
         end
     end

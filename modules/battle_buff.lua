@@ -20,6 +20,13 @@ local heroBuffs = {}
 -- Buff ID计数器
 local buffIdCounter = 0
 
+local function GetHeroBuffKey(target)
+    if not target then
+        return nil
+    end
+    return target.id or target.instanceId
+end
+
 -- Buff效果触发时机
 local E_BUFF_TIMING = {
     ON_ADD = 1,           -- 添加时
@@ -84,13 +91,14 @@ end
 ---@param target table 目标英雄
 ---@return table Buff列表
 local function GetHeroBuffList(target)
-    if not target or not target.id then
+    local key = GetHeroBuffKey(target)
+    if not key then
         return nil
     end
-    if not heroBuffs[target.id] then
-        heroBuffs[target.id] = {}
+    if not heroBuffs[key] then
+        heroBuffs[key] = {}
     end
-    return heroBuffs[target.id]
+    return heroBuffs[key]
 end
 
 --- 创建Buff实例
@@ -186,6 +194,7 @@ function BattleBuff.Add(caster, target, buffConfig)
             -- 不可叠加，刷新持续时间
             existingBuff.duration = buffConfig.duration or existingBuff.maxDuration
             existingBuff.caster = caster
+            existingBuff.stackCount = buffConfig.initialStack or existingBuff.stackCount
             Logger.Debug(string.format("BattleBuff.Add: 刷新不可叠加Buff [%s] 持续时间=%d", 
                 existingBuff.name, existingBuff.duration))
         end
@@ -408,22 +417,30 @@ function BattleBuff.ProcessBuffEffect(buff, hero, timing)
 end
 
 --- 回合开始处理
-function BattleBuff.OnRoundBegin()
+function BattleBuff.OnRoundBegin(hero)
     Logger.Debug("BattleBuff.OnRoundBegin: 回合开始处理Buff效果")
-    
-    for heroId, buffList in pairs(heroBuffs) do
+
+    if hero then
+        local buffList = GetHeroBuffList(hero)
         for _, buff in ipairs(buffList) do
-            -- 触发回合开始效果
+            BattleBuff.ProcessBuffEffect(buff, buff.target, E_BUFF_TIMING.ON_ROUND_BEGIN)
+        end
+        return
+    end
+
+    for _, buffList in pairs(heroBuffs) do
+        for _, buff in ipairs(buffList) do
             BattleBuff.ProcessBuffEffect(buff, buff.target, E_BUFF_TIMING.ON_ROUND_BEGIN)
         end
     end
 end
 
 --- 回合结束处理 (减少持续时间)
-function BattleBuff.OnRoundEnd()
+function BattleBuff.OnRoundEnd(hero)
     Logger.Debug("BattleBuff.OnRoundEnd: 回合结束处理Buff持续时间")
-    
-    for heroId, buffList in pairs(heroBuffs) do
+
+    local targetBuffs = hero and { [GetHeroBuffKey(hero)] = GetHeroBuffList(hero) } or heroBuffs
+    for heroId, buffList in pairs(targetBuffs) do
         local expiredBuffs = {}
         
         for i, buff in ipairs(buffList) do
@@ -460,6 +477,10 @@ function BattleBuff.OnRoundEnd()
             heroBuffs[heroId] = nil
         end
     end
+end
+
+function BattleBuff.HasControlBuff(target)
+    return BattleBuff.IsHeroUnderControl(target)
 end
 
 --- 检查英雄是否处于控制状态 (眩晕/魅惑等)
@@ -517,10 +538,32 @@ function BattleBuff.ClearAllBuffs(hero)
         BattleEvent.Publish("BUFF_REMOVED", buff.caster, hero, buff)
     end
     
-    -- 清空列表
-    heroBuffs[hero.id] = nil
-    
-    Logger.Debug(string.format("BattleBuff.ClearAllBuffs: 清除英雄 [%s] 所有Buff", hero.id))
+    local key = GetHeroBuffKey(hero)
+    heroBuffs[key] = nil
+
+    Logger.Debug(string.format("BattleBuff.ClearAllBuffs: 清除英雄 [%s] 所有Buff", tostring(key)))
+end
+
+function BattleBuff.RemoveAllDebuffs(hero)
+    local buffList = GetHeroBuffList(hero)
+    if not buffList then
+        return 0
+    end
+
+    local removed = 0
+    for i = #buffList, 1, -1 do
+        local buff = buffList[i]
+        if buff.mainType == E_BUFF_MAIN_TYPE.BAD or buff.mainType == E_BUFF_MAIN_TYPE.CONTROL then
+            BattleBuff.ProcessBuffEffect(buff, hero, E_BUFF_TIMING.ON_REMOVE)
+            BattleEvent.Publish("BUFF_REMOVED", buff.caster, hero, buff)
+            table.remove(buffList, i)
+            removed = removed + 1
+        end
+    end
+    if #buffList == 0 then
+        heroBuffs[GetHeroBuffKey(hero)] = nil
+    end
+    return removed
 end
 
 --- 获取英雄所有Buff
@@ -546,6 +589,20 @@ function BattleBuff.GetBuff(hero, buffId)
     
     for _, buff in ipairs(buffList) do
         if buff.buffId == buffId then
+            return buff
+        end
+    end
+    return nil
+end
+
+function BattleBuff.GetBuffBySubType(hero, subType)
+    local buffList = GetHeroBuffList(hero)
+    if not buffList then
+        return nil
+    end
+
+    for _, buff in ipairs(buffList) do
+        if buff.subType == subType then
             return buff
         end
     end

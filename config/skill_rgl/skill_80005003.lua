@@ -7,7 +7,7 @@ function skill_80005003.Execute(hero, targets, skill)
     for _, target in ipairs(BattleSkill.SelectRandomAliveEnemies(hero, 3)) do
         local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
         BattleDmgHeal.ApplyDamage(target, damage, hero)
-        BattleSkill.ApplyPoison(target, 2)
+        BattleSkill.ApplyPoison(target, 2, hero)
         totalDamage = totalDamage + damage
     end
     return totalDamage > 0
