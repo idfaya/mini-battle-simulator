@@ -9,6 +9,7 @@ local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local BattleFormation = require("modules.battle_formation")
 local BattleAttribute = require("modules.battle_attribute")
+local BattleBuff = require("modules.battle_buff")
 
 ---@class ViewportRenderer
 local ViewportRenderer = {}
@@ -394,14 +395,17 @@ local function DrawCurrentHeroPanel(hero, x, y, w, h)
     
     -- 绘制 Buff
     local buffStr = "Buff: "
-    if hero.buffs and next(hero.buffs) then
-        local count = 0
-        for _, buff in pairs(hero.buffs) do
-            if count < 3 then -- 面板有限，只显示前3个
-                buffStr = buffStr .. string.format("[%s] ", buff.name or "未知")
-                count = count + 1
-            end
+    local buffs = BattleBuff.GetAllBuffs and BattleBuff.GetAllBuffs(hero) or nil
+    if buffs and #buffs > 0 then
+        local show = {}
+        local maxShow = 4
+        for i = 1, math.min(#buffs, maxShow) do
+            local b = buffs[i]
+            local name = b and b.name or "未知"
+            local stack = (b and b.stackCount) and (b.stackCount > 1 and ("x" .. b.stackCount) or "") or ""
+            table.insert(show, string.format("[%s%s]", name, stack))
         end
+        buffStr = buffStr .. table.concat(show, " ")
     else
         buffStr = buffStr .. "无"
     end

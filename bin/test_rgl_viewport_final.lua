@@ -10,7 +10,7 @@ package.path = package.path .. ";../?.lua;../?/init.lua"
 
 local targetLevel = tonumber(arg[1]) or 50
 local heroCount = math.min(tonumber(arg[2]) or 3, 6)
-local enemyCount = math.min(tonumber(arg[3]) or 4, 6)
+local enemyCount = math.min(tonumber(arg[3]) or 6, 6)
 local updateSpeed = tonumber(arg[4]) or 800
 
 print(string.format("=== RGL Viewport 战斗测试 (Lv.%d) ===", targetLevel))
@@ -37,7 +37,7 @@ local function Main()
     for _, h in ipairs(RglHeroData.GetPlayableHeroes()) do
         if h.AllyID then table.insert(allHeroIds, h.AllyID) end
     end
-    local allEnemyIds = RglEnemyData.GetAllNormalEnemyIds()
+    local allEnemyIds = RglEnemyData.GetAllEnemyIds()
     local allBossIds = RglEnemyData.GetAllBossIds()
 
     print(string.format("可用RGL英雄: %d, 小怪: %d, Boss: %d", #allHeroIds, #allEnemyIds, #allBossIds))
@@ -48,13 +48,28 @@ local function Main()
 
     local selectedHeroIds = ArrayUtils.RandomSelect(allHeroIds, heroCount)
     local selectedEnemyIds = {}
+    local selectedEnemyMap = {}
+    local function AddEnemyId(id)
+        if id and not selectedEnemyMap[id] then
+            selectedEnemyMap[id] = true
+            table.insert(selectedEnemyIds, id)
+        end
+    end
     if #allBossIds > 0 then
-        table.insert(selectedEnemyIds, allBossIds[math.random(#allBossIds)])
+        AddEnemyId(allBossIds[math.random(#allBossIds)])
     end
     local remaining = enemyCount - #selectedEnemyIds
     if remaining > 0 and #allEnemyIds > 0 then
         for _, id in ipairs(ArrayUtils.RandomSelect(allEnemyIds, remaining)) do
-            table.insert(selectedEnemyIds, id)
+            AddEnemyId(id)
+        end
+    end
+    if #selectedEnemyIds < enemyCount then
+        for _, id in ipairs(allEnemyIds) do
+            AddEnemyId(id)
+            if #selectedEnemyIds >= enemyCount then
+                break
+            end
         end
     end
 

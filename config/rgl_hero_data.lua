@@ -22,6 +22,7 @@ local heroesByFaction = {}
 local heroesByQuality = {}
 local allHeroes = {}
 local playableHeroes = {}
+local _initialized = false
 
 local QUALITY_MULTIPLIERS = {
     [1] = 1.0,
@@ -99,8 +100,36 @@ local function LoadHeroInfo()
     print(string.format("[RglHeroData] Loaded %d RGL heroes", #data))
 end
 
+local function EnsureSkillConfigReady()
+    if not SkillRglConfig.GetSkillConfig(80001001) then
+        SkillRglConfig.Init()
+    end
+end
+
+local function ResolveSkillConfig(classId, skillLevel)
+    EnsureSkillConfigReady()
+
+    local levels = SkillRglConfig.GetSkillLevels(classId)
+    if levels and #levels > 0 then
+        for _, lvlCfg in ipairs(levels) do
+            if lvlCfg.SkillLevel == skillLevel then
+                return lvlCfg, lvlCfg.ID
+            end
+        end
+    end
+
+    -- RGL 技能ID格式为 classId * 10 + level，例如 8000700 + L3 => 80007003
+    local actualSkillId = classId * 10 + skillLevel
+    return SkillRglConfig.GetSkillConfig(actualSkillId), actualSkillId
+end
+
 local function Init()
+    if _initialized then
+        return
+    end
+    EnsureSkillConfigReady()
     LoadHeroInfo()
+    _initialized = true
 end
 
 function RglHeroData.GetHeroInfo(heroId)
@@ -180,6 +209,7 @@ function RglHeroData.CalculateHeroAttributes(heroId, level, star)
 end
 
 function RglHeroData.ConvertToHeroData(heroId, level, star)
+    Init()
     local hero = heroInfoMap[heroId]
     if not hero then
         return nil
@@ -196,23 +226,7 @@ function RglHeroData.ConvertToHeroData(heroId, level, star)
             local classId = skillInfo.classId
             local skillLevel = skillInfo.level or 1
 
-            local rglSkill = nil
-            local actualSkillId = classId * 100 + skillLevel
-
-            local levels = SkillRglConfig.GetSkillLevels(classId)
-            if levels and #levels > 0 then
-                for _, lvlCfg in ipairs(levels) do
-                    if lvlCfg.SkillLevel == skillLevel then
-                        rglSkill = lvlCfg
-                        actualSkillId = lvlCfg.ID or actualSkillId
-                        break
-                    end
-                end
-            end
-
-            if not rglSkill then
-                rglSkill = SkillRglConfig.GetSkillConfig(actualSkillId)
-            end
+            local rglSkill, actualSkillId = ResolveSkillConfig(classId, skillLevel)
 
             if rglSkill then
                 local skillType = E_SKILL_TYPE_PASSIVE

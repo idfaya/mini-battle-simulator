@@ -1,49 +1,24 @@
 --[[
     战斗英雄工厂模块
-    负责创建英雄和敌人的战斗数据
-    支持 Roguelike 数据源切换
+    负责创建九流派英雄和敌人的战斗数据
 --]]
 
 local BattleHeroFactory = {}
 
-local AllyData = require("config.ally_data")
-local EnemyData = require("config.enemy_data")
-local RglHeroData = nil
-local RglEnemyData = nil
-
-local _useRglMode = false
+local RglHeroData = require("config.rgl_hero_data")
+local RglEnemyData = require("config.rgl_enemy_data")
+local _useRglMode = true
 
 function BattleHeroFactory.SetRglMode(enabled)
-    _useRglMode = enabled
-    if enabled and not RglHeroData then
-        local SkillRglConfig = require("config.skill_rgl_config")
-        SkillRglConfig.Init()
-        RglHeroData = require("config.rgl_hero_data")
-        RglEnemyData = require("config.rgl_enemy_data")
-    end
+    _useRglMode = enabled ~= false
 end
 
 function BattleHeroFactory.IsRglMode()
-    return _useRglMode
+    return true
 end
 
 function BattleHeroFactory.CreateHero(heroId, level, star)
-    if _useRglMode then
-        return BattleHeroFactory.CreateRglHero(heroId, level, star)
-    end
-
-    local heroData = AllyData.ConvertToHeroData(heroId, level, star)
-    if not heroData then
-        return nil
-    end
-    
-    if heroData.skillsConfig then
-        for _, cfg in ipairs(heroData.skillsConfig) do
-            cfg.skillType = cfg.skillType == 2 and E_SKILL_TYPE_ULTIMATE or E_SKILL_TYPE_NORMAL
-        end
-    end
-    
-    return heroData
+    return BattleHeroFactory.CreateRglHero(heroId, level, star)
 end
 
 function BattleHeroFactory.CreateRglHero(heroId, level, star)
@@ -70,24 +45,7 @@ function BattleHeroFactory.CreateRglHero(heroId, level, star)
 end
 
 function BattleHeroFactory.CreateEnemy(enemyId, level)
-    if _useRglMode then
-        return BattleHeroFactory.CreateRglEnemy(enemyId, level)
-    end
-
-    local enemyData = EnemyData.ConvertToHeroData(enemyId)
-    if not enemyData then
-        return nil
-    end
-    
-    enemyData.level = level
-    
-    if enemyData.skillsConfig then
-        for _, cfg in ipairs(enemyData.skillsConfig) do
-            cfg.skillType = cfg.skillType == 2 and E_SKILL_TYPE_ULTIMATE or E_SKILL_TYPE_NORMAL
-        end
-    end
-    
-    return enemyData
+    return BattleHeroFactory.CreateRglEnemy(enemyId, level)
 end
 
 function BattleHeroFactory.CreateRglEnemy(enemyId, level)
@@ -95,24 +53,12 @@ function BattleHeroFactory.CreateRglEnemy(enemyId, level)
         RglEnemyData = require("config.rgl_enemy_data")
     end
 
-    local enemyData = RglEnemyData.ConvertToHeroData(enemyId)
+    local enemyData = RglEnemyData.ConvertToHeroData(enemyId, level)
     if not enemyData then
         return nil
     end
     
     enemyData.level = level
-    
-    if enemyData.skillsConfig then
-        for _, cfg in ipairs(enemyData.skillsConfig) do
-            if cfg.skillType == E_SKILL_TYPE_PASSIVE then
-                -- keep passive type for RGL passives
-            elseif cfg.skillType == 3 or cfg.skillCost and cfg.skillCost > 0 then
-                cfg.skillType = E_SKILL_TYPE_ULTIMATE
-            else
-                cfg.skillType = E_SKILL_TYPE_NORMAL
-            end
-        end
-    end
     
     return enemyData
 end

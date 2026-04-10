@@ -21,6 +21,65 @@ local _enemyData = {}
 local _isLoaded = false
 local _skillConfigInited = false
 
+local function GetSkillFamily(skillId)
+    if not skillId then
+        return nil
+    end
+    return math.floor(skillId / 10)
+end
+
+local function BuildScaledSkillIds(enemy, level)
+    local result = {}
+    local seen = {}
+
+    local function Add(skillId)
+        if not skillId or seen[skillId] then
+            return
+        end
+        seen[skillId] = true
+        table.insert(result, skillId)
+    end
+
+    local baseSkillIds = {}
+    if enemy.SkillIDs then
+        for _, skillId in ipairs(enemy.SkillIDs) do
+            table.insert(baseSkillIds, skillId)
+        end
+    end
+    if enemy.SkillIDsBossWarning then
+        for _, skillId in ipairs(enemy.SkillIDsBossWarning) do
+            table.insert(baseSkillIds, skillId)
+        end
+    end
+
+    for _, skillId in ipairs(baseSkillIds) do
+        Add(skillId)
+    end
+
+    local families = {}
+    for _, skillId in ipairs(baseSkillIds) do
+        local family = GetSkillFamily(skillId)
+        if family then
+            families[family] = true
+        end
+    end
+
+    for family, _ in pairs(families) do
+        Add(family * 10 + 1)
+        if level >= 12 or (enemy.MonsterType or 0) >= 1 then
+            Add(family * 10 + 2)
+        end
+        if level >= 24 or (enemy.MonsterType or 0) >= 1 then
+            Add(family * 10 + 3)
+        end
+        if level >= 36 or (enemy.MonsterType or 0) >= 2 then
+            Add(family * 10 + 4)
+        end
+    end
+
+    return result
+end
+
 local CLASS_NAMES = {
     [1] = "Front",
     [2] = "Mid",
@@ -155,34 +214,35 @@ function RglEnemyData.ConvertToHeroData(enemyId, overrideLevel)
 
     local baseHp, baseAtk, baseDef, baseSpeed
     if class == 1 then
-        baseHp, baseAtk, baseDef, baseSpeed = 900, 70, 55, 75
+        baseHp, baseAtk, baseDef, baseSpeed = 1200, 105, 78, 88
     elseif class == 2 then
-        baseHp, baseAtk, baseDef, baseSpeed = 680, 82, 40, 95
+        baseHp, baseAtk, baseDef, baseSpeed = 980, 138, 55, 104
     else
-        baseHp, baseAtk, baseDef, baseSpeed = 520, 98, 30, 105
+        baseHp, baseAtk, baseDef, baseSpeed = 920, 152, 48, 108
     end
 
-    local hpGrowthRate = 0.10 + quality * 0.012
-    local atkGrowthRate = 0.08 + quality * 0.01
-    local defGrowthRate = 0.065 + quality * 0.008
+    local hpGrowthRate = 0.12 + quality * 0.015
+    local atkGrowthRate = 0.095 + quality * 0.012
+    local defGrowthRate = 0.075 + quality * 0.010
 
     local levelDiff = math.max(0, level - 1)
     local hpGrowth = math.floor(baseHp * hpGrowthRate * levelDiff)
     local atkGrowth = math.floor(baseAtk * atkGrowthRate * levelDiff)
     local defGrowth = math.floor(baseDef * defGrowthRate * levelDiff)
 
-    local qualityMultipliers = {1.0, 1.1, 1.15, 1.2, 1.25, 1.3}
+    local qualityMultipliers = {1.0, 1.06, 1.12, 1.18, 1.26, 1.34}
     local qualityMultiplier = qualityMultipliers[quality] or 1.0
-    local typeMultipliers = {[0] = 1.0, [1] = 1.2, [2] = 1.5}
+    local typeMultipliers = {[0] = 1.0, [1] = 1.15, [2] = 1.35}
     local typeMultiplier = typeMultipliers[monsterType] or 1.0
     local starMultiplier = GetStarMultiplier(star)
     local totalMultiplier = qualityMultiplier * typeMultiplier * starMultiplier
+    local atkMultiplier = 1.0 + (totalMultiplier - 1.0) * 0.45
 
     local heroData = {
         id = enemyId,
         name = name,
         hp = math.floor((baseHp + hpGrowth) * totalMultiplier),
-        atk = math.floor((baseAtk + atkGrowth) * totalMultiplier),
+        atk = math.floor((baseAtk + atkGrowth) * atkMultiplier),
         def = math.floor((baseDef + defGrowth) * totalMultiplier),
         speed = baseSpeed,
         critRate = 0.05 + (quality * 0.01),
@@ -244,16 +304,8 @@ function RglEnemyData.ConvertToHeroData(enemyId, overrideLevel)
         })
     end
 
-    if enemy.SkillIDs and #enemy.SkillIDs > 0 then
-        for _, skillId in ipairs(enemy.SkillIDs) do
-            AddSkill(skillId)
-        end
-    end
-
-    if enemy.SkillIDsBossWarning and #enemy.SkillIDsBossWarning > 0 then
-        for _, skillId in ipairs(enemy.SkillIDsBossWarning) do
-            AddSkill(skillId)
-        end
+    for _, skillId in ipairs(BuildScaledSkillIds(enemy, level)) do
+        AddSkill(skillId)
     end
 
     heroData.skills = {}

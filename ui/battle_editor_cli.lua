@@ -13,7 +13,6 @@ local BattleSkill = require("modules.battle_skill")
 local BattleAttribute = require("modules.battle_attribute")
 local BattleBuff = require("modules.battle_buff")
 local BattleActionOrder = require("modules.battle_action_order")
-local SkillLoader = require("core.skill_loader")
 
 ---@class BattleEditorCLI
 local BattleEditorCLI = {}

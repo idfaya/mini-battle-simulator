@@ -37,6 +37,15 @@ BattleVisualEvents.SKILL_CAST_STARTED = "SkillCastStarted"
 --- 技能释放完成
 BattleVisualEvents.SKILL_CAST_COMPLETED = "SkillCastCompleted"
 
+--- 技能时间线开始
+BattleVisualEvents.SKILL_TIMELINE_STARTED = "SkillTimelineStarted"
+
+--- 技能时间线帧事件
+BattleVisualEvents.SKILL_TIMELINE_FRAME = "SkillTimelineFrame"
+
+--- 技能时间线完成
+BattleVisualEvents.SKILL_TIMELINE_COMPLETED = "SkillTimelineCompleted"
+
 --- 回合开始
 BattleVisualEvents.TURN_STARTED = "TurnStarted"
 
@@ -193,6 +202,84 @@ function BattleVisualEvents.BuildSkillCastEvent(eventType, hero, skill, targets)
         skillIcon = skill.icon,
         skillType = skill.skillType,
         targets = targetData,
+    }
+end
+
+--- 构建技能时间线开始事件
+---@param hero table 施法者
+---@param skill table 技能数据
+---@param timeline table 时间线数据
+---@return table
+function BattleVisualEvents.BuildSkillTimelineStarted(hero, skill, timeline)
+    return {
+        eventType = BattleVisualEvents.SKILL_TIMELINE_STARTED,
+        heroId = hero and (hero.instanceId or hero.id),
+        heroName = hero and hero.name,
+        skillId = skill and skill.skillId,
+        skillName = skill and skill.name,
+        totalFrames = timeline and #timeline or 0,
+    }
+end
+
+--- 构建技能时间线帧事件
+---@param hero table 施法者
+---@param skill table 技能数据
+---@param frameData table 帧数据
+---@param index number 帧索引
+---@return table
+function BattleVisualEvents.BuildSkillTimelineFrame(hero, skill, frameData, index)
+    local targets = {}
+    local function AppendTarget(target)
+        if not target then
+            return
+        end
+        table.insert(targets, {
+            id = target.instanceId or target.id,
+            name = target.name,
+        })
+    end
+
+    AppendTarget(frameData and frameData.target)
+    if frameData and frameData.targets then
+        for _, target in ipairs(frameData.targets) do
+            AppendTarget(target)
+        end
+    end
+
+    return {
+        eventType = BattleVisualEvents.SKILL_TIMELINE_FRAME,
+        heroId = hero and (hero.instanceId or hero.id),
+        heroName = hero and hero.name,
+        skillId = skill and skill.skillId,
+        skillName = skill and skill.name,
+        frameIndex = index or 0,
+        frame = frameData and frameData.frame or 0,
+        op = frameData and frameData.op,
+        effect = frameData and frameData.effect,
+        damage = frameData and frameData.damage,
+        healAmount = frameData and frameData.healAmount,
+        buffId = frameData and frameData.buffId,
+        targets = targets,
+    }
+end
+
+--- 构建技能时间线完成事件
+---@param hero table 施法者
+---@param skill table 技能数据
+---@param timeline table 时间线数据
+---@param result table 执行结果
+---@return table
+function BattleVisualEvents.BuildSkillTimelineCompleted(hero, skill, timeline, result)
+    result = result or {}
+    return {
+        eventType = BattleVisualEvents.SKILL_TIMELINE_COMPLETED,
+        heroId = hero and (hero.instanceId or hero.id),
+        heroName = hero and hero.name,
+        skillId = skill and skill.skillId,
+        skillName = skill and skill.name,
+        totalFrames = timeline and #timeline or 0,
+        totalDamage = result.totalDamage or 0,
+        succeeded = result.succeeded ~= false,
     }
 end
 

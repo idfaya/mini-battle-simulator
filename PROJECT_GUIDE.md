@@ -4,10 +4,11 @@
 
 | 文档 | 路径 | 说明 |
 |-----|------|------|
+| 技能树设计 | `design/skill.md` | 九流派4层技能树、Buff系统、Timeline体系 |
+| 战斗系统机制 | `design/战斗系统机制.md` | 核心规则、属性成长、技能释放流程 |
+| 技能系统实现 | `docs/SKILL_SYSTEM_IMPLEMENTATION.md` | Timeline执行体系、三层配置架构、API清单 |
 | Web 可视化方案 | `design/web-visualization-plan.md` | 服务器驱动 + Canvas 前端架构设计 |
-| 技能设计 | `design/skill.md` | 技能系统设计文档 |
-| UI 重构计划 | `docs/ui-refactor.md` | UI 模块重构方案 |
-| 快速参考 | `QUICK_REFERENCE.md` | 常用命令和代码片段 |
+| 快速参考 | `QUICK_REFERENCE.md` | 常用枚举、API速查、配置模板 |
 | 使用指南 | `README.md` | 项目基础使用说明 |
 
 ---
@@ -32,117 +33,10 @@
 - **> 2000 行** 或 **职责混杂**：考虑拆分
 - 优先可读性，其次拆分粒度
 
-### 现有模块状态
-| 模块 | 行数 | 状态 |
-|-----|------|------|
-| battle_skill.lua | ~1200 | ✅ 保持单文件 |
-| battle_range.lua | ~270 | ✅ 已拆分（历史原因，保持现状） |
-| battle_buff.lua | ~1200 | ✅ 保持单文件 |
-
 ### 不再强制三层架构
 - rules/mechanics/system 分层仅作参考
 - 各模块按实际情况决定内部结构
 - 可用 Lua table 组织，不必物理拆分
-
-## Agent 职责调整
-
-### Designer
-- **Focus**：游戏机制设计（技能效果、职业平衡、数值曲线）
-- **不负责**：代码架构设计、模块拆分决策
-- **输出**：设计文档、数值表、测试用例
-
-### Coder
-- **Focus**：功能实现、代码可读性、Bug修复
-- **决策权**：模块是否拆分、内部实现方式
-- **原则**：能用就行，不炫技，不提前优化
-
-### Tester
-- **Focus**：功能验证、边界测试、回归测试
-- **不变**：保持现有测试方式
-
-## Team 结构与职责
-
-### 角色关系
-
-```
-Producer(用户) -> 定方向、提需求、做决策
-      ↓
-     PM -> 协调团队、规划任务、跟踪进度
-      ↓
-   +--------+--------+--------+--------+
-   ↓        ↓        ↓        ↓
-Designer   Coder   Tester  Reviewer
-   ↓        ↓        ↓        ↓
-设计机制  代码实现  验证测试  代码审查
-   ↓        ↓        ↓        ↓
-   +--------+--------+--------+--------+
-      ↓
-   Producer -> 最终验收
-```
-
-### 各角色职责
-
-| 角色 | 职责 | 边界 |
-|------|------|------|
-| **Producer（你）** | 定方向、提需求、做决策、验收 | 不执行具体任务 |
-| **PM（我）** | 协调团队、规划任务、跟踪进度、把控质量 | **不写代码**、不做设计 |
-| **Designer** | 设计游戏机制、数值平衡、输出设计文档 | 不写代码、不决定架构 |
-| **Coder** | 代码实现、决定实现方式、模块组织 | 不改设计、不改需求 |
-| **Tester** | 跑测试、报 bug、验证修复 | 不教 coder 怎么写、不改设计 |
-| **Reviewer** | 代码审查、架构合规检查 | 不替代Coder实现、不改需求 |
-
-### 工作流程
-
-1. **Producer 提需求** → PM 接收
-2. **PM 分析需求** → 决定 Designer 还是 Coder 做
-3. **Designer 出设计** → 交 Coder 实现
-4. **Coder 写代码** → 交 Tester 验证
-5. **Tester 跑测试** → 报结果给 PM
-6. **PM 汇总** → 有问题协调修复，没问题交 Producer 验收
-
-## Agent 使用规范
-
-### Agent 配置位置
-- **当前配置**：`~/.openclaw/agents/`（designer, coder, tester, reviewer）
-- **配置内容**：每个Agent包含 `AGENTS.md`、`SOUL.md`、`IDENTITY.md`、`USER.md`、`TOOLS.md`
-
-### 调用方式
-- 使用 `sessions_spawn` 调用子 Agent
-- **PM原则**：不写代码、不直接修改代码文件，通过协调子Agent完成任务
-- **工作方式**：PM分析需求 → 召对应Agent执行 → 审核结果 → 反馈Producer
-
-### 各 Agent 详细职责
-
-#### Designer
-- **做**：设计「做什么」和「数值是多少」
-- **不做**：「代码怎么写」「文件怎么分」
-- **输出**：`design/` 目录下的设计文档
-
-#### Coder
-- **做**：决定「怎么实现」「代码结构」
-- **问**：要不要做某功能？→ Producer；数值疑问？→ Designer
-- **输出**：`modules/` 目录下的代码
-
-#### Tester
-- **做**：跑测试、报 bug（现象+复现步骤）
-- **不做**：教 coder 怎么改、改设计
-- **限制**：一次只跑一个测试，≤5分钟
-- **状态**：当前停用（2026-03-28），等待Producer重新启用
-
-#### Reviewer
-- **做**：代码审查、架构合规检查、给出审查报告
-- **不做**：替代Coder实现、改设计
-- **触发**：PM在有争议时召集
-
-### 协作规则
-
-| 场景 | 做法 |
-|------|------|
-| Designer 设计完成 | PM 通知 Coder 实现 |
-| Coder 实现完成 | PM 通知 Tester 验证 |
-| Tester 发现 bug | PM 协调 Coder 修复 |
-| Coder 有技术问题 | PM 转给 Designer 确认设计 |
-| 各方有分歧 | PM 汇总，Producer 决策 |
 
 ## 文档规范
 
@@ -171,7 +65,7 @@ Designer   Coder   Tester  Reviewer
 ## 测试标准
 
 ### 通过标准
-- `bin/test_random_battle.lua` 能跑通
+- `bin/test_rgl_viewport_final.lua` 能跑通
 - 战斗结果符合预期
 - 无明显Bug
 
@@ -182,5 +76,4 @@ Designer   Coder   Tester  Reviewer
 
 ---
 
-*定位更新时间：2026-03-30*  
-*更新内容：添加Reviewer角色，更新Agent配置位置，明确PM不写代码原则*
+*定位更新时间：2026-04-10*

@@ -16,7 +16,6 @@ local BattleBuff = require("modules.battle_buff")
 local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
-local PassiveEffectHandler = require("modules.passive_effect_handler")
 local BattleSkillSeq = require("modules.battle_skill_seq")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ConsoleRenderer = require("ui.console_renderer")
@@ -171,15 +170,11 @@ local function InitSubsystems(beginState)
     -- 被动技能已经在英雄创建时通过 AddPassiveSkill2TriggerTime 注册
     Logger.Debug("  Roguelike被动技能注册完成")
 
-    -- 12. 初始化被动技能效果处理器
-    PassiveEffectHandler.Init()
-    Logger.Debug("  PassiveEffectHandler 初始化完成")
-
-    -- 13. 初始化技能序列模块
+    -- 12. 初始化技能序列模块
     BattleSkillSeq.Init()
     Logger.Debug("  BattleSkillSeq 初始化完成")
 
-    -- 14. 初始化渲染器
+    -- 13. 初始化渲染器
     if beginState.renderer then
         beginState.renderer.Init()
         Logger.Debug("  自定义渲染器初始化完成")
@@ -196,7 +191,6 @@ local function FinalizeSubsystems()
     Logger.Log("BattleMain.FinalizeSubsystems - 开始清理子系统")
 
     ConsoleRenderer.OnFinal()
-    PassiveEffectHandler.OnFinal()
     BattlePassiveSkill.OnFinal()
     BattleDmgHeal.OnFinal()
     BattleEnergy.OnFinal()
@@ -491,10 +485,18 @@ function BattleMain.ExecuteHeroAction(hero)
     
     if skill and skill.skillId then
         -- 获取随机敌人作为目标
+        -- region debug-point enemy-no-damage-target
         local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
+        Logger.Log(string.format("[DBG enemy-no-damage target] actor=%s actorId=%s isLeft=%s targetId=%s",
+            tostring(hero.name), tostring(hero.instanceId), tostring(hero.isLeft), tostring(targetId)))
+        -- endregion debug-point enemy-no-damage-target
         if targetId then
             local target = BattleFormation.FindHeroByInstanceId(targetId)
             if target then
+                -- region debug-point enemy-no-damage-target-resolved
+                Logger.Log(string.format("[DBG enemy-no-damage target-resolved] actor=%s actorLeft=%s target=%s targetLeft=%s",
+                    tostring(hero.name), tostring(hero.isLeft), tostring(target.name), tostring(target.isLeft)))
+                -- endregion debug-point enemy-no-damage-target-resolved
                 Logger.Log(string.format("[行动]   %s 对 %s 使用技能 [%s]", 
                     hero.name or "Unknown", 
                     target.name or "Unknown", 

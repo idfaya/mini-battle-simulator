@@ -1,7 +1,6 @@
 ---
 --- Battle Skill Module
---- 管理英雄技能、冷却和技能释放
---- 支持原始技能和Roguelike技能
+--- 管理九流派技能、冷却和技能释放
 ---
 
 -- 确保枚举已加载
@@ -10,7 +9,6 @@ if not E_CAST_TARGET then
 end
 
 local Logger = require("utils.logger")
-local SkillConfig = require("config.skill_config")
 local SkillRglConfig = require("config.skill_rgl_config")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
@@ -35,16 +33,9 @@ function BattleSkill.InitModule()
     if isInitialized then
         return
     end
-    SkillConfig.Init()
     SkillRglConfig.Init()
     isInitialized = true
-    Logger.Log("[BattleSkill] 模块初始化完成 (支持Roguelike技能)")
-end
-
---- 判断是否为Roguelike技能ID
-function BattleSkill.IsRglSkillId(skillId)
-    if not skillId then return false end
-    return (skillId >= 8000000 and skillId <= 89999999) or (skillId >= 800000001 and skillId <= 800020000)
+    Logger.Log("[BattleSkill] 模块初始化完成 (九流派单轨)")
 end
 
 --- 生成唯一技能实例ID
@@ -147,9 +138,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     -- 确保模块已初始化
     BattleSkill.InitModule()
     
-    -- 判断是否为Roguelike技能
-    local isRgl = BattleSkill.IsRglSkillId(skillId)
-    local configModule = isRgl and SkillRglConfig or SkillConfig
+    local configModule = SkillRglConfig
     
     -- 从配置模块获取配置
     local skillType = configModule.GetSkillType(skillId)
@@ -166,7 +155,6 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     -- 确定技能类型
     local finalSkillType = mergedConfig.skillType or E_SKILL_TYPE_NORMAL
     if skillType then
-        -- 根据 res_skill.json 的 Type 字段映射
         -- Type 1=普通攻击, 2=主动技能, 3=大招, 4=被动
         if skillType == 1 then
             finalSkillType = E_SKILL_TYPE_NORMAL
@@ -179,22 +167,19 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         end
     end
     
-    -- 如果是Roguelike被动技能，标记为已激活
     local isPassiveActive = false
-    if isRgl and finalSkillType == E_SKILL_TYPE_PASSIVE then
+    if finalSkillType == E_SKILL_TYPE_PASSIVE then
         isPassiveActive = true
     end
 
     -- 确定技能名称：
-    -- 1. 如果是Roguelike技能，优先使用Roguelike配置的Name
-    -- 2. 否则使用传入的name
-    -- 3. 最后是默认格式
+    -- 1. 优先使用九流派配置 Name
+    -- 2. 否则使用传入的 name
+    -- 3. 最后使用默认格式
     local skillName = nil
-    if isRgl then
-        local rglCfg = configModule.GetSkillConfig(skillId)
-        if rglCfg and rglCfg.Name then
-            skillName = rglCfg.Name
-        end
+    local rglCfg = configModule.GetSkillConfig(skillId)
+    if rglCfg and rglCfg.Name then
+        skillName = rglCfg.Name
     end
     if not skillName then
         skillName = mergedConfig.name
@@ -218,10 +203,10 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 配置数据
         config = mergedConfig,
         
-        -- 从 res_skill.json 加载的数据
+        -- 从 res_skill_rgl.json 加载的数据
         skillParam = skillParam,
         skillBuffs = skillBuffs,
-        -- 优先使用传入的 skillConfig.skillCost，否则使用 SkillConfig 中的值
+        -- 优先使用传入的 skillConfig.skillCost，否则使用九流派配置中的值
         skillCost = mergedConfig.skillCost or skillCost or 0,
 
         -- 技能目标配置
@@ -237,17 +222,17 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 技能条件
         conditions = mergedConfig.conditions or {},
 
-        -- Lua脚本路径 (从 SkillConfig 获取)
+        -- Lua脚本路径
         luaFile = luaPath or mergedConfig.luaFile or mergedConfig.LuaFile or "",
         luaFuncName = mergedConfig.luaFuncName or "",
 
         -- 额外数据
         extraData = mergedConfig.extraData or {},
         
-        -- Roguelike技能特有数据
-        isRglSkill = isRgl,
+        -- 九流派技能特有数据
+        isRglSkill = true,
         isPassiveActive = isPassiveActive,
-        rglConfig = isRgl and configModule.GetSkillConfig(skillId) or nil,
+        rglConfig = configModule.GetSkillConfig(skillId),
     }
 
     if skill.rglConfig then
@@ -261,18 +246,15 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         end
     end
     
-    -- 调试输出
-    if isRgl then
-        Logger.Log(string.format("[BattleSkill.CreateSkillInstance] Roguelike技能 %d: isRgl=%s, rglConfig=%s", 
-            skillId, tostring(isRgl), tostring(skill.rglConfig)))
-        if skill.rglConfig then
-            Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   ClassID=%s, Name=%s", 
-                tostring(skill.rglConfig.ClassID), tostring(skill.rglConfig.Name)))
-        end
+    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 九流派技能 %d: rglConfig=%s",
+        skillId, tostring(skill.rglConfig)))
+    if skill.rglConfig then
+        Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   ClassID=%s, Name=%s",
+            tostring(skill.rglConfig.ClassID), tostring(skill.rglConfig.Name)))
     end
-    
-    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d, Roguelike:%s) Lua路径: %s", 
-        skillId, skillType or 0, tostring(isRgl), skill.luaFile or "nil"))
+
+    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d) Lua路径: %s",
+        skillId, skillType or 0, skill.luaFile or "nil"))
 
     return skill
 end
@@ -428,24 +410,18 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
     -- luaFile 不为空时，表示有额外的自定义脚本（War/ActiveSkills/{LuaFile}.lua）
     local skillLua = BattleSkill.LoadSkillLua(skillId)
     if skillLua and not specialOnly then
-        -- 检查是否有Execute函数（自定义技能脚本）
-        if skillLua.Execute then
-            hero.__scriptDamageAccumulator = 0
-            local result = skillLua.Execute(hero, targets, skill)
-            local scriptDamage = hero.__scriptDamageAccumulator or 0
-            hero.__scriptDamageAccumulator = nil
-            if result ~= false and result ~= nil or scriptDamage > 0 then
-                executed = true
-                totalDamage = totalDamage + scriptDamage
+        -- 技能脚本层已收口到显式 BuildTimeline
+        local SkillTimeline = require("core.skill_timeline")
+        if skillLua.BuildTimeline then
+            local ok, timeline = pcall(skillLua.BuildTimeline, hero, targets, skill)
+            if ok and type(timeline) == "table" and #timeline > 0 then
+                local succeeded, result = SkillTimeline.Execute(hero, targets, skill, timeline)
+                if succeeded then
+                    executed = true
+                    totalDamage = totalDamage + (result.totalDamage or 0)
+                end
             else
-                Logger.LogWarning("[BattleSkill.CastSkillInSeq] Skill Lua execution failed: " .. tostring(skillId))
-            end
-        else
-            -- 原工程技能文件（数据配置），使用SkillExecutor执行 actData 中的关键帧
-            local SkillExecutor = require("core.skill_executor")
-            executed = SkillExecutor.ExecuteSkill(hero, targets, skillLua, skill)
-            if executed then
-                Logger.Log("[BattleSkill.CastSkillInSeq] 使用SkillExecutor执行技能关键帧: " .. tostring(skillId))
+                Logger.LogWarning(string.format("[BattleSkill.CastSkillInSeq] BuildTimeline failed or empty: %s", tostring(skillId)))
             end
         end
     end
@@ -454,8 +430,24 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId)
         totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
         executed = true
     elseif not executed then
-        Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击")
-        totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
+        -- 默认普攻也通过 Timeline 包裹，保持事件一致
+        Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击 (timeline)")
+        local SkillTimeline = require("core.skill_timeline")
+        local timeline = {
+            { frame = 0, op = "cast", effect = "cast_basic" },
+            {
+                frame = 10,
+                op = "attack",
+                execute = function()
+                    local dmg = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill) or 0
+                    return { damage = dmg }
+                end
+            }
+        }
+        local succeeded, result = SkillTimeline.Execute(hero, targets, skill, timeline)
+        if succeeded then
+            totalDamage = totalDamage + (result.totalDamage or 0)
+        end
         totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
     else
         totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
@@ -489,20 +481,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     end
 
     local BattleAttribute = require("modules.battle_attribute")
-    local SkillLoader = require("core.skill_loader")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
-
-    -- 尝试加载技能配置
-    local skillId = skill and skill.skillId
-    local spellConfig = nil
-    if skillId then
-        local config = SkillLoader.LoadSkillConfig(skillId)
-        if config then
-            -- 配置文件的变量名格式为 spell_xxxxxx
-            local varName = "spell_" .. tostring(skillId)
-            spellConfig = config[varName]
-        end
-    end
 
     -- 获取技能的伤害倍率（优先使用技能对象中的配置）
     local damageRate = 10000  -- 默认100%（万分比）
@@ -510,9 +489,6 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
         -- 使用技能对象中的damageData（百分比转万分比）
         damageRate = skill.damageData.damageRate * 100
         Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] 使用技能配置伤害倍率: %d%%", skill.damageData.damageRate))
-    elseif spellConfig and spellConfig.Trigger and spellConfig.Trigger.damageData then
-        -- 使用配置文件中的damageData
-        damageRate = spellConfig.Trigger.damageData.damageRate or 10000
     end
     
     -- 检查是否是治疗技能
@@ -1085,12 +1061,7 @@ function BattleSkill.LoadSkillLua(skillId)
         return BattleSkill.skillLuaCache[skillId]
     end
 
-    -- 判断是否为Roguelike技能
-    local isRgl = BattleSkill.IsRglSkillId(skillId)
-    local configModule = isRgl and SkillRglConfig or SkillConfig
-
-    -- 从配置模块获取Lua路径
-    local luaPath = configModule.GetSkillLuaPath(skillId)
+    local luaPath = SkillRglConfig.GetSkillLuaPath(skillId)
     if not luaPath or luaPath == "" then
         -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
         if skillId ~= 1001 then
@@ -1112,17 +1083,13 @@ function BattleSkill.LoadSkillLua(skillId)
         return nil
     end
 
-    -- 如果模块返回的是布尔值（原工程技能文件只定义全局变量，不返回）
-    -- 从全局变量中获取技能数据
+    -- 兼容仅定义全局变量、不显式 return 的技能文件
     if type(skillModule) == "boolean" then
-        -- 从luaFile中提取技能ID（如 config.skill.skill_131010101 -> 131010101）
         local loadedSkillId = string.match(luaFile, "skill_(%d+)$")
         if not loadedSkillId then
             Logger.LogWarning("[BattleSkill.LoadSkillLua] 无法从路径提取技能ID: " .. luaFile)
             return nil
         end
-        
-        -- 构建全局变量名（如 skill_131010101）
         local globalVarName = "skill_" .. loadedSkillId
         skillModule = _G[globalVarName]
         if not skillModule then
@@ -1313,7 +1280,7 @@ function BattleSkill.SelectLowestHpEnemy(hero)
     if not enemies or #enemies == 0 then return nil end
     
     local lowestHpTarget = nil
-    local lowestHpRatio = 1.0
+    local lowestHpRatio = math.huge
     
     for _, enemy in ipairs(enemies) do
         if enemy and not enemy.isDead and enemy.hp and enemy.maxHp and enemy.maxHp > 0 then
@@ -1669,19 +1636,19 @@ function BattleSkill.ApplyBurn(target, stacks, turns, caster)
         target.name or "Unknown", stacks, BattleBuff.GetBuffStackNumBySubType(target, 870001), actualTurns))
 end
 
-function BattleSkill.ApplyFreeze(target, turns, slowPct)
+function BattleSkill.ApplyFreeze(target, turns, slowPct, caster)
     if not target then
         return
     end
     if slowPct and slowPct > 0 then
-        BattleSkill.ApplyBuffFromSkill(target, target, 880001, nil, {
+        BattleSkill.ApplyBuffFromSkill(caster or target, target, 880001, nil, {
             initialStack = slowPct,
             maxStack = slowPct,
             duration = math.max(turns or 0, 2),
         })
     end
     if turns and turns > 0 then
-        BattleSkill.ApplyBuffFromSkill(target, target, 880002, nil, {
+        BattleSkill.ApplyBuffFromSkill(caster or target, target, 880002, nil, {
             duration = turns,
         })
     end
