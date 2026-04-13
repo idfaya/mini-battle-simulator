@@ -458,8 +458,8 @@ function ConsoleRenderer.OnBuffAdded(data)
         typeColor = COLORS.BRIGHT_MAGENTA
     end
     
-    local stackText = data.stackCount > 1 and string.format(" x%d", data.stackCount) or ""
-    local msg = string.format("%s 获得 [%s%s]", data.targetName, data.buffName, stackText)
+    local suffix = GetBuffDisplaySuffix(data)
+    local msg = string.format("%s 获得 [%s%s]", data.targetName, data.buffName, suffix)
     
     print(ColorText("✦ " .. msg, typeColor))
     ConsoleRenderer.AddBattleLog(msg)
@@ -758,6 +758,26 @@ local function GetBuffTypeColor(mainType)
     end
 end
 
+local function GetBuffDisplaySuffix(buff)
+    if not buff then
+        return ""
+    end
+
+    if buff.displayMode == "pct" and type(buff.value) == "number" then
+        return string.format(" %d%%", math.floor(buff.value / 100))
+    end
+
+    if buff.displayMode == "raw" and buff.value ~= nil then
+        return " " .. tostring(buff.value)
+    end
+
+    if type(buff.stackCount) == "number" and buff.stackCount > 1 then
+        return "x" .. tostring(buff.stackCount)
+    end
+
+    return ""
+end
+
 --- 显示Buff列表
 ---@param buffList table Buff列表
 ---@return table {plain, colored}
@@ -778,10 +798,7 @@ local function ShowBuffList(buffList)
         local color = GetBuffTypeColor(buff.mainType)
         
         -- 显示层数
-        local stackText = ""
-        if buff.stackCount and buff.stackCount > 1 then
-            stackText = tostring(buff.stackCount)
-        end
+        local stackText = GetBuffDisplaySuffix(buff)
         
         buffIconsPlain = buffIconsPlain .. icon .. stackText .. " "
         buffIconsColored = buffIconsColored .. ColorText(icon .. stackText, color) .. " "

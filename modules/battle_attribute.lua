@@ -364,7 +364,7 @@ function BattleAttribute.GetSpeed(hero)
     else
         speed = hero.spd or hero.speed or 0
     end
-    local slowPct = BattleBuff.GetBuffStackNumBySubType(hero, 880001)
+    local slowPct = BattleBuff.GetBuffValueBySubType(hero, 880001)
     local warSpiritPct = BattleBuff.GetBuffStackNumBySubType(hero, 840001) * 500
     local auraSpdPct = 0
     if BattleBuff.GetBuffBySubType(hero, 840003) then

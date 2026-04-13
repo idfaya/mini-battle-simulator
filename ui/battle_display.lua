@@ -258,6 +258,26 @@ local function GetBuffTypeColor(mainType)
     end
 end
 
+local function GetBuffDisplaySuffix(buff)
+    if not buff then
+        return ""
+    end
+
+    if buff.displayMode == "pct" and type(buff.value) == "number" then
+        return string.format(" %d%%", math.floor(buff.value / 100))
+    end
+
+    if buff.displayMode == "raw" and buff.value ~= nil then
+        return " " .. tostring(buff.value)
+    end
+
+    if type(buff.stackCount) == "number" and buff.stackCount > 1 then
+        return "x" .. tostring(buff.stackCount)
+    end
+
+    return ""
+end
+
 --- 显示Buff列表
 ---@param buffList table Buff列表
 ---@param x number 显示位置X (控制台列)
@@ -280,10 +300,7 @@ function BattleDisplay.ShowBuffList(buffList, x, y)
         local color = GetBuffTypeColor(buff.mainType)
         
         -- 显示层数
-        local stackText = ""
-        if buff.stackCount and buff.stackCount > 1 then
-            stackText = tostring(buff.stackCount)
-        end
+        local stackText = GetBuffDisplaySuffix(buff)
         
         buffIconsPlain = buffIconsPlain .. icon .. stackText .. " "
         buffIconsColored = buffIconsColored .. ColorText(icon .. stackText, color) .. " "
@@ -309,10 +326,7 @@ local function GetBuffDescriptions(buffList)
     
     for _, buff in ipairs(buffList) do
         local color = GetBuffTypeColor(buff.mainType)
-        local stackText = ""
-        if buff.stackCount and buff.stackCount > 1 then
-            stackText = "x" .. buff.stackCount
-        end
+        local stackText = GetBuffDisplaySuffix(buff)
         local desc = ColorText(buff.name .. stackText, color)
         table.insert(descriptions, desc)
     end

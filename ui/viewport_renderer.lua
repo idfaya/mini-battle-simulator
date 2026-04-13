@@ -10,6 +10,7 @@ local BattleVisualEvents = require("ui.battle_visual_events")
 local BattleFormation = require("modules.battle_formation")
 local BattleAttribute = require("modules.battle_attribute")
 local BattleBuff = require("modules.battle_buff")
+local BattleActionOrder = require("modules.battle_action_order")
 
 ---@class ViewportRenderer
 local ViewportRenderer = {}
@@ -72,13 +73,17 @@ local battleState = {
     currentHero = nil,
     logs = {},
     maxLogs = 5,
+    timelineBatchActive = false,
     
     -- 视觉特效缓存
     effects = {
         -- heroId => { text, color, timer }
         floatingTexts = {},
         -- heroId => { color, timer }
-        highlights = {}
+        highlights = {},
+        -- 当前 Timeline 帧内暂存的飘字/高亮，等帧结束后一起播放
+        pendingFloatingTexts = {},
+        pendingHighlights = {},
     }
 }
 
@@ -292,6 +297,17 @@ local function DrawHeroEntity(hero, baseX, baseY)
     local curEnergy = hero.curEnergy or 0
     local maxEnergy = hero.maxEnergy or 100
     DrawMiniBar(baseX - 6, baseY + 2, curEnergy, maxEnergy, 10, isDead and COLORS.BRIGHT_BLACK or COLORS.YELLOW)
+
+    -- 绘制行动条 (宽 10)
+    local curAction = BattleActionOrder.GetHeroActionBar and BattleActionOrder.GetHeroActionBar(hero) or 0
+    local maxAction = BattleActionOrder.GetActionBarThreshold and BattleActionOrder.GetActionBarThreshold() or 1000
+    local actionColor = isDead and COLORS.BRIGHT_BLACK or COLORS.WHITE
+    if battleState.currentHero and (battleState.currentHero.instanceId or battleState.currentHero.id) == heroId then
+        actionColor = COLORS.BRIGHT_YELLOW
+    elseif curAction >= maxAction then
+        actionColor = COLORS.BRIGHT_CYAN
+    end
+    DrawMiniBar(baseX - 6, baseY + 3, math.min(curAction, maxAction), maxAction, 10, actionColor)
     
     -- 绘制伤害数字 (覆盖在血条所在行，居中显示)
     local ft = battleState.effects.floatingTexts[heroId]
@@ -370,6 +386,113 @@ local function AddLog(msg, color)
     end
 end
 
+local function FormatBuffTag(buff)
+    if not buff then
+        return "[未知]"
+    end
+
+    local name = buff.name or "未知"
+    local suffix = ""
+
+    if buff.displayMode == "pct" and type(buff.value) == "number" then
+        suffix = string.format("%d%%", math.floor(buff.value / 100))
+    elseif buff.displayMode == "raw" and buff.value ~= nil then
+        suffix = tostring(buff.value)
+    else
+        local stackCount = buff.stackCount
+        if type(stackCount) == "number" and stackCount > 1 then
+            suffix = "x" .. tostring(stackCount)
+        end
+    end
+
+    return string.format("[%s%s]", name, suffix ~= "" and (" " .. suffix) or "")
+end
+
+local function ResetPendingFrameEffects()
+    battleState.effects.pendingFloatingTexts = {}
+    battleState.effects.pendingHighlights = {}
+end
+
+local function SetHighlight(targetMap, heroId, color, timer)
+    if not heroId then
+        return
+    end
+    targetMap[heroId] = {
+        color = color,
+        timer = timer or 5,
+    }
+end
+
+local function SetFloatingText(targetMap, heroId, prefix, amount, color, timer)
+    if not heroId or not amount then
+        return
+    end
+
+    amount = math.floor(tonumber(amount) or 0)
+    if amount == 0 then
+        return
+    end
+
+    local existing = targetMap[heroId]
+    if existing and existing.prefix == prefix then
+        existing.amount = (existing.amount or 0) + amount
+        existing.text = prefix .. existing.amount
+        existing.color = color or existing.color
+        existing.timer = math.max(existing.timer or 0, timer or 5)
+        return
+    end
+
+    targetMap[heroId] = {
+        prefix = prefix,
+        amount = amount,
+        text = prefix .. amount,
+        color = color,
+        timer = timer or 5,
+    }
+end
+
+local function QueueHighlight(heroId, color, timer)
+    if battleState.timelineBatchActive then
+        SetHighlight(battleState.effects.pendingHighlights, heroId, color, timer)
+    else
+        SetHighlight(battleState.effects.highlights, heroId, color, timer)
+    end
+end
+
+local function QueueFloatingText(heroId, prefix, amount, color, timer)
+    if battleState.timelineBatchActive then
+        SetFloatingText(battleState.effects.pendingFloatingTexts, heroId, prefix, amount, color, timer)
+    else
+        SetFloatingText(battleState.effects.floatingTexts, heroId, prefix, amount, color, timer)
+    end
+end
+
+local function FlushPendingFrameEffects()
+    local hasPending = false
+
+    for heroId, highlight in pairs(battleState.effects.pendingHighlights) do
+        battleState.effects.highlights[heroId] = {
+            color = highlight.color,
+            timer = highlight.timer,
+        }
+        hasPending = true
+    end
+
+    for heroId, text in pairs(battleState.effects.pendingFloatingTexts) do
+        battleState.effects.floatingTexts[heroId] = {
+            prefix = text.prefix,
+            amount = text.amount,
+            text = text.text,
+            color = text.color,
+            timer = text.timer,
+        }
+        hasPending = true
+    end
+
+    ResetPendingFrameEffects()
+    return hasPending
+end
+
 --- 绘制当前行动角色详情面板
 local function DrawCurrentHeroPanel(hero, x, y, w, h)
     DrawBox(x, y, w, h, COLORS.BRIGHT_WHITE)
@@ -401,9 +524,7 @@ local function DrawCurrentHeroPanel(hero, x, y, w, h)
         local maxShow = 4
         for i = 1, math.min(#buffs, maxShow) do
             local b = buffs[i]
-            local name = b and b.name or "未知"
-            local stack = (b and b.stackCount) and (b.stackCount > 1 and ("x" .. b.stackCount) or "") or ""
-            table.insert(show, string.format("[%s%s]", name, stack))
+            table.insert(show, FormatBuffTag(b))
         end
         buffStr = buffStr .. table.concat(show, " ")
     else
@@ -488,8 +609,10 @@ function ViewportRenderer.OnBattleStarted(data)
     end
     battleState.round = 0
     battleState.logs = {}
+    battleState.timelineBatchActive = false
     battleState.effects.floatingTexts = {}
     battleState.effects.highlights = {}
+    ResetPendingFrameEffects()
     
     -- 清空屏幕，为固定视口做准备
     if package.config:sub(1,1) == "\\" then
@@ -505,10 +628,12 @@ end
 function ViewportRenderer.OnTurnStarted(data)
     battleState.round = data.round
     battleState.currentHero = data.hero
+    battleState.timelineBatchActive = false
     
     -- 清理过期的特效
     battleState.effects.floatingTexts = {}
     battleState.effects.highlights = {}
+    ResetPendingFrameEffects()
     
     AddLog(string.format("【回合 %d】 %s 的回合", data.round, data.heroName), COLORS.BRIGHT_WHITE)
     
@@ -544,18 +669,14 @@ function ViewportRenderer.OnDamageDealt(data)
         data.attackerName or "未知", data.targetName, dmgVal, isCrit and " (暴击!)" or "")
     AddLog(msg, isCrit and COLORS.BRIGHT_RED or COLORS.RED)
     
-    -- 设置受击高亮
-    battleState.effects.highlights[heroId] = { color = COLORS.BRIGHT_RED, timer = 5 }
-    
-    -- 设置伤害飘字
+    -- 设置受击高亮和伤害飘字
     local floatColor = isCrit and (COLORS.BRIGHT_RED .. COLORS.BOLD) or COLORS.RED
-    battleState.effects.floatingTexts[heroId] = { 
-        text = "-" .. dmgVal, 
-        color = floatColor, 
-        timer = 5 -- 持续5帧
-    }
-    
-    PlayVisualEffect(5) -- 播放受伤动画
+    QueueHighlight(heroId, COLORS.BRIGHT_RED, 5)
+    QueueFloatingText(heroId, "-", dmgVal, floatColor, 5)
+
+    if not battleState.timelineBatchActive then
+        PlayVisualEffect(5)
+    end
 end
 
 function ViewportRenderer.OnHealReceived(data)
@@ -566,14 +687,30 @@ function ViewportRenderer.OnHealReceived(data)
     AddLog(msg, COLORS.BRIGHT_GREEN)
     
     -- 设置治疗高亮和飘字
-    battleState.effects.highlights[heroId] = { color = COLORS.BRIGHT_GREEN, timer = 5 }
-    battleState.effects.floatingTexts[heroId] = { 
-        text = "+" .. data.healAmount, 
-        color = COLORS.BRIGHT_GREEN, 
-        timer = 5 
-    }
-    
-    PlayVisualEffect(5)
+    QueueHighlight(heroId, COLORS.BRIGHT_GREEN, 5)
+    QueueFloatingText(heroId, "+", data.healAmount, COLORS.BRIGHT_GREEN, 5)
+
+    if not battleState.timelineBatchActive then
+        PlayVisualEffect(5)
+    end
+end
+
+function ViewportRenderer.OnSkillTimelineStarted(data)
+    battleState.timelineBatchActive = true
+    ResetPendingFrameEffects()
+end
+
+function ViewportRenderer.OnSkillTimelineFrame(data)
+    if FlushPendingFrameEffects() then
+        PlayVisualEffect(5)
+    end
+end
+
+function ViewportRenderer.OnSkillTimelineCompleted(data)
+    if FlushPendingFrameEffects() then
+        PlayVisualEffect(5)
+    end
+    battleState.timelineBatchActive = false
 end
 
 function ViewportRenderer.OnHeroDied(data)
@@ -607,6 +744,9 @@ function ViewportRenderer.Init()
     BattleEvent.AddListener(BattleVisualEvents.BATTLE_STARTED, ViewportRenderer.OnBattleStarted)
     BattleEvent.AddListener(BattleVisualEvents.TURN_STARTED, ViewportRenderer.OnTurnStarted)
     BattleEvent.AddListener(BattleVisualEvents.SKILL_CAST_STARTED, ViewportRenderer.OnSkillCastStarted)
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_STARTED, ViewportRenderer.OnSkillTimelineStarted)
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, ViewportRenderer.OnSkillTimelineFrame)
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_COMPLETED, ViewportRenderer.OnSkillTimelineCompleted)
     BattleEvent.AddListener(BattleVisualEvents.DAMAGE_DEALT, ViewportRenderer.OnDamageDealt)
     BattleEvent.AddListener(BattleVisualEvents.HEAL_RECEIVED, ViewportRenderer.OnHealReceived)
     BattleEvent.AddListener(BattleVisualEvents.HERO_DIED, ViewportRenderer.OnHeroDied)

@@ -59,7 +59,7 @@ do
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008001, name = "冰箭术" }, timeline)
     assert_true(ok, "IceArrow timeline execute ok")
-    assert_true(BattleBuff.GetBuffStackNumBySubType(target, 880001) == 3000, "IceArrow applies slow 3000")
+    assert_true(BattleBuff.GetBuffValueBySubType(target, 880001) == 3000, "IceArrow applies slow 3000")
 end
 
 -- Test 3: Frost Nova freezes and target skips action (80008003)

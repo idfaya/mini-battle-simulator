@@ -1642,8 +1642,8 @@ function BattleSkill.ApplyFreeze(target, turns, slowPct, caster)
     end
     if slowPct and slowPct > 0 then
         BattleSkill.ApplyBuffFromSkill(caster or target, target, 880001, nil, {
-            initialStack = slowPct,
-            maxStack = slowPct,
+            value = slowPct,
+            maxValue = slowPct,
             duration = math.max(turns or 0, 2),
         })
     end

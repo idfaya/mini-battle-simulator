@@ -366,7 +366,7 @@ function BattleMain.Start(beginState, onBattleEnd)
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
---- 选择可用技能（优先选择冷却完成且能量足够的大招技能）
+--- 选择可用技能（浏览器 AFK 模式下，大招由外部异步指令触发，这里仅自动选择主动/普通技能）
 ---@param hero table 英雄对象
 ---@return table 技能对象
 local function SelectAvailableSkill(hero)
@@ -407,28 +407,6 @@ local function SelectAvailableSkill(hero)
     -- 从 hero.skillData.skillInstances 中获取实际可用的技能
     local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
     
-    -- 遍历所有可用技能，找到冷却完成且能量足够的大招技能
-    for skillId, skill in pairs(availableSkills) do
-        if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
-            -- 检查冷却
-            local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-            if cd == 0 then
-                -- 检查能量
-                local energyCost = skill.skillCost or 0
-                if hero.curEnergy and hero.curEnergy >= energyCost then
-                    Logger.Log(string.format("[SelectAvailableSkill] %s 选择大招: %s (能量:%d/%d)", 
-                        hero.name or "Unknown", skill.name or tostring(skillId),
-                        hero.curEnergy, energyCost))
-                    return skill
-                else
-                    Logger.Log(string.format("[SelectAvailableSkill] %s 能量不足，无法使用大招 %s (能量:%d/%d)", 
-                        hero.name or "Unknown", skill.name or tostring(skillId),
-                        hero.curEnergy or 0, energyCost))
-                end
-            end
-        end
-    end
-    
     -- 如果没有可用的大招，检查主动技能（不耗能量，有CD冷却）
     for skillId, skill in pairs(availableSkills) do
         if skill and skill.skillType == E_SKILL_TYPE_ACTIVE then
@@ -464,6 +442,22 @@ end
 
 --- 执行英雄行动
 ---@param hero table 英雄对象
+local function FinalizeHeroTurn(hero)
+    if not hero or not hero.isAlive then
+        return
+    end
+
+    -- 回合结束增加能量
+    BattleEnergy.OnActionEnd(hero)
+
+    -- 减少技能冷却
+    BattleSkill.ReduceCoolDown(hero, 1)
+
+    -- 更新 Buff 持续时间
+    local BattleBuff = require("modules.battle_buff")
+    BattleBuff.OnRoundEnd(hero)
+end
+
 function BattleMain.ExecuteHeroAction(hero)
     if not hero or not hero.isAlive then
         return
@@ -473,6 +467,7 @@ function BattleMain.ExecuteHeroAction(hero)
     BattlePassiveSkill.RunSkillOnSelfTurnBegin(hero)
     if not BattleSkill.ProcessTurnStartStatus(hero) then
         BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
+        FinalizeHeroTurn(hero)
         return
     end
 
@@ -480,6 +475,8 @@ function BattleMain.ExecuteHeroAction(hero)
     local skill = SelectAvailableSkill(hero)
     if not skill then
         Logger.LogWarning(string.format("[ExecuteHeroAction] %s 没有可用技能，跳过行动", hero.name or "Unknown"))
+        BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
+        FinalizeHeroTurn(hero)
         return
     end
     
@@ -518,12 +515,7 @@ function BattleMain.ExecuteHeroAction(hero)
 
     -- 触发回合结束被动技能
     BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
-
-    -- 回合结束增加能量
-    BattleEnergy.OnActionEnd(hero)
-    
-    -- 减少技能冷却
-    BattleSkill.ReduceCoolDown(hero, 1)
+    FinalizeHeroTurn(hero)
 end
 
 --- 更新战斗（每帧调用）

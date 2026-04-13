@@ -115,6 +115,9 @@ local function CreateBuff(caster, target, buffConfig)
         name = buffConfig.name or "UnknownBuff",
         stackCount = buffConfig.initialStack or 1,
         maxStack = buffConfig.maxStack or 1,
+        value = buffConfig.value,
+        maxValue = buffConfig.maxValue or buffConfig.value,
+        displayMode = buffConfig.displayMode,
         duration = buffConfig.duration or 1,
         maxDuration = buffConfig.duration or 1,
         caster = caster,
@@ -195,6 +198,10 @@ function BattleBuff.Add(caster, target, buffConfig)
             existingBuff.duration = buffConfig.duration or existingBuff.maxDuration
             existingBuff.caster = caster
             existingBuff.stackCount = buffConfig.initialStack or existingBuff.stackCount
+            if buffConfig.value ~= nil then
+                existingBuff.value = buffConfig.value
+                existingBuff.maxValue = buffConfig.maxValue or buffConfig.value
+            end
             Logger.Debug(string.format("BattleBuff.Add: 刷新不可叠加Buff [%s] 持续时间=%d", 
                 existingBuff.name, existingBuff.duration))
         end
@@ -362,6 +369,26 @@ function BattleBuff.GetBuffStackNumBySubType(target, subType)
     end
     
     return totalStack
+end
+
+--- 根据子类型获取Buff数值参数
+---@param target table 目标英雄
+---@param subType number 子类型
+---@return number 总数值
+function BattleBuff.GetBuffValueBySubType(target, subType)
+    local buffList = GetHeroBuffList(target)
+    if not buffList then
+        return 0
+    end
+
+    local totalValue = 0
+    for _, buff in ipairs(buffList) do
+        if buff.subType == subType and type(buff.value) == "number" then
+            totalValue = totalValue + buff.value
+        end
+    end
+
+    return totalValue
 end
 
 --- 处理Buff效果

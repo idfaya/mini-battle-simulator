@@ -172,6 +172,8 @@ function BattleVisualEvents.BuildBuffEvent(eventType, caster, target, buff)
         buffIcon = buff.icon,
         buffType = buff.mainType,
         stackCount = buff.stackCount or 1,
+        value = buff.value,
+        displayMode = buff.displayMode,
         duration = buff.duration,
     }
 end
