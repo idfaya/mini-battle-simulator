@@ -1,0 +1,22 @@
+{
+  "name": "mini-battle-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "export:lua": "node ../tools/export_web_lua.mjs",
+    "dev": "vite",
+    "dev:full": "npm run export:lua && vite",
+    "build": "npm run export:lua && vite build",
+    "preview": "vite preview",
+    "test:playwright": "playwright test"
+  },
+  "dependencies": {
+    "fengari": "^0.1.4"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  }
+}

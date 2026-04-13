@@ -1,0 +1,373 @@
+{
+  "entry": "web_entry.lua",
+  "modules": [
+    {
+      "path": "config/ally_data.lua",
+      "moduleName": "config.ally_data"
+    },
+    {
+      "path": "config/buff/buff_820001.lua",
+      "moduleName": "config.buff.buff_820001"
+    },
+    {
+      "path": "config/buff/buff_820002.lua",
+      "moduleName": "config.buff.buff_820002"
+    },
+    {
+      "path": "config/buff/buff_820003.lua",
+      "moduleName": "config.buff.buff_820003"
+    },
+    {
+      "path": "config/buff/buff_840001.lua",
+      "moduleName": "config.buff.buff_840001"
+    },
+    {
+      "path": "config/buff/buff_840002.lua",
+      "moduleName": "config.buff.buff_840002"
+    },
+    {
+      "path": "config/buff/buff_840003.lua",
+      "moduleName": "config.buff.buff_840003"
+    },
+    {
+      "path": "config/buff/buff_850001.lua",
+      "moduleName": "config.buff.buff_850001"
+    },
+    {
+      "path": "config/buff/buff_860001.lua",
+      "moduleName": "config.buff.buff_860001"
+    },
+    {
+      "path": "config/buff/buff_870001.lua",
+      "moduleName": "config.buff.buff_870001"
+    },
+    {
+      "path": "config/buff/buff_870002.lua",
+      "moduleName": "config.buff.buff_870002"
+    },
+    {
+      "path": "config/buff/buff_880001.lua",
+      "moduleName": "config.buff.buff_880001"
+    },
+    {
+      "path": "config/buff/buff_880002.lua",
+      "moduleName": "config.buff.buff_880002"
+    },
+    {
+      "path": "config/enemy_data.lua",
+      "moduleName": "config.enemy_data"
+    },
+    {
+      "path": "config/hero_data.lua",
+      "moduleName": "config.hero_data"
+    },
+    {
+      "path": "config/rgl_enemy_data.lua",
+      "moduleName": "config.rgl_enemy_data"
+    },
+    {
+      "path": "config/rgl_hero_data.lua",
+      "moduleName": "config.rgl_hero_data"
+    },
+    {
+      "path": "config/skill_rgl_config.lua",
+      "moduleName": "config.skill_rgl_config"
+    },
+    {
+      "path": "config/skill_rgl/skill_80001001.lua",
+      "moduleName": "config.skill_rgl.skill_80001001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80001003.lua",
+      "moduleName": "config.skill_rgl.skill_80001003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80001004.lua",
+      "moduleName": "config.skill_rgl.skill_80001004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80002001.lua",
+      "moduleName": "config.skill_rgl.skill_80002001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80002003.lua",
+      "moduleName": "config.skill_rgl.skill_80002003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80002004.lua",
+      "moduleName": "config.skill_rgl.skill_80002004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80003001.lua",
+      "moduleName": "config.skill_rgl.skill_80003001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80003003.lua",
+      "moduleName": "config.skill_rgl.skill_80003003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80003004.lua",
+      "moduleName": "config.skill_rgl.skill_80003004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80004001.lua",
+      "moduleName": "config.skill_rgl.skill_80004001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80004003.lua",
+      "moduleName": "config.skill_rgl.skill_80004003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80004004.lua",
+      "moduleName": "config.skill_rgl.skill_80004004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80005001.lua",
+      "moduleName": "config.skill_rgl.skill_80005001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80005003.lua",
+      "moduleName": "config.skill_rgl.skill_80005003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80005004.lua",
+      "moduleName": "config.skill_rgl.skill_80005004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80006001.lua",
+      "moduleName": "config.skill_rgl.skill_80006001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80006003.lua",
+      "moduleName": "config.skill_rgl.skill_80006003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80006004.lua",
+      "moduleName": "config.skill_rgl.skill_80006004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80007001.lua",
+      "moduleName": "config.skill_rgl.skill_80007001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80007003.lua",
+      "moduleName": "config.skill_rgl.skill_80007003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80007004.lua",
+      "moduleName": "config.skill_rgl.skill_80007004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80008001.lua",
+      "moduleName": "config.skill_rgl.skill_80008001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80008003.lua",
+      "moduleName": "config.skill_rgl.skill_80008003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80008004.lua",
+      "moduleName": "config.skill_rgl.skill_80008004"
+    },
+    {
+      "path": "config/skill_rgl/skill_80009001.lua",
+      "moduleName": "config.skill_rgl.skill_80009001"
+    },
+    {
+      "path": "config/skill_rgl/skill_80009003.lua",
+      "moduleName": "config.skill_rgl.skill_80009003"
+    },
+    {
+      "path": "config/skill_rgl/skill_80009004.lua",
+      "moduleName": "config.skill_rgl.skill_80009004"
+    },
+    {
+      "path": "core/battle_default_types.lua",
+      "moduleName": "core.battle_default_types"
+    },
+    {
+      "path": "core/battle_enum.lua",
+      "moduleName": "core.battle_enum"
+    },
+    {
+      "path": "core/battle_event.lua",
+      "moduleName": "core.battle_event"
+    },
+    {
+      "path": "core/battle_formula.lua",
+      "moduleName": "core.battle_formula"
+    },
+    {
+      "path": "core/battle_math.lua",
+      "moduleName": "core.battle_math"
+    },
+    {
+      "path": "core/battle_script_exp.lua",
+      "moduleName": "core.battle_script_exp"
+    },
+    {
+      "path": "core/battle_timer.lua",
+      "moduleName": "core.battle_timer"
+    },
+    {
+      "path": "core/battle_types.lua",
+      "moduleName": "core.battle_types"
+    },
+    {
+      "path": "core/skill_timeline.lua",
+      "moduleName": "core.skill_timeline"
+    },
+    {
+      "path": "debug_hero_skills.lua",
+      "moduleName": "debug_hero_skills"
+    },
+    {
+      "path": "event_8000020.lua",
+      "moduleName": "event_8000020"
+    },
+    {
+      "path": "event_8000100.lua",
+      "moduleName": "event_8000100"
+    },
+    {
+      "path": "modules/battle_action_order.lua",
+      "moduleName": "modules.battle_action_order"
+    },
+    {
+      "path": "modules/battle_attribute.lua",
+      "moduleName": "modules.battle_attribute"
+    },
+    {
+      "path": "modules/battle_buff.lua",
+      "moduleName": "modules.battle_buff"
+    },
+    {
+      "path": "modules/battle_dmg_heal.lua",
+      "moduleName": "modules.battle_dmg_heal"
+    },
+    {
+      "path": "modules/battle_driver.lua",
+      "moduleName": "modules.battle_driver"
+    },
+    {
+      "path": "modules/battle_energy.lua",
+      "moduleName": "modules.battle_energy"
+    },
+    {
+      "path": "modules/battle_formation.lua",
+      "moduleName": "modules.battle_formation"
+    },
+    {
+      "path": "modules/battle_hero_factory.lua",
+      "moduleName": "modules.battle_hero_factory"
+    },
+    {
+      "path": "modules/battle_logic.lua",
+      "moduleName": "modules.battle_logic"
+    },
+    {
+      "path": "modules/battle_main.lua",
+      "moduleName": "modules.battle_main"
+    },
+    {
+      "path": "modules/battle_passive_skill.lua",
+      "moduleName": "modules.battle_passive_skill"
+    },
+    {
+      "path": "modules/battle_skill.lua",
+      "moduleName": "modules.battle_skill"
+    },
+    {
+      "path": "modules/battle_skill_seq.lua",
+      "moduleName": "modules.battle_skill_seq"
+    },
+    {
+      "path": "modules/BattleDefaultTypes.lua",
+      "moduleName": "modules.BattleDefaultTypes"
+    },
+    {
+      "path": "modules/BattleDefaultTypesOpt.lua",
+      "moduleName": "modules.BattleDefaultTypesOpt"
+    },
+    {
+      "path": "modules/browser_battle_runtime.lua",
+      "moduleName": "modules.browser_battle_runtime"
+    },
+    {
+      "path": "ui/battle_display.lua",
+      "moduleName": "ui.battle_display"
+    },
+    {
+      "path": "ui/battle_editor_cli.lua",
+      "moduleName": "ui.battle_editor_cli"
+    },
+    {
+      "path": "ui/battle_menu.lua",
+      "moduleName": "ui.battle_menu"
+    },
+    {
+      "path": "ui/battle_visual_events.lua",
+      "moduleName": "ui.battle_visual_events"
+    },
+    {
+      "path": "ui/console_renderer.lua",
+      "moduleName": "ui.console_renderer"
+    },
+    {
+      "path": "ui/render_backend_interface.lua",
+      "moduleName": "ui.render_backend_interface"
+    },
+    {
+      "path": "ui/viewport_renderer.lua",
+      "moduleName": "ui.viewport_renderer"
+    },
+    {
+      "path": "utils/array_utils.lua",
+      "moduleName": "utils.array_utils"
+    },
+    {
+      "path": "utils/inspect.lua",
+      "moduleName": "utils.inspect"
+    },
+    {
+      "path": "utils/json.lua",
+      "moduleName": "utils.json"
+    },
+    {
+      "path": "utils/logger.lua",
+      "moduleName": "utils.logger"
+    },
+    {
+      "path": "war_8000020.lua",
+      "moduleName": "war_8000020"
+    },
+    {
+      "path": "war_8000100.lua",
+      "moduleName": "war_8000100"
+    },
+    {
+      "path": "war_8000200.lua",
+      "moduleName": "war_8000200"
+    },
+    {
+      "path": "war_8000400.lua",
+      "moduleName": "war_8000400"
+    },
+    {
+      "path": "war_8000500.lua",
+      "moduleName": "war_8000500"
+    },
+    {
+      "path": "war_8000600.lua",
+      "moduleName": "war_8000600"
+    },
+    {
+      "path": "war_8000700.lua",
+      "moduleName": "war_8000700"
+    },
+    {
+      "path": "web_generated_files.lua",
+      "moduleName": "web_generated_files"
+    }
+  ]
+}
