@@ -1,0 +1,11 @@
+# Node / web dependencies
+web/node_modules/
+
+# Web build outputs
+web/dist/
+
+# Test artifacts
+web/test-results/
+
+# Local generated outputs
+out.txt
