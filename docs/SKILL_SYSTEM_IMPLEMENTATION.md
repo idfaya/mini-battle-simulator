@@ -2,7 +2,7 @@
 
 > **项目**: Mini Battle Simulator  
 > **版本**: 2.0 (Timeline 架构)  
-> **更新时间**: 2026-04-10  
+> **更新时间**: 2026-04-14  
 > **说明**: 本文档描述技能系统迁移至 Timeline 执行体系后的实际实现
 
 ---
@@ -43,6 +43,9 @@
 | SkillTimeline | `core/skill_timeline.lua` | Timeline 执行引擎，排序帧序列、逐帧执行、派发事件 |
 | BattleSkill | `modules/battle_skill.lua` | 技能系统主入口，管理技能实例、冷却、释放流程 |
 | BattleVisualEvents | `ui/battle_visual_events.lua` | 视觉事件定义与数据构建器 |
+| BattlePassiveSkill | `modules/battle_passive_skill.lua` | 被动技能注册、触发分发与运行时状态查询 |
+| PassiveDefs | `config/passive/passive_defs.lua` | 被动触发定义表（classId → triggers） |
+| PassiveHandlers | `modules/passive_handlers.lua` | 被动处理器工厂，承载脚本型被动逻辑 |
 | SkillRglConfig | `config/skill_rgl_config.lua` | RGL 技能配置加载器 |
 | BattleHeroFactory | `modules/battle_hero_factory.lua` | 英雄/敌人工厂，含技能类型转换 |
 | RglHeroData | `config/rgl_hero_data.lua` | 英雄属性与技能配置 |
@@ -286,6 +289,88 @@ BattleSkill.ApplyFreeze(target, duration, chance, caster)
 
 ---
 
+## 6.5 被动技能统一框架
+
+### 6.5.1 架构说明
+
+被动技能已从旧版 `event_*.lua + war_*.lua` 双文件模式，整合为统一框架：
+
+| 层级 | 文件 | 职责 |
+|------|------|------|
+| 被动定义 | `config/passive/passive_defs.lua` | 定义每个 `classId` 的触发时机和回调名 |
+| 被动逻辑 | `modules/passive_handlers.lua` | 实现被动处理器工厂，返回具名回调对象 |
+| 调度入口 | `modules/battle_passive_skill.lua` | 注册触发器、派发回调、维护 `hero.passiveRuntime` |
+
+### 6.5.2 被动定义格式
+
+```lua
+local PassiveDefs = {
+    [8000300] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+}
+```
+
+### 6.5.3 处理器格式
+
+```lua
+local function CreateComboMasterPassive(context)
+    local self = BuildContextState(context)
+
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        hero.passiveRuntime = hero.passiveRuntime or {}
+        hero.passiveRuntime.comboMasterMinRate = 5000
+    end
+
+    return self
+end
+```
+
+### 6.5.4 运行时状态
+
+统一框架允许被动将数值状态写入 `hero.passiveRuntime`，供主动技能和通用结算逻辑读取：
+
+| key | 说明 | 来源 |
+|-----|------|------|
+| `comboMasterMinRate` | 连击精通的最低连击概率 | `8000300` |
+| `iceDamageBonusPct` | 冰系伤害加成 | `8000800` |
+| `iceFreezeChanceBonus` | 冰系冻结概率加成 | `8000800` |
+| `thunderChainChanceBonus` | 雷系连锁概率加成 | `8000900` |
+| `thunderChainDecayReductionPct` | 雷系弹射衰减减免预留值 | `8000900` |
+
+读取统一通过：
+
+```lua
+local minRate = BattlePassiveSkill.GetPassiveValue(hero, "comboMasterMinRate", 0)
+local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChanceBonus")
+```
+
+### 6.5.5 当前被动分类
+
+| ClassID | 名称 | 类型 | 框架状态 |
+|---------|------|------|----------|
+| 8000020 | 格挡 | 脚本型 | 已接入统一 handler |
+| 8000100 | 追击 | 脚本型 | 已接入统一 handler |
+| 8000200 | 格挡/反击 | 脚本型 | 已接入统一 handler |
+| 8000300 | 连击精通 | 运行时状态型 | 已接入统一 handler |
+| 8000400 | 战意 | 脚本型 | 已接入统一 handler |
+| 8000500 | 感染 | 脚本型 | 已接入统一 handler |
+| 8000600 | 亲和 | 脚本型 | 已接入统一 handler |
+| 8000700 | 火焰亲和 | 脚本型 | 已接入统一 handler |
+| 8000800 | 寒冰亲和 | 运行时状态型 | 已接入统一 handler |
+| 8000900 | 雷电亲和 | 运行时状态型 | 已接入统一 handler |
+
+---
+
 ## 7. Buff 系统实现
 
 ### 7.1 Buff 触发时机
@@ -412,6 +497,8 @@ def = (baseDef + defGrowth) * totalMultiplier
 | `LoadSkillLua(skillId)` | 加载技能 Lua 脚本 |
 | `CalculateDamageWithRate(attacker, target, rate)` | 计算伤害 |
 | `CalculateHeal(healer, target, rate)` | 计算治疗量 |
+| `GetPassiveAdjustedRate(hero, baseRate, passiveKey)` | 读取统一被动状态并调整倍率 |
+| `GetPassiveAdjustedChance(hero, baseChance, passiveKey)` | 读取统一被动状态并调整概率 |
 | `ApplyBuff(target, buffId, duration, caster)` | 施加 Buff |
 | `ApplyFreeze(target, duration, chance, caster)` | 施加冻结 |
 | `GetSkillCurCoolDown(hero, skillId)` | 获取技能冷却 |
@@ -425,7 +512,17 @@ def = (baseDef + defGrowth) * totalMultiplier
 |------|------|
 | `Execute(hero, targets, skill, timeline)` | 执行 Timeline 帧序列 |
 
-### 10.3 BattleDmgHeal
+### 10.3 BattlePassiveSkill
+
+| 函数 | 说明 |
+|------|------|
+| `RegisterHeroSkills(hero)` | 注册英雄被动触发器 |
+| `RunSkillOnBattleBegin()` | 触发战斗开始类被动 |
+| `RunSkillOnSelfTurnBegin(hero)` | 触发自身回合开始被动 |
+| `RunSkillOnSelfTurnEnd(hero)` | 触发自身回合结束被动 |
+| `GetPassiveValue(hero, key, defaultValue)` | 读取统一被动运行时状态 |
+
+### 10.4 BattleDmgHeal
 
 | 函数 | 说明 |
 |------|------|

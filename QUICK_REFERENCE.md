@@ -24,6 +24,7 @@ mini-battle-simulator/
 │   └── battle_visual_events.lua # 视觉事件定义
 ├── config/                 # 配置层
 │   ├── skill_rgl/          # 技能 Timeline 脚本（BuildTimeline）
+│   ├── passive/            # 被动定义表（PassiveDefs）
 │   ├── buff/               # Buff 定义脚本
 │   ├── res_skill_rgl.json  # RGL 技能静态数据
 │   ├── res_rgl_hero.json   # RGL 英雄基础数据
@@ -111,6 +112,23 @@ local skillId = BattleSkill.SelectAvailableSkill(hero)
 
 -- 加载技能 Lua 脚本
 local script = BattleSkill.LoadSkillLua(skillId)
+```
+
+### 被动框架
+```lua
+-- 读取统一被动运行时状态
+local minRate = BattlePassiveSkill.GetPassiveValue(hero, "comboMasterMinRate", 0)
+
+-- 按被动态修正概率/倍率
+local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChanceBonus")
+local rate = BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct")
+```
+
+### 被动目录
+```lua
+config/passive/passive_defs.lua     -- classId -> triggers
+modules/passive_handlers.lua        -- 被动逻辑工厂
+modules/battle_passive_skill.lua    -- 注册/分发/查询入口
 ```
 
 ---

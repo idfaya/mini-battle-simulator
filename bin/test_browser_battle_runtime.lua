@@ -5,6 +5,12 @@ package.path = package.path
     .. ";./config/?.lua"
     .. ";./utils/?.lua"
     .. ";./ui/?.lua"
+    .. ";../?.lua"
+    .. ";../core/?.lua"
+    .. ";../modules/?.lua"
+    .. ";../config/?.lua"
+    .. ";../utils/?.lua"
+    .. ";../ui/?.lua"
 
 require("core.battle_types")
 require("core.battle_enum")

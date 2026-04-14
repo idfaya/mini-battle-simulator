@@ -8,16 +8,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const outputRoot = path.join(repoRoot, "web", "public", "lua", "project");
 const sourceDirs = ["core", "modules", "config", "ui", "utils"];
 const topLevelLua = [
-  "debug_hero_skills.lua",
-  "event_8000020.lua",
-  "event_8000100.lua",
-  "war_8000020.lua",
-  "war_8000100.lua",
-  "war_8000200.lua",
-  "war_8000400.lua",
-  "war_8000500.lua",
-  "war_8000600.lua",
-  "war_8000700.lua"
+  "debug_hero_skills.lua"
 ];
 const embeddedFiles = [
   "config/res_rgl_hero.json",
@@ -63,6 +54,7 @@ function toLuaLongString(content) {
   return `[${eq}[${content}]${eq}]`;
 }
 
+fs.rmSync(outputRoot, { recursive: true, force: true });
 ensureDir(outputRoot);
 
 const manifest = [];

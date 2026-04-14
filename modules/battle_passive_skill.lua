@@ -4,6 +4,8 @@
 ---
 
 local Logger = require("utils.logger")
+local PassiveDefs = require("config.passive.passive_defs")
+local PassiveHandlers = require("modules.passive_handlers")
 
 ---@class BattlePassiveSkill
 local BattlePassiveSkill = {}
@@ -189,13 +191,12 @@ local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
     local skillId = skill.skillId
     local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
 
-    -- 初始化英雄的 luaSkill 表
-    if not hero.luaSkill then
-        hero.luaSkill = {}
+    if not hero.luaPassive then
+        hero.luaPassive = {}
     end
 
-    if hero.luaSkill[skillId] then
-        local self = hero.luaSkill[skillId]
+    if hero.luaPassive[classId] then
+        local self = hero.luaPassive[classId]
         local luaFunc = self[luaFuncName]
         if luaFunc == nil then
             Logger.Error("[BattlePassiveSkill] 找不到Lua函数: " .. tostring(classId) .. " " .. luaFuncName)
@@ -204,20 +205,15 @@ local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
         return CreateSkillEntity(self, luaFunc, hero, skill, nil, luaFuncName, triggerTime)
     end
 
-    local luaFile = "war_" .. tostring(classId)
-    local success, luaSkill = pcall(require, luaFile)
-    if not success or luaSkill == nil then
-        -- 尝试从 config/skill_rgl/ 目录加载
-        success, luaSkill = pcall(require, "config.skill_rgl.skill_" .. skillId)
-        if not success or luaSkill == nil then
-            Logger.Error("[BattlePassiveSkill] 加载Lua文件失败: " .. luaFile .. " 或 skill_" .. skillId)
-            return nil
-        end
+    local context = CreatePassiveSkillContext(hero, {}, skill, nil)
+    context.src = hero
+    local self = PassiveHandlers.Create(classId, context)
+    if not self then
+        Logger.Error("[BattlePassiveSkill] 找不到被动处理器: " .. tostring(classId))
+        return nil
     end
 
-    local context = CreatePassiveSkillContext(hero, {}, skill, nil)
-    local self = luaSkill(context)
-    hero.luaSkill[skillId] = self
+    hero.luaPassive[classId] = self
 
     local luaFunc = self[luaFuncName]
     if luaFunc == nil then
@@ -304,33 +300,7 @@ local function GetPassiveSkillTemplate(skill)
         return nil
     end
 
-    -- 尝试加载事件模板
-    local fileName = "event_" .. classId
-    local unitEventTemplate = _G[fileName]
-    
-    -- 如果没有全局模板，尝试从技能配置构建
-    if unitEventTemplate == nil then
-        local triggers = {}
-        if classId == 8000100 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill, luaFuncName = "OnDmgMakeKill" })
-        elseif classId == 8000200 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg, luaFuncName = "OnDefBeforeDmg" })
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
-        elseif classId == 8000400 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill, luaFuncName = "OnDmgMakeKill" })
-        elseif classId == 8000500 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
-        elseif classId == 8000600 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
-        elseif classId == 8000700 then
-            table.insert(triggers, { triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin, luaFuncName = "OnSelfTurnBegin" })
-        end
-        if #triggers > 0 then
-            unitEventTemplate = { triggers = triggers }
-        end
-    end
-
-    return unitEventTemplate
+    return PassiveDefs[classId]
 end
 
 --- 执行委托
@@ -706,6 +676,13 @@ function BattlePassiveSkill.RunSkillOnReviveByFriend(hero, extraParam)
 end
 
 -- ==================== 生命周期函数 ====================
+
+function BattlePassiveSkill.GetPassiveValue(hero, key, defaultValue)
+    if hero and hero.passiveRuntime and hero.passiveRuntime[key] ~= nil then
+        return hero.passiveRuntime[key]
+    end
+    return defaultValue
+end
 
 function BattlePassiveSkill.Init()
     Reset()

@@ -35,11 +35,13 @@ end
 function skill_80008004.Execute(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local damageRate = BattleSkill.GetPassiveAdjustedRate(hero, 15000, "iceDamageBonusPct")
+    local freezeChance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChanceBonus")
     local totalDamage = 0
     for _, target in ipairs(BattleSkill.SelectAllAliveTargets(hero)) do
-        local damage = BattleSkill.CalculateDamageWithRate(hero, target, 15000)
+        local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
         BattleDmgHeal.ApplyDamage(target, damage, hero)
-        if math.random(1, 10000) <= 5000 then
+        if math.random(1, 10000) <= freezeChance then
             BattleSkill.ApplyFreeze(target, 1, 3000, hero)
         end
         totalDamage = totalDamage + damage
@@ -48,4 +50,3 @@ function skill_80008004.Execute(hero, targets, skill)
 end
 
 return skill_80008004
-

@@ -62,6 +62,10 @@
       "moduleName": "config.hero_data"
     },
     {
+      "path": "config/passive/passive_defs.lua",
+      "moduleName": "config.passive.passive_defs"
+    },
+    {
       "path": "config/rgl_enemy_data.lua",
       "moduleName": "config.rgl_enemy_data"
     },
@@ -222,14 +226,6 @@
       "moduleName": "debug_hero_skills"
     },
     {
-      "path": "event_8000020.lua",
-      "moduleName": "event_8000020"
-    },
-    {
-      "path": "event_8000100.lua",
-      "moduleName": "event_8000100"
-    },
-    {
       "path": "modules/battle_action_order.lua",
       "moduleName": "modules.battle_action_order"
     },
@@ -294,6 +290,10 @@
       "moduleName": "modules.browser_battle_runtime"
     },
     {
+      "path": "modules/passive_handlers.lua",
+      "moduleName": "modules.passive_handlers"
+    },
+    {
       "path": "ui/battle_display.lua",
       "moduleName": "ui.battle_display"
     },
@@ -336,34 +336,6 @@
     {
       "path": "utils/logger.lua",
       "moduleName": "utils.logger"
-    },
-    {
-      "path": "war_8000020.lua",
-      "moduleName": "war_8000020"
-    },
-    {
-      "path": "war_8000100.lua",
-      "moduleName": "war_8000100"
-    },
-    {
-      "path": "war_8000200.lua",
-      "moduleName": "war_8000200"
-    },
-    {
-      "path": "war_8000400.lua",
-      "moduleName": "war_8000400"
-    },
-    {
-      "path": "war_8000500.lua",
-      "moduleName": "war_8000500"
-    },
-    {
-      "path": "war_8000600.lua",
-      "moduleName": "war_8000600"
-    },
-    {
-      "path": "war_8000700.lua",
-      "moduleName": "war_8000700"
     },
     {
       "path": "web_generated_files.lua",

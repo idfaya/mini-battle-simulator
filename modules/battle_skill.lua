@@ -1207,20 +1207,11 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     
     local comboRate = skill.skillParam[2] or 0  -- 连击概率（万分比）
     if comboRate <= 0 then return 0 end
-    
-    -- 检查是否有"连击精通"被动提升概率
-    local hasComboMaster = false
-    if hero.skills then
-        for _, s in ipairs(hero.skills) do
-            if s.name == "连击精通" then
-                hasComboMaster = true
-                break
-            end
-        end
-    end
-    
-    if hasComboMaster then
-        comboRate = math.max(comboRate, 5000)  -- 至少50%
+
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local comboMasterMinRate = BattlePassiveSkill.GetPassiveValue(hero, "comboMasterMinRate", 0)
+    if comboMasterMinRate > 0 then
+        comboRate = math.max(comboRate, comboMasterMinRate)
     end
     
     local roll = math.random(1, 10000)
@@ -1231,6 +1222,28 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     end
     
     return 0
+end
+
+function BattleSkill.GetPassiveAdjustedRate(hero, baseRate, passiveKey)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local bonusPct = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
+    if bonusPct <= 0 then
+        return baseRate
+    end
+    return math.floor(baseRate * (10000 + bonusPct) / 10000)
+end
+
+function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local bonusChance = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
+    local finalChance = baseChance + bonusChance
+    if finalChance < 0 then
+        return 0
+    end
+    if finalChance > 10000 then
+        return 10000
+    end
+    return finalChance
 end
 
 --- 处理追击效果（A1 追击流）

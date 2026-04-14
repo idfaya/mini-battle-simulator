@@ -17,6 +17,7 @@ local BattleBuff = require("modules.battle_buff")
 local BattleSkill = require("modules.battle_skill")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattleVisualEvents = require("ui.battle_visual_events")
+local PassiveHandlers = require("modules.passive_handlers")
 
 -- Init subsystems
 BattleEvent.Init()
@@ -88,7 +89,7 @@ end
 do
     local Tank = new_unit(1201, "Tester_Tank", 12000, 150, 50)
     local Attacker = new_unit(2201, "Tester_Orc", 12000, 200, 0)
-    local war = require("war_8000200")({ src = Tank })
+    local war = PassiveHandlers.Create(8000200, { src = Tank })
     -- Apply Counter Stance via skill API
     BattleSkill.ApplyBuffFromSkill(Tank, Tank, 820002, { skillId = 80002003 })
     -- Simulate being attacked
@@ -200,6 +201,9 @@ end
 do
     local hero = new_unit(1601, "Tester_Combo", 10000, 200, 0)
     local target = new_unit(2601, "Combo_Target", 10000, 0, 0)
+    local comboPassive = PassiveHandlers.Create(8000300, { src = hero })
+    comboPassive:OnBattleBegin({})
+    assert_true((hero.passiveRuntime or {}).comboMasterMinRate == 5000, "ComboMaster writes passive runtime state")
     local oldProcessComboEffect = BattleSkill.ProcessComboEffect
     local oldCastSmallSkill = BattleSkill.CastSmallSkill
     local comboExtra = 0
@@ -218,6 +222,77 @@ do
     BattleSkill.CastSmallSkill = oldCastSmallSkill
     assert_true(ok, "ComboSlash timeline execute ok")
     assert_true(comboExtra == 1, "ComboSlash triggers one extra small skill")
+end
+
+-- Test 8b: Combo master raises combo rate through unified passive framework (80003002)
+do
+    local hero = new_unit(1602, "Tester_ComboPassive", 10000, 200, 0)
+    local comboPassive = PassiveHandlers.Create(8000300, { src = hero })
+    comboPassive:OnBattleBegin({})
+    local oldRandom = math.random
+    math.random = function(a, b)
+        return 4000
+    end
+    local triggered = BattleSkill.ProcessComboEffect(hero, {}, { skillParam = { 10000, 2500 } })
+    math.random = oldRandom
+    assert_true(triggered == 1, "ComboMaster upgrades 25% combo rate to 50% in unified passive framework")
+end
+
+-- Test 8c: Ice affinity writes unified passive runtime and boosts freeze chance/damage (80008002)
+do
+    local hero = new_unit(1603, "Tester_IcePassive", 10000, 200, 0)
+    local target = new_unit(2603, "Ice_Target", 10000, 0, 0)
+    local icePassive = PassiveHandlers.Create(8000800, { src = hero })
+    icePassive:OnBattleBegin({})
+    assert_true((hero.passiveRuntime or {}).iceDamageBonusPct == 1000, "IceAffinity writes damage bonus runtime state")
+    assert_true((hero.passiveRuntime or {}).iceFreezeChanceBonus == 1000, "IceAffinity writes freeze chance runtime state")
+    assert_true(BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct") == 11000, "IceAffinity increases ice damage by 10%")
+    assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChanceBonus") == 6000, "IceAffinity increases freeze chance by 10%")
+
+    local oldRandom = math.random
+    local oldApplyFreeze = BattleSkill.ApplyFreeze
+    local oldSelectAllAliveTargets = BattleSkill.SelectAllAliveTargets
+    local freezeTriggered = false
+    math.random = function(a, b)
+        return 5500
+    end
+    BattleSkill.SelectAllAliveTargets = function(src)
+        return { target }
+    end
+    BattleSkill.ApplyFreeze = function(dst, turns, slowPct, caster)
+        freezeTriggered = true
+    end
+    local blizzard = require("config.skill_rgl.skill_80008004")
+    blizzard.Execute(hero, { target }, { skillId = 80008004, name = "暴风雪" })
+    BattleSkill.SelectAllAliveTargets = oldSelectAllAliveTargets
+    BattleSkill.ApplyFreeze = oldApplyFreeze
+    math.random = oldRandom
+    assert_true(freezeTriggered == true, "IceAffinity makes 55% roll trigger Blizzard freeze")
+end
+
+-- Test 8d: Thunder affinity writes unified passive runtime and boosts chain chance (80009002)
+do
+    local hero = new_unit(1604, "Tester_ThunderPassive", 10000, 200, 0)
+    local target = new_unit(2604, "Thunder_Target", 10000, 0, 0)
+    local thunderPassive = PassiveHandlers.Create(8000900, { src = hero })
+    thunderPassive:OnBattleBegin({})
+    assert_true((hero.passiveRuntime or {}).thunderChainChanceBonus == 2000, "ThunderAffinity writes chain chance runtime state")
+    assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus") == 4000, "ThunderAffinity increases chain chance by 20%")
+
+    local oldRandom = math.random
+    local oldProcessChainLightning = BattleSkill.ProcessChainLightning
+    local chainTriggered = 0
+    math.random = function(a, b)
+        return 3500
+    end
+    BattleSkill.ProcessChainLightning = function(src, jumps, damageRate)
+        chainTriggered = chainTriggered + 1
+    end
+    local lightningArrow = require("config.skill_rgl.skill_80009001")
+    lightningArrow.Execute(hero, { target }, { skillId = 80009001, name = "闪电箭" })
+    BattleSkill.ProcessChainLightning = oldProcessChainLightning
+    math.random = oldRandom
+    assert_true(chainTriggered == 1, "ThunderAffinity makes 35% roll trigger Lightning Arrow chain")
 end
 
 -- Test 9: Pursuit attacks a second target after kill (80001003)
@@ -284,7 +359,7 @@ do
     local wallSkill = require("config.skill_rgl.skill_80002004")
     local okWall, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002004, name = "盾墙" }, wallSkill.BuildTimeline(tank, { attacker }, { skillId = 80002004, name = "盾墙" }))
     assert_true(okWall, "ShieldWall timeline execute ok")
-    local war = require("war_8000200")({ src = tank })
+    local war = PassiveHandlers.Create(8000200, { src = tank })
     local extra = { damage = 2000, attacker = attacker }
     local attackerHpBefore = attacker.hp
     war:OnDefBeforeDmg({ data = { extraParam = extra } })
@@ -301,7 +376,7 @@ do
     hero.isLeft = true
     ally.isLeft = true
     enemy.isLeft = false
-    local war = require("war_8000400")({ src = hero })
+    local war = PassiveHandlers.Create(8000400, { src = hero })
     war:OnDmgMakeKill({})
     assert_true(BattleBuff.GetBuffStackNumBySubType(hero, 840001) == 1, "WarSpirit gains one stack after kill")
 
