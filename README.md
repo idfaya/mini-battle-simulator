@@ -63,11 +63,11 @@ lua55 test_debug_action.lua
 
 ```lua
 local BattleMain = require("modules.battle_main")
-local AllyData = require("config.ally_data")
+local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 
 -- 初始化数据
-AllyData.Init()
+HeroData.Init()
 EnemyData.Init()
 
 -- 创建战斗配置
@@ -78,7 +78,7 @@ local beginState = {
 }
 
 -- 添加英雄（heroId, level, star）
-local hero = AllyData.ConvertToHeroData(13101, 60, 5)
+local hero = HeroData.ConvertToHeroData(13101, 60, 5)
 table.insert(beginState.teamLeft, hero)
 
 -- 添加敌人（enemyId, level）

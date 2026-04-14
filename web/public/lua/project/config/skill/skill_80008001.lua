@@ -44,10 +44,11 @@ end
 function skill_80008001.Execute(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local damageRate = BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct")
     local totalDamage = 0
     for _, target in ipairs(targets or {}) do
         if target and not target.isDead then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
+            local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
             BattleDmgHeal.ApplyDamage(target, damage, hero)
             BattleSkill.ApplyFreeze(target, 0, 3000, hero)
             totalDamage = totalDamage + damage

@@ -1,7 +1,7 @@
 --[[
-    Roguelike 技能系统 Viewport 测试 (bin版)
-    从 RGL 配置表自动读取英雄/敌人
-    使用方法: lua test_rgl_viewport_final.lua [等级] [英雄数量] [敌人数量] [更新速度]
+    配置驱动技能系统 Viewport 测试 (bin版)
+    从当前配置表自动读取英雄/敌人
+    使用方法: lua test_viewport_final.lua [等级] [英雄数量] [敌人数量] [更新速度]
 --]]
 
 os.execute("chcp 65001 >nul 2>&1")
@@ -13,7 +13,7 @@ local heroCount = math.min(tonumber(arg[2]) or 3, 6)
 local enemyCount = math.min(tonumber(arg[3]) or 6, 6)
 local updateSpeed = tonumber(arg[4]) or 800
 
-print(string.format("=== RGL Viewport 战斗测试 (Lv.%d) ===", targetLevel))
+print(string.format("=== Viewport 战斗测试 (Lv.%d) ===", targetLevel))
 
 require("core.battle_enum")
 require("modules.BattleDefaultTypesOpt")
@@ -23,26 +23,25 @@ local ViewportRenderer = require("ui.viewport_renderer")
 local Logger = require("utils.logger")
 local ArrayUtils = require("utils.array_utils")
 
-BattleHeroFactory.SetRglMode(true)
 Logger.SetLogLevel(Logger.LOG_LEVELS.INFO)
 ViewportRenderer.SetFastMode(updateSpeed <= 0)
 
 local function Main()
     math.randomseed(os.time())
 
-    local RglHeroData = require("config.rgl_hero_data")
-    local RglEnemyData = require("config.rgl_enemy_data")
+    local HeroData = require("config.hero_data")
+    local EnemyData = require("config.enemy_data")
 
     local allHeroIds = {}
-    for _, h in ipairs(RglHeroData.GetPlayableHeroes()) do
+    for _, h in ipairs(HeroData.GetPlayableHeroes()) do
         if h.AllyID then table.insert(allHeroIds, h.AllyID) end
     end
-    local allEnemyIds = RglEnemyData.GetAllEnemyIds()
-    local allBossIds = RglEnemyData.GetAllBossIds()
+    local allEnemyIds = EnemyData.GetAllEnemyIds()
+    local allBossIds = EnemyData.GetAllBossIds()
 
-    print(string.format("可用RGL英雄: %d, 小怪: %d, Boss: %d", #allHeroIds, #allEnemyIds, #allBossIds))
+    print(string.format("可用英雄: %d, 小怪: %d, Boss: %d", #allHeroIds, #allEnemyIds, #allBossIds))
     if #allHeroIds == 0 then
-        print("错误: 无法加载 RGL 英雄配置")
+        print("错误: 无法加载英雄配置")
         return
     end
 
@@ -73,7 +72,7 @@ local function Main()
         end
     end
 
-    print("\n【RGL 英雄阵容】")
+    print("\n【英雄阵容】")
     local heroes = {}
     for i, id in ipairs(selectedHeroIds) do
         local h = BattleHeroFactory.CreateHero(id, targetLevel, 5)
@@ -81,11 +80,11 @@ local function Main()
             h.wpType = i
             h.isLeft = true
             table.insert(heroes, h)
-            print(string.format("  %d. %s (HP:%d ATK:%d DEF:%d)", i, h.name or ("Rgl_"..id), h.hp or 0, h.atk or 0, h.def or 0))
+            print(string.format("  %d. %s (HP:%d ATK:%d DEF:%d)", i, h.name or ("Hero_" .. id), h.hp or 0, h.atk or 0, h.def or 0))
         end
     end
 
-    print("\n【RGL 敌人阵容】")
+    print("\n【敌人阵容】")
     local enemies = {}
     for i, id in ipairs(selectedEnemyIds) do
         local e = BattleHeroFactory.CreateEnemy(id, targetLevel)
@@ -94,7 +93,7 @@ local function Main()
             e.isLeft = false
             table.insert(enemies, e)
             local prefix = (e._monsterType == 2) and "【BOSS】" or ""
-            print(string.format("  %d. %s%s (HP:%d ATK:%d)", i, prefix, e.name or ("Rgl_"..id), e.hp or 0, e.atk or 0))
+            print(string.format("  %d. %s%s (HP:%d ATK:%d)", i, prefix, e.name or ("Enemy_" .. id), e.hp or 0, e.atk or 0))
         end
     end
 

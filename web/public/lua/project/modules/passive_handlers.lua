@@ -14,6 +14,16 @@ local function BuildContextState(context)
     }
 end
 
+local function EnsurePassiveRuntime(hero)
+    if not hero then
+        return nil
+    end
+    if not hero.passiveRuntime then
+        hero.passiveRuntime = {}
+    end
+    return hero.passiveRuntime
+end
+
 local function CreateBlockPassive(context)
     local self = BuildContextState(context)
 
@@ -131,6 +141,21 @@ local function CreateWarSpiritPassive(context)
     return self
 end
 
+local function CreateComboMasterPassive(context)
+    local self = BuildContextState(context)
+
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        local runtime = EnsurePassiveRuntime(hero)
+        runtime.comboMasterMinRate = 5000
+    end
+
+    return self
+end
+
 local function CreateInfectPassive(context)
     local self = BuildContextState(context)
 
@@ -182,14 +207,49 @@ local function CreateFireAffinityPassive(context)
     return self
 end
 
+local function CreateIceAffinityPassive(context)
+    local self = BuildContextState(context)
+
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        local runtime = EnsurePassiveRuntime(hero)
+        runtime.iceDamageBonusPct = 1000
+        runtime.iceFreezeChanceBonus = 1000
+    end
+
+    return self
+end
+
+local function CreateThunderAffinityPassive(context)
+    local self = BuildContextState(context)
+
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        local runtime = EnsurePassiveRuntime(hero)
+        runtime.thunderChainChanceBonus = 2000
+        runtime.thunderChainDecayReductionPct = 1000
+    end
+
+    return self
+end
+
 PassiveHandlers.factories = {
     [8000020] = CreateBlockPassive,
     [8000100] = CreatePursuitPassive,
     [8000200] = CreateBlockCounterPassive,
+    [8000300] = CreateComboMasterPassive,
     [8000400] = CreateWarSpiritPassive,
     [8000500] = CreateInfectPassive,
     [8000600] = CreateAffinityHealPassive,
     [8000700] = CreateFireAffinityPassive,
+    [8000800] = CreateIceAffinityPassive,
+    [8000900] = CreateThunderAffinityPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

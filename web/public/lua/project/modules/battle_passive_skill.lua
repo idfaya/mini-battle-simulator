@@ -677,6 +677,13 @@ end
 
 -- ==================== 生命周期函数 ====================
 
+function BattlePassiveSkill.GetPassiveValue(hero, key, defaultValue)
+    if hero and hero.passiveRuntime and hero.passiveRuntime[key] ~= nil then
+        return hero.passiveRuntime[key]
+    end
+    return defaultValue
+end
+
 function BattlePassiveSkill.Init()
     Reset()
     Logger.Log("[BattlePassiveSkill] 初始化完成")

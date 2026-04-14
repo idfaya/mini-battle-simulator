@@ -1,4 +1,4 @@
-# 技能系统实现文档 (RGL Timeline 版)
+# 技能系统实现文档 (Timeline 版)
 
 > **项目**: Mini Battle Simulator  
 > **版本**: 2.0 (Timeline 架构)  
@@ -46,10 +46,10 @@
 | BattlePassiveSkill | `modules/battle_passive_skill.lua` | 被动技能注册、触发分发与运行时状态查询 |
 | PassiveDefs | `config/passive/passive_defs.lua` | 被动触发定义表（classId → triggers） |
 | PassiveHandlers | `modules/passive_handlers.lua` | 被动处理器工厂，承载脚本型被动逻辑 |
-| SkillRglConfig | `config/skill_rgl_config.lua` | RGL 技能配置加载器 |
+| SkillConfig | `config/skill_config.lua` | 技能配置加载器 |
 | BattleHeroFactory | `modules/battle_hero_factory.lua` | 英雄/敌人工厂，含技能类型转换 |
-| RglHeroData | `config/rgl_hero_data.lua` | 英雄属性与技能配置 |
-| RglEnemyData | `config/rgl_enemy_data.lua` | 敌人属性与技能配置 |
+| HeroData | `config/hero_data.lua` | 英雄属性与技能配置 |
+| EnemyData | `config/enemy_data.lua` | 敌人属性与技能配置 |
 
 ---
 
@@ -108,7 +108,7 @@ context = {
 
 每个技能由三层配置共同定义，必须保持一致：
 
-### 3.1 JSON 静态配置 (`config/res_skill_rgl.json`)
+### 3.1 JSON 静态配置 (`config/res_skill.json`)
 
 ```json
 {
@@ -131,7 +131,7 @@ context = {
 | SkillParam[1] | 伤害倍率（万分比，10000=100%） |
 | Buff1-5 | [概率, 目标类型, 持续回合, BuffID, 叠加层数] |
 
-### 3.2 Lua 技能脚本 (`config/skill_rgl/skill_{ID}.lua`)
+### 3.2 Lua 技能脚本 (`config/skill/skill_{ID}.lua`)
 
 ```lua
 local BattleSkill = require("modules.battle_skill")
@@ -238,7 +238,7 @@ BattleMain.ExecuteHeroAction
        ├─ 检查技能条件 (CD, 能量, 沉默等)
        ├─ BattleSkill.SelectTarget(hero, skill)
        ├─ BattleSkill.LoadSkillLua(skillId)
-       │    └─ require("config.skill_rgl.skill_{ID}")
+       │    └─ require("config.skill.skill_{ID}")
        ├─ skillScript.BuildTimeline(hero, targets, skill)
        ├─ SkillTimeline.Execute(hero, targets, skill, timeline)
        │    ├─ 排序帧序列
@@ -421,11 +421,11 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 
 ### 8.1 敌人技能来源
 
-敌人使用与英雄相同的九流派技能脚本，通过 `RglEnemyData.ConvertToHeroData` 分配技能。
+敌人使用与英雄相同的九流派技能脚本，通过 `EnemyData.ConvertToHeroData` 分配技能。
 
 ### 8.2 敌人技能类型映射
 
-`BattleHeroFactory.CreateRglEnemy` 中的类型转换规则：
+`BattleHeroFactory.CreateEnemy` 中的类型转换规则：
 
 | 原始 skillType | 条件 | 映射结果 |
 |----------------|------|----------|

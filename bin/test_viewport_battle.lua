@@ -20,7 +20,7 @@ local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")
 local ViewportRenderer = require("ui.viewport_renderer")
 local Logger = require("utils.logger")
-local AllyData = require("config.ally_data")
+local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 local ArrayUtils = require("utils.array_utils")
 
@@ -31,7 +31,7 @@ local function Main()
     math.randomseed(os.time())
     
     local allHeroIds = {}
-    local allHeroes = AllyData.GetPlayableHeroes()
+    local allHeroes = HeroData.GetPlayableHeroes()
     for _, hero in ipairs(allHeroes) do
         if hero.AllyID then table.insert(allHeroIds, hero.AllyID) end
     end

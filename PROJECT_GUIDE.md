@@ -66,7 +66,7 @@
 ## 测试标准
 
 ### 通过标准
-- `bin/test_rgl_viewport_final.lua` 能跑通
+- `bin/test_viewport_final.lua` 能跑通
 - 战斗结果符合预期
 - 无明显Bug
 

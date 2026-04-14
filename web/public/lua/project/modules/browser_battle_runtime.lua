@@ -4,7 +4,7 @@ local BattleSkill = require("modules.battle_skill")
 local BattleEnergy = require("modules.battle_energy")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
-local AllyData = require("config.ally_data")
+local HeroData = require("config.hero_data")
 local Logger = require("utils.logger")
 
 local Runtime = {}
@@ -283,7 +283,7 @@ local function createDefaultConfig()
     local fallbackHeroIds = { 900001, 900002, 900003, 900004, 900005, 900006 }
 
     local function toHeroData(heroId, wpType)
-        local heroData = AllyData.ConvertToHeroData(heroId, 50, 5)
+        local heroData = HeroData.ConvertToHeroData(heroId, 50, 5)
         if not heroData then
             error("Failed to build browser default hero data for heroId=" .. tostring(heroId))
         end

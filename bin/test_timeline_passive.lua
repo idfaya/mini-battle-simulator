@@ -1,4 +1,4 @@
--- Minimal timeline + passive assertions for RGL
+-- Minimal timeline + passive assertions for config-driven skills
 package.path = package.path .. ';../?.lua;../?/init.lua'
 
 local function log(msg) print(msg) end
@@ -43,7 +43,7 @@ do
     end)
     local hero = new_unit(1001, "Tester_Fire", 10000, 200, 0)
     local target = new_unit(2001, "Dummy_Target", 10000, 0, 0)
-    local skillLua = require("config.skill_rgl.skill_80007001")
+    local skillLua = require("config.skill.skill_80007001")
     local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80007001, name = "火球术" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, result = SkillTimeline.Execute(hero, { target }, { skillId = 80007001, name = "火球术" }, timeline)
@@ -55,7 +55,7 @@ end
 do
     local hero = new_unit(1101, "Tester_Ice", 10000, 200, 0)
     local target = new_unit(2101, "Frozen_Target", 10000, 0, 0)
-    local skillLua = require("config.skill_rgl.skill_80008001")
+    local skillLua = require("config.skill.skill_80008001")
     local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80008001, name = "冰箭术" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008001, name = "冰箭术" }, timeline)
@@ -75,7 +75,7 @@ do
         end
         return oldGetEnemyTeam(src)
     end
-    local skillLua = require("config.skill_rgl.skill_80008003")
+    local skillLua = require("config.skill.skill_80008003")
     local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80008003, name = "冰霜新星" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008003, name = "冰霜新星" }, timeline)
@@ -134,7 +134,7 @@ do
             frameHits = frameHits + 1
         end
     end)
-    local skillLua = require("config.skill_rgl.skill_80009003")
+    local skillLua = require("config.skill.skill_80009003")
     local timeline = skillLua.BuildTimeline(hero, { e1, e2, e3, e4 }, { skillId = 80009003, name = "连锁闪电" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { e1, e2, e3, e4 }, { skillId = 80009003, name = "连锁闪电" }, timeline)
@@ -158,7 +158,7 @@ do
     end
     BattleSkill.ApplyPoison(target, 3, hero)
     assert_true(BattleBuff.GetBuffStackNumBySubType(target, 850001) == 3, "Poison applied 3 stacks before burst")
-    local skillLua = require("config.skill_rgl.skill_80005004")
+    local skillLua = require("config.skill.skill_80005004")
     local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80005004, name = "毒性爆发" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80005004, name = "毒性爆发" }, timeline)
@@ -186,7 +186,7 @@ do
     BattleSkill.ApplyPoison(ally, 2, hero)
     BattleSkill.ApplyFreeze(ally, 2, 3000, hero)
     assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) > 0, "Holy target has poison before cleanse")
-    local skillLua = require("config.skill_rgl.skill_80006004")
+    local skillLua = require("config.skill.skill_80006004")
     local timeline = skillLua.BuildTimeline(hero, { ally }, { skillId = 80006004, name = "圣光普照" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { ally }, { skillId = 80006004, name = "圣光普照" }, timeline)
@@ -214,7 +214,7 @@ do
         comboExtra = comboExtra + 1
         return true
     end
-    local skillLua = require("config.skill_rgl.skill_80003001")
+    local skillLua = require("config.skill.skill_80003001")
     local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80003001, name = "连斩", skillParam = {10000, 2500} })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80003001, name = "连斩", skillParam = {10000, 2500} }, timeline)
@@ -262,7 +262,7 @@ do
     BattleSkill.ApplyFreeze = function(dst, turns, slowPct, caster)
         freezeTriggered = true
     end
-    local blizzard = require("config.skill_rgl.skill_80008004")
+    local blizzard = require("config.skill.skill_80008004")
     blizzard.Execute(hero, { target }, { skillId = 80008004, name = "暴风雪" })
     BattleSkill.SelectAllAliveTargets = oldSelectAllAliveTargets
     BattleSkill.ApplyFreeze = oldApplyFreeze
@@ -288,7 +288,7 @@ do
     BattleSkill.ProcessChainLightning = function(src, jumps, damageRate)
         chainTriggered = chainTriggered + 1
     end
-    local lightningArrow = require("config.skill_rgl.skill_80009001")
+    local lightningArrow = require("config.skill.skill_80009001")
     lightningArrow.Execute(hero, { target }, { skillId = 80009001, name = "闪电箭" })
     BattleSkill.ProcessChainLightning = oldProcessChainLightning
     math.random = oldRandom
@@ -320,7 +320,7 @@ do
         dst.hp = math.max(0, dst.hp - 1)
         return true
     end
-    local skillLua = require("config.skill_rgl.skill_80001003")
+    local skillLua = require("config.skill.skill_80001003")
     local timeline = skillLua.BuildTimeline(hero, { low }, { skillId = 80001003, name = "斩杀" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { low }, { skillId = 80001003, name = "斩杀" }, timeline)
@@ -350,13 +350,13 @@ do
         end
         return oldGetEnemyTeam(src)
     end
-    local tauntSkill = require("config.skill_rgl.skill_80002001")
+    local tauntSkill = require("config.skill.skill_80002001")
     local SkillTimeline = require("core.skill_timeline")
     local okTaunt, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002001, name = "盾击" }, tauntSkill.BuildTimeline(tank, { attacker }, { skillId = 80002001, name = "盾击" }))
     assert_true(okTaunt, "Taunt timeline execute ok")
     assert_true(BattleFormation.GetRandomEnemyInstanceId(attacker) == tank.instanceId, "Taunted enemy targets tank")
 
-    local wallSkill = require("config.skill_rgl.skill_80002004")
+    local wallSkill = require("config.skill.skill_80002004")
     local okWall, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002004, name = "盾墙" }, wallSkill.BuildTimeline(tank, { attacker }, { skillId = 80002004, name = "盾墙" }))
     assert_true(okWall, "ShieldWall timeline execute ok")
     local war = PassiveHandlers.Create(8000200, { src = tank })
@@ -391,7 +391,7 @@ do
 
     math.randomseed(12345)
     local baseDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, 10000)
-    local aura3 = require("config.skill_rgl.skill_80004003")
+    local aura3 = require("config.skill.skill_80004003")
     local SkillTimeline = require("core.skill_timeline")
     SkillTimeline.Execute(hero, { ally }, { skillId = 80004003, name = "全军突击" }, aura3.BuildTimeline(hero, { ally }, { skillId = 80004003, name = "全军突击" }))
     assert_true(BattleBuff.GetBuffBySubType(hero, 840002) ~= nil, "WarCharge applies 840002 aura")
@@ -399,7 +399,7 @@ do
     local auraDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, 10000)
     assert_true(auraDamage > baseDamage, "WarCharge increases damage")
 
-    local aura4 = require("config.skill_rgl.skill_80004004")
+    local aura4 = require("config.skill.skill_80004004")
     SkillTimeline.Execute(hero, { ally }, { skillId = 80004004, name = "战神降临" }, aura4.BuildTimeline(hero, { ally }, { skillId = 80004004, name = "战神降临" }))
     assert_true(BattleBuff.GetBuffBySubType(hero, 840003) ~= nil, "WarGod applies 840003 aura")
     math.randomseed(54321)
@@ -432,7 +432,7 @@ do
         return oldGetFriendTeam(src)
     end
     local beforeA1, beforeA2, beforeA3, beforeA4 = a1.hp, a2.hp, a3.hp, a4.hp
-    local skillLua = require("config.skill_rgl.skill_80006003")
+    local skillLua = require("config.skill.skill_80006003")
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { a1, a2, a3, a4 }, { skillId = 80006003, name = "群疗" }, skillLua.BuildTimeline(hero, { a1, a2, a3, a4 }, { skillId = 80006003, name = "群疗" }))
     BattleFormation.GetFriendTeam = oldGetFriendTeam
@@ -456,7 +456,7 @@ do
         return oldGetEnemyTeam(src)
     end
     BattleSkill.ApplyBuffFromSkill(hero, hero, 870002, nil)
-    local skillLua = require("config.skill_rgl.skill_80007004")
+    local skillLua = require("config.skill.skill_80007004")
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { e1, e2, e3 }, { skillId = 80007004, name = "陨石术" }, skillLua.BuildTimeline(hero, { e1, e2, e3 }, { skillId = 80007004, name = "陨石术" }))
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam

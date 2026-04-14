@@ -5,28 +5,11 @@
 
 local BattleHeroFactory = {}
 
-local RglHeroData = require("config.rgl_hero_data")
-local RglEnemyData = require("config.rgl_enemy_data")
-local _useRglMode = true
-
-function BattleHeroFactory.SetRglMode(enabled)
-    _useRglMode = enabled ~= false
-end
-
-function BattleHeroFactory.IsRglMode()
-    return true
-end
+local HeroData = require("config.hero_data")
+local EnemyData = require("config.enemy_data")
 
 function BattleHeroFactory.CreateHero(heroId, level, star)
-    return BattleHeroFactory.CreateRglHero(heroId, level, star)
-end
-
-function BattleHeroFactory.CreateRglHero(heroId, level, star)
-    if not RglHeroData then
-        RglHeroData = require("config.rgl_hero_data")
-    end
-
-    local heroData = RglHeroData.ConvertToHeroData(heroId, level, star)
+    local heroData = HeroData.ConvertToHeroData(heroId, level, star)
     if not heroData then
         return nil
     end
@@ -45,15 +28,7 @@ function BattleHeroFactory.CreateRglHero(heroId, level, star)
 end
 
 function BattleHeroFactory.CreateEnemy(enemyId, level)
-    return BattleHeroFactory.CreateRglEnemy(enemyId, level)
-end
-
-function BattleHeroFactory.CreateRglEnemy(enemyId, level)
-    if not RglEnemyData then
-        RglEnemyData = require("config.rgl_enemy_data")
-    end
-
-    local enemyData = RglEnemyData.ConvertToHeroData(enemyId, level)
+    local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
     if not enemyData then
         return nil
     end

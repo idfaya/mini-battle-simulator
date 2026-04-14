@@ -9,7 +9,7 @@ if not E_CAST_TARGET then
 end
 
 local Logger = require("utils.logger")
-local SkillRglConfig = require("config.skill_rgl_config")
+local SkillConfig = require("config.skill_config")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 
@@ -33,7 +33,7 @@ function BattleSkill.InitModule()
     if isInitialized then
         return
     end
-    SkillRglConfig.Init()
+    SkillConfig.Init()
     isInitialized = true
     Logger.Log("[BattleSkill] 模块初始化完成 (九流派单轨)")
 end
@@ -110,10 +110,10 @@ function BattleSkill.Init(hero, skillsConfig)
                 -- 被动技能注册到触发器系统
                 if skill.skillType == E_SKILL_TYPE_PASSIVE or skill.isPassiveActive then
                     local BattlePassiveSkill = require("modules.battle_passive_skill")
-                    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skillId)
+                    local skillCfg = skill.skillConfig or SkillConfig.GetSkillConfig(skillId)
                     local passiveSkillData = {
                         skillId = skillId,
-                        classId = rglConfig and rglConfig.ClassID or skillId,
+                        classId = skillCfg and skillCfg.ClassID or skillId,
                         isPassiveActive = true,
                         name = skill.name,
                     }
@@ -138,7 +138,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     -- 确保模块已初始化
     BattleSkill.InitModule()
     
-    local configModule = SkillRglConfig
+    local configModule = SkillConfig
     
     -- 从配置模块获取配置
     local skillType = configModule.GetSkillType(skillId)
@@ -177,9 +177,9 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     -- 2. 否则使用传入的 name
     -- 3. 最后使用默认格式
     local skillName = nil
-    local rglCfg = configModule.GetSkillConfig(skillId)
-    if rglCfg and rglCfg.Name then
-        skillName = rglCfg.Name
+    local skillCfg = configModule.GetSkillConfig(skillId)
+    if skillCfg and skillCfg.Name then
+        skillName = skillCfg.Name
     end
     if not skillName then
         skillName = mergedConfig.name
@@ -203,10 +203,10 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 配置数据
         config = mergedConfig,
         
-        -- 从 res_skill_rgl.json 加载的数据
+        -- 从 res_skill.json 加载的数据
         skillParam = skillParam,
         skillBuffs = skillBuffs,
-        -- 优先使用传入的 skillConfig.skillCost，否则使用九流派配置中的值
+        -- 优先使用传入的 skillConfig.skillCost，否则使用配置表中的值
         skillCost = mergedConfig.skillCost or skillCost or 0,
 
         -- 技能目标配置
@@ -229,28 +229,28 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 额外数据
         extraData = mergedConfig.extraData or {},
         
-        -- 九流派技能特有数据
-        isRglSkill = true,
+        -- 当前技能配置附带数据
+        isConfigSkill = true,
         isPassiveActive = isPassiveActive,
-        rglConfig = configModule.GetSkillConfig(skillId),
+        skillConfig = configModule.GetSkillConfig(skillId),
     }
 
-    if skill.rglConfig then
-        if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.rglConfig.CoolDownR or 0) > 0 then
-            skill.maxCoolDown = skill.rglConfig.CoolDownR
+    if skill.skillConfig then
+        if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.skillConfig.CoolDownR or 0) > 0 then
+            skill.maxCoolDown = skill.skillConfig.CoolDownR
         end
-        if not skill.damageData and skill.rglConfig.SkillParam and skill.rglConfig.SkillParam[1] then
+        if not skill.damageData and skill.skillConfig.SkillParam and skill.skillConfig.SkillParam[1] then
             skill.damageData = {
-                damageRate = skill.rglConfig.SkillParam[1] / 100
+                damageRate = skill.skillConfig.SkillParam[1] / 100
             }
         end
     end
     
-    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 九流派技能 %d: rglConfig=%s",
-        skillId, tostring(skill.rglConfig)))
-    if skill.rglConfig then
+    Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d: skillConfig=%s",
+        skillId, tostring(skill.skillConfig)))
+    if skill.skillConfig then
         Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   ClassID=%s, Name=%s",
-            tostring(skill.rglConfig.ClassID), tostring(skill.rglConfig.Name)))
+            tostring(skill.skillConfig.ClassID), tostring(skill.skillConfig.Name)))
     end
 
     Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d) Lua路径: %s",
@@ -1061,7 +1061,7 @@ function BattleSkill.LoadSkillLua(skillId)
         return BattleSkill.skillLuaCache[skillId]
     end
 
-    local luaPath = SkillRglConfig.GetSkillLuaPath(skillId)
+    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
     if not luaPath or luaPath == "" then
         -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
         if skillId ~= 1001 then
@@ -1207,20 +1207,11 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     
     local comboRate = skill.skillParam[2] or 0  -- 连击概率（万分比）
     if comboRate <= 0 then return 0 end
-    
-    -- 检查是否有"连击精通"被动提升概率
-    local hasComboMaster = false
-    if hero.skills then
-        for _, s in ipairs(hero.skills) do
-            if s.name == "连击精通" then
-                hasComboMaster = true
-                break
-            end
-        end
-    end
-    
-    if hasComboMaster then
-        comboRate = math.max(comboRate, 5000)  -- 至少50%
+
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local comboMasterMinRate = BattlePassiveSkill.GetPassiveValue(hero, "comboMasterMinRate", 0)
+    if comboMasterMinRate > 0 then
+        comboRate = math.max(comboRate, comboMasterMinRate)
     end
     
     local roll = math.random(1, 10000)
@@ -1231,6 +1222,28 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     end
     
     return 0
+end
+
+function BattleSkill.GetPassiveAdjustedRate(hero, baseRate, passiveKey)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local bonusPct = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
+    if bonusPct <= 0 then
+        return baseRate
+    end
+    return math.floor(baseRate * (10000 + bonusPct) / 10000)
+end
+
+function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local bonusChance = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
+    local finalChance = baseChance + bonusChance
+    if finalChance < 0 then
+        return 0
+    end
+    if finalChance > 10000 then
+        return 10000
+    end
+    return finalChance
 end
 
 --- 处理追击效果（A1 追击流）
@@ -1584,15 +1597,15 @@ end
 function BattleSkill.ApplyBuffToTargets(hero, targets, skill)
     if not skill then return 0 end
     local total = 0
-    local rglConfig = skill.rglConfig or SkillRglConfig.GetSkillConfig(skill.skillId)
+    local skillConfig = skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)
     local atkPct = 0
     local defPct = 0
     local spdPct = 0
     local duration = 3
 
-    if rglConfig and rglConfig.SkillLevel == 3 then
+    if skillConfig and skillConfig.SkillLevel == 3 then
         atkPct = 2000
-    elseif rglConfig and rglConfig.SkillLevel == 4 then
+    elseif skillConfig and skillConfig.SkillLevel == 4 then
         atkPct = 5000
         defPct = 5000
         spdPct = 5000

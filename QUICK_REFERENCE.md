@@ -23,14 +23,14 @@ mini-battle-simulator/
 │   ├── skill_timeline.lua  # Timeline 执行（模块层封装）
 │   └── battle_visual_events.lua # 视觉事件定义
 ├── config/                 # 配置层
-│   ├── skill_rgl/          # 技能 Timeline 脚本（BuildTimeline）
+│   ├── skill/              # 技能 Timeline 脚本（BuildTimeline）
 │   ├── passive/            # 被动定义表（PassiveDefs）
 │   ├── buff/               # Buff 定义脚本
-│   ├── res_skill_rgl.json  # RGL 技能静态数据
-│   ├── res_rgl_hero.json   # RGL 英雄基础数据
-│   ├── skill_rgl_config.lua# 技能配置加载器
-│   ├── rgl_hero_data.lua   # 英雄属性与技能配置
-│   └── rgl_enemy_data.lua  # 敌人属性与技能配置
+│   ├── res_skill.json      # 技能静态数据
+│   ├── res_hero.json       # 英雄基础数据
+│   ├── skill_config.lua    # 技能配置加载器
+│   ├── hero_data.lua       # 英雄属性与技能配置
+│   └── enemy_data.lua      # 敌人属性与技能配置
 ├── design/                 # 设计文档
 │   ├── skill.md            # 技能树设计（九流派4层）
 │   ├── 战斗系统机制.md      # 核心机制与属性成长
@@ -135,7 +135,7 @@ modules/battle_passive_skill.lua    -- 注册/分发/查询入口
 
 ## 📝 配置模板
 
-### 技能脚本 (`config/skill_rgl/skill_{ID}.lua`)
+### 技能脚本 (`config/skill/skill_{ID}.lua`)
 ```lua
 local BattleSkill = require("modules.battle_skill")
 local BattleDmgHeal = require("modules.battle_dmg_heal")

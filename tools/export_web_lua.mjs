@@ -7,13 +7,10 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 const outputRoot = path.join(repoRoot, "web", "public", "lua", "project");
 const sourceDirs = ["core", "modules", "config", "ui", "utils"];
-const topLevelLua = [
-  "debug_hero_skills.lua"
-];
 const embeddedFiles = [
-  "config/res_rgl_hero.json",
-  "config/res_rgl_enemy.json",
-  "config/res_skill_rgl.json"
+  "config/res_hero.json",
+  "config/res_enemy.json",
+  "config/res_skill.json"
 ];
 
 function ensureDir(dir) {
@@ -64,16 +61,6 @@ for (const dir of sourceDirs) {
     manifest.push({
       path: copyFilePreserveRoot(filePath),
       moduleName: toModuleName(path.relative(repoRoot, filePath))
-    });
-  }
-}
-
-for (const filename of topLevelLua) {
-  const absoluteFile = path.join(repoRoot, filename);
-  if (fs.existsSync(absoluteFile)) {
-    manifest.push({
-      path: copyFilePreserveRoot(absoluteFile),
-      moduleName: toModuleName(filename)
     });
   }
 }

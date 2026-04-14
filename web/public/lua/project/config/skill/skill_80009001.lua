@@ -43,15 +43,7 @@ function skill_80009001.Execute(hero, targets, skill)
             totalDamage = totalDamage + damage
         end
     end
-    local chance = 2000
-    if hero.skills then
-        for _, s in ipairs(hero.skills) do
-            if s.name == "雷电亲和" then
-                chance = 4000
-                break
-            end
-        end
-    end
+    local chance = BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus")
     if math.random(1, 10000) <= chance then
         BattleSkill.ProcessChainLightning(hero, 1, 10000)
     end

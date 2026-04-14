@@ -2,10 +2,6 @@
   "entry": "web_entry.lua",
   "modules": [
     {
-      "path": "config/ally_data.lua",
-      "moduleName": "config.ally_data"
-    },
-    {
       "path": "config/buff/buff_820001.lua",
       "moduleName": "config.buff.buff_820001"
     },
@@ -66,124 +62,116 @@
       "moduleName": "config.passive.passive_defs"
     },
     {
-      "path": "config/rgl_enemy_data.lua",
-      "moduleName": "config.rgl_enemy_data"
+      "path": "config/skill_config.lua",
+      "moduleName": "config.skill_config"
     },
     {
-      "path": "config/rgl_hero_data.lua",
-      "moduleName": "config.rgl_hero_data"
+      "path": "config/skill/skill_80001001.lua",
+      "moduleName": "config.skill.skill_80001001"
     },
     {
-      "path": "config/skill_rgl_config.lua",
-      "moduleName": "config.skill_rgl_config"
+      "path": "config/skill/skill_80001003.lua",
+      "moduleName": "config.skill.skill_80001003"
     },
     {
-      "path": "config/skill_rgl/skill_80001001.lua",
-      "moduleName": "config.skill_rgl.skill_80001001"
+      "path": "config/skill/skill_80001004.lua",
+      "moduleName": "config.skill.skill_80001004"
     },
     {
-      "path": "config/skill_rgl/skill_80001003.lua",
-      "moduleName": "config.skill_rgl.skill_80001003"
+      "path": "config/skill/skill_80002001.lua",
+      "moduleName": "config.skill.skill_80002001"
     },
     {
-      "path": "config/skill_rgl/skill_80001004.lua",
-      "moduleName": "config.skill_rgl.skill_80001004"
+      "path": "config/skill/skill_80002003.lua",
+      "moduleName": "config.skill.skill_80002003"
     },
     {
-      "path": "config/skill_rgl/skill_80002001.lua",
-      "moduleName": "config.skill_rgl.skill_80002001"
+      "path": "config/skill/skill_80002004.lua",
+      "moduleName": "config.skill.skill_80002004"
     },
     {
-      "path": "config/skill_rgl/skill_80002003.lua",
-      "moduleName": "config.skill_rgl.skill_80002003"
+      "path": "config/skill/skill_80003001.lua",
+      "moduleName": "config.skill.skill_80003001"
     },
     {
-      "path": "config/skill_rgl/skill_80002004.lua",
-      "moduleName": "config.skill_rgl.skill_80002004"
+      "path": "config/skill/skill_80003003.lua",
+      "moduleName": "config.skill.skill_80003003"
     },
     {
-      "path": "config/skill_rgl/skill_80003001.lua",
-      "moduleName": "config.skill_rgl.skill_80003001"
+      "path": "config/skill/skill_80003004.lua",
+      "moduleName": "config.skill.skill_80003004"
     },
     {
-      "path": "config/skill_rgl/skill_80003003.lua",
-      "moduleName": "config.skill_rgl.skill_80003003"
+      "path": "config/skill/skill_80004001.lua",
+      "moduleName": "config.skill.skill_80004001"
     },
     {
-      "path": "config/skill_rgl/skill_80003004.lua",
-      "moduleName": "config.skill_rgl.skill_80003004"
+      "path": "config/skill/skill_80004003.lua",
+      "moduleName": "config.skill.skill_80004003"
     },
     {
-      "path": "config/skill_rgl/skill_80004001.lua",
-      "moduleName": "config.skill_rgl.skill_80004001"
+      "path": "config/skill/skill_80004004.lua",
+      "moduleName": "config.skill.skill_80004004"
     },
     {
-      "path": "config/skill_rgl/skill_80004003.lua",
-      "moduleName": "config.skill_rgl.skill_80004003"
+      "path": "config/skill/skill_80005001.lua",
+      "moduleName": "config.skill.skill_80005001"
     },
     {
-      "path": "config/skill_rgl/skill_80004004.lua",
-      "moduleName": "config.skill_rgl.skill_80004004"
+      "path": "config/skill/skill_80005003.lua",
+      "moduleName": "config.skill.skill_80005003"
     },
     {
-      "path": "config/skill_rgl/skill_80005001.lua",
-      "moduleName": "config.skill_rgl.skill_80005001"
+      "path": "config/skill/skill_80005004.lua",
+      "moduleName": "config.skill.skill_80005004"
     },
     {
-      "path": "config/skill_rgl/skill_80005003.lua",
-      "moduleName": "config.skill_rgl.skill_80005003"
+      "path": "config/skill/skill_80006001.lua",
+      "moduleName": "config.skill.skill_80006001"
     },
     {
-      "path": "config/skill_rgl/skill_80005004.lua",
-      "moduleName": "config.skill_rgl.skill_80005004"
+      "path": "config/skill/skill_80006003.lua",
+      "moduleName": "config.skill.skill_80006003"
     },
     {
-      "path": "config/skill_rgl/skill_80006001.lua",
-      "moduleName": "config.skill_rgl.skill_80006001"
+      "path": "config/skill/skill_80006004.lua",
+      "moduleName": "config.skill.skill_80006004"
     },
     {
-      "path": "config/skill_rgl/skill_80006003.lua",
-      "moduleName": "config.skill_rgl.skill_80006003"
+      "path": "config/skill/skill_80007001.lua",
+      "moduleName": "config.skill.skill_80007001"
     },
     {
-      "path": "config/skill_rgl/skill_80006004.lua",
-      "moduleName": "config.skill_rgl.skill_80006004"
+      "path": "config/skill/skill_80007003.lua",
+      "moduleName": "config.skill.skill_80007003"
     },
     {
-      "path": "config/skill_rgl/skill_80007001.lua",
-      "moduleName": "config.skill_rgl.skill_80007001"
+      "path": "config/skill/skill_80007004.lua",
+      "moduleName": "config.skill.skill_80007004"
     },
     {
-      "path": "config/skill_rgl/skill_80007003.lua",
-      "moduleName": "config.skill_rgl.skill_80007003"
+      "path": "config/skill/skill_80008001.lua",
+      "moduleName": "config.skill.skill_80008001"
     },
     {
-      "path": "config/skill_rgl/skill_80007004.lua",
-      "moduleName": "config.skill_rgl.skill_80007004"
+      "path": "config/skill/skill_80008003.lua",
+      "moduleName": "config.skill.skill_80008003"
     },
     {
-      "path": "config/skill_rgl/skill_80008001.lua",
-      "moduleName": "config.skill_rgl.skill_80008001"
+      "path": "config/skill/skill_80008004.lua",
+      "moduleName": "config.skill.skill_80008004"
     },
     {
-      "path": "config/skill_rgl/skill_80008003.lua",
-      "moduleName": "config.skill_rgl.skill_80008003"
+      "path": "config/skill/skill_80009001.lua",
+      "moduleName": "config.skill.skill_80009001"
     },
     {
-      "path": "config/skill_rgl/skill_80008004.lua",
-      "moduleName": "config.skill_rgl.skill_80008004"
+      "path": "config/skill/skill_80009003.lua",
+      "moduleName": "config.skill.skill_80009003"
     },
     {
-      "path": "config/skill_rgl/skill_80009001.lua",
-      "moduleName": "config.skill_rgl.skill_80009001"
-    },
-    {
-      "path": "config/skill_rgl/skill_80009003.lua",
-      "moduleName": "config.skill_rgl.skill_80009003"
-    },
-    {
-      "path": "config/skill_rgl/skill_80009004.lua",
-      "moduleName": "config.skill_rgl.skill_80009004"
+      "path": "config/skill/skill_80009004.lua",
+      "moduleName": "config.skill.skill_80009004"
     },
     {
       "path": "core/battle_default_types.lua",
@@ -220,10 +208,6 @@
     {
       "path": "core/skill_timeline.lua",
       "moduleName": "core.skill_timeline"
-    },
-    {
-      "path": "debug_hero_skills.lua",
-      "moduleName": "debug_hero_skills"
     },
     {
       "path": "modules/battle_action_order.lua",
