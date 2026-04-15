@@ -48,6 +48,14 @@ export type BattleCommand = {
   heroId: string;
 };
 
+export type BattleSetup = {
+  level: number;
+  heroCount: number;
+  enemyCount: number;
+  initialEnergy: number;
+  speed: number;
+};
+
 export type AnimationEvent =
   | { type: "damage"; heroId: string; value: number; critical: boolean }
   | { type: "heal"; heroId: string; value: number }

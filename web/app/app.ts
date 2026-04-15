@@ -1,6 +1,7 @@
 import { LuaBattleHost } from "./lua/LuaBattleHost";
 import { CanvasRenderer } from "./render/CanvasRenderer";
 import { BattleStore } from "./state/battleStore";
+import type { BattleSetup } from "./types/battle";
 import { createControls, renderControls } from "./ui/domControls";
 
 export async function bootstrapApp(container: HTMLElement) {
@@ -24,7 +25,21 @@ export async function bootstrapApp(container: HTMLElement) {
   const host = await LuaBattleHost.create();
   const store = new BattleStore();
   const renderer = new CanvasRenderer();
-  let speed = 1;
+  const setup: BattleSetup = {
+    level: 50,
+    heroCount: 3,
+    enemyCount: 4,
+    initialEnergy: 80,
+    speed: 1,
+  };
+  let speed = setup.speed;
+
+  const toRuntimeConfig = (nextSetup: BattleSetup) => ({
+    level: nextSetup.level,
+    heroCount: nextSetup.heroCount,
+    enemyCount: nextSetup.enemyCount,
+    initialEnergy: nextSetup.initialEnergy,
+  });
 
   diagnostics.remove();
   stage.append(renderer.canvas);
@@ -35,18 +50,22 @@ export async function bootstrapApp(container: HTMLElement) {
 
   const controls = createControls(
     castUltimate,
-    async () => {
-      const snapshot = await host.restart();
+    async (nextSetup) => {
+      Object.assign(setup, nextSetup);
+      speed = setup.speed;
+      const snapshot = await host.restart(toRuntimeConfig(setup));
       store.setSnapshot(snapshot);
     },
     (nextSpeed) => {
       speed = nextSpeed;
+      setup.speed = nextSpeed;
     },
+    setup,
   );
 
   sidePanel.replaceWith(controls.root);
 
-  const initialSnapshot = await host.initBattle();
+  const initialSnapshot = await host.initBattle(toRuntimeConfig(setup));
   store.setSnapshot(initialSnapshot);
 
   let lastFrame = performance.now();
@@ -58,10 +77,10 @@ export async function bootstrapApp(container: HTMLElement) {
     const { events, snapshot } = await host.tick(delta * speed);
     store.appendEvents(events);
     store.setSnapshot(snapshot);
-    store.clearTransient(now);
 
     renderer.render(store.getState(), now);
     renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+    store.clearTransient(now);
 
     requestAnimationFrame(frame);
   };

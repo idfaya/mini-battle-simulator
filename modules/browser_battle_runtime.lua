@@ -5,11 +5,14 @@ local BattleEnergy = require("modules.battle_energy")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local HeroData = require("config.hero_data")
+local EnemyData = require("config.enemy_data")
+local ArrayUtils = require("utils.array_utils")
 local Logger = require("utils.logger")
 
 local Runtime = {}
 
 local LOGIC_STEP_MS = 80
+local DEFAULT_INITIAL_ENERGY = 80
 
 local function safeClock()
     local ok, result = pcall(function()
@@ -231,7 +234,9 @@ local function buildSnapshot()
     return {
         phase = result and "ended" or "running",
         round = BattleMain.GetCurrentRound and BattleMain.GetCurrentRound() or 0,
-        activeHeroId = state.activeHeroId and tostring(state.activeHeroId) or nil,
+        activeHeroId = tostring((BattleMain.GetActiveHeroInstanceId and BattleMain.GetActiveHeroInstanceId()) or state.activeHeroId or "") ~= ""
+            and tostring((BattleMain.GetActiveHeroInstanceId and BattleMain.GetActiveHeroInstanceId()) or state.activeHeroId)
+            or nil,
         leftTeam = leftTeam,
         rightTeam = rightTeam,
         pendingCommands = #state.queuedCommands,
@@ -279,43 +284,122 @@ local function registerVisualListeners()
     end
 end
 
-local function createDefaultConfig()
-    local fallbackHeroIds = { 900001, 900002, 900003, 900004, 900005, 900006 }
+local function clamp(value, minValue, maxValue)
+    return math.max(minValue, math.min(maxValue, value))
+end
 
-    local function toHeroData(heroId, wpType)
-        local heroData = HeroData.ConvertToHeroData(heroId, 50, 5)
-        if not heroData then
-            error("Failed to build browser default hero data for heroId=" .. tostring(heroId))
-        end
-        heroData.wpType = wpType
-        return heroData
+local function buildSeedArray()
+    local base = math.floor(safeClock() * 1000000)
+    if base <= 0 then
+        base = 123456789
     end
 
     return {
-        teamLeft = {
-            toHeroData(fallbackHeroIds[1], 1),
-            toHeroData(fallbackHeroIds[2], 2),
-            toHeroData(fallbackHeroIds[3], 3),
-        },
-        teamRight = {
-            toHeroData(fallbackHeroIds[4], 1),
-            toHeroData(fallbackHeroIds[5], 2),
-            toHeroData(fallbackHeroIds[6], 3),
-        },
-        seedArray = { 123456789, 362436069, 521288629, 88675123 },
+        base,
+        (base * 1103515245 + 12345) % 2147483647,
+        (base * 69069 + 1) % 2147483647,
+        (base * 1664525 + 1013904223) % 2147483647,
+    }
+end
+
+local function buildRuntimeTeamConfig(options)
+    local level = clamp(tonumber(options and options.level) or 50, 1, 100)
+    local heroCount = clamp(math.floor(tonumber(options and options.heroCount) or 3), 1, 6)
+    local enemyCount = clamp(math.floor(tonumber(options and options.enemyCount) or 4), 1, 6)
+    local initialEnergy = clamp(math.floor(tonumber(options and options.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100)
+    local seedArray = buildSeedArray()
+
+    math.randomseed(seedArray[1])
+
+    local selectedHeroIds = {}
+    local allHeroes = HeroData.GetPlayableHeroes()
+    for _, hero in ipairs(ArrayUtils.RandomSelect(allHeroes, heroCount)) do
+        if hero and hero.AllyID then
+            table.insert(selectedHeroIds, hero.AllyID)
+        end
+    end
+
+    local allEnemyIds = EnemyData.GetAllEnemyIds()
+    local allBossIds = EnemyData.GetAllBossIds()
+    local selectedEnemyIds = {}
+    local selectedEnemyMap = {}
+
+    local function addEnemyId(enemyId)
+        if enemyId and not selectedEnemyMap[enemyId] then
+            selectedEnemyMap[enemyId] = true
+            table.insert(selectedEnemyIds, enemyId)
+        end
+    end
+
+    if #allBossIds > 0 then
+        addEnemyId(ArrayUtils.RandomSelect(allBossIds, 1)[1])
+    end
+
+    local remainingEnemyCount = enemyCount - #selectedEnemyIds
+    if remainingEnemyCount > 0 then
+        for _, enemyId in ipairs(ArrayUtils.RandomSelect(allEnemyIds, remainingEnemyCount)) do
+            addEnemyId(enemyId)
+        end
+    end
+
+    if #selectedEnemyIds < enemyCount then
+        for _, enemyId in ipairs(allEnemyIds) do
+            addEnemyId(enemyId)
+            if #selectedEnemyIds >= enemyCount then
+                break
+            end
+        end
+    end
+
+    local leftTeam = {}
+    for index, heroId in ipairs(selectedHeroIds) do
+        local heroData = HeroData.ConvertToHeroData(heroId, level, 5)
+        if heroData then
+            heroData.wpType = index
+            table.insert(leftTeam, heroData)
+        end
+    end
+
+    local rightTeam = {}
+    for index, enemyId in ipairs(selectedEnemyIds) do
+        local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
+        if enemyData then
+            enemyData.wpType = index
+            table.insert(rightTeam, enemyData)
+        end
+    end
+
+    if #leftTeam == 0 or #rightTeam == 0 then
+        error("Failed to build browser battle teams from runtime options")
+    end
+
+    return {
+        teamLeft = leftTeam,
+        teamRight = rightTeam,
+        seedArray = seedArray,
+        initialEnergy = initialEnergy,
         disableDefaultRenderer = true,
     }
 end
 
+local function createDefaultConfig()
+    return buildRuntimeTeamConfig({
+        level = 50,
+        heroCount = 3,
+        enemyCount = 4,
+    })
+end
+
 local function normalizeConfig(config)
     if not config or not config.teamLeft or not config.teamRight then
-        return createDefaultConfig()
+        return buildRuntimeTeamConfig(config)
     end
 
     return {
         teamLeft = config.teamLeft,
         teamRight = config.teamRight,
         seedArray = config.seedArray or { 123456789, 362436069, 521288629, 88675123 },
+        initialEnergy = clamp(math.floor(tonumber(config.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100),
         disableDefaultRenderer = true,
     }
 end
@@ -353,8 +437,9 @@ local function castUltimateNow(hero)
     end
 
     state.activeHeroId = hero.instanceId
-    local success = BattleSkill.CastSkillInSeq(hero, target, skill.skillId)
-    state.activeHeroId = nil
+    local success = BattleSkill.StartSkillCastInSeq(hero, target, skill.skillId, function()
+        state.activeHeroId = nil
+    end)
 
     if success then
         refreshUltimateReadiness()
@@ -366,6 +451,10 @@ end
 
 local function processNextCommand()
     if #state.queuedCommands == 0 then
+        return false
+    end
+
+    if BattleMain.GetActiveHeroInstanceId and BattleMain.GetActiveHeroInstanceId() then
         return false
     end
 
@@ -421,6 +510,15 @@ function Runtime.init(config)
             state.battleResult = result
         end)
     end)
+    runStage("seed_initial_energy", function()
+        local leftTeam, rightTeam = BattleFormation.GetTeams()
+        for _, hero in ipairs(leftTeam or {}) do
+            BattleEnergy.AddEnergy(hero, state.currentConfig.initialEnergy or DEFAULT_INITIAL_ENERGY)
+        end
+        for _, hero in ipairs(rightTeam or {}) do
+            BattleEnergy.AddEnergy(hero, state.currentConfig.initialEnergy or DEFAULT_INITIAL_ENERGY)
+        end
+    end)
 
     runStage("register_visual_listeners", function()
         registerVisualListeners()
@@ -460,7 +558,7 @@ function Runtime.tick(deltaMs)
 
         local handledCommand = processNextCommand()
         if not handledCommand then
-            BattleMain.Update()
+            BattleMain.Update(LOGIC_STEP_MS)
         end
         refreshUltimateReadiness()
     end

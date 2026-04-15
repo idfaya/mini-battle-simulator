@@ -35,6 +35,45 @@ local function new_unit(id, name, hp, atk, def)
     }
 end
 
+-- Test 0: Timeline async progression should respect frame spacing
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local frameEvents = 0
+    local completed = false
+    local handler = function()
+        frameEvents = frameEvents + 1
+    end
+    local completedHandler = function()
+        completed = true
+    end
+
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, handler)
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_COMPLETED, completedHandler)
+
+    local hero = new_unit(9001, "Async_Tester", 10000, 200, 0)
+    local target = new_unit(9002, "Async_Target", 10000, 0, 0)
+    local skillLua = require("config.skill.skill_80007001")
+    local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80007001, name = "火球术" })
+
+    local started = SkillTimeline.Start(hero, { target }, { skillId = 80007001, name = "火球术" }, timeline)
+    assert_true(started, "Async timeline start ok")
+    assert_true(frameEvents == 1, "Async timeline only executes frame 0 immediately")
+    assert_true(not completed, "Async timeline not completed immediately")
+
+    SkillTimeline.Update(11 * (1000 / 30))
+    assert_true(frameEvents == 1, "Async timeline still waiting before frame 12")
+
+    SkillTimeline.Update(1 * (1000 / 30))
+    assert_true(frameEvents == 2, "Async timeline reaches projectile frame at 12")
+
+    SkillTimeline.Update(12 * (1000 / 30))
+    assert_true(frameEvents == 3, "Async timeline reaches damage frame at 24")
+    assert_true(completed, "Async timeline completes after final frame")
+
+    BattleEvent.RemoveListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, handler)
+    BattleEvent.RemoveListener(BattleVisualEvents.SKILL_TIMELINE_COMPLETED, completedHandler)
+end
+
 -- Test 1: Timeline frames for Fireball (80007001)
 do
     local frames = 0

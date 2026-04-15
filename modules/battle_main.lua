@@ -17,6 +17,7 @@ local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
 local BattleSkillSeq = require("modules.battle_skill_seq")
+local SkillTimeline = require("core.skill_timeline")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ConsoleRenderer = require("ui.console_renderer")
 
@@ -59,6 +60,8 @@ local battleResult = {
     reason = nil,  -- 结束原因
 }
 
+local currentAction = nil
+
 local function SafeClock()
     local ok, result = pcall(function()
         if os and os.clock then
@@ -90,6 +93,7 @@ local function ResetState()
         isFinished = false,
         reason = nil,
     }
+    currentAction = nil
 end
 
 --- 初始化所有子系统
@@ -109,6 +113,9 @@ local function InitSubsystems(beginState)
     -- 2. 初始化事件系统
     BattleEvent.Init()
     Logger.Debug("  BattleEvent 初始化完成")
+
+    SkillTimeline.Reset()
+    Logger.Debug("  SkillTimeline 状态重置完成")
 
     -- 3. 初始化计时器
     BattleTimer.Init()
@@ -216,6 +223,7 @@ local function FinalizeSubsystems()
     BattleFormation.OnFinal()
     BattleTimer.OnFinal()
     BattleSkillSeq.OnFinal()
+    SkillTimeline.Reset()
     BattleEvent.OnFinal()
 
     Logger.Log("BattleMain.FinalizeSubsystems - 所有子系统清理完成")
@@ -289,6 +297,10 @@ end
 
 --- 战斗逻辑 - 开始下一个行动
 local function BeginNextAction()
+    if currentAction then
+        return
+    end
+
     if not isRunning or isPaused then
         return
     end
@@ -327,17 +339,16 @@ local function BeginNextAction()
         BattleEvent.Publish(BattleVisualEvents.TURN_STARTED, BattleVisualEvents.BuildTurnEvent(
             BattleVisualEvents.TURN_STARTED, currentRound, hero))
 
-        -- 执行英雄行动
-        BattleMain.ExecuteHeroAction(hero)
+        currentAction = {
+            hero = hero,
+            waitingForTimeline = false,
+            completed = false,
+        }
 
-        -- 行动结束
-        BattleActionOrder.OnHeroActionFinish(hero)
-        
-        -- 触发回合结束事件
-        BattleEvent.Publish(BattleVisualEvents.TURN_ENDED, BattleVisualEvents.BuildTurnEvent(
-            BattleVisualEvents.TURN_ENDED, currentRound, hero))
-        
-        Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
+        local isPending = BattleMain.ExecuteHeroAction(hero, currentAction)
+        if not isPending then
+            BattleMain.CompleteHeroAction(currentAction)
+        end
     end
 end
 
@@ -493,26 +504,22 @@ local function FinalizeHeroTurn(hero)
     BattleBuff.OnRoundEnd(hero)
 end
 
-function BattleMain.ExecuteHeroAction(hero)
+function BattleMain.ExecuteHeroAction(hero, actionState)
     if not hero or not hero.isAlive then
-        return
+        return false
     end
 
     -- 触发回合开始被动技能
     BattlePassiveSkill.RunSkillOnSelfTurnBegin(hero)
     if not BattleSkill.ProcessTurnStartStatus(hero) then
-        BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
-        FinalizeHeroTurn(hero)
-        return
+        return false
     end
 
     -- 智能选择可用技能
     local skill = SelectAvailableSkill(hero)
     if not skill then
         Logger.LogWarning(string.format("[ExecuteHeroAction] %s 没有可用技能，跳过行动", hero.name or "Unknown"))
-        BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
-        FinalizeHeroTurn(hero)
-        return
+        return false
     end
     
     if skill and skill.skillId then
@@ -534,27 +541,48 @@ function BattleMain.ExecuteHeroAction(hero)
                     target.name or "Unknown", 
                     skill.name or tostring(skill.skillId)))
                 
-                -- 如果是大招，消耗能量
-                if skill.skillType == E_SKILL_TYPE_ULTIMATE then
-                    local energyCost = skill.skillCost or 0
-                    if energyCost > 0 then
-                        BattleEnergy.ConsumeEnergy(hero, energyCost)
-                    end
-                end
-                
                 -- 执行技能
-                BattleSkill.CastSkillInSeq(hero, target, skill.skillId)
+                local started = BattleSkill.StartSkillCastInSeq(hero, target, skill.skillId, function(success, result)
+                    if actionState then
+                        actionState.timelineSucceeded = success
+                        actionState.timelineResult = result
+                        actionState.completed = true
+                    end
+                end)
+                if started then
+                    if actionState then
+                        actionState.waitingForTimeline = true
+                    end
+                    return true
+                end
             end
         end
     end
 
-    -- 触发回合结束被动技能
+    return false
+end
+
+function BattleMain.CompleteHeroAction(actionState)
+    if not actionState or not actionState.hero then
+        currentAction = nil
+        return
+    end
+
+    local hero = actionState.hero
     BattlePassiveSkill.RunSkillOnSelfTurnEnd(hero)
     FinalizeHeroTurn(hero)
+
+    BattleActionOrder.OnHeroActionFinish(hero)
+
+    BattleEvent.Publish(BattleVisualEvents.TURN_ENDED, BattleVisualEvents.BuildTurnEvent(
+        BattleVisualEvents.TURN_ENDED, currentRound, hero))
+
+    Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
+    currentAction = nil
 end
 
 --- 更新战斗（每帧调用）
-function BattleMain.Update()
+function BattleMain.Update(deltaMs)
     if not isRunning then
         return
     end
@@ -571,6 +599,10 @@ function BattleMain.Update()
     -- 更新计时器
     BattleTimer.Update()
 
+    if SkillTimeline.IsRunning() then
+        SkillTimeline.Update(deltaMs)
+    end
+
     -- 如果战斗已结束，不再执行逻辑
     if battleResult.isFinished then
         return
@@ -578,6 +610,12 @@ function BattleMain.Update()
 
     -- 如果未暂停，执行战斗逻辑
     if not isPaused then
+        if currentAction then
+            if currentAction.waitingForTimeline and not SkillTimeline.IsRunning() and currentAction.completed then
+                BattleMain.CompleteHeroAction(currentAction)
+            end
+            return
+        end
         BeginNextAction()
     end
 end
@@ -678,6 +716,13 @@ end
 ---@return number 当前回合数
 function BattleMain.GetCurrentRound()
     return currentRound
+end
+
+function BattleMain.GetActiveHeroInstanceId()
+    if currentAction and currentAction.hero then
+        return currentAction.hero.instanceId or currentAction.hero.id
+    end
+    return SkillTimeline.GetActiveHeroId()
 end
 
 --- 获取战斗结果

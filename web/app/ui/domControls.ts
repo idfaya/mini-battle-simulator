@@ -1,16 +1,21 @@
-import type { BattleSnapshot } from "../types/battle";
+import type { BattleSetup, BattleSnapshot } from "../types/battle";
 
 type Controls = {
   root: HTMLDivElement;
   logList: HTMLUListElement;
   status: HTMLDivElement;
   buttonsHost: HTMLDivElement;
+  levelInput: HTMLInputElement;
+  heroCountInput: HTMLInputElement;
+  enemyCountInput: HTMLInputElement;
+  speedSelect: HTMLSelectElement;
 };
 
 export function createControls(
   onUltCast: (heroId: string) => void,
-  onRestart: () => void,
+  onRestart: (setup: BattleSetup) => void,
   onSpeedChange: (speed: number) => void,
+  initialSetup: BattleSetup,
 ): Controls {
   const root = document.createElement("div");
   root.className = "hud";
@@ -27,23 +32,117 @@ export function createControls(
   const actions = document.createElement("div");
   actions.className = "global-actions";
 
-  const restartButton = document.createElement("button");
-  restartButton.textContent = "重新开战";
-  restartButton.onclick = onRestart;
+  const setupPanel = document.createElement("div");
+  setupPanel.className = "setup-panel";
 
-  const speedButton = document.createElement("button");
-  let speed = 1;
-  speedButton.textContent = "倍速 x1";
-  speedButton.onclick = () => {
-    speed = speed >= 3 ? 1 : speed + 1;
-    speedButton.textContent = `倍速 x${speed}`;
-    onSpeedChange(speed);
+  const setupTitle = document.createElement("div");
+  setupTitle.className = "panel-title";
+  setupTitle.textContent = "战斗设置";
+
+  const setupGrid = document.createElement("div");
+  setupGrid.className = "setup-grid";
+
+  const createNumberField = (
+    labelText: string,
+    id: string,
+    value: number,
+    min: number,
+    max: number,
+  ) => {
+    const wrapper = document.createElement("label");
+    wrapper.className = "setup-field";
+    wrapper.htmlFor = id;
+
+    const text = document.createElement("span");
+    text.textContent = labelText;
+
+    const input = document.createElement("input");
+    input.id = id;
+    input.type = "number";
+    input.min = String(min);
+    input.max = String(max);
+    input.step = "1";
+    input.value = String(value);
+
+    wrapper.append(text, input);
+    return { wrapper, input };
   };
 
-  actions.append(restartButton, speedButton);
-  root.append(status, buttonsHost, actions, logList);
+  const createSelectField = (
+    labelText: string,
+    id: string,
+    value: number,
+    options: Array<{ value: number; label: string }>,
+  ) => {
+    const wrapper = document.createElement("label");
+    wrapper.className = "setup-field";
+    wrapper.htmlFor = id;
 
-  return { root, logList, status, buttonsHost };
+    const text = document.createElement("span");
+    text.textContent = labelText;
+
+    const select = document.createElement("select");
+    select.id = id;
+    for (const option of options) {
+      const element = document.createElement("option");
+      element.value = String(option.value);
+      element.textContent = option.label;
+      if (option.value === value) {
+        element.selected = true;
+      }
+      select.append(element);
+    }
+
+    wrapper.append(text, select);
+    return { wrapper, select };
+  };
+
+  const levelField = createNumberField("等级", "battle-level", initialSetup.level, 1, 100);
+  const heroCountField = createNumberField("英雄数量", "battle-hero-count", initialSetup.heroCount, 1, 6);
+  const enemyCountField = createNumberField("敌人数量", "battle-enemy-count", initialSetup.enemyCount, 1, 6);
+  const speedField = createSelectField("速度", "battle-speed", initialSetup.speed, [
+    { value: 1, label: "x1" },
+    { value: 2, label: "x2" },
+    { value: 3, label: "x3" },
+  ]);
+
+  const readSetup = (): BattleSetup => ({
+    level: Math.max(1, Math.min(100, Number(levelField.input.value) || initialSetup.level)),
+    heroCount: Math.max(1, Math.min(6, Number(heroCountField.input.value) || initialSetup.heroCount)),
+    enemyCount: Math.max(1, Math.min(6, Number(enemyCountField.input.value) || initialSetup.enemyCount)),
+    initialEnergy: initialSetup.initialEnergy,
+    speed: Math.max(1, Math.min(3, Number(speedField.select.value) || initialSetup.speed)),
+  });
+
+  speedField.select.onchange = () => {
+    onSpeedChange(readSetup().speed);
+  };
+
+  setupGrid.append(
+    levelField.wrapper,
+    heroCountField.wrapper,
+    enemyCountField.wrapper,
+    speedField.wrapper,
+  );
+  setupPanel.append(setupTitle, setupGrid);
+
+  const restartButton = document.createElement("button");
+  restartButton.textContent = "应用设置并重开";
+  restartButton.onclick = () => onRestart(readSetup());
+
+  actions.append(restartButton);
+  root.append(status, setupPanel, buttonsHost, actions, logList);
+
+  return {
+    root,
+    logList,
+    status,
+    buttonsHost,
+    levelInput: levelField.input,
+    heroCountInput: heroCountField.input,
+    enemyCountInput: enemyCountField.input,
+    speedSelect: speedField.select,
+  };
 }
 
 export function renderControls(
@@ -60,12 +159,18 @@ export function renderControls(
   for (const unit of snapshot?.leftTeam ?? []) {
     const button = document.createElement("button");
     button.className = "ult-button";
+    button.type = "button";
     button.disabled = !unit.ultimateReady || !unit.isAlive;
     button.textContent = `${unit.name} · ${unit.ultimateSkillName}`;
     if (unit.ultimateReady) {
       button.classList.add("ready");
     }
-    button.onclick = () => onUltCast(unit.id);
+    button.onpointerdown = (event) => {
+      event.preventDefault();
+      if (!button.disabled) {
+        onUltCast(unit.id);
+      }
+    };
     controls.buttonsHost.append(button);
   }
 

@@ -19,11 +19,16 @@ require("modules.BattleDefaultTypesOpt")
 
 local Runtime = require("modules.browser_battle_runtime")
 
-local snapshot = Runtime.init(nil)
+local snapshot = Runtime.init({
+    level = 50,
+    heroCount = 3,
+    enemyCount = 4,
+    initialEnergy = 80,
+})
 assert(snapshot.phase == "running", "battle should start in running phase")
 
 local sawReady = false
-for _ = 1, 160 do
+for _ = 1, 260 do
     local events = Runtime.tick(80)
     snapshot = Runtime.getSnapshot()
 
@@ -43,4 +48,5 @@ for _ = 1, 160 do
 end
 
 assert(snapshot.result ~= nil, "battle should complete")
+assert(sawReady == true, "battle should expose at least one ultimate-ready event in browser runtime")
 print("browser runtime test passed; saw ultimate ready = " .. tostring(sawReady))

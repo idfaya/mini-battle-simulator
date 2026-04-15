@@ -18,7 +18,17 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.locator("#battle-level")).toHaveCount(1);
+  await expect(page.locator("#battle-hero-count")).toHaveCount(1);
+  await expect(page.locator("#battle-enemy-count")).toHaveCount(1);
+  await expect(page.locator("#battle-speed")).toHaveCount(1);
   await expect(page.locator(".ult-button")).toHaveCount(3);
+  await expect
+    .poll(async () => page.locator(".ult-button:not([disabled])").count(), { timeout: 6000 })
+    .toBeGreaterThan(0);
+
+  await page.locator(".ult-button:not([disabled])").first().dispatchEvent("pointerdown");
+  await expect(page.locator(".battle-log li").first()).toContainText("已下达大招指令");
 
   const canvasReady = await page.evaluate(() => {
     const canvas = document.querySelector("canvas");

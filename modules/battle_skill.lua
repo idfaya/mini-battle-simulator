@@ -330,6 +330,74 @@ function BattleSkill.ReduceCoolDown(hero, amount)
     end
 end
 
+local function BuildFallbackTimeline(hero, targets, skill)
+    return {
+        { frame = 0, op = "cast", effect = "cast_basic" },
+        {
+            frame = 10,
+            op = "attack",
+            execute = function()
+                local dmg = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill) or 0
+                return { damage = dmg }
+            end
+        }
+    }
+end
+
+local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local BattleEnergy = require("modules.battle_energy")
+
+    BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, { damageDealt = totalDamage or 0 })
+    BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
+
+    if skill.skillType == E_SKILL_TYPE_ULTIMATE and skill.skillCost and skill.skillCost > 0 then
+        BattleEnergy.ConsumeEnergy(hero, skill.skillCost)
+        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗能量: %d, 剩余能量: %d",
+            hero.name or "Unknown", skill.skillCost, hero.curEnergy))
+    end
+
+    Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skill.skillId) .. ", hero: " .. tostring(hero.name))
+    if type(onComplete) == "function" then
+        onComplete(true, {
+            totalDamage = totalDamage or 0,
+            succeeded = true,
+        })
+    end
+end
+
+local function PrepareSkillCast(hero, target, skillId)
+    if not hero then
+        Logger.LogError("[BattleSkill.CastSkillInSeq] hero is nil")
+        return nil
+    end
+
+    local skill = hero.skillData and hero.skillData.skillInstances and hero.skillData.skillInstances[skillId]
+    if not skill then
+        Logger.LogError("[BattleSkill.CastSkillInSeq] Skill not found: " .. tostring(skillId))
+        return nil
+    end
+
+    if not BattleSkill.CheckSkillCondition(hero, skill) then
+        Logger.Log("[BattleSkill.CastSkillInSeq] Skill condition check failed: " .. tostring(skillId))
+        return nil
+    end
+
+    local curCd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
+    if curCd > 0 then
+        Logger.Log("[BattleSkill.CastSkillInSeq] Skill in cooldown: " .. tostring(skillId) .. ", cd: " .. curCd)
+        return nil
+    end
+
+    local targets = target and { target } or BattleSkill.SelectTarget(hero, skill)
+    if not targets or #targets == 0 then
+        Logger.LogWarning("[BattleSkill.CastSkillInSeq] No valid targets for skill: " .. tostring(skillId))
+        return nil
+    end
+
+    return skill, targets
+end
+
 --- 释放普通攻击（小技能）
 ---@param hero table 攻击者
 ---@param target table 目标
@@ -357,117 +425,89 @@ function BattleSkill.CastSmallSkill(hero, target)
     return BattleSkill.CastSkillInSeq(hero, target, normalSkill.skillId)
 end
 
+function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete)
+    local skill, targets = PrepareSkillCast(hero, target, skillId)
+    if not skill then
+        if type(onComplete) == "function" then
+            onComplete(false, { totalDamage = 0, succeeded = false })
+        end
+        return false
+    end
+
+    BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
+
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = targets[1] })
+
+    local specialOnly = BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
+    if specialOnly then
+        local totalDamage = BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0
+        FinalizeSkillCast(hero, skill, totalDamage, onComplete)
+        return true
+    end
+
+    local skillLua = BattleSkill.LoadSkillLua(skillId)
+    local timeline = nil
+    if skillLua and skillLua.BuildTimeline then
+        local ok, builtTimeline = pcall(skillLua.BuildTimeline, hero, targets, skill)
+        if ok and type(builtTimeline) == "table" and #builtTimeline > 0 then
+            timeline = builtTimeline
+        else
+            Logger.LogWarning(string.format("[BattleSkill.CastSkillInSeq] BuildTimeline failed or empty: %s", tostring(skillId)))
+        end
+    end
+
+    if not timeline or #timeline == 0 then
+        Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击 (timeline)")
+        timeline = BuildFallbackTimeline(hero, targets, skill)
+    end
+
+    local SkillTimeline = require("core.skill_timeline")
+    local started = SkillTimeline.Start(hero, targets, skill, timeline, function(succeeded, result)
+        if not succeeded then
+            if type(onComplete) == "function" then
+                onComplete(false, result or { totalDamage = 0, succeeded = false })
+            end
+            return
+        end
+
+        local totalDamage = (result and result.totalDamage or 0) + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
+        FinalizeSkillCast(hero, skill, totalDamage, onComplete)
+    end)
+
+    if not started then
+        if type(onComplete) == "function" then
+            onComplete(false, { totalDamage = 0, succeeded = false })
+        end
+        return false
+    end
+
+    return true
+end
+
 --- 释放指定技能
 ---@param hero table 攻击者
 ---@param target table 目标
 ---@param skillId number 技能ID
 ---@return boolean 是否释放成功
 function BattleSkill.CastSkillInSeq(hero, target, skillId)
-    if not hero then
-        Logger.LogError("[BattleSkill.CastSkillInSeq] hero is nil")
-        return false
-    end
-
-    local skill = hero.skillData and hero.skillData.skillInstances and hero.skillData.skillInstances[skillId]
-    if not skill then
-        Logger.LogError("[BattleSkill.CastSkillInSeq] Skill not found: " .. tostring(skillId))
-        return false
-    end
-
-    -- 检查技能释放条件
-    if not BattleSkill.CheckSkillCondition(hero, skill) then
-        Logger.Log("[BattleSkill.CastSkillInSeq] Skill condition check failed: " .. tostring(skillId))
-        return false
-    end
-
-    -- 检查冷却
-    local curCd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-    if curCd > 0 then
-        Logger.Log("[BattleSkill.CastSkillInSeq] Skill in cooldown: " .. tostring(skillId) .. ", cd: " .. curCd)
-        return false
-    end
-
-    -- 选择目标
-    local targets = target and {target} or BattleSkill.SelectTarget(hero, skill)
-    if not targets or #targets == 0 then
-        Logger.LogWarning("[BattleSkill.CastSkillInSeq] No valid targets for skill: " .. tostring(skillId))
-        return false
-    end
-
-    -- 先触发技能释放事件（在造成伤害之前）
-    BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
-    
-    -- 触发攻击前被动技能 (NormalAtkStart)
-    local BattlePassiveSkill = require("modules.battle_passive_skill")
-    BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, {target = targets[1]})
-    
-    -- 加载并执行技能Lua脚本
-    local executed = false
-    local totalDamage = 0
-    local specialOnly = BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
-    
-    -- 始终加载技能配置文件（skill_{ID}.lua），不管 luaFile 是否为空
-    -- luaFile 不为空时，表示有额外的自定义脚本（War/ActiveSkills/{LuaFile}.lua）
-    local skillLua = BattleSkill.LoadSkillLua(skillId)
-    if skillLua and not specialOnly then
-        -- 技能脚本层已收口到显式 BuildTimeline
-        local SkillTimeline = require("core.skill_timeline")
-        if skillLua.BuildTimeline then
-            local ok, timeline = pcall(skillLua.BuildTimeline, hero, targets, skill)
-            if ok and type(timeline) == "table" and #timeline > 0 then
-                local succeeded, result = SkillTimeline.Execute(hero, targets, skill, timeline)
-                if succeeded then
-                    executed = true
-                    totalDamage = totalDamage + (result.totalDamage or 0)
-                end
-            else
-                Logger.LogWarning(string.format("[BattleSkill.CastSkillInSeq] BuildTimeline failed or empty: %s", tostring(skillId)))
-            end
-        end
-    end
-
-    if specialOnly then
-        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
-        executed = true
-    elseif not executed then
-        -- 默认普攻也通过 Timeline 包裹，保持事件一致
-        Logger.Log("[BattleSkill.CastSkillInSeq] 执行默认普通攻击 (timeline)")
-        local SkillTimeline = require("core.skill_timeline")
-        local timeline = {
-            { frame = 0, op = "cast", effect = "cast_basic" },
-            {
-                frame = 10,
-                op = "attack",
-                execute = function()
-                    local dmg = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill) or 0
-                    return { damage = dmg }
-                end
-            }
+    local completed = nil
+    local started = BattleSkill.StartSkillCastInSeq(hero, target, skillId, function(succeeded, result)
+        completed = {
+            succeeded = succeeded,
+            result = result,
         }
-        local succeeded, result = SkillTimeline.Execute(hero, targets, skill, timeline)
-        if succeeded then
-            totalDamage = totalDamage + (result.totalDamage or 0)
-        end
-        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
-    else
-        totalDamage = totalDamage + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
+    end)
+    if not started then
+        return false
     end
 
-    -- 触发攻击后被动技能 (NormalAtkFinish)，传递伤害信息供吸血等技能使用
-    BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {damageDealt = totalDamage})
-
-    -- 设置冷却
-    BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
-    
-    -- 扣除能量（大招技能）
-    if skill.skillType == E_SKILL_TYPE_ULTIMATE and skill.skillCost and skill.skillCost > 0 then
-        hero.curEnergy = (hero.curEnergy or 0) - skill.skillCost
-        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗能量: %d, 剩余能量: %d", 
-            hero.name or "Unknown", skill.skillCost, hero.curEnergy))
+    local SkillTimeline = require("core.skill_timeline")
+    while SkillTimeline.IsRunning() do
+        SkillTimeline.Update()
     end
 
-    Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skillId) .. ", hero: " .. tostring(hero.name))
-    return true
+    return completed and completed.succeeded or false
 end
 
 --- 执行默认普通攻击（带被动技能触发）
