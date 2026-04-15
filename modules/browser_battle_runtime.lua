@@ -6,13 +6,15 @@ local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
+local BattleEnergyConfig = require("config.battle_energy_config")
 local ArrayUtils = require("utils.array_utils")
 local Logger = require("utils.logger")
 
 local Runtime = {}
 
 local LOGIC_STEP_MS = 80
-local DEFAULT_INITIAL_ENERGY = 80
+local DEFAULT_INITIAL_ENERGY = BattleEnergyConfig.defaultInitialEnergy or 40
+local DEFAULT_WP_TYPES = { 1, 2, 3, 4, 5, 6 }
 
 local function safeClock()
     local ok, result = pcall(function()
@@ -288,6 +290,20 @@ local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
 end
 
+local function assignDefaultWpType(unit, index)
+    if not unit then
+        return
+    end
+
+    local requestedWpType = tonumber(unit.wpType) or 0
+    if requestedWpType >= 1 and requestedWpType <= 6 then
+        unit.wpType = math.floor(requestedWpType)
+        return
+    end
+
+    unit.wpType = DEFAULT_WP_TYPES[index] or index
+end
+
 local function buildSeedArray()
     local base = math.floor(safeClock() * 1000000)
     if base <= 0 then
@@ -355,7 +371,7 @@ local function buildRuntimeTeamConfig(options)
     for index, heroId in ipairs(selectedHeroIds) do
         local heroData = HeroData.ConvertToHeroData(heroId, level, 5)
         if heroData then
-            heroData.wpType = index
+            assignDefaultWpType(heroData, index)
             table.insert(leftTeam, heroData)
         end
     end
@@ -364,7 +380,7 @@ local function buildRuntimeTeamConfig(options)
     for index, enemyId in ipairs(selectedEnemyIds) do
         local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
         if enemyData then
-            enemyData.wpType = index
+            assignDefaultWpType(enemyData, index)
             table.insert(rightTeam, enemyData)
         end
     end

@@ -2,6 +2,10 @@
   "entry": "web_entry.lua",
   "modules": [
     {
+      "path": "config/battle_energy_config.lua",
+      "moduleName": "config.battle_energy_config"
+    },
+    {
       "path": "config/buff/buff_820001.lua",
       "moduleName": "config.buff.buff_820001"
     },

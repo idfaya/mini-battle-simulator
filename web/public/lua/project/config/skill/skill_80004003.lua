@@ -33,10 +33,8 @@ function skill_80004003.BuildTimeline(hero, targets, skill)
     }
 end
 function skill_80004003.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleFormation = require("modules.battle_formation")
-    local allies = BattleFormation.GetFriendTeam(hero)
-    return (BattleSkill.ApplyBuffToTargets(hero, allies, skill) or 0) > 0
+    -- Effect is handled by BattleSkill.ProcessSpecialEffects to avoid double settlement.
+    return true
 end
 
 return skill_80004003

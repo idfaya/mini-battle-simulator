@@ -627,7 +627,7 @@ end
 ---@param instanceId number 施法者实例ID
 ---@param tokenId number 召唤物配置ID
 ---@param life number 存活回合数
----@param wpType number 位置类型 (1-8)
+---@param wpType number 位置类型 (1-6)
 ---@return number|nil 召唤物实例ID
 function BattleScriptExp.CreateToken(instanceId, tokenId, life, wpType)
     local hero = GetHeroByInstanceId(instanceId)

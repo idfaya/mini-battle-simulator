@@ -354,29 +354,12 @@ end
 ---@param hero table 攻击者
 ---@return table|nil 目标英雄
 function BattleLogic.SelectDefaultTarget(hero)
-    -- 根据英雄阵营选择敌方目标
-    local isLeftTeam = false
-    for _, h in ipairs(_teamLeft or {}) do
-        if h == hero or (h.id and hero.id and h.id == hero.id) then
-            isLeftTeam = true
-            break
-        end
-    end
-
-    -- 选择对方队伍的存活英雄
-    local enemyTeam = isLeftTeam and _teamRight or _teamLeft
-    if not enemyTeam then
+    local BattleFormation = require("modules.battle_formation")
+    local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
+    if not targetId then
         return nil
     end
-
-    -- 找到第一个存活的敌方英雄
-    for _, enemy in ipairs(enemyTeam) do
-        if BattleAttribute.IsAlive(enemy) then
-            return enemy
-        end
-    end
-
-    return nil
+    return BattleFormation.FindHeroByInstanceId(targetId)
 end
 
 -- ==================== 战斗结束检查 ====================

@@ -33,8 +33,7 @@ function skill_80006003.BuildTimeline(hero, targets, skill)
     }
 end
 function skill_80006003.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    BattleSkill.ProcessGroupHeal(hero, skill)
+    -- Effect is handled by BattleSkill.ProcessSpecialEffects to avoid double settlement.
     return true
 end
 

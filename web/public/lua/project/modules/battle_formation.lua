@@ -21,11 +21,90 @@ BattleFormation.positionMap = {}  -- key: "isLeft_wpType", value: instanceId
 -- 实例ID计数器
 BattleFormation.instanceIdCounter = 0
 
+local MAX_WP_TYPE = 6
+local FRONT_ROW = 1
+local BACK_ROW = 2
+local ROW_BY_WP_TYPE = {
+    [1] = FRONT_ROW, [2] = FRONT_ROW, [3] = FRONT_ROW,
+    [4] = BACK_ROW,  [5] = BACK_ROW,  [6] = BACK_ROW,
+}
+local COLUMN_BY_WP_TYPE = {
+    [1] = 1, [4] = 1,
+    [2] = 2, [5] = 2,
+    [3] = 3, [6] = 3,
+}
+local DEFAULT_EMPTY_WP_PRIORITY = { 5, 4, 6, 2, 1, 3 }
+
 --- 生成唯一实例ID
 ---@return number 实例ID
 local function GenerateInstanceId()
     BattleFormation.instanceIdCounter = BattleFormation.instanceIdCounter + 1
     return BattleFormation.instanceIdCounter
+end
+
+local function IsValidWpType(wpType)
+    return type(wpType) == "number" and wpType >= 1 and wpType <= MAX_WP_TYPE
+end
+
+local function BuildPositionKey(isLeft, wpType)
+    return tostring(isLeft) .. "_" .. (wpType or 0)
+end
+
+local function IsAliveUnit(unit)
+    return unit and unit.isAlive and not unit.isDead
+end
+
+local function IsPositionOccupied(isLeft, wpType)
+    if not IsValidWpType(wpType) then
+        return false
+    end
+
+    local instanceId = BattleFormation.positionMap[BuildPositionKey(isLeft, wpType)]
+    if not instanceId then
+        return false
+    end
+
+    return IsAliveUnit(BattleFormation.heroInstanceMap[instanceId])
+end
+
+local function GetFirstAvailableWpType(isLeft, preferredOrder)
+    local checked = {}
+    for _, wpType in ipairs(preferredOrder or DEFAULT_EMPTY_WP_PRIORITY) do
+        checked[wpType] = true
+        if IsValidWpType(wpType) and not IsPositionOccupied(isLeft, wpType) then
+            return wpType
+        end
+    end
+
+    for wpType = 1, MAX_WP_TYPE do
+        if not checked[wpType] and not IsPositionOccupied(isLeft, wpType) then
+            return wpType
+        end
+    end
+
+    return nil
+end
+
+local function ResolveInitWpType(heroData, defaultWpType, isLeft)
+    local requestedWpType = tonumber(heroData and heroData.wpType) or 0
+    if requestedWpType > 0 then
+        requestedWpType = math.floor(requestedWpType)
+        if not IsValidWpType(requestedWpType) then
+            Logger.LogWarning(string.format("BattleFormation.ResolveInitWpType - 非法站位 %s，自动补位",
+                tostring(heroData.wpType)))
+        elseif IsPositionOccupied(isLeft, requestedWpType) then
+            Logger.LogWarning(string.format("BattleFormation.ResolveInitWpType - 站位已占用 isLeft=%s wpType=%d，自动补位",
+                tostring(isLeft), requestedWpType))
+        else
+            return requestedWpType
+        end
+    end
+
+    if IsValidWpType(defaultWpType) and not IsPositionOccupied(isLeft, defaultWpType) then
+        return defaultWpType
+    end
+
+    return GetFirstAvailableWpType(isLeft)
 end
 
 --- 创建英雄数据结构
@@ -39,6 +118,7 @@ local function CreateHero(heroData, wpType, isLeft)
         instanceId = GenerateInstanceId(),
         configId = heroData.configId or heroData.heroId or 0,
         name = heroData.name or "Unknown",
+        class = heroData.class or heroData.Class or 0,
         wpType = wpType,
         camp = isLeft and E_CAMP_TYPE.A or E_CAMP_TYPE.B,
         isLeft = isLeft,
@@ -104,26 +184,38 @@ function BattleFormation.Init(beginState, fieldInfo)
     -- 初始化左侧队伍
     if beginState.teamLeft then
         Logger.Debug(string.format("BattleFormation.Init - 初始化左侧队伍，英雄数量: %d", #beginState.teamLeft))
-        for _, heroData in ipairs(beginState.teamLeft) do
-            local wpType = heroData.wpType or 0
+        for index, heroData in ipairs(beginState.teamLeft) do
+            local wpType = ResolveInitWpType(heroData, index, true)
+            if not wpType then
+                Logger.LogWarning(string.format("BattleFormation.Init - 左侧队伍没有可用站位，跳过英雄: %s",
+                    tostring(heroData and heroData.name or "Unknown")))
+                goto continue_left
+            end
             local hero = CreateHero(heroData, wpType, true)
             table.insert(BattleFormation.teamLeft, hero)
             BattleFormation.heroInstanceMap[hero.instanceId] = hero
-            BattleFormation.positionMap["true_" .. wpType] = hero.instanceId
+            BattleFormation.positionMap[BuildPositionKey(true, wpType)] = hero.instanceId
             Logger.Debug(string.format("  添加左侧英雄: %s (instanceId: %d, wpType: %d)", hero.name, hero.instanceId, wpType))
+            ::continue_left::
         end
     end
     
     -- 初始化右侧队伍
     if beginState.teamRight then
         Logger.Debug(string.format("BattleFormation.Init - 初始化右侧队伍，英雄数量: %d", #beginState.teamRight))
-        for _, heroData in ipairs(beginState.teamRight) do
-            local wpType = heroData.wpType or 0
+        for index, heroData in ipairs(beginState.teamRight) do
+            local wpType = ResolveInitWpType(heroData, index, false)
+            if not wpType then
+                Logger.LogWarning(string.format("BattleFormation.Init - 右侧队伍没有可用站位，跳过英雄: %s",
+                    tostring(heroData and heroData.name or "Unknown")))
+                goto continue_right
+            end
             local hero = CreateHero(heroData, wpType, false)
             table.insert(BattleFormation.teamRight, hero)
             BattleFormation.heroInstanceMap[hero.instanceId] = hero
-            BattleFormation.positionMap["false_" .. wpType] = hero.instanceId
+            BattleFormation.positionMap[BuildPositionKey(false, wpType)] = hero.instanceId
             Logger.Debug(string.format("  添加右侧英雄: %s (instanceId: %d, wpType: %d)", hero.name, hero.instanceId, wpType))
+            ::continue_right::
         end
     end
     
@@ -157,7 +249,7 @@ end
 ---@param wpType number 位置类型
 ---@return table|nil 英雄对象，未找到返回nil
 function BattleFormation.FindHeroByCampAndPos(isLeft, wpType)
-    local key = tostring(isLeft) .. "_" .. (wpType or 0)
+    local key = BuildPositionKey(isLeft, wpType)
     local instanceId = BattleFormation.positionMap[key]
     if instanceId then
         return BattleFormation.heroInstanceMap[instanceId]
@@ -193,6 +285,84 @@ function BattleFormation.GetEnemyTeam(hero)
     return hero.isLeft and BattleFormation.teamRight or BattleFormation.teamLeft
 end
 
+function BattleFormation.IsValidWpType(wpType)
+    return IsValidWpType(wpType)
+end
+
+function BattleFormation.GetMaxWpType()
+    return MAX_WP_TYPE
+end
+
+function BattleFormation.GetHeroRow(wpType)
+    return ROW_BY_WP_TYPE[wpType]
+end
+
+function BattleFormation.GetHeroColumn(wpType)
+    return COLUMN_BY_WP_TYPE[wpType]
+end
+
+function BattleFormation.IsFrontRow(wpType)
+    return ROW_BY_WP_TYPE[wpType] == FRONT_ROW
+end
+
+function BattleFormation.IsBackRow(wpType)
+    return ROW_BY_WP_TYPE[wpType] == BACK_ROW
+end
+
+function BattleFormation.GetFirstAvailableWpType(isLeft, preferredOrder)
+    return GetFirstAvailableWpType(isLeft, preferredOrder)
+end
+
+function BattleFormation.GetAliveHeroesByRow(isLeft, row)
+    local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    local result = {}
+
+    for _, hero in ipairs(team) do
+        if IsAliveUnit(hero) and ROW_BY_WP_TYPE[hero.wpType] == row then
+            table.insert(result, hero)
+        end
+    end
+
+    return result
+end
+
+function BattleFormation.GetAliveHeroesByColumn(isLeft, column)
+    local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    local result = {}
+
+    for _, hero in ipairs(team) do
+        if IsAliveUnit(hero) and COLUMN_BY_WP_TYPE[hero.wpType] == column then
+            table.insert(result, hero)
+        end
+    end
+
+    return result
+end
+
+function BattleFormation.GetSelectableEnemyHeroes(hero, ignoreFrontProtection)
+    local enemyTeam = BattleFormation.GetEnemyTeam(hero)
+    if not enemyTeam or #enemyTeam == 0 then
+        return {}
+    end
+
+    local aliveEnemies = {}
+    local aliveFrontEnemies = {}
+    for _, enemy in ipairs(enemyTeam) do
+        if IsAliveUnit(enemy) then
+            table.insert(aliveEnemies, enemy)
+            if BattleFormation.IsFrontRow(enemy.wpType) then
+                table.insert(aliveFrontEnemies, enemy)
+            end
+        end
+    end
+
+    if ignoreFrontProtection or #aliveFrontEnemies == 0 then
+        return aliveEnemies
+    end
+
+    return aliveFrontEnemies
+end
+
 --- 获取随机敌人的实例ID
 ---@param hero table 英雄对象
 ---@return number|nil 随机敌人的实例ID，无敌人返回nil
@@ -212,14 +382,7 @@ function BattleFormation.GetRandomEnemyInstanceId(hero)
         end
     end
     
-    -- 只选择存活的敌人
-    local aliveEnemies = {}
-    for _, enemy in ipairs(enemyTeam) do
-        if enemy.isAlive and not enemy.isDead then
-            table.insert(aliveEnemies, enemy)
-        end
-    end
-    
+    local aliveEnemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
     if #aliveEnemies == 0 then
         return nil
     end
@@ -241,7 +404,7 @@ function BattleFormation.GetRandomFriendInstanceId(hero, includeSelf)
     -- 只选择存活的友军
     local aliveFriends = {}
     for _, friend in ipairs(friendTeam) do
-        if friend.isAlive and not friend.isDead then
+        if IsAliveUnit(friend) then
             if includeSelf or friend.instanceId ~= hero.instanceId then
                 table.insert(aliveFriends, friend)
             end
@@ -261,7 +424,7 @@ end
 ---@param wpType number 位置类型
 ---@return number|nil 实例ID，未找到返回nil
 function BattleFormation.GetInstanceIdByWpType(isLeft, wpType)
-    local key = tostring(isLeft) .. "_" .. (wpType or 0)
+    local key = BuildPositionKey(isLeft, wpType)
     return BattleFormation.positionMap[key]
 end
 
@@ -274,7 +437,7 @@ function BattleFormation.RemoveHero(hero)
     end
     
     local team = hero.isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
-    local key = tostring(hero.isLeft) .. "_" .. hero.wpType
+    local key = BuildPositionKey(hero.isLeft, hero.wpType)
     
     -- 从队伍数组中移除
     for i, h in ipairs(team) do
@@ -307,15 +470,26 @@ function BattleFormation.ReviveHero(wpType, heroData, isLeft)
     
     isLeft = isLeft ~= false  -- 默认为true
     
-    -- 检查位置是否已被占用
-    local existingInstanceId = BattleFormation.GetInstanceIdByWpType(isLeft, wpType)
-    if existingInstanceId then
-        local existingHero = BattleFormation.FindHeroByInstanceId(existingInstanceId)
-        if existingHero and existingHero.isAlive then
-            Logger.LogWarning(string.format("ReviveHero - 位置已被存活英雄占用: isLeft=%s, wpType=%d", 
+    local requestedWpType = tonumber(wpType)
+    local hasExplicitWpType = requestedWpType ~= nil and requestedWpType > 0
+    wpType = hasExplicitWpType and math.floor(requestedWpType) or nil
+    if hasExplicitWpType then
+        if not IsValidWpType(wpType) then
+            Logger.LogWarning(string.format("ReviveHero - 非法站位: isLeft=%s, wpType=%s",
+                tostring(isLeft), tostring(requestedWpType)))
+            return nil
+        end
+        if IsPositionOccupied(isLeft, wpType) then
+            Logger.LogWarning(string.format("ReviveHero - 位置已被占用: isLeft=%s, wpType=%d",
                 tostring(isLeft), wpType))
             return nil
         end
+    else
+        wpType = GetFirstAvailableWpType(isLeft)
+    end
+    if not wpType then
+        Logger.LogWarning(string.format("ReviveHero - 没有可用站位: isLeft=%s", tostring(isLeft)))
+        return nil
     end
     
     -- 创建新英雄
@@ -332,7 +506,7 @@ function BattleFormation.ReviveHero(wpType, heroData, isLeft)
     
     -- 更新映射表
     BattleFormation.heroInstanceMap[hero.instanceId] = hero
-    local key = tostring(isLeft) .. "_" .. wpType
+    local key = BuildPositionKey(isLeft, wpType)
     BattleFormation.positionMap[key] = hero.instanceId
     
     Logger.Debug(string.format("ReviveHero - 复活英雄: %s (instanceId: %d, isLeft: %s, wpType: %d)", 
@@ -440,7 +614,7 @@ function BattleFormation.GetFriendDiedCount(hero)
 end
 
 --- 获取敌方行数
---- 行定义: 1-3行为前排, 4-5行为中排, 6-8行为后排
+--- 行定义: 1-3 为前排, 4-6 为后排
 ---@param hero table 英雄对象
 ---@return number 敌方存活的行数
 function BattleFormation.GetEnemyRowCount(hero)
@@ -450,18 +624,11 @@ function BattleFormation.GetEnemyRowCount(hero)
     
     local enemyTeam = hero.isLeft and BattleFormation.teamRight or BattleFormation.teamLeft
     
-    -- 行定义 (wpType -> row)
-    local wpTypeToRow = {
-        [1] = 1, [2] = 1, [3] = 1,  -- 第一行
-        [4] = 2, [5] = 2,           -- 第二行
-        [6] = 3, [7] = 3, [8] = 3,  -- 第三行
-    }
-    
     local aliveRows = {}
     
     for _, h in ipairs(enemyTeam) do
-        if h.isAlive and not h.isDead then
-            local row = wpTypeToRow[h.wpType] or 1
+        if IsAliveUnit(h) then
+            local row = ROW_BY_WP_TYPE[h.wpType] or FRONT_ROW
             aliveRows[row] = true
         end
     end
@@ -477,29 +644,10 @@ end
 
 --- 获取指定行的存活单位数量
 ---@param isLeft boolean 是否左侧队伍
----@param row number 行号 (1-3)
+---@param row number 行号 (1-2)
 ---@return number 存活单位数量
 function BattleFormation.GetRowLeftUnitNum(isLeft, row)
-    local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
-    
-    -- 行定义 (wpType -> row)
-    local wpTypeToRow = {
-        [1] = 1, [2] = 1, [3] = 1,  -- 第一行
-        [4] = 2, [5] = 2,           -- 第二行
-        [6] = 3, [7] = 3, [8] = 3,  -- 第三行
-    }
-    
-    local count = 0
-    for _, hero in ipairs(team) do
-        if hero.isAlive and not hero.isDead then
-            local heroRow = wpTypeToRow[hero.wpType] or 1
-            if heroRow == row then
-                count = count + 1
-            end
-        end
-    end
-    
-    return count
+    return #BattleFormation.GetAliveHeroesByRow(isLeft, row)
 end
 
 -- ==================== 召唤物系统 ====================
@@ -521,7 +669,7 @@ end
 ---@param owner table 召唤者英雄
 ---@param tokenId number 召唤物配置ID
 ---@param life number 存活回合数
----@param wpType number 位置类型 (1-8)
+---@param wpType number 位置类型 (1-6)
 ---@return table|nil 召唤物对象
 function BattleFormation.CreateToken(owner, tokenId, life, wpType)
     if not owner then
@@ -534,11 +682,26 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         return nil
     end
     
-    -- 检查位置是否已被占用
-    local existingHero = BattleFormation.FindHeroByCampAndPos(owner.isLeft, wpType)
-    if existingHero and existingHero.isAlive then
-        Logger.LogWarning(string.format("[BattleFormation.CreateToken] Position occupied: isLeft=%s, wpType=%d",
-            tostring(owner.isLeft), wpType))
+    local requestedWpType = tonumber(wpType)
+    local hasExplicitWpType = requestedWpType ~= nil and requestedWpType > 0
+    wpType = hasExplicitWpType and math.floor(requestedWpType) or nil
+    if hasExplicitWpType then
+        if not IsValidWpType(wpType) then
+            Logger.LogWarning(string.format("[BattleFormation.CreateToken] Invalid position: isLeft=%s, wpType=%s",
+                tostring(owner.isLeft), tostring(requestedWpType)))
+            return nil
+        end
+        if IsPositionOccupied(owner.isLeft, wpType) then
+            Logger.LogWarning(string.format("[BattleFormation.CreateToken] Position occupied: isLeft=%s, wpType=%d",
+                tostring(owner.isLeft), wpType))
+            return nil
+        end
+    else
+        wpType = GetFirstAvailableWpType(owner.isLeft)
+    end
+    if not wpType then
+        Logger.LogWarning(string.format("[BattleFormation.CreateToken] No available position: isLeft=%s",
+            tostring(owner.isLeft)))
         return nil
     end
     
@@ -607,7 +770,7 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
     
     -- 更新映射表
     BattleFormation.heroInstanceMap[token.instanceId] = token
-    local key = tostring(owner.isLeft) .. "_" .. wpType
+    local key = BuildPositionKey(owner.isLeft, wpType)
     BattleFormation.positionMap[key] = token.instanceId
     
     -- 记录到主人的召唤物列表
@@ -655,7 +818,7 @@ function BattleFormation.DestroyToken(token, hideImmediately)
     
     -- 从映射表中移除
     BattleFormation.heroInstanceMap[token.instanceId] = nil
-    local key = tostring(token.isLeft) .. "_" .. token.wpType
+    local key = BuildPositionKey(token.isLeft, token.wpType)
     BattleFormation.positionMap[key] = nil
     
     -- 标记为销毁

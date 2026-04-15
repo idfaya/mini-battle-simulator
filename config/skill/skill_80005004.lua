@@ -33,8 +33,7 @@ function skill_80005004.BuildTimeline(hero, targets, skill)
     }
 end
 function skill_80005004.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    BattleSkill.ProcessPoisonBurst(hero, skill)
+    -- Effect is handled by BattleSkill.ProcessSpecialEffects to avoid double settlement.
     return true
 end
 

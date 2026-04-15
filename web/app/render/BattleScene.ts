@@ -18,8 +18,8 @@ export class BattleScene {
       return;
     }
 
-    const leftLayouts = this.layoutTeam(state.snapshot.leftTeam, 80, 120, "left");
-    const rightLayouts = this.layoutTeam(state.snapshot.rightTeam, width - 320, 120, "right");
+    const leftLayouts = this.layoutTeam(state.snapshot.leftTeam, width, "left");
+    const rightLayouts = this.layoutTeam(state.snapshot.rightTeam, width, "right");
     const allLayouts = [...leftLayouts, ...rightLayouts];
 
     this.consumeAnimations(state.animations, allLayouts, now);
@@ -41,14 +41,65 @@ export class BattleScene {
     ctx.fillRect(0, 0, width, height);
   }
 
-  private layoutTeam(team: UnitState[], startX: number, startY: number, side: "left" | "right"): UnitLayout[] {
-    return team.map((unit, index) => ({
-      x: startX + (side === "left" ? 0 : 40),
-      y: startY + index * 140,
-      width: 240,
-      height: 110,
-      unit,
-    }));
+  private layoutTeam(team: UnitState[], width: number, side: "left" | "right"): UnitLayout[] {
+    const desiredCardWidth = 240;
+    const cardHeight = 110;
+    const laneYs = [120, 260, 400];
+    const margin = 20;
+    const desiredDepthGap = 40; // gap between back row card and front row card
+    const desiredCenterGap = 40; // gap between left-front and right-front columns
+
+    // Layout is 4 columns: leftBack, leftFront, rightFront, rightBack.
+    // When screen is narrow, scale card width and gaps down to avoid overlap.
+    const minCardWidth = 160;
+    const minDepthGap = 16;
+    const minCenterGap = 20;
+
+    const available = Math.max(0, width - margin * 2);
+    const desiredTotal =
+      4 * desiredCardWidth + 2 * desiredDepthGap + desiredCenterGap + 0; // margins are excluded already
+    const scale = desiredTotal > 0 ? Math.min(1, available / desiredTotal) : 1;
+
+    const cardWidth = Math.max(minCardWidth, Math.floor(desiredCardWidth * scale));
+    const depthGap = Math.max(minDepthGap, Math.floor(desiredDepthGap * scale));
+    const centerGap = Math.max(minCenterGap, Math.floor(desiredCenterGap * scale));
+
+    // Compute the 4 columns deterministically, symmetric from both sides.
+    const leftBackX = margin;
+    const leftFrontX = leftBackX + cardWidth + depthGap;
+    const rightFrontX = Math.max(leftFrontX + cardWidth + centerGap, width - margin - (2 * cardWidth + depthGap));
+    const rightBackX = rightFrontX + cardWidth + depthGap;
+
+    // If screen is extremely narrow, rightBackX might exceed canvas; push the right side left as a group.
+    const overflow = Math.max(0, rightBackX + cardWidth + margin - width);
+    const adjustedRightFrontX = rightFrontX - overflow;
+    const adjustedRightBackX = rightBackX - overflow;
+
+    const fallbackLayout = (index: number) => ({
+      x: side === "left" ? leftBackX : adjustedRightBackX,
+      y: laneYs[Math.min(index, laneYs.length - 1)],
+    });
+
+    return team.map((unit, index) => {
+      const position = Number.isFinite(unit.position) ? Math.floor(unit.position) : 0;
+      const laneIndex = position >= 1 && position <= 6 ? (position - 1) % 3 : Math.min(index, laneYs.length - 1);
+      const isFrontRow = position >= 1 && position <= 3;
+      const isBackRow = position >= 4 && position <= 6;
+      let x = fallbackLayout(index).x;
+      if (isFrontRow) {
+        x = side === "left" ? leftFrontX : adjustedRightFrontX;
+      } else if (isBackRow) {
+        x = side === "left" ? leftBackX : adjustedRightBackX;
+      }
+
+      return {
+        x,
+        y: laneYs[laneIndex],
+        width: cardWidth,
+        height: cardHeight,
+        unit,
+      };
+    });
   }
 
   private drawUnitCard(ctx: CanvasRenderingContext2D, layout: UnitLayout, isActive: boolean) {

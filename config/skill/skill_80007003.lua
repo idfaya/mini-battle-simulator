@@ -36,7 +36,7 @@ function skill_80007003.Execute(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local totalDamage = 0
-    for _, target in ipairs(BattleSkill.SelectRandomAliveEnemies(hero, 3)) do
+    for _, target in ipairs(targets or {}) do
         local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
         BattleDmgHeal.ApplyDamage(target, damage, hero)
         BattleSkill.ApplyBurn(target, 2, 2, hero)
@@ -46,4 +46,3 @@ function skill_80007003.Execute(hero, targets, skill)
 end
 
 return skill_80007003
-

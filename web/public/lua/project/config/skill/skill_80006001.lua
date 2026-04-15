@@ -33,13 +33,8 @@ function skill_80006001.BuildTimeline(hero, targets, skill)
     }
 end
 function skill_80006001.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local ally = BattleSkill.SelectLowestHpAlly(hero)
-    if ally then
-        BattleSkill.ProcessHolyLightEffect(hero, ally, skill)
-        return true
-    end
-    return false
+    -- Effect is handled by BattleSkill.ProcessSpecialEffects to avoid double settlement.
+    return true
 end
 
 return skill_80006001

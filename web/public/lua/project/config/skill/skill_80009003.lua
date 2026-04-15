@@ -3,17 +3,17 @@ skill_80009003 = {}
 function skill_80009003.BuildTimeline(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local chainTargets = BattleSkill.GetChainTargets(hero, targets and targets[1] or nil, 4)
     local timeline = {}
     local frame = 8
 
-    for hitIndex = 1, 4 do
+    for hitIndex, chainTarget in ipairs(chainTargets) do
         table.insert(timeline, {
             frame = frame,
             op = "chain_damage",
             effect = "chain_lightning_arc",
             execute = function(ctx, frameData)
-                local picked = BattleSkill.SelectRandomAliveEnemies(hero, 1)
-                local target = picked and picked[1] or nil
+                local target = chainTarget
                 if not target or target.isDead then
                     return { damage = 0 }
                 end

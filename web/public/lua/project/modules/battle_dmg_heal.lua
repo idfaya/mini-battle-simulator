@@ -184,7 +184,13 @@ function BattleDmgHeal.MakeDmg(attacker, defender, atkType, dmgParam, isShowDmg,
 
     -- 应用伤害到防御者
     if result.damage > 0 then
-        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker)
+        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker, {
+            isCrit = result.isCrit,
+            isBlocked = result.isBlock,
+            isDodged = result.isDodged,
+            damageType = atkType or E_ATTACK_TYPE.Physical,
+            damageKind = "direct",
+        })
 
         -- 更新统计
         damageStats.totalDamageDealt = damageStats.totalDamageDealt + result.damage
@@ -254,7 +260,13 @@ function BattleDmgHeal.MakeDmgPlus(attacker, defender, atkType, dmgParam)
 
     -- 应用伤害
     if result.damage > 0 then
-        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker)
+        BattleDmgHeal.ApplyDamage(defender, result.damage, attacker, {
+            isCrit = result.isCrit,
+            isBlocked = result.isBlock,
+            isDodged = result.isDodged,
+            damageType = atkType or E_ATTACK_TYPE.Physical,
+            damageKind = dmgParam.damageKind or "direct",
+        })
 
         -- 更新统计
         damageStats.totalDamageDealt = damageStats.totalDamageDealt + result.damage
@@ -464,13 +476,16 @@ end
 ---@param target table 目标
 ---@param damage number 伤害值
 ---@param attacker table 攻击者（可选）
-function BattleDmgHeal.ApplyDamage(target, damage, attacker)
+---@param params table|nil 额外参数
+function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     if not target or damage <= 0 then
         return
     end
 
+    params = params or {}
     local curHp = BattleAttribute.GetHeroCurHp(target)
     local newHp = math.max(0, curHp - damage)
+    local actualDamage = math.max(0, curHp - newHp)
 
     -- region debug-point enemy-no-damage-apply
     Logger.Log(string.format("[DBG enemy-no-damage apply] attacker=%s attackerLeft=%s target=%s targetLeft=%s damage=%d hp=%d->%d",
@@ -487,6 +502,21 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker)
     if attacker and attacker.__scriptDamageAccumulator ~= nil then
         attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + damage
     end
+    if attacker and attacker.__energyCastStats and actualDamage > 0 then
+        attacker.__energyCastStats.successfulHits = (attacker.__energyCastStats.successfulHits or 0) + 1
+        if params.isCrit then
+            attacker.__energyCastStats.didCrit = true
+        end
+        if target.isDead or target.hp <= 0 then
+            attacker.__energyCastStats.killCount = (attacker.__energyCastStats.killCount or 0) + 1
+        end
+    end
+
+    local BattleEnergy = require("modules.battle_energy")
+    BattleEnergy.OnHeroDamaged(target, actualDamage, attacker, params)
+    if params.isBlocked then
+        BattleEnergy.OnBlock(target)
+    end
     
     -- 触发旧版伤害事件（用于 BattleDisplay 战斗日志）
     BattleEvent.Publish("Damage", target, damage, false)
@@ -495,7 +525,12 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker)
     local BattleVisualEvents = require("ui.battle_visual_events")
     BattleEvent.Publish(BattleVisualEvents.DAMAGE_DEALT, BattleVisualEvents.BuildDamageDealt(
         attacker, target, damage, {
-            damageType = 1, -- 物理伤害
+            damageType = params.damageType or 1,
+            isCrit = params.isCrit or false,
+            isDodged = params.isDodged or false,
+            isBlocked = params.isBlocked or false,
+            skillId = params.skillId,
+            skillName = params.skillName,
         }))
     
     -- 触发目标状态变化事件

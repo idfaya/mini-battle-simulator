@@ -8,9 +8,9 @@ local isLoaded = false
 local skillConfigInited = false
 
 local CLASS_NAMES = {
-    [1] = "Front",
-    [2] = "Mid",
-    [3] = "Back",
+    [1] = "流派1",
+    [2] = "流派2",
+    [3] = "流派3",
 }
 
 local MONSTER_TYPE_NAMES = {

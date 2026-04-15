@@ -12,9 +12,9 @@ local playableHeroes = {}
 local initialized = false
 
 local CLASS_NAMES = {
-    [1] = "Front",
-    [2] = "Mid",
-    [3] = "Back",
+    [1] = "流派1",
+    [2] = "流派2",
+    [3] = "流派3",
 }
 
 local QUALITY_NAMES = {
@@ -412,7 +412,7 @@ function HeroData.PrintHeroList()
 
     for _, hero in ipairs(heroes) do
         local heroData = HeroData.ConvertToHeroData(hero.AllyID, 1, 1)
-        print(string.format("ID: %d | Name: %s | Class: %s | Quality: %s",
+        print(string.format("ID: %d | Name: %s | Style: %s | Quality: %s",
             hero.AllyID,
             heroData.name,
             HeroData.GetClassName(hero.Class),

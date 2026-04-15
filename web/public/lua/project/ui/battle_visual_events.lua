@@ -105,7 +105,7 @@ function BattleVisualEvents.BuildHeroStateChanged(hero)
         maxEnergy = hero.maxEnergy or 100,
         energyType = hero.energyType,
         isAlive = hero.isAlive and not hero.isDead,
-        position = hero.position,
+        position = hero.wpType or hero.position,
     }
 end
 

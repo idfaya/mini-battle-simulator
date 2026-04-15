@@ -25,6 +25,17 @@ BattleSkill.skillLuaCache = {}
 -- 技能实例计数器（用于生成唯一技能实例ID）
 BattleSkill.skillInstanceIdCounter = 0
 
+local InferTargetsSelections
+
+local SPECIAL_EFFECT_TAGS = {
+    [80004003] = "battle_intent_buff",
+    [80004004] = "battle_intent_buff",
+    [80005004] = "poison_burst",
+    [80006001] = "holy_light",
+    [80006003] = "group_heal",
+    [80006004] = "full_heal_cleanse",
+}
+
 -- 是否已初始化
 local isInitialized = false
 
@@ -43,6 +54,15 @@ end
 local function GenerateSkillInstanceId()
     BattleSkill.skillInstanceIdCounter = BattleSkill.skillInstanceIdCounter + 1
     return BattleSkill.skillInstanceIdCounter
+end
+
+local function InferSpecialEffectTag(skillId, skillCfg, mergedConfig)
+    if mergedConfig and mergedConfig.specialEffectTag then
+        return mergedConfig.specialEffectTag
+    end
+    return SPECIAL_EFFECT_TAGS[skillId]
+        or (skillCfg and skillCfg.SpecialEffectTag)
+        or nil
 end
 
 --- 初始化英雄技能
@@ -245,6 +265,10 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
             }
         end
     end
+
+    skill.targetsSelections = InferTargetsSelections(skill.skillConfig, mergedConfig, finalSkillType)
+    skill.castTarget = skill.targetsSelections.castTarget or skill.castTarget
+    skill.specialEffectTag = InferSpecialEffectTag(skillId, skill.skillConfig, mergedConfig)
     
     Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d: skillConfig=%s",
         skillId, tostring(skill.skillConfig)))
@@ -349,6 +373,22 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
     local BattleEnergy = require("modules.battle_energy")
 
     BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, { damageDealt = totalDamage or 0 })
+
+    local energyStats = hero and hero.__energyCastStats or nil
+    if energyStats and (
+        (energyStats.successfulHits or 0) > 0
+        or (energyStats.killCount or 0) > 0
+        or energyStats.didCrit
+    ) then
+        BattleEnergy.OnSkillHit(hero, skill, energyStats)
+    elseif (totalDamage or 0) > 0 then
+        BattleEnergy.OnSkillHit(hero, skill, { successfulHits = 1 })
+    end
+
+    if hero then
+        hero.__energyCastStats = nil
+    end
+
     BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
 
     if skill.skillType == E_SKILL_TYPE_ULTIMATE and skill.skillCost and skill.skillCost > 0 then
@@ -394,6 +434,12 @@ local function PrepareSkillCast(hero, target, skillId)
         Logger.LogWarning("[BattleSkill.CastSkillInSeq] No valid targets for skill: " .. tostring(skillId))
         return nil
     end
+
+    hero.__energyCastStats = {
+        successfulHits = 0,
+        killCount = 0,
+        didCrit = false,
+    }
 
     return skill, targets
 end
@@ -536,6 +582,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     local healRate = isHealSkill and skill.healData.healRate * 100 or 0
 
     local totalDamage = 0
+    local energyStats = hero.__energyCastStats
 
     -- 对每个目标执行效果
     for _, target in ipairs(targets) do
@@ -547,6 +594,9 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 -- 使用 ApplyHeal 应用治疗（会触发事件）
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
                 BattleDmgHeal.ApplyHeal(target, healAmount, hero)
+                if healAmount > 0 and energyStats then
+                    energyStats.successfulHits = (energyStats.successfulHits or 0) + 1
+                end
                 
                 Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 治疗 %d 点生命",
                     hero.name or "Unknown",
@@ -554,7 +604,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     healAmount))
             else
                 -- 计算伤害
-                local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
+                local damage, damageResult = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
                 local damageContext = {
                     attacker = hero,
                     target = target,
@@ -567,7 +617,13 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 
                 -- 使用 ApplyDamage 应用伤害（会触发事件）
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
-                BattleDmgHeal.ApplyDamage(target, damage, hero)
+                BattleDmgHeal.ApplyDamage(target, damage, hero, {
+                    isCrit = damageResult and damageResult.isCrit or false,
+                    isBlocked = damageResult and damageResult.isBlock or false,
+                    skillId = skill and skill.skillId or nil,
+                    skillName = skill and skill.name or nil,
+                    damageKind = "direct",
+                })
 
                 Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
                     hero.name or "Unknown",
@@ -678,7 +734,7 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
         Logger.Log(string.format("[CalculateDamage] 格挡! 伤害: %d", damageResult.damage))
     end
     
-    return damageResult.damage
+    return damageResult.damage, damageResult
 end
 
 --- 使用指定倍率计算伤害
@@ -968,6 +1024,225 @@ end
 ---@param hero table 攻击者
 ---@param skill table 技能对象
 ---@return table 目标列表
+local function ShuffleTargets(targets)
+    local shuffled = {}
+    for index, target in ipairs(targets or {}) do
+        shuffled[index] = target
+    end
+    for i = #shuffled, 2, -1 do
+        local j = math.random(1, i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+    return shuffled
+end
+
+local function DeepCopyTable(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local result = {}
+    for key, item in pairs(value) do
+        result[key] = DeepCopyTable(item)
+    end
+    return result
+end
+
+local function CollectAliveTargets(units, includeSelf, selfInstanceId)
+    local targets = {}
+    for _, unit in ipairs(units or {}) do
+        if unit and unit.isAlive and not unit.isDead then
+            if includeSelf or unit.instanceId ~= selfInstanceId then
+                table.insert(targets, unit)
+            end
+        end
+    end
+    return targets
+end
+
+local function ReadTargetCount(targetsSelections)
+    local tSConditions = targetsSelections and targetsSelections.tSConditions or nil
+    local value = targetsSelections and (targetsSelections.count or targetsSelections.targetCount)
+    if value == nil and tSConditions then
+        value = tSConditions.Num or tSConditions.count or tSConditions.value
+    end
+    value = tonumber(value) or 1
+    return math.max(1, math.floor(value))
+end
+
+local function ReadMeasureType(targetsSelections)
+    local tSConditions = targetsSelections and targetsSelections.tSConditions or nil
+    return (targetsSelections and targetsSelections.measureType)
+        or (tSConditions and tSConditions.measureType)
+        or E_MEASURE_TYPE.NA
+end
+
+local function ReadWpTypeFilter(targetsSelections)
+    local tSConditions = targetsSelections and targetsSelections.tSConditions or nil
+    local filter = tSConditions and tSConditions.tSFilter or nil
+    local wpType = (targetsSelections and (targetsSelections.wpType or targetsSelections.targetWpType))
+        or (filter and filter.wpType)
+    wpType = tonumber(wpType)
+    if wpType and wpType >= 1 and wpType <= 6 then
+        return math.floor(wpType)
+    end
+    return nil
+end
+
+local function ReadTargetRow(targetsSelections, battleFormation)
+    local explicitRow = tonumber(targetsSelections and (targetsSelections.row or targetsSelections.targetRow))
+    if explicitRow then
+        explicitRow = math.floor(explicitRow)
+        if explicitRow >= 1 and explicitRow <= 2 then
+            return explicitRow
+        end
+    end
+
+    local wpType = ReadWpTypeFilter(targetsSelections)
+    if wpType and battleFormation and battleFormation.GetHeroRow then
+        return battleFormation.GetHeroRow(wpType)
+    end
+
+    return nil
+end
+
+local function ShouldIgnoreFrontProtection(targetsSelections)
+    if not targetsSelections then
+        return false
+    end
+    return targetsSelections.ignoreFrontProtection == true
+        or targetsSelections.ignoreFrontRow == true
+        or targetsSelections.breakFrontProtection == true
+end
+
+local function ShouldPreferLowestHp(targetsSelections)
+    if not targetsSelections then
+        return false
+    end
+    return targetsSelections.preferLowestHp == true
+        or targetsSelections.lowestHpFirst == true
+        or targetsSelections.pickLowestHp == true
+end
+
+local function ShouldPreferAllyIfInjured(targetsSelections)
+    if not targetsSelections then
+        return false
+    end
+    return targetsSelections.preferAllyIfInjured == true
+        or targetsSelections.dualHolyLight == true
+end
+
+local function SortTargetsByLowestHp(targets)
+    local sorted = {}
+    for index, target in ipairs(targets or {}) do
+        sorted[index] = target
+    end
+    table.sort(sorted, function(a, b)
+        local aRatio = (a and a.hp and a.maxHp and a.maxHp > 0) and (a.hp / a.maxHp) or 1
+        local bRatio = (b and b.hp and b.maxHp and b.maxHp > 0) and (b.hp / b.maxHp) or 1
+        if aRatio == bRatio then
+            return (a.hp or 0) < (b.hp or 0)
+        end
+        return aRatio < bRatio
+    end)
+    return sorted
+end
+
+local function PickTopTargets(targets, count)
+    local result = {}
+    for i = 1, math.min(count or #targets, #targets) do
+        table.insert(result, targets[i])
+    end
+    return result
+end
+
+local function BuildTargetSelection(overrides)
+    local selection = DeepCopyTable(TargetsSelections_Default or {})
+    selection.tSConditions = DeepCopyTable(selection.tSConditions or {})
+    for key, value in pairs(overrides or {}) do
+        selection[key] = value
+    end
+    return selection
+end
+
+InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
+    if mergedConfig and mergedConfig.targetsSelections then
+        return mergedConfig.targetsSelections
+    end
+
+    local name = (skillCfg and skillCfg.Name) or (mergedConfig and mergedConfig.name) or ""
+    local skillParam = (skillCfg and skillCfg.SkillParam) or {}
+
+    if name == "斩杀" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            preferLowestHp = true,
+        })
+    end
+    if name == "双连斩" or name == "毒雾" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            measureType = E_MEASURE_TYPE.Muti,
+            count = skillParam[2] or 2,
+        })
+    end
+    if name == "收割" or name == "陨石术" or name == "暴风雪" or name == "雷暴术" or name == "毒性爆发" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            measureType = E_MEASURE_TYPE.AOE,
+            ignoreFrontProtection = true,
+        })
+    end
+    if name == "群疗" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Alias,
+            measureType = E_MEASURE_TYPE.Muti,
+            count = skillParam[2] or 3,
+            includeSelf = true,
+            preferLowestHp = true,
+        })
+    end
+    if name == "圣光" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            preferAllyIfInjured = true,
+            includeSelf = true,
+        })
+    end
+    if name == "全军突击" or name == "战神降临" or name == "圣光普照" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Alias,
+            measureType = E_MEASURE_TYPE.AOE,
+            includeSelf = true,
+        })
+    end
+
+    if finalSkillType == E_SKILL_TYPE_ULTIMATE then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            measureType = E_MEASURE_TYPE.AOE,
+            ignoreFrontProtection = true,
+        })
+    end
+
+    return BuildTargetSelection({
+        castTarget = E_CAST_TARGET.Enemy,
+    })
+end
+
+local function SelectTargetByWpType(isLeft, targetsSelections)
+    local BattleFormation = require("modules.battle_formation")
+    local wpType = ReadWpTypeFilter(targetsSelections)
+    if not wpType then
+        return {}
+    end
+
+    local target = BattleFormation.FindHeroByCampAndPos(isLeft, wpType)
+    if target and target.isAlive and not target.isDead then
+        return { target }
+    end
+    return {}
+end
+
 function BattleSkill.SelectTarget(hero, skill)
     if not hero or not skill then
         return {}
@@ -983,6 +1258,13 @@ function BattleSkill.SelectTarget(hero, skill)
 
     local castTarget = targetsSelections.castTarget or E_CAST_TARGET.Enemy
 
+    if ShouldPreferAllyIfInjured(targetsSelections) then
+        local ally = BattleSkill.SelectLowestHpAlly(hero)
+        if ally then
+            return { ally }
+        end
+    end
+
     -- 根据目标类型选择目标
     if castTarget == E_CAST_TARGET.Self then
         -- 选择自己
@@ -993,12 +1275,18 @@ function BattleSkill.SelectTarget(hero, skill)
         targets = BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
 
     elseif castTarget == E_CAST_TARGET.Alias then
-        -- 选择友方（不含自己）
-        targets = BattleSkill.SelectAllyTargets(hero, skill, targetsSelections, false)
+        -- 选择友方（默认包含自己）
+        targets = BattleSkill.SelectAllyTargets(hero, skill, targetsSelections, targetsSelections.includeSelf ~= false)
 
     elseif castTarget == E_CAST_TARGET.AlliesExcludeSelf then
         -- 选择友方（不含自己）
         targets = BattleSkill.SelectAllyTargets(hero, skill, targetsSelections, false)
+
+    elseif castTarget == E_CAST_TARGET.AliasPos then
+        targets = SelectTargetByWpType(hero.isLeft, targetsSelections)
+
+    elseif castTarget == E_CAST_TARGET.EnemyPos then
+        targets = SelectTargetByWpType(not hero.isLeft, targetsSelections)
 
     elseif castTarget == E_CAST_TARGET.EveryOne then
         -- 选择所有人
@@ -1028,16 +1316,138 @@ function BattleSkill.SelectTarget(hero, skill)
     return targets
 end
 
+local function AppendUniqueTarget(result, seen, target)
+    if not target or target.isDead or not target.isAlive then
+        return
+    end
+    if seen[target.instanceId] then
+        return
+    end
+    seen[target.instanceId] = true
+    table.insert(result, target)
+end
+
+function BattleSkill.ExpandAreaTargets(anchorTarget, options)
+    if not anchorTarget then
+        return {}
+    end
+
+    local BattleFormation = require("modules.battle_formation")
+    local result = {}
+    local seen = {}
+    local includeRow = options == nil or options.includeRow ~= false
+    local includeColumn = options and options.includeColumn == true
+
+    AppendUniqueTarget(result, seen, anchorTarget)
+
+    if includeRow then
+        local row = BattleFormation.GetHeroRow(anchorTarget.wpType)
+        for _, target in ipairs(BattleFormation.GetAliveHeroesByRow(anchorTarget.isLeft, row)) do
+            AppendUniqueTarget(result, seen, target)
+        end
+    end
+
+    if includeColumn then
+        local column = BattleFormation.GetHeroColumn(anchorTarget.wpType)
+        for _, target in ipairs(BattleFormation.GetAliveHeroesByColumn(anchorTarget.isLeft, column)) do
+            AppendUniqueTarget(result, seen, target)
+        end
+    end
+
+    return result
+end
+
+function BattleSkill.GetChainTargets(hero, firstTarget, hitCount)
+    local BattleFormation = require("modules.battle_formation")
+    local enemies = BattleFormation.GetEnemyTeam(hero) or {}
+    local result = {}
+    local seen = {}
+
+    AppendUniqueTarget(result, seen, firstTarget)
+
+    local candidates = {}
+    for _, enemy in ipairs(enemies) do
+        if enemy and enemy.isAlive and not enemy.isDead and not seen[enemy.instanceId] then
+            table.insert(candidates, enemy)
+        end
+    end
+
+    local shuffled = ShuffleTargets(candidates)
+    for _, enemy in ipairs(shuffled) do
+        if #result >= hitCount then
+            break
+        end
+        AppendUniqueTarget(result, seen, enemy)
+    end
+
+    return result
+end
+
 --- 选择敌方目标
 ---@param hero table 攻击者
 ---@param skill table 技能对象
 ---@param targetsSelections table 目标选择配置
 ---@return table 目标列表
 function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
-    local targets = {}
-    -- TODO: 从BattleFormation获取敌方英雄
-    -- 这里需要根据实际项目结构调用相应的模块
-    return targets
+    local BattleFormation = require("modules.battle_formation")
+    local ignoreFrontProtection = ShouldIgnoreFrontProtection(targetsSelections)
+    local measureType = ReadMeasureType(targetsSelections)
+    local requestedCount = ReadTargetCount(targetsSelections)
+    local candidates = CollectAliveTargets(
+        BattleFormation.GetSelectableEnemyHeroes and BattleFormation.GetSelectableEnemyHeroes(hero, ignoreFrontProtection)
+            or BattleFormation.GetEnemyTeam(hero)
+            or {},
+        true,
+        nil
+    )
+
+    if #candidates == 0 then
+        return {}
+    end
+
+    local wpTypeFilter = ReadWpTypeFilter(targetsSelections)
+    if wpTypeFilter then
+        local filtered = {}
+        for _, enemy in ipairs(candidates) do
+            if enemy.wpType == wpTypeFilter then
+                table.insert(filtered, enemy)
+            end
+        end
+        candidates = filtered
+    end
+
+    local targetRow = ReadTargetRow(targetsSelections, BattleFormation)
+    if measureType == E_MEASURE_TYPE.Row or targetRow then
+        local row = targetRow
+        if not row and wpTypeFilter and BattleFormation.GetHeroRow then
+            row = BattleFormation.GetHeroRow(wpTypeFilter)
+        end
+        if row then
+            local filtered = {}
+            for _, enemy in ipairs(candidates) do
+                if BattleFormation.GetHeroRow(enemy.wpType) == row then
+                    table.insert(filtered, enemy)
+                end
+            end
+            return filtered
+        end
+    end
+
+    if measureType == E_MEASURE_TYPE.AOE then
+        return candidates
+    end
+
+    if ShouldPreferLowestHp(targetsSelections) then
+        local sorted = SortTargetsByLowestHp(candidates)
+        return PickTopTargets(sorted, requestedCount)
+    end
+
+    if measureType == E_MEASURE_TYPE.Muti or requestedCount > 1 then
+        local shuffled = ShuffleTargets(candidates)
+        return PickTopTargets(shuffled, requestedCount)
+    end
+
+    return { candidates[math.random(1, #candidates)] }
 end
 
 --- 选择友方目标
@@ -1046,11 +1456,34 @@ end
 ---@param targetsSelections table 目标选择配置
 ---@param includeSelf boolean 是否包含自己
 ---@return table 目标列表
-function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections, includeSelf)
-    local targets = {}
-    -- TODO: 从BattleFormation获取友方英雄
-    -- 这里需要根据实际项目结构调用相应的模块
-    return targets
+function BattleSkill.SelectAllyTargets(hero, skill, targetsSelections, includeSelf)
+    local BattleFormation = require("modules.battle_formation")
+    local requestedCount = ReadTargetCount(targetsSelections)
+    local measureType = ReadMeasureType(targetsSelections)
+    local targets = CollectAliveTargets(BattleFormation.GetFriendTeam(hero) or {}, includeSelf, hero.instanceId)
+
+    if measureType == E_MEASURE_TYPE.AOE then
+        return targets
+    end
+
+    if ShouldPreferLowestHp(targetsSelections) then
+        local sorted = SortTargetsByLowestHp(targets)
+        return PickTopTargets(sorted, requestedCount)
+    end
+
+    if requestedCount >= #targets then
+        return targets
+    end
+
+    if measureType == E_MEASURE_TYPE.Muti or requestedCount > 1 then
+        local shuffled = ShuffleTargets(targets)
+        return PickTopTargets(shuffled, requestedCount)
+    end
+
+    if #targets > 0 then
+        return { targets[1] }
+    end
+    return {}
 end
 
 --- 选择所有目标
@@ -1059,10 +1492,8 @@ end
 ---@param targetsSelections table 目标选择配置
 ---@return table 目标列表
 function BattleSkill.SelectAllTargets(hero, skill, targetsSelections)
-    local targets = {}
-    -- TODO: 从BattleFormation获取所有英雄
-    -- 这里需要根据实际项目结构调用相应的模块
-    return targets
+    local BattleFormation = require("modules.battle_formation")
+    return CollectAliveTargets(BattleFormation.GetAllAliveHeroes and BattleFormation.GetAllAliveHeroes() or {}, true, nil)
 end
 
 --- 获取技能配置
@@ -1328,7 +1759,8 @@ end
 ---@return table|nil 目标
 function BattleSkill.SelectLowestHpEnemy(hero)
     local BattleFormation = require("modules.battle_formation")
-    local enemies = BattleFormation.GetEnemyTeam(hero)
+    local enemies = BattleFormation.GetSelectableEnemyHeroes and BattleFormation.GetSelectableEnemyHeroes(hero, false)
+        or BattleFormation.GetEnemyTeam(hero)
     
     if not enemies or #enemies == 0 then return nil end
     
@@ -1354,7 +1786,8 @@ end
 ---@return table 目标列表
 function BattleSkill.SelectRandomAliveEnemies(hero, count)
     local BattleFormation = require("modules.battle_formation")
-    local enemies = BattleFormation.GetEnemyTeam(hero)
+    local enemies = BattleFormation.GetSelectableEnemyHeroes and BattleFormation.GetSelectableEnemyHeroes(hero, false)
+        or BattleFormation.GetEnemyTeam(hero)
     
     if not enemies or #enemies == 0 then return {} end
     
@@ -1367,15 +1800,7 @@ function BattleSkill.SelectRandomAliveEnemies(hero, count)
     
     -- 随机打乱并选择指定数量
     local selected = {}
-    local shuffled = {}
-    for i, e in ipairs(aliveEnemies) do
-        shuffled[i] = e
-    end
-    
-    for i = #shuffled, 2, -1 do
-        local j = math.random(1, i)
-        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-    end
+    local shuffled = ShuffleTargets(aliveEnemies)
     
     for i = 1, math.min(count, #shuffled) do
         table.insert(selected, shuffled[i])
@@ -1420,11 +1845,15 @@ end
 
 --- 处理毒性爆发（引爆所有中毒）
 ---@param hero table 施法者
+---@param targets table|nil 目标列表
 ---@param skill table 技能对象
-function BattleSkill.ProcessPoisonBurst(hero, skill)
-    local BattleFormation = require("modules.battle_formation")
+function BattleSkill.ProcessPoisonBurst(hero, skill, targets)
     local BattleBuff = require("modules.battle_buff")
-    local enemies = BattleFormation.GetEnemyTeam(hero)
+    local enemies = targets or {}
+    if #enemies == 0 then
+        local BattleFormation = require("modules.battle_formation")
+        enemies = BattleFormation.GetEnemyTeam(hero)
+    end
     
     if not enemies or #enemies == 0 then return 0 end
     
@@ -1473,11 +1902,17 @@ function BattleSkill.ProcessHolyLightEffect(hero, target, skill)
             hero.name or "Unknown", target.name or "Unknown", healAmount))
         return healAmount
     else
-        -- 对敌方：造成100%伤害（已在默认流程中处理）
-        Logger.Log(string.format("[ProcessHolyLightEffect] %s 对敌人 %s 使用圣光攻击", 
-            hero.name or "Unknown", target.name or "Unknown"))
+        local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
+        local BattleDmgHeal = require("modules.battle_dmg_heal")
+        BattleDmgHeal.ApplyDamage(target, damage, hero, {
+            skillId = skill and skill.skillId or nil,
+            skillName = skill and skill.name or nil,
+            damageKind = "holy_light",
+        })
+        Logger.Log(string.format("[ProcessHolyLightEffect] %s 对敌人 %s 使用圣光攻击，造成 %d 点伤害", 
+            hero.name or "Unknown", target.name or "Unknown", damage))
+        return damage
     end
-    return 0
 end
 
 --- 判断是否为友方
@@ -1514,10 +1949,14 @@ end
 
 --- 处理群疗效果（H1 圣光流 L3）
 ---@param hero table 施法者
+---@param targets table|nil 目标列表
 ---@param skill table 技能对象
-function BattleSkill.ProcessGroupHeal(hero, skill)
-    local BattleFormation = require("modules.battle_formation")
-    local allies = BattleFormation.GetFriendTeam(hero)
+function BattleSkill.ProcessGroupHeal(hero, skill, targets)
+    local allies = targets or {}
+    if #allies == 0 then
+        local BattleFormation = require("modules.battle_formation")
+        allies = BattleFormation.GetFriendTeam(hero)
+    end
     
     if not allies or #allies == 0 then return 0 end
     
@@ -1554,10 +1993,14 @@ end
 
 --- 处理全体治疗+清负面（H1 圣光流 L4）
 ---@param hero table 施法者
+---@param targets table|nil 目标列表
 ---@param skill table 技能对象
-function BattleSkill.ProcessFullHealAndCleanse(hero, skill)
-    local BattleFormation = require("modules.battle_formation")
-    local allies = BattleFormation.GetFriendTeam(hero)
+function BattleSkill.ProcessFullHealAndCleanse(hero, skill, targets)
+    local allies = targets or {}
+    if #allies == 0 then
+        local BattleFormation = require("modules.battle_formation")
+        allies = BattleFormation.GetFriendTeam(hero)
+    end
     
     if not allies or #allies == 0 then return 0 end
     
@@ -1746,6 +2189,50 @@ end
 ---@param targets table 目标列表
 ---@param skill table 技能对象
 function BattleSkill.ProcessSpecialEffects(hero, targets, skill)
+    if not hero or not skill then
+        return 0
+    end
+
+    local effectTag = skill.specialEffectTag
+    if not effectTag then
+        local skillName = skill.name or (skill.skillConfig and skill.skillConfig.Name) or ""
+        if skillName == "圣光" then
+            effectTag = "holy_light"
+        elseif skillName == "群疗" then
+            effectTag = "group_heal"
+        elseif skillName == "圣光普照" then
+            effectTag = "full_heal_cleanse"
+        elseif skillName == "全军突击" or skillName == "战意爆发" or skillName == "战神降临" then
+            effectTag = "battle_intent_buff"
+        elseif skillName == "毒性爆发" then
+            effectTag = "poison_burst"
+        end
+    end
+
+    if effectTag == "holy_light" then
+        local target = targets and targets[1] or nil
+        if not target then
+            return 0
+        end
+        return BattleSkill.ProcessHolyLightEffect(hero, target, skill) or 0
+    end
+
+    if effectTag == "group_heal" then
+        return BattleSkill.ProcessGroupHeal(hero, skill, targets) or 0
+    end
+
+    if effectTag == "full_heal_cleanse" then
+        return BattleSkill.ProcessFullHealAndCleanse(hero, skill, targets) or 0
+    end
+
+    if effectTag == "battle_intent_buff" then
+        return BattleSkill.ApplyBuffToTargets(hero, targets or {}, skill) or 0
+    end
+
+    if effectTag == "poison_burst" then
+        return BattleSkill.ProcessPoisonBurst(hero, skill, targets) or 0
+    end
+
     return 0
 end
 
