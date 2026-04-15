@@ -1,48 +1,30 @@
-skill_80007003 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
 
-function skill_80007003.BuildTimeline(hero, targets, skill)
-    return {
-        {
-            frame = 0,
-            op = "cast",
-            effect = "skill_80007003_cast",
-            targets = targets,
-        },
+local skill_80007003 = {}
+
+local DEF = {
+    id = 80007003,
+    frames = {
+        { frame = 0, op = "cast", effect = "skill_80007003_cast", targetRef = "selected" },
         {
             frame = 12,
-            op = "execute",
+            op = "damage",
             effect = "skill_80007003_execute",
-            targets = targets,
-            execute = function(ctx, frame)
-                hero.__scriptDamageAccumulator = 0
-                local result = skill_80007003.Execute(hero, targets, skill)
-                local scriptDamage = hero.__scriptDamageAccumulator or 0
-                hero.__scriptDamageAccumulator = nil
-                if result ~= false and result ~= nil or scriptDamage > 0 then
-                    return {
-                        damage = scriptDamage,
-                        targets = targets,
-                    }
-                end
-                return {
-                    damage = 0,
-                    targets = targets,
-                }
-            end
-        }
-    }
-end
-function skill_80007003.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local totalDamage = 0
-    for _, target in ipairs(targets or {}) do
-        local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
-        BattleDmgHeal.ApplyDamage(target, damage, hero)
-        BattleSkill.ApplyBurn(target, 2, 2, hero)
-        totalDamage = totalDamage + damage
-    end
-    return totalDamage > 0
+            targetRef = "selected",
+            damageRate = 10000,
+            tags = {
+                { tag = "apply_burn", phase = "post", param = { stacks = 2, turns = 2 } },
+            },
+        },
+    },
+}
+
+function skill_80007003.BuildTimeline(hero, targets, skill)
+    return SkillTimelineCompiler.Build(hero, targets, skill, DEF)
 end
 
 return skill_80007003
+
+
+
+

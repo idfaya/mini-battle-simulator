@@ -485,13 +485,6 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = targets[1] })
 
-    local specialOnly = BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
-    if specialOnly then
-        local totalDamage = BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0
-        FinalizeSkillCast(hero, skill, totalDamage, onComplete)
-        return true
-    end
-
     local skillLua = BattleSkill.LoadSkillLua(skillId)
     local timeline = nil
     if skillLua and skillLua.BuildTimeline then
@@ -517,7 +510,7 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete)
             return
         end
 
-        local totalDamage = (result and result.totalDamage or 0) + (BattleSkill.ProcessSpecialEffects(hero, targets, skill) or 0)
+        local totalDamage = (result and result.totalDamage or 0)
         FinalizeSkillCast(hero, skill, totalDamage, onComplete)
     end)
 
@@ -1843,78 +1836,6 @@ function BattleSkill.ProcessInfectEffect(target)
         target.name or "Unknown", BattleBuff.GetBuffStackNumBySubType(target, 850001)))
 end
 
---- 处理毒性爆发（引爆所有中毒）
----@param hero table 施法者
----@param targets table|nil 目标列表
----@param skill table 技能对象
-function BattleSkill.ProcessPoisonBurst(hero, skill, targets)
-    local BattleBuff = require("modules.battle_buff")
-    local enemies = targets or {}
-    if #enemies == 0 then
-        local BattleFormation = require("modules.battle_formation")
-        enemies = BattleFormation.GetEnemyTeam(hero)
-    end
-    
-    if not enemies or #enemies == 0 then return 0 end
-    
-    local totalBurstDamage = 0
-    local burstRate = 5000  -- 每层50%伤害（万分比）
-    
-    for _, enemy in ipairs(enemies) do
-        local stacks = enemy and BattleBuff.GetBuffStackNumBySubType(enemy, 850001) or 0
-        if enemy and not enemy.isDead and stacks > 0 then
-            local burstDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, burstRate * stacks)
-            
-            -- 应用爆发伤害
-            local BattleDmgHeal = require("modules.battle_dmg_heal")
-            BattleDmgHeal.ApplyDamage(enemy, burstDamage, hero)
-            
-            totalBurstDamage = totalBurstDamage + burstDamage
-            
-            Logger.Log(string.format("[ProcessPoisonBurst] %s 对 %s 造成毒性爆发伤害: %d (层数: %d)", 
-                hero.name or "Unknown", enemy.name or "Unknown", burstDamage, stacks))
-            
-            BattleBuff.DelBuffBySubType(enemy, 850001)
-        end
-    end
-    
-    return totalBurstDamage
-end
-
---- 处理治疗技能的双向效果（H1 圣光流）
----@param hero table 施法者
----@param target table 目标
----@param skill table 技能对象
-function BattleSkill.ProcessHolyLightEffect(hero, target, skill)
-    if not target then return 0 end
-    
-    local isAlly = BattleSkill.IsAlly(hero, target)
-    
-    if isAlly then
-        -- 对友方：回复10%最大生命值
-        local healRate = 1000  -- 10%（万分比）
-        local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
-        
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        BattleDmgHeal.ApplyHeal(target, healAmount, hero)
-        
-        Logger.Log(string.format("[ProcessHolyLightEffect] %s 治疗 %s: %d 点生命", 
-            hero.name or "Unknown", target.name or "Unknown", healAmount))
-        return healAmount
-    else
-        local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        BattleDmgHeal.ApplyDamage(target, damage, hero, {
-            skillId = skill and skill.skillId or nil,
-            skillName = skill and skill.name or nil,
-            damageKind = "holy_light",
-        })
-        Logger.Log(string.format("[ProcessHolyLightEffect] %s 对敌人 %s 使用圣光攻击，造成 %d 点伤害", 
-            hero.name or "Unknown", target.name or "Unknown", damage))
-        return damage
-    end
-end
-
 --- 判断是否为友方
 ---@param hero table 英雄
 ---@param target table 目标
@@ -1941,95 +1862,6 @@ function BattleSkill.SelectLowestHpAlly(hero)
     end
 
     return lowestHpTarget
-end
-
-function BattleSkill.ShouldHandleBySpecialOnly(hero, targets, skill)
-    return false
-end
-
---- 处理群疗效果（H1 圣光流 L3）
----@param hero table 施法者
----@param targets table|nil 目标列表
----@param skill table 技能对象
-function BattleSkill.ProcessGroupHeal(hero, skill, targets)
-    local allies = targets or {}
-    if #allies == 0 then
-        local BattleFormation = require("modules.battle_formation")
-        allies = BattleFormation.GetFriendTeam(hero)
-    end
-    
-    if not allies or #allies == 0 then return 0 end
-    
-    local healCount = skill and skill.skillParam and skill.skillParam[2] or 3
-    local healRate = skill and skill.skillParam and skill.skillParam[1] or 2000  -- 20%
-    
-    -- 按血量排序，选择最少的友军
-    local sortedAllies = {}
-    for _, ally in ipairs(allies) do
-        if ally and not ally.isDead and ally.hp and ally.maxHp then
-            ally.hpRatio = ally.hp / ally.maxHp
-            table.insert(sortedAllies, ally)
-        end
-    end
-    
-    table.sort(sortedAllies, function(a, b) return a.hpRatio < b.hpRatio end)
-    
-    local totalHealed = 0
-    for i = 1, math.min(healCount, #sortedAllies) do
-        local target = sortedAllies[i]
-        local healAmount = BattleSkill.CalculateHeal(hero, target, healRate)
-        
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        BattleDmgHeal.ApplyHeal(target, healAmount, hero)
-        
-        totalHealed = totalHealed + healAmount
-        
-        Logger.Log(string.format("[ProcessGroupHeal] %s 治疗 %s: %d 点生命 (血量比例: %.1f%%)", 
-            hero.name or "Unknown", target.name or "Unknown", healAmount, target.hpRatio * 100))
-    end
-    
-    return totalHealed
-end
-
---- 处理全体治疗+清负面（H1 圣光流 L4）
----@param hero table 施法者
----@param targets table|nil 目标列表
----@param skill table 技能对象
-function BattleSkill.ProcessFullHealAndCleanse(hero, skill, targets)
-    local allies = targets or {}
-    if #allies == 0 then
-        local BattleFormation = require("modules.battle_formation")
-        allies = BattleFormation.GetFriendTeam(hero)
-    end
-    
-    if not allies or #allies == 0 then return 0 end
-    
-    local totalHealed = 0
-    
-    for _, ally in ipairs(allies) do
-        if ally and not ally.isDead then
-            -- 回复100%生命
-            local healAmount = ally.maxHp - ally.hp
-            
-            if healAmount > 0 then
-                local BattleDmgHeal = require("modules.battle_dmg_heal")
-                BattleDmgHeal.ApplyHeal(ally, healAmount, hero)
-                totalHealed = totalHealed + healAmount
-            end
-            
-            local BattleBuff = require("modules.battle_buff")
-            if BattleBuff.RemoveAllDebuffs then
-                BattleBuff.RemoveAllDebuffs(ally)
-            elseif BattleBuff.ClearAllBuffs then
-                BattleBuff.ClearAllBuffs(ally)
-            end
-            
-            Logger.Log(string.format("[ProcessFullHealAndCleanse] %s 完全治愈并净化 %s", 
-                hero.name or "Unknown", ally.name or "Unknown"))
-        end
-    end
-    
-    return totalHealed
 end
 
 --- 处理多目标攻击（双连斩、毒雾、连锁闪电等）
@@ -2071,42 +1903,6 @@ function BattleSkill.SelectAllAliveTargets(hero)
     end
     
     return aliveTargets
-end
-
---- 处理增益Buff（B1 战意流）
----@param hero table 施法者
----@param targets table 目标列表
----@param skill table 技能对象
-function BattleSkill.ApplyBuffToTargets(hero, targets, skill)
-    if not skill then return 0 end
-    local total = 0
-    local skillConfig = skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)
-    local atkPct = 0
-    local defPct = 0
-    local spdPct = 0
-    local duration = 3
-
-    if skillConfig and skillConfig.SkillLevel == 3 then
-        atkPct = 2000
-    elseif skillConfig and skillConfig.SkillLevel == 4 then
-        atkPct = 5000
-        defPct = 5000
-        spdPct = 5000
-    end
-
-    for _, target in ipairs(targets) do
-        if target and not target.isDead then
-            if atkPct > 0 and defPct > 0 and spdPct > 0 then
-                BattleSkill.ApplyBuffFromSkill(hero, target, 840003, skill, { duration = duration })
-            else
-                BattleSkill.ApplyBuffFromSkill(hero, target, 840002, skill, { duration = duration })
-            end
-            total = total + 1
-        end
-    end
-    Logger.Log(string.format("[ApplyBuffToTargets] %s 施加战意增益: atk=%d def=%d spd=%d turn=%d target=%d",
-        hero.name or "Unknown", atkPct, defPct, spdPct, duration, total))
-    return total
 end
 
 function BattleSkill.ApplyBurn(target, stacks, turns, caster)
@@ -2166,74 +1962,6 @@ function BattleSkill.ProcessTurnStartStatus(hero)
     end
 
     return hero.isAlive and not hero.isDead
-end
-
-function BattleSkill.ProcessChainLightning(hero, hitCount, damageRate)
-    local totalDamage = 0
-    for _ = 1, hitCount do
-        local target = BattleSkill.SelectRandomAliveEnemies(hero, 1)
-        if target and target[1] then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target[1], damageRate)
-            local BattleDmgHeal = require("modules.battle_dmg_heal")
-            BattleDmgHeal.ApplyDamage(target[1], damage, hero)
-            totalDamage = totalDamage + damage
-        end
-    end
-    Logger.Log(string.format("[ProcessChainLightning] %s 连锁命中次数=%d 总伤害=%d",
-        hero.name or "Unknown", hitCount, totalDamage))
-    return totalDamage
-end
-
---- 统一处理技能特殊效果入口
----@param hero table 攻击者
----@param targets table 目标列表
----@param skill table 技能对象
-function BattleSkill.ProcessSpecialEffects(hero, targets, skill)
-    if not hero or not skill then
-        return 0
-    end
-
-    local effectTag = skill.specialEffectTag
-    if not effectTag then
-        local skillName = skill.name or (skill.skillConfig and skill.skillConfig.Name) or ""
-        if skillName == "圣光" then
-            effectTag = "holy_light"
-        elseif skillName == "群疗" then
-            effectTag = "group_heal"
-        elseif skillName == "圣光普照" then
-            effectTag = "full_heal_cleanse"
-        elseif skillName == "全军突击" or skillName == "战意爆发" or skillName == "战神降临" then
-            effectTag = "battle_intent_buff"
-        elseif skillName == "毒性爆发" then
-            effectTag = "poison_burst"
-        end
-    end
-
-    if effectTag == "holy_light" then
-        local target = targets and targets[1] or nil
-        if not target then
-            return 0
-        end
-        return BattleSkill.ProcessHolyLightEffect(hero, target, skill) or 0
-    end
-
-    if effectTag == "group_heal" then
-        return BattleSkill.ProcessGroupHeal(hero, skill, targets) or 0
-    end
-
-    if effectTag == "full_heal_cleanse" then
-        return BattleSkill.ProcessFullHealAndCleanse(hero, skill, targets) or 0
-    end
-
-    if effectTag == "battle_intent_buff" then
-        return BattleSkill.ApplyBuffToTargets(hero, targets or {}, skill) or 0
-    end
-
-    if effectTag == "poison_burst" then
-        return BattleSkill.ProcessPoisonBurst(hero, skill, targets) or 0
-    end
-
-    return 0
 end
 
 return BattleSkill

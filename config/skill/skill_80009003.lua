@@ -1,41 +1,30 @@
-skill_80009003 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
+
+local skill_80009003 = {}
 
 function skill_80009003.BuildTimeline(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
     local chainTargets = BattleSkill.GetChainTargets(hero, targets and targets[1] or nil, 4)
-    local timeline = {}
+    local frames = {}
     local frame = 8
 
-    for hitIndex, chainTarget in ipairs(chainTargets) do
-        table.insert(timeline, {
+    for hitIndex, chainTarget in ipairs(chainTargets or {}) do
+        table.insert(frames, {
             frame = frame,
             op = "chain_damage",
             effect = "chain_lightning_arc",
-            execute = function(ctx, frameData)
-                local target = chainTarget
-                if not target or target.isDead then
-                    return { damage = 0 }
-                end
-                local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
-                BattleDmgHeal.ApplyDamage(target, damage, hero)
-                return {
-                    target = target,
-                    damage = damage,
-                    chainIndex = hitIndex,
-                }
-            end
+            target = chainTarget,
+            damageRate = 10000,
+            chainIndex = hitIndex,
         })
         frame = frame + 6
     end
 
-    return timeline
-end
-
-function skill_80009003.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    BattleSkill.ProcessChainLightning(hero, 4, 10000)
-    return true
+    return SkillTimelineCompiler.Build(hero, targets, skill, { id = 80009003, frames = frames })
 end
 
 return skill_80009003
+
+
+
+

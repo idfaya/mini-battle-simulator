@@ -1,54 +1,30 @@
-skill_80009001 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
 
-function skill_80009001.BuildTimeline(hero, targets, skill)
-    return {
-        {
-            frame = 0,
-            op = "cast",
-            effect = "skill_80009001_cast",
-            targets = targets,
-        },
+local skill_80009001 = {}
+
+local DEF = {
+    id = 80009001,
+    frames = {
+        { frame = 0, op = "cast", effect = "skill_80009001_cast", targetRef = "selected" },
         {
             frame = 12,
-            op = "execute",
+            op = "damage",
             effect = "skill_80009001_execute",
-            targets = targets,
-            execute = function(ctx, frame)
-                hero.__scriptDamageAccumulator = 0
-                local result = skill_80009001.Execute(hero, targets, skill)
-                local scriptDamage = hero.__scriptDamageAccumulator or 0
-                hero.__scriptDamageAccumulator = nil
-                if result ~= false and result ~= nil or scriptDamage > 0 then
-                    return {
-                        damage = scriptDamage,
-                        targets = targets,
-                    }
-                end
-                return {
-                    damage = 0,
-                    targets = targets,
-                }
-            end
-        }
-    }
-end
-function skill_80009001.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local totalDamage = 0
-    for _, target in ipairs(targets or {}) do
-        if target and not target.isDead then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target, 11000)
-            BattleDmgHeal.ApplyDamage(target, damage, hero)
-            totalDamage = totalDamage + damage
-        end
-    end
-    local chance = BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus")
-    if math.random(1, 10000) <= chance then
-        BattleSkill.ProcessChainLightning(hero, 1, 10000)
-    end
-    return totalDamage > 0
+            targetRef = "selected",
+            damageRate = 11000,
+            tags = {
+                { tag = "chance_chain_lightning", phase = "post", param = { baseChance = 2000, key = "thunderChainChanceBonus", hitCount = 1, damageRate = 10000 } },
+            },
+        },
+    },
+}
+
+function skill_80009001.BuildTimeline(hero, targets, skill)
+    return SkillTimelineCompiler.Build(hero, targets, skill, DEF)
 end
 
 return skill_80009001
+
+
+
 

@@ -1,53 +1,32 @@
-skill_80008003 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
 
-function skill_80008003.BuildTimeline(hero, targets, skill)
-    return {
-        {
-            frame = 0,
-            op = "cast",
-            effect = "skill_80008003_cast",
-            targets = targets,
-        },
+local skill_80008003 = {}
+
+local DEF = {
+    id = 80008003,
+    frames = {
+        { frame = 0, op = "cast", effect = "skill_80008003_cast", targetRef = "selected" },
         {
             frame = 12,
-            op = "execute",
+            op = "damage",
             effect = "skill_80008003_execute",
-            targets = targets,
-            execute = function(ctx, frame)
-                hero.__scriptDamageAccumulator = 0
-                local result = skill_80008003.Execute(hero, targets, skill)
-                local scriptDamage = hero.__scriptDamageAccumulator or 0
-                hero.__scriptDamageAccumulator = nil
-                if result ~= false and result ~= nil or scriptDamage > 0 then
-                    return {
-                        damage = scriptDamage,
-                        targets = targets,
-                    }
-                end
-                return {
-                    damage = 0,
-                    targets = targets,
-                }
-            end
-        }
-    }
-end
-function skill_80008003.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local damageRate = BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct")
-    local totalDamage = 0
-    local areaTargets = BattleSkill.ExpandAreaTargets(targets and targets[1] or nil, {
-        includeRow = true,
-        includeColumn = true,
-    })
-    for _, target in ipairs(areaTargets) do
-        local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
-        BattleDmgHeal.ApplyDamage(target, damage, hero)
-        BattleSkill.ApplyFreeze(target, 1, 3000, hero)
-        totalDamage = totalDamage + damage
-    end
-    return totalDamage > 0
+            targetRef = "selected",
+            damageRate = 10000,
+            tags = {
+                { tag = "expand_area_targets", phase = "pre", param = { includeRow = true, includeColumn = true } },
+                { tag = "set_damage_rate_passive", phase = "pre", param = { base = 10000, key = "iceDamageBonusPct" } },
+                { tag = "apply_freeze", phase = "post", param = { turns = 1, slowPct = 3000 } },
+            },
+        },
+    },
+}
+
+function skill_80008003.BuildTimeline(hero, targets, skill)
+    return SkillTimelineCompiler.Build(hero, targets, skill, DEF)
 end
 
 return skill_80008003
+
+
+
+

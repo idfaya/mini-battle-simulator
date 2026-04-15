@@ -1,44 +1,30 @@
-skill_80002004 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
 
-function skill_80002004.BuildTimeline(hero, targets, skill)
-    return {
-        {
-            frame = 0,
-            op = "cast",
-            effect = "skill_80002004_cast",
-            targets = targets,
-        },
+local skill_80002004 = {}
+
+local DEF = {
+    id = 80002004,
+    frames = {
+        { frame = 0, op = "cast", effect = "skill_80002004_cast", targetRef = "selected" },
         {
             frame = 12,
-            op = "execute",
+            op = "effect",
             effect = "skill_80002004_execute",
-            targets = targets,
-            execute = function(ctx, frame)
-                hero.__scriptDamageAccumulator = 0
-                local result = skill_80002004.Execute(hero, targets, skill)
-                local scriptDamage = hero.__scriptDamageAccumulator or 0
-                hero.__scriptDamageAccumulator = nil
-                if result ~= false and result ~= nil or scriptDamage > 0 then
-                    return {
-                        damage = scriptDamage,
-                        targets = targets,
-                    }
-                end
-                return {
-                    damage = 0,
-                    targets = targets,
-                }
-            end
-        }
-    }
-end
-function skill_80002004.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleBuff = require("modules.battle_buff")
-    BattleBuff.DelBuffBySubType(hero, 820002)
-    BattleSkill.ApplyBuffFromSkill(hero, hero, 820003, skill)
-    return true
+            targetRef = "selected",
+            tags = {
+                { tag = "remove_buff_by_subtype", phase = "pre", param = { subType = 820002 } },
+                { tag = "apply_buff_self", phase = "pre", param = { buffId = 820003 } },
+            },
+        },
+    },
+}
+
+function skill_80002004.BuildTimeline(hero, targets, skill)
+    return SkillTimelineCompiler.Build(hero, targets, skill, DEF)
 end
 
 return skill_80002004
+
+
+
 

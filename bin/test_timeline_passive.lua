@@ -302,7 +302,9 @@ do
         freezeTriggered = true
     end
     local blizzard = require("config.skill.skill_80008004")
-    blizzard.Execute(hero, { target }, { skillId = 80008004, name = "暴风雪" })
+    local blizzardTimeline = blizzard.BuildTimeline(hero, { target }, { skillId = 80008004, name = "暴风雪" })
+    local SkillTimeline = require("core.skill_timeline")
+    SkillTimeline.Execute(hero, { target }, { skillId = 80008004, name = "暴风雪" }, blizzardTimeline)
     BattleSkill.SelectAllAliveTargets = oldSelectAllAliveTargets
     BattleSkill.ApplyFreeze = oldApplyFreeze
     math.random = oldRandom
@@ -319,17 +321,20 @@ do
     assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus") == 4000, "ThunderAffinity increases chain chance by 20%")
 
     local oldRandom = math.random
-    local oldProcessChainLightning = BattleSkill.ProcessChainLightning
+    local oldSelectRandomAliveEnemies = BattleSkill.SelectRandomAliveEnemies
     local chainTriggered = 0
     math.random = function(a, b)
         return 3500
     end
-    BattleSkill.ProcessChainLightning = function(src, jumps, damageRate)
+    BattleSkill.SelectRandomAliveEnemies = function(src, count)
         chainTriggered = chainTriggered + 1
+        return { target }
     end
     local lightningArrow = require("config.skill.skill_80009001")
-    lightningArrow.Execute(hero, { target }, { skillId = 80009001, name = "闪电箭" })
-    BattleSkill.ProcessChainLightning = oldProcessChainLightning
+    local lightningTimeline = lightningArrow.BuildTimeline(hero, { target }, { skillId = 80009001, name = "闪电箭" })
+    local SkillTimeline = require("core.skill_timeline")
+    SkillTimeline.Execute(hero, { target }, { skillId = 80009001, name = "闪电箭" }, lightningTimeline)
+    BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
     math.random = oldRandom
     assert_true(chainTriggered == 1, "ThunderAffinity makes 35% roll trigger Lightning Arrow chain")
 end

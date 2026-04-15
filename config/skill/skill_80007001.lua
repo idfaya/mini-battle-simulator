@@ -1,59 +1,31 @@
-skill_80007001 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
+
+local skill_80007001 = {}
 
 function skill_80007001.BuildTimeline(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local timeline = {}
-
-    for _, target in ipairs(targets or {}) do
-        if target and not target.isDead then
-            table.insert(timeline, {
-                frame = 0,
-                op = "cast",
-                effect = "fireball_cast",
-                target = target,
-            })
-            table.insert(timeline, {
-                frame = 12,
-                op = "projectile",
-                effect = "fireball_projectile",
-                target = target,
-            })
-            table.insert(timeline, {
+    local frames = {}
+    for _, t in ipairs(targets or {}) do
+        if t and not t.isDead then
+            table.insert(frames, { frame = 0, op = "cast", effect = "fireball_cast", target = t })
+            table.insert(frames, { frame = 12, op = "projectile", effect = "fireball_projectile", target = t })
+            table.insert(frames, {
                 frame = 24,
                 op = "damage",
                 effect = "fireball_hit",
-                target = target,
-                execute = function(ctx, frame)
-                    local damage = BattleSkill.CalculateDamageWithRate(hero, target, 12000)
-                    BattleDmgHeal.ApplyDamage(target, damage, hero)
-                    BattleSkill.ApplyBurn(target, 1, 2, hero)
-                    return {
-                        target = target,
-                        damage = damage,
-                        buffId = 870001,
-                    }
-                end
+                target = t,
+                damageRate = 12000,
+                tags = {
+                    { tag = "apply_burn", phase = "post", param = { stacks = 1, turns = 2 } },
+                },
             })
         end
     end
 
-    return timeline
-end
-
-function skill_80007001.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local totalDamage = 0
-    for _, target in ipairs(targets or {}) do
-        if target and not target.isDead then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target, 12000)
-            BattleDmgHeal.ApplyDamage(target, damage, hero)
-            BattleSkill.ApplyBurn(target, 1, 2, hero)
-            totalDamage = totalDamage + damage
-        end
-    end
-    return totalDamage > 0
+    return SkillTimelineCompiler.Build(hero, targets, skill, { id = 80007001, frames = frames })
 end
 
 return skill_80007001
+
+
+
+

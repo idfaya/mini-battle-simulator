@@ -1,60 +1,32 @@
-skill_80008001 = {}
+local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
+
+local skill_80008001 = {}
 
 function skill_80008001.BuildTimeline(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local timeline = {}
-
-    for _, target in ipairs(targets or {}) do
-        if target and not target.isDead then
-            table.insert(timeline, {
-                frame = 0,
-                op = "cast",
-                effect = "ice_arrow_cast",
-                target = target,
-            })
-            table.insert(timeline, {
-                frame = 10,
-                op = "projectile",
-                effect = "ice_arrow_projectile",
-                target = target,
-            })
-            table.insert(timeline, {
+    local frames = {}
+    for _, t in ipairs(targets or {}) do
+        if t and not t.isDead then
+            table.insert(frames, { frame = 0, op = "cast", effect = "ice_arrow_cast", target = t })
+            table.insert(frames, { frame = 10, op = "projectile", effect = "ice_arrow_projectile", target = t })
+            table.insert(frames, {
                 frame = 20,
                 op = "damage",
                 effect = "ice_arrow_hit",
-                target = target,
-                execute = function(ctx, frame)
-                    local damage = BattleSkill.CalculateDamageWithRate(hero, target, 10000)
-                    BattleDmgHeal.ApplyDamage(target, damage, hero)
-                    BattleSkill.ApplyFreeze(target, 0, 3000, hero)
-                    return {
-                        target = target,
-                        damage = damage,
-                        buffId = 880001,
-                    }
-                end
+                target = t,
+                damageRate = 10000,
+                tags = {
+                    { tag = "set_damage_rate_passive", phase = "pre", param = { base = 10000, key = "iceDamageBonusPct" } },
+                    { tag = "apply_freeze", phase = "post", param = { turns = 0, slowPct = 3000 } },
+                },
             })
         end
     end
 
-    return timeline
-end
-
-function skill_80008001.Execute(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local damageRate = BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct")
-    local totalDamage = 0
-    for _, target in ipairs(targets or {}) do
-        if target and not target.isDead then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
-            BattleDmgHeal.ApplyDamage(target, damage, hero)
-            BattleSkill.ApplyFreeze(target, 0, 3000, hero)
-            totalDamage = totalDamage + damage
-        end
-    end
-    return totalDamage > 0
+    return SkillTimelineCompiler.Build(hero, targets, skill, { id = 80008001, frames = frames })
 end
 
 return skill_80008001
+
+
+
+

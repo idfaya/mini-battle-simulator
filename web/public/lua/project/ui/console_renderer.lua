@@ -80,6 +80,8 @@ local isInitialized = false
 local battleLogCache = {}
 local maxLogCacheSize = 50
 
+local GetBuffDisplaySuffix
+
 -- ==================== 初始化与清理 ====================
 
 --- 初始化控制台渲染器
@@ -758,7 +760,7 @@ local function GetBuffTypeColor(mainType)
     end
 end
 
-local function GetBuffDisplaySuffix(buff)
+GetBuffDisplaySuffix = function(buff)
     if not buff then
         return ""
     end
