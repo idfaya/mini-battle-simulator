@@ -24,6 +24,7 @@ local function ResolveTargets(ctx, frameCopy)
     if ref == "lastHit" then
         return ctx.lastHitTargets or {}
     end
+    -- default: selected
     return ctx.targets or {}
 end
 

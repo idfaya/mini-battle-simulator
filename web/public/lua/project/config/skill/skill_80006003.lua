@@ -4,7 +4,10 @@ local skill_80006003 = {}
 
 local DEF = {
     id = 80006003,
-    params = {},
+    params = {
+        -- Reuse existing SkillParam for now to avoid changing config schema.
+        -- skillParam[1] is heal rate (1/10000), skillParam[2] is heal count.
+    },
     frames = {
         { frame = 0, op = "cast", effect = "skill_80006003_cast", targetRef = "selected" },
         {
@@ -13,6 +16,7 @@ local DEF = {
             effect = "skill_80006003_execute",
             targetRef = "selected",
             tags = {
+                -- Use centralized handler for now; later can be rewritten into pure "heal" op frames.
                 { tag = "group_heal", phase = "pre" },
             },
         },

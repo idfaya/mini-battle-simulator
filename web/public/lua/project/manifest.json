@@ -282,6 +282,14 @@
       "moduleName": "modules.passive_handlers"
     },
     {
+      "path": "modules/skill_effect_registry.lua",
+      "moduleName": "modules.skill_effect_registry"
+    },
+    {
+      "path": "modules/skill_timeline_compiler.lua",
+      "moduleName": "modules.skill_timeline_compiler"
+    },
+    {
       "path": "ui/battle_display.lua",
       "moduleName": "ui.battle_display"
     },
