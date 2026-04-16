@@ -72,6 +72,49 @@ export class BattleStore {
           banner = `${String(event.payload.heroName ?? "")} · ${String(event.payload.skillName ?? "")}`;
           flashUntil = performance.now() + 200;
           break;
+        case "skill_timeline_started":
+          animations.push({
+            type: "timeline_started",
+            heroId: String(event.payload.heroId ?? ""),
+            heroName: String(event.payload.heroName ?? ""),
+            skillName: String(event.payload.skillName ?? ""),
+            totalFrames: Number(event.payload.totalFrames ?? 0),
+          });
+          log.unshift(`${String(event.payload.heroName ?? "")} 开始演出 ${String(event.payload.skillName ?? "")}`);
+          break;
+        case "skill_timeline_frame":
+          animations.push({
+            type: "timeline_frame",
+            heroId: String(event.payload.heroId ?? ""),
+            heroName: String(event.payload.heroName ?? ""),
+            skillName: String(event.payload.skillName ?? ""),
+            frame: Number(event.payload.frame ?? 0),
+            frameIndex: Number(event.payload.frameIndex ?? 0),
+            op: String(event.payload.op ?? ""),
+            effect: String(event.payload.effect ?? ""),
+            targetIds: Array.isArray(event.payload.targets)
+              ? event.payload.targets
+                  .map((target) =>
+                    typeof target === "object" && target !== null && "id" in target
+                      ? String((target as { id?: unknown }).id ?? "")
+                      : "",
+                  )
+                  .filter((id) => id !== "")
+              : [],
+          });
+          break;
+        case "skill_timeline_completed":
+          animations.push({
+            type: "timeline_completed",
+            heroId: String(event.payload.heroId ?? ""),
+            heroName: String(event.payload.heroName ?? ""),
+            skillName: String(event.payload.skillName ?? ""),
+            totalFrames: Number(event.payload.totalFrames ?? 0),
+            totalDamage: Number(event.payload.totalDamage ?? 0),
+            succeeded: Boolean(event.payload.succeeded),
+          });
+          log.unshift(`${String(event.payload.heroName ?? "")} 完成演出 ${String(event.payload.skillName ?? "")}`);
+          break;
         case "ultimate_ready":
           log.unshift(`${String(event.payload.heroName ?? "")} 大招已就绪`);
           break;

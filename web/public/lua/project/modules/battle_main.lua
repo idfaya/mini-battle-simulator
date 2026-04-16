@@ -20,6 +20,7 @@ local BattleSkillSeq = require("modules.battle_skill_seq")
 local SkillTimeline = require("core.skill_timeline")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ConsoleRenderer = require("ui.console_renderer")
+local BattleRhythmConfig = require("config.battle_rhythm_config")
 
 ---@class BattleMain
 local BattleMain = {}
@@ -61,6 +62,7 @@ local battleResult = {
 }
 
 local currentAction = nil
+local actionPostGapRemainingMs = 0
 
 local function SafeClock()
     local ok, result = pcall(function()
@@ -94,6 +96,7 @@ local function ResetState()
         reason = nil,
     }
     currentAction = nil
+    actionPostGapRemainingMs = 0
 end
 
 --- 初始化所有子系统
@@ -578,6 +581,7 @@ function BattleMain.CompleteHeroAction(actionState)
         BattleVisualEvents.TURN_ENDED, currentRound, hero))
 
     Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
+    actionPostGapRemainingMs = math.max(0, tonumber(BattleRhythmConfig.postGapMs) or 0)
     currentAction = nil
 end
 
@@ -614,6 +618,10 @@ function BattleMain.Update(deltaMs)
             if currentAction.waitingForTimeline and not SkillTimeline.IsRunning() and currentAction.completed then
                 BattleMain.CompleteHeroAction(currentAction)
             end
+            return
+        end
+        if actionPostGapRemainingMs > 0 then
+            actionPostGapRemainingMs = math.max(0, actionPostGapRemainingMs - math.max(0, deltaMs or 0))
             return
         end
         BeginNextAction()

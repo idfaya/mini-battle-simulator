@@ -28,7 +28,7 @@ local snapshot = Runtime.init({
 assert(snapshot.phase == "running", "battle should start in running phase")
 
 local sawReady = false
-for _ = 1, 260 do
+for _ = 1, 1500 do
     local events = Runtime.tick(80)
     snapshot = Runtime.getSnapshot()
 

@@ -6,6 +6,10 @@
       "moduleName": "config.battle_energy_config"
     },
     {
+      "path": "config/battle_rhythm_config.lua",
+      "moduleName": "config.battle_rhythm_config"
+    },
+    {
       "path": "config/buff/buff_820001.lua",
       "moduleName": "config.buff.buff_820001"
     },

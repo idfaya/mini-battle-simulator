@@ -7,12 +7,14 @@ local BattleVisualEvents = require("ui.battle_visual_events")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 local BattleEnergyConfig = require("config.battle_energy_config")
+local BattleRhythmConfig = require("config.battle_rhythm_config")
 local ArrayUtils = require("utils.array_utils")
 local Logger = require("utils.logger")
 
 local Runtime = {}
 
-local LOGIC_STEP_MS = 80
+local LOGIC_STEP_MS = tonumber(BattleRhythmConfig.logicStepMs) or 80
+local MAX_QUEUED_COMMANDS = tonumber(BattleRhythmConfig.maxQueuedCommands) or 4
 local DEFAULT_INITIAL_ENERGY = BattleEnergyConfig.defaultInitialEnergy or 40
 local DEFAULT_WP_TYPES = { 1, 2, 3, 4, 5, 6 }
 
@@ -593,6 +595,11 @@ end
 function Runtime.queueCommand(command)
     if type(command) ~= "table" or command.type ~= "cast_ultimate" then
         rejectCommand(command, "invalid_command")
+        return false
+    end
+
+    if #state.queuedCommands >= MAX_QUEUED_COMMANDS then
+        rejectCommand(command, "queue_full")
         return false
     end
 

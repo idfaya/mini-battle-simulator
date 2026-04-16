@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80008004_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 42,
             op = "damage",
             effect = "skill_80008004_execute",
             targetRef = "selected",
@@ -18,6 +18,7 @@ local DEF = {
                 { tag = "chance_apply_freeze", phase = "post", param = { baseChance = 5000, key = "iceFreezeChanceBonus", turns = 1, slowPct = 3000 } },
             },
         },
+        { frame = 66, op = "effect", effect = "skill_80008004_end", targetRef = "selected" },
     },
 }
 

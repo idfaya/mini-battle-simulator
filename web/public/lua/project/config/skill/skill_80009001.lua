@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80009001_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 24,
             op = "damage",
             effect = "skill_80009001_execute",
             targetRef = "selected",
@@ -16,6 +16,7 @@ local DEF = {
                 { tag = "chance_chain_lightning", phase = "post", param = { baseChance = 2000, key = "thunderChainChanceBonus", hitCount = 1, damageRate = 10000 } },
             },
         },
+        { frame = 36, op = "effect", effect = "skill_80009001_end", targetRef = "selected" },
     },
 }
 

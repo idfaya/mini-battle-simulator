@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80002001_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 24,
             op = "damage",
             effect = "skill_80002001_execute",
             targetRef = "selected",
@@ -16,6 +16,7 @@ local DEF = {
                 { tag = "apply_buff_targets", phase = "post", param = { buffId = 820001 } },
             },
         },
+        { frame = 36, op = "effect", effect = "skill_80002001_end", targetRef = "selected" },
     },
 }
 

@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80003004_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 42,
             op = "effect",
             effect = "skill_80003004_execute",
             targetRef = "selected",
@@ -15,6 +15,7 @@ local DEF = {
                 { tag = "random_hits_damage", phase = "pre", param = { hits = 6, damageRate = 10000, pursuitOnKill = true } },
             },
         },
+        { frame = 66, op = "effect", effect = "skill_80003004_end", targetRef = "selected" },
     },
 }
 

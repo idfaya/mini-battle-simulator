@@ -7,9 +7,9 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
     for _, t in ipairs(targets or {}) do
         if t and not t.isDead then
             table.insert(frames, { frame = 0, op = "cast", effect = "ice_arrow_cast", target = t })
-            table.insert(frames, { frame = 10, op = "projectile", effect = "ice_arrow_projectile", target = t })
+            table.insert(frames, { frame = 12, op = "projectile", effect = "ice_arrow_projectile", target = t })
             table.insert(frames, {
-                frame = 20,
+                frame = 24,
                 op = "damage",
                 effect = "ice_arrow_hit",
                 target = t,
@@ -19,6 +19,7 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
                     { tag = "apply_freeze", phase = "post", param = { turns = 0, slowPct = 3000 } },
                 },
             })
+            table.insert(frames, { frame = 36, op = "effect", effect = "ice_arrow_end", target = t })
         end
     end
 
@@ -26,7 +27,6 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008001
-
 
 
 

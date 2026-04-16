@@ -22,7 +22,7 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
   await expect(page.locator("#battle-hero-count")).toHaveCount(1);
   await expect(page.locator("#battle-enemy-count")).toHaveCount(1);
   await expect(page.locator("#battle-speed")).toHaveCount(1);
-  await expect(page.locator(".ult-button")).toHaveCount(3);
+  await expect(page.locator(".ult-button")).toHaveCount(6);
   await expect
     .poll(async () => page.locator(".ult-button:not([disabled])").count(), { timeout: 6000 })
     .toBeGreaterThan(0);

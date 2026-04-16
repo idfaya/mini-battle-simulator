@@ -6,7 +6,8 @@ local DEF = {
     id = 80001001,
     frames = {
         { frame = 0, op = "cast", effect = "skill_80001001_cast", targetRef = "selected" },
-        { frame = 12, op = "damage", effect = "skill_80001001_execute", targetRef = "selected", damageRate = 11000 },
+        { frame = 24, op = "damage", effect = "skill_80001001_execute", targetRef = "selected", damageRate = 11000 },
+        { frame = 36, op = "effect", effect = "skill_80001001_end", targetRef = "selected" },
     },
 }
 

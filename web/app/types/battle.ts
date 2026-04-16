@@ -59,4 +59,31 @@ export type BattleSetup = {
 export type AnimationEvent =
   | { type: "damage"; heroId: string; value: number; critical: boolean }
   | { type: "heal"; heroId: string; value: number }
-  | { type: "banner"; text: string; emphasis?: boolean };
+  | { type: "banner"; text: string; emphasis?: boolean }
+  | {
+      type: "timeline_started";
+      heroId: string;
+      heroName: string;
+      skillName: string;
+      totalFrames: number;
+    }
+  | {
+      type: "timeline_frame";
+      heroId: string;
+      heroName: string;
+      skillName: string;
+      frame: number;
+      frameIndex: number;
+      op: string;
+      effect: string;
+      targetIds: string[];
+    }
+  | {
+      type: "timeline_completed";
+      heroId: string;
+      heroName: string;
+      skillName: string;
+      totalFrames: number;
+      totalDamage: number;
+      succeeded: boolean;
+    };

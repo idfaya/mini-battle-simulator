@@ -3,9 +3,32 @@ import type { BattleStoreState } from "../state/battleStore";
 import type { AnimationEvent, UnitState } from "../types/battle";
 
 type UnitLayout = { x: number; y: number; width: number; height: number; unit: UnitState };
+const TOP_BAR_TEXT_Y = 52;
+const TIMELINE_PANEL_Y = 72;
+const TIMELINE_PANEL_HEIGHT = 72;
+const BATTLEFIELD_TOP_SAFE_Y = TIMELINE_PANEL_Y + TIMELINE_PANEL_HEIGHT + 24;
+const LANE_GAP_Y = 140;
+
+type TimelineOverlay = {
+  heroId: string;
+  heroName: string;
+  skillName: string;
+  // totalFrames here means "keyframe count" (#frame defs), not 30fps timeline frames.
+  totalFrames: number;
+  frameIndex: number;
+  frame: number;
+  op: string;
+  effect: string;
+  targetIds: string[];
+  startedAt: number;
+  completedAt: number | null;
+  totalDamage: number;
+  succeeded: boolean | null;
+};
 
 export class BattleScene {
   private floatingTexts: Array<FloatingText & { unitId: string }> = [];
+  private activeTimeline: TimelineOverlay | null = null;
 
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, state: BattleStoreState, now: number) {
     ctx.clearRect(0, 0, width, height);
@@ -29,6 +52,7 @@ export class BattleScene {
     }
 
     this.drawTopBar(ctx, width, state);
+    this.drawTimelineOverlay(ctx, width, now);
     this.drawBottomHint(ctx, width, height, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
@@ -44,7 +68,11 @@ export class BattleScene {
   private layoutTeam(team: UnitState[], width: number, side: "left" | "right"): UnitLayout[] {
     const desiredCardWidth = 240;
     const cardHeight = 110;
-    const laneYs = [120, 260, 400];
+    const laneYs = [
+      BATTLEFIELD_TOP_SAFE_Y,
+      BATTLEFIELD_TOP_SAFE_Y + LANE_GAP_Y,
+      BATTLEFIELD_TOP_SAFE_Y + LANE_GAP_Y * 2,
+    ];
     const margin = 20;
     const desiredDepthGap = 40; // gap between back row card and front row card
     const desiredCenterGap = 40; // gap between left-front and right-front columns
@@ -104,13 +132,28 @@ export class BattleScene {
 
   private drawUnitCard(ctx: CanvasRenderingContext2D, layout: UnitLayout, isActive: boolean) {
     const { x, y, width, height, unit } = layout;
+    const isCastingHero = this.activeTimeline?.heroId === unit.id;
+    const isTimelineTarget = this.activeTimeline?.targetIds.includes(unit.id) ?? false;
 
     ctx.save();
     ctx.fillStyle = unit.team === "left" ? "#173f5f" : "#5f0f40";
-    ctx.strokeStyle = isActive ? "#ffd166" : unit.ultimateReady ? "#80ed99" : "rgba(255,255,255,0.2)";
-    ctx.lineWidth = isActive ? 4 : 2;
+    ctx.strokeStyle = isActive
+      ? "#ffd166"
+      : isCastingHero
+        ? "#ffd166"
+        : isTimelineTarget
+          ? "#4cc9f0"
+          : unit.ultimateReady
+            ? "#80ed99"
+            : "rgba(255,255,255,0.2)";
+    ctx.lineWidth = isActive || isCastingHero ? 4 : isTimelineTarget ? 3 : 2;
     ctx.fillRect(x, y, width, height);
     ctx.strokeRect(x, y, width, height);
+
+    if (isCastingHero || isTimelineTarget) {
+      ctx.fillStyle = isCastingHero ? "rgba(255, 209, 102, 0.12)" : "rgba(76, 201, 240, 0.12)";
+      ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+    }
 
     ctx.fillStyle = "#f8f9fa";
     ctx.font = "bold 18px sans-serif";
@@ -164,9 +207,53 @@ export class BattleScene {
 
     ctx.fillStyle = "#f8f9fa";
     ctx.font = "bold 24px sans-serif";
-    ctx.fillText(`Round ${state.snapshot.round}`, 48, 52);
+    ctx.fillText(`Round ${state.snapshot.round}`, 48, TOP_BAR_TEXT_Y);
     ctx.font = "14px sans-serif";
-    ctx.fillText(state.banner ?? "AFK 战斗进行中", width / 2 - 70, 50);
+    ctx.fillText(state.banner ?? "AFK 战斗进行中", width / 2 - 70, TOP_BAR_TEXT_Y - 2);
+  }
+
+  private drawTimelineOverlay(ctx: CanvasRenderingContext2D, width: number, now: number) {
+    if (!this.activeTimeline) {
+      return;
+    }
+
+    if (this.activeTimeline.completedAt && now - this.activeTimeline.completedAt > 280) {
+      this.activeTimeline = null;
+      return;
+    }
+
+    const overlay = this.activeTimeline;
+    const panelWidth = 340;
+    const panelHeight = TIMELINE_PANEL_HEIGHT;
+    const x = Math.round((width - panelWidth) / 2);
+    const y = TIMELINE_PANEL_Y;
+    const keyframeCount = Math.max(overlay.totalFrames, 1);
+    const currentKeyframeIndex = Math.max(0, overlay.frameIndex);
+    const progress = Math.max(0.08, Math.min(1, currentKeyframeIndex / keyframeCount));
+    const timelineMs = Math.max(0, Math.round((overlay.frame || 0) * (1000 / 30)));
+
+    ctx.save();
+    ctx.fillStyle = "rgba(11, 19, 32, 0.88)";
+    ctx.strokeStyle = overlay.completedAt ? "#80ed99" : "#ffd166";
+    ctx.lineWidth = 2;
+    ctx.fillRect(x, y, panelWidth, panelHeight);
+    ctx.strokeRect(x, y, panelWidth, panelHeight);
+
+    ctx.fillStyle = "#f8f9fa";
+    ctx.font = "bold 18px sans-serif";
+    ctx.fillText(`${overlay.heroName} · ${overlay.skillName}`, x + 16, y + 24);
+
+    ctx.font = "13px sans-serif";
+    const phaseText = overlay.completedAt
+      ? `完成 · ${overlay.succeeded ? "成功" : "失败"} · 总伤害 ${overlay.totalDamage}`
+      : `播放中 · 关键帧 ${overlay.frameIndex}/${keyframeCount} · 时间轴帧 ${overlay.frame} (~${timelineMs}ms)`;
+    ctx.fillText(phaseText, x + 16, y + 46);
+
+    ctx.fillStyle = "#263238";
+    ctx.fillRect(x + 16, y + 54, panelWidth - 32, 8);
+    ctx.fillStyle = overlay.completedAt ? "#80ed99" : "#ffd166";
+    ctx.fillRect(x + 16, y + 54, Math.round((panelWidth - 32) * progress), 8);
+    ctx.restore();
   }
 
   private drawBottomHint(ctx: CanvasRenderingContext2D, width: number, height: number, state: BattleStoreState) {
@@ -187,18 +274,74 @@ export class BattleScene {
 
   private consumeAnimations(events: AnimationEvent[], layouts: UnitLayout[], now: number) {
     for (const event of events) {
-      if (event.type !== "damage" && event.type !== "heal") {
+      if (event.type === "timeline_started") {
+        this.activeTimeline = {
+          heroId: event.heroId,
+          heroName: event.heroName,
+          skillName: event.skillName,
+          totalFrames: event.totalFrames,
+          frameIndex: 0,
+          frame: 0,
+          op: "cast",
+          effect: "",
+          targetIds: [],
+          startedAt: now,
+          completedAt: null,
+          totalDamage: 0,
+          succeeded: null,
+        };
         continue;
       }
-      const layout = layouts.find((item) => item.unit.id === event.heroId);
-      const text = createFloatingText(event, layout?.unit, now);
-      if (!text || !layout) {
+
+      if (event.type === "timeline_frame") {
+        this.activeTimeline = {
+          heroId: event.heroId,
+          heroName: event.heroName,
+          skillName: event.skillName,
+          totalFrames: this.activeTimeline?.totalFrames ?? event.frameIndex,
+          frameIndex: event.frameIndex,
+          frame: event.frame,
+          op: event.op,
+          effect: event.effect,
+          targetIds: event.targetIds,
+          startedAt: this.activeTimeline?.startedAt ?? now,
+          completedAt: null,
+          totalDamage: this.activeTimeline?.totalDamage ?? 0,
+          succeeded: null,
+        };
         continue;
       }
-      this.floatingTexts.push({
-        ...text,
-        unitId: layout.unit.id,
-      });
+
+      if (event.type === "timeline_completed") {
+        this.activeTimeline = {
+          heroId: event.heroId,
+          heroName: event.heroName,
+          skillName: event.skillName,
+          totalFrames: Math.max(this.activeTimeline?.totalFrames ?? 0, event.totalFrames),
+          frameIndex: this.activeTimeline?.frameIndex ?? event.totalFrames,
+          frame: this.activeTimeline?.frame ?? 0,
+          op: this.activeTimeline?.op ?? "complete",
+          effect: this.activeTimeline?.effect ?? "",
+          targetIds: this.activeTimeline?.targetIds ?? [],
+          startedAt: this.activeTimeline?.startedAt ?? now,
+          completedAt: now,
+          totalDamage: event.totalDamage,
+          succeeded: event.succeeded,
+        };
+        continue;
+      }
+
+      if (event.type === "damage" || event.type === "heal") {
+        const layout = layouts.find((item) => item.unit.id === event.heroId);
+        const text = createFloatingText(event, layout?.unit, now);
+        if (!text || !layout) {
+          continue;
+        }
+        this.floatingTexts.push({
+          ...text,
+          unitId: layout.unit.id,
+        });
+      }
     }
   }
 

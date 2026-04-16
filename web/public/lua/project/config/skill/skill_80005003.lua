@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80005003_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 30,
             op = "damage",
             effect = "skill_80005003_execute",
             targetRef = "selected",
@@ -17,6 +17,7 @@ local DEF = {
                 { tag = "apply_poison", phase = "post", param = { layers = 2 } },
             },
         },
+        { frame = 45, op = "effect", effect = "skill_80005003_end", targetRef = "selected" },
     },
 }
 

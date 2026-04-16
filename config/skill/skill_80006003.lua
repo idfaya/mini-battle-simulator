@@ -11,7 +11,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80006003_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 30,
             op = "effect",
             effect = "skill_80006003_execute",
             targetRef = "selected",
@@ -20,6 +20,7 @@ local DEF = {
                 { tag = "group_heal", phase = "pre" },
             },
         },
+        { frame = 45, op = "effect", effect = "skill_80006003_end", targetRef = "selected" },
     },
 }
 

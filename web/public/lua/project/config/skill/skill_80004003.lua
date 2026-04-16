@@ -7,7 +7,7 @@ local DEF = {
     frames = {
         { frame = 0, op = "cast", effect = "skill_80004003_cast", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 30,
             op = "effect",
             effect = "skill_80004003_execute",
             targetRef = "selected",
@@ -15,6 +15,7 @@ local DEF = {
                 { tag = "battle_intent_buff", phase = "pre" },
             },
         },
+        { frame = 45, op = "effect", effect = "skill_80004003_end", targetRef = "selected" },
     },
 }
 
