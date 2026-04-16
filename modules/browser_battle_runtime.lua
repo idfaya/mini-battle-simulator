@@ -560,11 +560,17 @@ function Runtime.tick(deltaMs)
     end
 
     state.accumulatorMs = state.accumulatorMs + math.max(0, deltaMs or 0)
-    if state.accumulatorMs < LOGIC_STEP_MS and #state.events == 0 then
-        return {}
+    if state.accumulatorMs < LOGIC_STEP_MS then
+        if #state.events == 0 then
+            return {}
+        end
+
+        local pendingEvents = state.events
+        state.events = {}
+        return pendingEvents
     end
 
-    local steps = math.max(1, math.floor(state.accumulatorMs / LOGIC_STEP_MS))
+    local steps = math.floor(state.accumulatorMs / LOGIC_STEP_MS)
     state.accumulatorMs = state.accumulatorMs - (steps * LOGIC_STEP_MS)
 
     for _ = 1, steps do
