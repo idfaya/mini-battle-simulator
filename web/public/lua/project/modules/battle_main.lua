@@ -415,7 +415,7 @@ function BattleMain.Start(beginState, onBattleEnd)
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
---- 选择可用技能（浏览器 AFK 模式下，大招由外部异步指令触发，这里仅自动选择主动/普通技能）
+--- 选择可用技能（玩家侧大招由外部指令触发；敌方 AI 可自动释放大招）
 ---@param hero table 英雄对象
 ---@return table 技能对象
 local function SelectAvailableSkill(hero)
@@ -455,6 +455,20 @@ local function SelectAvailableSkill(hero)
     
     -- 从 hero.skillData.skillInstances 中获取实际可用的技能
     local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
+
+    -- Enemy AI auto-casts ultimate when ready. Player side still uses manual/auto queue.
+    if hero and not hero.isLeft then
+        for skillId, skill in pairs(availableSkills) do
+            if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+                local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
+                if cd == 0 and BattleEnergy.CanCastUltimate(hero, skill) then
+                    Logger.Log(string.format("[SelectAvailableSkill] %s 敌方自动选择大招: %s",
+                        hero.name or "Unknown", skill.name or tostring(skillId)))
+                    return skill
+                end
+            end
+        end
+    end
     
     -- 如果没有可用的大招，检查主动技能（不耗能量，有CD冷却）
     for skillId, skill in pairs(availableSkills) do

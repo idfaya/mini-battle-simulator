@@ -201,7 +201,10 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("full_heal_cleanse", function(ctx, frameCopy)
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local BattleBuff = require("modules.battle_buff")
-        local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
+        local BattleFormation = require("modules.battle_formation")
+        -- Holy Radiance is always a full-team friendly effect. Avoid depending on
+        -- upstream selected targets so it never degrades into a single-target heal.
+        local allies = CollectAliveHeroes(BattleFormation.GetFriendTeam(ctx.hero) or {})
         local healed = 0
         for _, ally in ipairs(allies) do
             local healAmount = math.max(0, (ally.maxHp or 0) - (ally.hp or 0))
