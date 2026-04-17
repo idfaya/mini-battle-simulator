@@ -9,6 +9,11 @@ const TIMELINE_PANEL_HEIGHT = 72;
 const BATTLEFIELD_TOP_SAFE_Y = TIMELINE_PANEL_Y + TIMELINE_PANEL_HEIGHT + 24;
 const LANE_GAP_Y = 140;
 
+type ClassBadge = {
+  fill: string;
+  stroke: string;
+};
+
 type TimelineOverlay = {
   heroId: string;
   heroName: string;
@@ -134,6 +139,7 @@ export class BattleScene {
     const { x, y, width, height, unit } = layout;
     const isCastingHero = this.activeTimeline?.heroId === unit.id;
     const isTimelineTarget = this.activeTimeline?.targetIds.includes(unit.id) ?? false;
+    const classBadge = this.getClassBadge(unit.classId);
 
     ctx.save();
     ctx.fillStyle = unit.team === "left" ? "#173f5f" : "#5f0f40";
@@ -155,9 +161,11 @@ export class BattleScene {
       ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
     }
 
+    this.drawClassIconBadge(ctx, x + 12, y + 10, 22, classBadge, unit.classIcon);
+
     ctx.fillStyle = "#f8f9fa";
     ctx.font = "bold 18px sans-serif";
-    ctx.fillText(unit.name, x + 16, y + 26);
+    ctx.fillText(unit.name, x + 44, y + 26);
 
     if (unit.ultimateReady) {
       ctx.fillStyle = "#80ed99";
@@ -180,6 +188,68 @@ export class BattleScene {
       ctx.font = "bold 20px sans-serif";
       ctx.fillText("DEFEATED", x + 68, y + 62);
     }
+
+    ctx.restore();
+  }
+
+  private drawPill(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    fill: string,
+    stroke: string,
+    color: string,
+    font = "bold 12px sans-serif",
+  ) {
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.fillText(text, x + 8, y + 14);
+    ctx.restore();
+  }
+
+  private getClassBadge(classId: number): ClassBadge {
+    if (classId >= 1 && classId <= 5) {
+      return { fill: "#243b53", stroke: "#9fb3c8" };
+    }
+    if (classId >= 6 && classId <= 9) {
+      return { fill: "#33265c", stroke: "#c77dff" };
+    }
+    return { fill: "#263238", stroke: "rgba(255,255,255,0.35)" };
+  }
+
+  private drawClassIconBadge(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+    badge: ClassBadge,
+    icon: string,
+  ) {
+    ctx.save();
+    ctx.fillStyle = badge.fill;
+    ctx.strokeStyle = badge.stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y, size, size, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#f8f9fa";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "16px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+    ctx.fillText(icon && icon.length > 0 ? icon : "?", x + size / 2, y + size / 2 + 1);
 
     ctx.restore();
   }

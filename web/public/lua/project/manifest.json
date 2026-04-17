@@ -58,6 +58,10 @@
       "moduleName": "config.buff.buff_880002"
     },
     {
+      "path": "config/class_role_config.lua",
+      "moduleName": "config.class_role_config"
+    },
+    {
       "path": "config/enemy_data.lua",
       "moduleName": "config.enemy_data"
     },

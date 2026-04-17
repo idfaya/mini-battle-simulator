@@ -1352,11 +1352,30 @@ end
 
 function BattleSkill.GetChainTargets(hero, firstTarget, hitCount)
     local BattleFormation = require("modules.battle_formation")
+    local isMelee = BattleFormation.IsMeleeHero and BattleFormation.IsMeleeHero(hero)
     local enemies = BattleFormation.GetEnemyTeam(hero) or {}
     local result = {}
     local seen = {}
 
-    AppendUniqueTarget(result, seen, firstTarget)
+    local resolvedFirstTarget = firstTarget
+    if isMelee and BattleFormation.GetSelectableEnemyHeroes then
+        -- Melee chain: first target must be in front row pool if any front enemies alive.
+        local frontPool = BattleFormation.GetSelectableEnemyHeroes(hero, false) or {}
+        local frontSet = {}
+        for _, e in ipairs(frontPool) do
+            if e and e.instanceId then
+                frontSet[e.instanceId] = true
+            end
+        end
+        if resolvedFirstTarget and not frontSet[resolvedFirstTarget.instanceId] then
+            resolvedFirstTarget = nil
+        end
+        if not resolvedFirstTarget then
+            resolvedFirstTarget = frontPool[1]
+        end
+    end
+
+    AppendUniqueTarget(result, seen, resolvedFirstTarget)
 
     local candidates = {}
     for _, enemy in ipairs(enemies) do

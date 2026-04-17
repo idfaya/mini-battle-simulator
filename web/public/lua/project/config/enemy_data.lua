@@ -1,17 +1,12 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
+local ClassRoleConfig = require("config.class_role_config")
 
 local EnemyData = {}
 
 local enemyData = {}
 local isLoaded = false
 local skillConfigInited = false
-
-local CLASS_NAMES = {
-    [1] = "流派1",
-    [2] = "流派2",
-    [3] = "流派3",
-}
 
 local MONSTER_TYPE_NAMES = {
     [0] = "Normal",
@@ -216,7 +211,7 @@ function EnemyData.GetEnemiesByClass(class)
 end
 
 function EnemyData.GetClassName(class)
-    return CLASS_NAMES[class] or "Unknown"
+    return ClassRoleConfig.GetName(class)
 end
 
 function EnemyData.GetMonsterTypeName(monsterType)
@@ -243,10 +238,8 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
     local class = enemy.Class or 2
 
     local baseHp, baseAtk, baseDef, baseSpeed
-    if class == 1 then
+    if ClassRoleConfig.IsMelee(class) then
         baseHp, baseAtk, baseDef, baseSpeed = 1200, 105, 78, 88
-    elseif class == 2 then
-        baseHp, baseAtk, baseDef, baseSpeed = 980, 138, 55, 104
     else
         baseHp, baseAtk, baseDef, baseSpeed = 920, 152, 48, 108
     end

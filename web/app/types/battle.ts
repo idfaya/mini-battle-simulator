@@ -12,6 +12,9 @@ export type UnitState = {
   name: string;
   team: TeamSide;
   position: number;
+  classId: number;
+  className: string;
+  classIcon: string;
   hp: number;
   maxHp: number;
   energy: number;

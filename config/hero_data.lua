@@ -1,5 +1,6 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
+local ClassRoleConfig = require("config.class_role_config")
 
 local HeroData = {}
 
@@ -10,12 +11,6 @@ local heroesByQuality = {}
 local allHeroes = {}
 local playableHeroes = {}
 local initialized = false
-
-local CLASS_NAMES = {
-    [1] = "流派1",
-    [2] = "流派2",
-    [3] = "流派3",
-}
 
 local QUALITY_NAMES = {
     [1] = "Common",
@@ -213,7 +208,7 @@ function HeroData.GetPlayableHeroesByQuality(quality)
 end
 
 function HeroData.GetClassName(class)
-    return CLASS_NAMES[class] or "Unknown"
+    return ClassRoleConfig.GetName(class)
 end
 
 function HeroData.GetQualityName(quality)

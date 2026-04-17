@@ -4,6 +4,7 @@
 ---
 
 local Logger = require("utils.logger")
+local ClassRoleConfig = require("config.class_role_config")
 
 ---@class BattleFormation
 local BattleFormation = {}
@@ -34,6 +35,8 @@ local COLUMN_BY_WP_TYPE = {
     [3] = 3, [6] = 3,
 }
 local DEFAULT_EMPTY_WP_PRIORITY = { 5, 4, 6, 2, 1, 3 }
+local FRONT_ROW_PRIORITY = { 2, 1, 3, 5, 4, 6 }
+local BACK_ROW_PRIORITY = { 5, 4, 6, 2, 1, 3 }
 
 --- 生成唯一实例ID
 ---@return number 实例ID
@@ -85,6 +88,19 @@ local function GetFirstAvailableWpType(isLeft, preferredOrder)
     return nil
 end
 
+local function IsMeleeClass(classId)
+    return ClassRoleConfig.IsMelee(classId)
+end
+
+local function GetPreferredWpOrder(heroData)
+    local classId = heroData and (heroData.class or heroData.Class or heroData._class) or 0
+    if ClassRoleConfig.PreferFrontRow(classId) then
+        return FRONT_ROW_PRIORITY
+    end
+
+    return BACK_ROW_PRIORITY
+end
+
 local function ResolveInitWpType(heroData, defaultWpType, isLeft)
     local requestedWpType = tonumber(heroData and heroData.wpType) or 0
     if requestedWpType > 0 then
@@ -100,11 +116,15 @@ local function ResolveInitWpType(heroData, defaultWpType, isLeft)
         end
     end
 
-    if IsValidWpType(defaultWpType) and not IsPositionOccupied(isLeft, defaultWpType) then
+    local preferredOrder = GetPreferredWpOrder(heroData)
+    if IsValidWpType(defaultWpType)
+        and not IsPositionOccupied(isLeft, defaultWpType)
+        and ((preferredOrder == FRONT_ROW_PRIORITY and BattleFormation.IsFrontRow(defaultWpType))
+            or (preferredOrder == BACK_ROW_PRIORITY and BattleFormation.IsBackRow(defaultWpType))) then
         return defaultWpType
     end
 
-    return GetFirstAvailableWpType(isLeft)
+    return GetFirstAvailableWpType(isLeft, preferredOrder)
 end
 
 --- 创建英雄数据结构
@@ -356,11 +376,15 @@ function BattleFormation.GetSelectableEnemyHeroes(hero, ignoreFrontProtection)
         end
     end
 
-    if ignoreFrontProtection or #aliveFrontEnemies == 0 then
+    if (ignoreFrontProtection and not BattleFormation.IsMeleeHero(hero)) or #aliveFrontEnemies == 0 then
         return aliveEnemies
     end
 
     return aliveFrontEnemies
+end
+
+function BattleFormation.IsMeleeHero(hero)
+    return hero and IsMeleeClass(hero.class)
 end
 
 --- 获取随机敌人的实例ID
