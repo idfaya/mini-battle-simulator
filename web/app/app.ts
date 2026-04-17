@@ -56,6 +56,7 @@ export async function bootstrapApp(container: HTMLElement) {
     speed: 1,
   };
   let speed = setup.speed;
+  let autoUltimate = false;
 
   const toRuntimeConfig = (nextSetup: BattleSetup) => ({
     level: nextSetup.level,
@@ -83,7 +84,11 @@ export async function bootstrapApp(container: HTMLElement) {
       speed = nextSpeed;
       setup.speed = nextSpeed;
     },
+    (enabled) => {
+      autoUltimate = enabled;
+    },
     setup,
+    autoUltimate,
   );
 
   sidePanel.replaceWith(controls.root);
@@ -129,6 +134,13 @@ export async function bootstrapApp(container: HTMLElement) {
     inFlight = false;
     store.appendEvents(events);
     store.setSnapshot(snapshot);
+
+    if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0) {
+      const readyUnit = snapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
+      if (readyUnit) {
+        await castUltimate(readyUnit.id);
+      }
+    }
 
     // #region debug-point B:frame-sample
     if (frameCount <= 5 || frameCount % 20 === 0) {

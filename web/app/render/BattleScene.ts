@@ -5,7 +5,7 @@ import type { AnimationEvent, UnitState } from "../types/battle";
 type UnitLayout = { x: number; y: number; width: number; height: number; unit: UnitState };
 const TOP_BAR_TEXT_Y = 52;
 const TIMELINE_PANEL_Y = 72;
-const TIMELINE_PANEL_HEIGHT = 72;
+const TIMELINE_PANEL_HEIGHT = 104;
 const BATTLEFIELD_TOP_SAFE_Y = TIMELINE_PANEL_Y + TIMELINE_PANEL_HEIGHT + 24;
 const LANE_GAP_Y = 140;
 
@@ -57,7 +57,7 @@ export class BattleScene {
     }
 
     this.drawTopBar(ctx, width, state);
-    this.drawTimelineOverlay(ctx, width, now);
+    this.drawTimelineOverlay(ctx, width, now, state);
     this.drawBottomHint(ctx, width, height, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
@@ -282,47 +282,131 @@ export class BattleScene {
     ctx.fillText(state.banner ?? "AFK 战斗进行中", width / 2 - 70, TOP_BAR_TEXT_Y - 2);
   }
 
-  private drawTimelineOverlay(ctx: CanvasRenderingContext2D, width: number, now: number) {
-    if (!this.activeTimeline) {
+  private drawTimelineOverlay(ctx: CanvasRenderingContext2D, width: number, now: number, state: BattleStoreState) {
+    const snapshot = state.snapshot;
+    const activeUnit = snapshot
+      ? [...snapshot.leftTeam, ...snapshot.rightTeam].find((unit) => unit.id === snapshot.activeHeroId) ?? null
+      : null;
+
+    if (!this.activeTimeline && !activeUnit) {
       return;
     }
 
     if (this.activeTimeline.completedAt && now - this.activeTimeline.completedAt > 280) {
       this.activeTimeline = null;
-      return;
     }
 
     const overlay = this.activeTimeline;
-    const panelWidth = 340;
+    const panelWidth = Math.min(520, Math.max(380, width - 120));
     const panelHeight = TIMELINE_PANEL_HEIGHT;
     const x = Math.round((width - panelWidth) / 2);
     const y = TIMELINE_PANEL_Y;
-    const keyframeCount = Math.max(overlay.totalFrames, 1);
-    const currentKeyframeIndex = Math.max(0, overlay.frameIndex);
-    const progress = Math.max(0.08, Math.min(1, currentKeyframeIndex / keyframeCount));
-    const timelineMs = Math.max(0, Math.round((overlay.frame || 0) * (1000 / 30)));
+    const infoWidth = 180;
+    const timelineX = x + infoWidth + 12;
+    const timelineWidth = panelWidth - infoWidth - 28;
+    const keyframeCount = Math.max(overlay?.totalFrames ?? 1, 1);
+    const currentKeyframeIndex = Math.max(0, overlay?.frameIndex ?? 0);
+    const progress = overlay ? Math.max(0.08, Math.min(1, currentKeyframeIndex / keyframeCount)) : 0;
+    const timelineMs = Math.max(0, Math.round(((overlay?.frame ?? 0) || 0) * (1000 / 30)));
 
     ctx.save();
-    ctx.fillStyle = "rgba(11, 19, 32, 0.88)";
-    ctx.strokeStyle = overlay.completedAt ? "#80ed99" : "#ffd166";
+    ctx.fillStyle = "rgba(11, 19, 32, 0.92)";
+    ctx.strokeStyle = overlay?.completedAt ? "#80ed99" : "#ffd166";
     ctx.lineWidth = 2;
-    ctx.fillRect(x, y, panelWidth, panelHeight);
-    ctx.strokeRect(x, y, panelWidth, panelHeight);
+    ctx.beginPath();
+    ctx.roundRect(x, y, panelWidth, panelHeight, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(x + infoWidth, y + 10, 1, panelHeight - 20);
+
+    if (activeUnit) {
+      const badge = this.getClassBadge(activeUnit.classId);
+      const hpRate = activeUnit.maxHp > 0 ? activeUnit.hp / activeUnit.maxHp : 0;
+      const enRate = activeUnit.maxEnergy > 0 ? activeUnit.energy / activeUnit.maxEnergy : 0;
+
+      this.drawClassIconBadge(ctx, x + 12, y + 12, 24, badge, activeUnit.classIcon);
+      ctx.fillStyle = "#f8f9fa";
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(activeUnit.name, x + 44, y + 20);
+
+      ctx.font = "11px sans-serif";
+      ctx.fillStyle = "#d9e2ec";
+      const actionText = overlay
+        ? overlay.skillName
+        : activeUnit.ultimateReady
+          ? `ULT READY · ${activeUnit.ultimateSkillName}`
+          : activeUnit.ultimateSkillName;
+      ctx.fillText(actionText, x + 44, y + 36);
+
+      this.drawBar(ctx, x + 12, y + 48, infoWidth - 24, 8, hpRate, "#ef476f", "#3a3a3a");
+      this.drawBar(ctx, x + 12, y + 62, infoWidth - 24, 6, enRate, "#4cc9f0", "#2a2a2a");
+
+      ctx.fillStyle = "#f8f9fa";
+      ctx.font = "10px sans-serif";
+      ctx.fillText(`${Math.max(0, Math.floor(activeUnit.hp))}/${Math.floor(activeUnit.maxHp)}`, x + 12, y + 46);
+      ctx.fillText(`EN ${Math.floor(activeUnit.energy)}/${Math.floor(activeUnit.maxEnergy)}`, x + infoWidth - 62, y + 72);
+
+      this.drawBuffSummary(ctx, x + 12, y + 80, infoWidth - 24, activeUnit);
+    }
 
     ctx.fillStyle = "#f8f9fa";
     ctx.font = "bold 18px sans-serif";
-    ctx.fillText(`${overlay.heroName} · ${overlay.skillName}`, x + 16, y + 24);
+    ctx.fillText(overlay ? `${overlay.heroName} · ${overlay.skillName}` : "等待技能时间轴", timelineX, y + 24);
 
     ctx.font = "13px sans-serif";
-    const phaseText = overlay.completedAt
-      ? `完成 · ${overlay.succeeded ? "成功" : "失败"} · 总伤害 ${overlay.totalDamage}`
-      : `播放中 · 关键帧 ${overlay.frameIndex}/${keyframeCount} · 时间轴帧 ${overlay.frame} (~${timelineMs}ms)`;
-    ctx.fillText(phaseText, x + 16, y + 46);
+    const phaseText = overlay
+      ? overlay.completedAt
+        ? `完成 · ${overlay.succeeded ? "成功" : "失败"} · 总伤害 ${overlay.totalDamage}`
+        : `播放中 · 关键帧 ${overlay.frameIndex}/${keyframeCount} · 时间轴帧 ${overlay.frame} (~${timelineMs}ms)`
+      : "尚未进入技能时间轴，等待本轮动作开始";
+    ctx.fillText(phaseText, timelineX, y + 46);
 
     ctx.fillStyle = "#263238";
-    ctx.fillRect(x + 16, y + 54, panelWidth - 32, 8);
-    ctx.fillStyle = overlay.completedAt ? "#80ed99" : "#ffd166";
-    ctx.fillRect(x + 16, y + 54, Math.round((panelWidth - 32) * progress), 8);
+    ctx.fillRect(timelineX, y + 76, timelineWidth, 8);
+    ctx.fillStyle = overlay?.completedAt ? "#80ed99" : "#ffd166";
+    ctx.fillRect(timelineX, y + 76, Math.round(timelineWidth * progress), 8);
+    ctx.restore();
+  }
+
+  private drawBuffSummary(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
+    ctx.save();
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = "#9fb3c8";
+    ctx.fillText("Buff", x, y + 10);
+
+    const buffs = (unit.buffs ?? []).slice(0, 2);
+    if (buffs.length === 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText("无", x + 30, y + 10);
+      ctx.restore();
+      return;
+    }
+
+    let chipX = x + 30;
+    for (const buff of buffs) {
+      const suffix = buff.stackCount > 1 ? `x${buff.stackCount}` : "";
+      const label = `${String(buff.name ?? "").slice(0, 4)}${suffix}`;
+      const chipWidth = Math.min(70, Math.max(36, 14 + label.length * 9));
+
+      if (chipX + chipWidth > x + width) {
+        break;
+      }
+
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(chipX, y, chipWidth, 14, 7);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f8f9fa";
+      ctx.fillText(label, chipX + 6, y + 10);
+      chipX += chipWidth + 6;
+    }
+
     ctx.restore();
   }
 

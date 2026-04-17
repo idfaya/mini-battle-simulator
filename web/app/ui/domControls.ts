@@ -5,6 +5,7 @@ type Controls = {
   logList: HTMLUListElement;
   status: HTMLDivElement;
   buttonsHost: HTMLDivElement;
+  autoUltToggle: HTMLInputElement;
   levelInput: HTMLInputElement;
   heroCountInput: HTMLInputElement;
   enemyCountInput: HTMLInputElement;
@@ -15,7 +16,9 @@ export function createControls(
   onUltCast: (heroId: string) => void,
   onRestart: (setup: BattleSetup) => void,
   onSpeedChange: (speed: number) => void,
+  onAutoUltChange: (enabled: boolean) => void,
   initialSetup: BattleSetup,
+  initialAutoUlt: boolean,
 ): Controls {
   const root = document.createElement("div");
   root.className = "hud";
@@ -130,7 +133,20 @@ export function createControls(
   restartButton.textContent = "应用设置并重开";
   restartButton.onclick = () => onRestart(readSetup());
 
-  actions.append(restartButton);
+  const autoUltLabel = document.createElement("label");
+  autoUltLabel.className = "setup-field";
+
+  const autoUltToggle = document.createElement("input");
+  autoUltToggle.type = "checkbox";
+  autoUltToggle.checked = initialAutoUlt;
+  autoUltToggle.onchange = () => onAutoUltChange(autoUltToggle.checked);
+
+  const autoUltText = document.createElement("span");
+  autoUltText.textContent = "自动放大招";
+
+  autoUltLabel.append(autoUltToggle, autoUltText);
+
+  actions.append(restartButton, autoUltLabel);
   root.append(status, setupPanel, buttonsHost, actions, logList);
 
   return {
@@ -138,6 +154,7 @@ export function createControls(
     logList,
     status,
     buttonsHost,
+    autoUltToggle,
     levelInput: levelField.input,
     heroCountInput: heroCountField.input,
     enemyCountInput: enemyCountField.input,

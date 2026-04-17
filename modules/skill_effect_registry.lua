@@ -152,10 +152,29 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("holy_light", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
+        local BattleFormation = require("modules.battle_formation")
         local target = frameCopy.targets and frameCopy.targets[1] or nil
+        local allies = ResolveFriendTargets(ctx.hero, BattleFormation.GetFriendTeam(ctx.hero) or {})
+        local mostInjuredAlly = nil
+        local mostMissingHp = 0
+
+        for _, ally in ipairs(allies or {}) do
+            local missingHp = math.max(0, (ally.maxHp or 0) - (ally.hp or 0))
+            if missingHp > mostMissingHp then
+                mostMissingHp = missingHp
+                mostInjuredAlly = ally
+            end
+        end
+
+        -- Holy Light prioritizes healing allies; only attacks enemies when everyone is full HP.
+        if mostInjuredAlly and mostMissingHp > 0 then
+            target = mostInjuredAlly
+        end
+
         if not target then
             return { damage = 0, healAmount = 0 }
         end
+
         local isAlly = BattleSkill.IsAlly(ctx.hero, target)
         local damage = 0
         local healAmount = 0
