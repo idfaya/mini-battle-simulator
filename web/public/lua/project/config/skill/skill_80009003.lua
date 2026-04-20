@@ -23,7 +23,7 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
             op = "chain_damage",
             effect = "chain_lightning_arc",
             target = chainTarget,
-            damageRate = 10000,
+            damageRate = 7500,
             chainIndex = hitIndex,
         })
         frame = frame + 8
@@ -42,5 +42,4 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009003
-
 

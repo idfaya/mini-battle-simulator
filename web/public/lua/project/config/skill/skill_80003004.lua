@@ -12,7 +12,7 @@ local DEF = {
             effect = "skill_80003004_execute",
             targetRef = "selected",
             tags = {
-                { tag = "random_hits_damage", phase = "pre", param = { hits = 6, damageRate = 10000, pursuitOnKill = true } },
+                { tag = "random_hits_damage", phase = "pre", param = { hits = 6, damageRate = 7000, pursuitOnKill = true } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80003004_end", targetRef = "selected" },
@@ -24,7 +24,6 @@ function skill_80003004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80003004
-
 
 
 

@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80007004_execute",
             targetRef = "selected",
-            damageRate = 20000,
+            damageRate = 12000,
             tags = {
                 { tag = "apply_burn", phase = "post", param = { stacks = 3, turns = 3 } },
             },
@@ -25,7 +25,6 @@ function skill_80007004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80007004
-
 
 
 

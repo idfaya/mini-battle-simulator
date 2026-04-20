@@ -1,4 +1,3 @@
-local BattleSkill = require("modules.battle_skill")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 
 local buff_860001 = {
@@ -20,7 +19,7 @@ local buff_860001 = {
                 if not hero or hero.isDead then
                     return
                 end
-                local healAmount = BattleSkill.CalculateHeal(hero, hero, 1000)
+                local healAmount = math.max(1, math.floor((hero.maxHp or 0) * 0.10))
                 BattleDmgHeal.ApplyHeal(hero, healAmount, hero)
             end
         }

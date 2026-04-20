@@ -69,6 +69,14 @@ local function SortByLowestHpRatio(units)
     return units
 end
 
+local function CalculatePercentMaxHpValue(target, rate)
+    local maxHp = target and target.maxHp or 0
+    if maxHp <= 0 then
+        return 0
+    end
+    return math.max(1, math.floor(maxHp * (tonumber(rate) or 0) / 10000))
+end
+
 local function ResolveBattleIntentBuff(skill)
     local SkillConfig = require("config.skill_config")
     local skillConfig = skill and (skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)) or nil
@@ -125,7 +133,6 @@ function SkillEffectRegistry.RegisterBuiltins()
     builtinsRegistered = true
 
     SkillEffectRegistry.Register("group_heal", function(ctx, frameCopy)
-        local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
         local healCount = ctx.skill and ctx.skill.skillParam and ctx.skill.skillParam[2] or 3
@@ -136,7 +143,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         for i = 1, math.min(healCount, #sortedAllies) do
             local ally = sortedAllies[i]
             if ally then
-                local healAmount = BattleSkill.CalculateHeal(ctx.hero, ally, healRate)
+                local healAmount = CalculatePercentMaxHpValue(ally, healRate)
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
                 healed = healed + healAmount
                 table.insert(selected, ally)
@@ -179,7 +186,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local damage = 0
         local healAmount = 0
         if isAlly then
-            healAmount = BattleSkill.CalculateHeal(ctx.hero, target, 1000)
+            healAmount = CalculatePercentMaxHpValue(target, 1000)
             BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
         else
             damage = BattleSkill.CalculateDamageWithRate(ctx.hero, target, 10000)
@@ -246,7 +253,8 @@ function SkillEffectRegistry.RegisterBuiltins()
         for _, enemy in ipairs(targets) do
             local stacks = enemy and BattleBuff.GetBuffStackNumBySubType(enemy, 850001) or 0
             if enemy and stacks > 0 then
-                local burstDamage = BattleSkill.CalculateDamageWithRate(ctx.hero, enemy, 5000 * stacks)
+                -- Ultimate burst was too swingy in 6v6; reduce per-stack multiplier.
+                local burstDamage = BattleSkill.CalculateDamageWithRate(ctx.hero, enemy, 3500 * stacks)
                 BattleDmgHeal.ApplyDamage(enemy, burstDamage, ctx.hero)
                 total = total + burstDamage
                 BattleBuff.DelBuffBySubType(enemy, 850001)
@@ -305,11 +313,30 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { damageRate = frameCopy.damageRate }
     end)
 
+    SkillEffectRegistry.Register("set_damage_kind", function(_, frameCopy, _, spec)
+        local p = type(spec) == "table" and spec.param or {}
+        local kind = p and p.kind
+        if type(kind) == "string" and kind ~= "" then
+            frameCopy.damageKind = kind
+            return { damageKind = kind }
+        end
+        return nil
+    end)
+
     SkillEffectRegistry.Register("set_targets_all_alive_enemies", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local targets = BattleSkill.SelectAllAliveTargets(ctx.hero) or {}
         frameCopy.targets = targets
         return { targets = targets }
+    end)
+
+    SkillEffectRegistry.Register("crit_rate_bonus", function(ctx, frameCopy, _, spec)
+        local p = type(spec) == "table" and spec.param or {}
+        local amount = tonumber(p and p.amount) or 0
+        if ctx and ctx.hero and amount ~= 0 then
+            ctx.hero.__timelineCritRateBonus = (ctx.hero.__timelineCritRateBonus or 0) + amount
+        end
+        return nil
     end)
 
     SkillEffectRegistry.Register("expand_area_targets", function(ctx, frameCopy, _, spec)

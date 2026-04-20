@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80009001_execute",
             targetRef = "selected",
-            damageRate = 11000,
+            damageRate = 12500,
             tags = {
                 { tag = "chance_chain_lightning", phase = "post", param = { baseChance = 2000, key = "thunderChainChanceBonus", hitCount = 1, damageRate = 10000 } },
             },
@@ -25,7 +25,6 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009001
-
 
 
 

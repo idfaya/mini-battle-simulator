@@ -687,7 +687,8 @@ function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
     local attackerData = {
         attrs = {
             [config.attrType.ATK] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.ATK) or attacker.atk or 0,
-            [config.attrType.CRIT] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0,
+            [config.attrType.CRIT] = (BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0)
+                + (attacker.__timelineCritRateBonus or 0),
         },
         damageBonus = attacker.damageIncrease or 0,
     }
@@ -752,7 +753,8 @@ function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
     local attackerData = {
         attrs = {
             [config.attrType.ATK] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.ATK) or attacker.atk or 0,
-            [config.attrType.CRIT] = BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0,
+            [config.attrType.CRIT] = (BattleAttribute.GetAttribute(attacker, BattleAttribute.ATTR_ID.CRIT_RATE) or attacker.critRate or 0)
+                + (attacker.__timelineCritRateBonus or 0),
         },
         damageBonus = attacker.damageIncrease or 0,
     }
@@ -792,7 +794,7 @@ function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
         Logger.Log(string.format("[CalculateDamageWithRate] 暴击! 伤害: %d", damageResult.damage))
     end
     
-    return damageResult.damage
+    return damageResult.damage, damageResult
 end
 
 --- 计算治疗量
@@ -1727,6 +1729,22 @@ function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
         return 10000
     end
     return finalChance
+end
+
+function BattleSkill.ApplyDamageKindBonus(attacker, defender, damageRate, damageKind)
+    if type(damageKind) ~= "string" or damageKind == "" then
+        return damageRate
+    end
+
+    -- Fire affinity: +15% fire damage (design: "火焰亲和 法伤+15%燃烧")
+    if damageKind == "fire" then
+        local BattleBuff = require("modules.battle_buff")
+        if BattleBuff.GetBuffBySubType(attacker, 870002) then
+            return math.floor((tonumber(damageRate) or 0) * 1.15)
+        end
+    end
+
+    return damageRate
 end
 
 --- 处理追击效果（A1 追击流）

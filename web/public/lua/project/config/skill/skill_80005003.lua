@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80005003_execute",
             targetRef = "selected",
-            damageRate = 10000,
+            damageRate = 8000,
             tags = {
                 { tag = "select_random_enemies", phase = "pre", param = { count = 3 } },
                 { tag = "apply_poison", phase = "post", param = { layers = 2 } },
@@ -26,7 +26,6 @@ function skill_80005003.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80005003
-
 
 
 

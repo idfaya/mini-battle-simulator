@@ -376,7 +376,9 @@ function BattleFormation.GetSelectableEnemyHeroes(hero, ignoreFrontProtection)
         end
     end
 
-    if (ignoreFrontProtection and not BattleFormation.IsMeleeHero(hero)) or #aliveFrontEnemies == 0 then
+    -- If caller explicitly ignores front protection, always allow targeting the full alive pool.
+    -- Melee-only restrictions should be handled by specific skills (e.g. melee chain first target).
+    if ignoreFrontProtection or #aliveFrontEnemies == 0 then
         return aliveEnemies
     end
 

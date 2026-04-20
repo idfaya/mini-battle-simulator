@@ -11,10 +11,10 @@ local DEF = {
             op = "damage",
             effect = "skill_80008003_execute",
             targetRef = "selected",
-            damageRate = 10000,
+            damageRate = 8000,
             tags = {
                 { tag = "expand_area_targets", phase = "pre", param = { includeRow = true, includeColumn = true } },
-                { tag = "set_damage_rate_passive", phase = "pre", param = { base = 10000, key = "iceDamageBonusPct" } },
+                { tag = "set_damage_rate_passive", phase = "pre", param = { base = 8000, key = "iceDamageBonusPct" } },
                 { tag = "apply_freeze", phase = "post", param = { turns = 1, slowPct = 3000 } },
             },
         },
@@ -27,7 +27,6 @@ function skill_80008003.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008003
-
 
 
 

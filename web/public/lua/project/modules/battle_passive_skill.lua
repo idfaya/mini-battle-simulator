@@ -7,6 +7,11 @@ local Logger = require("utils.logger")
 local PassiveDefs = require("config.passive.passive_defs")
 local PassiveHandlers = require("modules.passive_handlers")
 
+-- Ensure enum is available even in isolated tests (without BattleMain bootstrapping).
+if not E_PASSIVE_SKILL_TRIGGER_TIME then
+    require("core.battle_enum")
+end
+
 ---@class BattlePassiveSkill
 local BattlePassiveSkill = {}
 
@@ -15,6 +20,8 @@ local triggerTime2Delegate = {}
 
 -- 触发限制保护
 local triggerLimitProtect = {}
+
+local initialized = false
 
 -- 忽略HP检查的触发时机
 local triggerTimeIgnoreHp = {
@@ -118,6 +125,7 @@ local function Reset()
         triggerTime2Delegate[v] = {}
     end
     triggerLimitProtect = {}
+    initialized = true
 end
 
 --- 创建被动技能上下文
@@ -355,6 +363,9 @@ end
 
 --- 运行委托
 local function RunDelegates(hero, delegateType, extraParam)
+    if not initialized then
+        Reset()
+    end
     local delegatesDict = triggerTime2Delegate[delegateType]
     if delegatesDict == nil then
         Logger.Error("[BattlePassiveSkill] 错误的触发器类型: " .. tostring(delegateType))
@@ -381,6 +392,9 @@ end
 
 --- 添加被动技能到触发时机
 function BattlePassiveSkill.AddPassiveSkill2TriggerTime(hero, skill)
+    if not initialized then
+        Reset()
+    end
     local unitEventTemplate = GetPassiveSkillTemplate(skill)
     if unitEventTemplate == nil then 
         Logger.Error("[BattlePassiveSkill] 无法获取技能模板")

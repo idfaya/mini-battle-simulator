@@ -19,7 +19,9 @@ local buff_870001 = {
                     return
                 end
                 local damage = math.max(1, math.floor((hero.maxHp or 0) * 0.05 * buff.stackCount))
-                BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero)
+                BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero, {
+                    damageKind = "dot",
+                })
             end
         }
     }
