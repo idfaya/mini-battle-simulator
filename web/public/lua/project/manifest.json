@@ -74,6 +74,42 @@
       "moduleName": "config.passive.passive_defs"
     },
     {
+      "path": "config/roguelike/init.lua",
+      "moduleName": "config.roguelike.init"
+    },
+    {
+      "path": "config/roguelike/run_blessing_config.lua",
+      "moduleName": "config.roguelike.run_blessing_config"
+    },
+    {
+      "path": "config/roguelike/run_chapter_config.lua",
+      "moduleName": "config.roguelike.run_chapter_config"
+    },
+    {
+      "path": "config/roguelike/run_encounter_group.lua",
+      "moduleName": "config.roguelike.run_encounter_group"
+    },
+    {
+      "path": "config/roguelike/run_event_config.lua",
+      "moduleName": "config.roguelike.run_event_config"
+    },
+    {
+      "path": "config/roguelike/run_node_pool.lua",
+      "moduleName": "config.roguelike.run_node_pool"
+    },
+    {
+      "path": "config/roguelike/run_relic_config.lua",
+      "moduleName": "config.roguelike.run_relic_config"
+    },
+    {
+      "path": "config/roguelike/run_reward_pool.lua",
+      "moduleName": "config.roguelike.run_reward_pool"
+    },
+    {
+      "path": "config/roguelike/run_shop_goods.lua",
+      "moduleName": "config.roguelike.run_shop_goods"
+    },
+    {
       "path": "config/skill_config.lua",
       "moduleName": "config.skill_config"
     },

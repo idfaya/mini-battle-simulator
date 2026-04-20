@@ -1,5 +1,6 @@
 local BattleMain = require("modules.battle_main")
 local BattleFormation = require("modules.battle_formation")
+local BattleBuff = require("modules.battle_buff")
 local BattleSkill = require("modules.battle_skill")
 local BattleEnergy = require("modules.battle_energy")
 local BattleEvent = require("core.battle_event")
@@ -189,7 +190,7 @@ end
 local function serializeHero(hero)
     local skill = getUltimateSkill(hero)
     local buffs = {}
-    for _, buff in ipairs(hero.buffs or {}) do
+    for _, buff in ipairs(BattleBuff.GetAllBuffs(hero) or {}) do
         buffs[#buffs + 1] = serializeBuff(buff)
     end
 

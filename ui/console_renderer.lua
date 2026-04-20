@@ -14,6 +14,7 @@ local Logger = require("utils.logger")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local BattleFormation = require("modules.battle_formation")
+local BattleBuff = require("modules.battle_buff")
 
 ---@class ConsoleRenderer
 local ConsoleRenderer = {}
@@ -905,10 +906,11 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
         end
     end
     
-    -- 获取Buff列表（直接从hero.buffs获取）
+    -- Buff runtime data is stored in BattleBuff, not guaranteed on hero.buffs.
+    local heroBuffs = BattleBuff.GetAllBuffs and BattleBuff.GetAllBuffs(hero) or hero.buffs or {}
     local buffText = ""
-    if hero.buffs and #hero.buffs > 0 then
-        for i, buff in ipairs(hero.buffs) do
+    if heroBuffs and #heroBuffs > 0 then
+        for i, buff in ipairs(heroBuffs) do
             if i <= 3 then
                 buffText = buffText .. (buff.name or "Buff") .. " "
             end
@@ -1000,7 +1002,7 @@ function ConsoleRenderer.ShowHeroCardFull(hero)
     table.insert(card, highlightColor .. "║" .. COLORS.RESET .. string.rep(" ", energyPadding) .. energyTextColored .. " " .. highlightColor .. "║" .. COLORS.RESET)
     
     -- Buff列表（使用ShowBuffList显示图标和层数）
-    local buffResult = ShowBuffList(hero.buffs)
+    local buffResult = ShowBuffList(heroBuffs)
     local buffPadding = CONTENT_WIDTH - 5 - #buffResult.plain
     if buffPadding < 0 then buffPadding = 0 end
     table.insert(card, highlightColor .. "║" .. COLORS.RESET .. "Buff:" .. buffResult.colored .. string.rep(" ", buffPadding) .. highlightColor .. "║" .. COLORS.RESET)
