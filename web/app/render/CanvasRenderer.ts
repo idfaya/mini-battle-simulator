@@ -1,10 +1,13 @@
 import { BattleScene } from "./BattleScene";
 import type { BattleStoreState } from "../state/battleStore";
+import { RunMapScene } from "./RunMapScene";
+import type { RunSnapshot } from "../types/roguelike";
 
 export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly scene = new BattleScene();
+  private readonly runMapScene = new RunMapScene();
 
   constructor() {
     this.canvas = document.createElement("canvas");
@@ -19,5 +22,13 @@ export class CanvasRenderer {
 
   render(state: BattleStoreState, now: number) {
     this.scene.draw(this.ctx, this.canvas.width, this.canvas.height, state, now);
+  }
+
+  renderBattle(state: BattleStoreState, now: number) {
+    this.scene.draw(this.ctx, this.canvas.width, this.canvas.height, state, now);
+  }
+
+  renderMap(snapshot: RunSnapshot | null) {
+    this.runMapScene.draw(this.ctx, this.canvas.width, this.canvas.height, snapshot);
   }
 }

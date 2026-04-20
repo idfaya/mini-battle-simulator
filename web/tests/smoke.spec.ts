@@ -13,7 +13,7 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
     }
   });
 
-  await page.goto("/");
+  await page.goto("/?mode=battle");
   await page.waitForTimeout(2500);
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);

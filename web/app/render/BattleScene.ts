@@ -280,6 +280,16 @@ export class BattleScene {
     ctx.fillText(`Round ${state.snapshot.round}`, 48, TOP_BAR_TEXT_Y);
     ctx.font = "14px sans-serif";
     ctx.fillText(state.banner ?? "AFK 战斗进行中", width / 2 - 70, TOP_BAR_TEXT_Y - 2);
+
+    if (state.runContext) {
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#d9e2ec";
+      ctx.fillText(
+        `${state.runContext.chapterLabel} · ${state.runContext.nodeTitle} · 金币 ${state.runContext.gold} · 遗物 ${state.runContext.relicCount} · 祝福 ${state.runContext.blessingCount}`,
+        48,
+        TOP_BAR_TEXT_Y + 18,
+      );
+    }
   }
 
   private drawTimelineOverlay(ctx: CanvasRenderingContext2D, width: number, now: number, state: BattleStoreState) {

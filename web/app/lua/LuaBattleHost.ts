@@ -1,5 +1,6 @@
 import * as fengari from "fengari";
 import type { BattleCommand, BattleEvent, BattleSnapshot } from "../types/battle";
+import type { RunActionResponse, RunSnapshot } from "../types/roguelike";
 import { normalizeEvent } from "./eventBridge";
 
 const { lua, lauxlib, lualib, to_jsstring, to_luastring } = fengari;
@@ -110,5 +111,69 @@ export class LuaBattleHost {
 
   async restart(config?: unknown): Promise<BattleSnapshot> {
     return this.callApi<BattleSnapshot>("restart_battle", config);
+  }
+
+  async startRun(config?: unknown): Promise<RunSnapshot> {
+    return this.callApi<RunSnapshot>("start_run", config);
+  }
+
+  async tickRun(deltaMs: number): Promise<{ events: BattleEvent[]; snapshot: RunSnapshot }> {
+    // tick_run returns battle visual events (same schema as battle tick)
+    const events = this.callApi<BattleEvent[]>("tick_run", { deltaMs }).map(normalizeEvent);
+    const snapshot = this.callApi<RunSnapshot>("get_run_snapshot");
+    return { events, snapshot };
+  }
+
+  async getRunSnapshot(): Promise<RunSnapshot> {
+    return this.callApi<RunSnapshot>("get_run_snapshot");
+  }
+
+  async choosePath(nodeId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("choose_path", { nodeId });
+  }
+
+  async enterNode(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("enter_node");
+  }
+
+  async chooseReward(index: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("choose_reward", { index });
+  }
+
+  async chooseEventOption(optionId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("choose_event_option", { optionId });
+  }
+
+  async shopBuy(goodsId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("shop_buy", { goodsId });
+  }
+
+  async shopRefresh(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("shop_refresh");
+  }
+
+  async shopLeave(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("shop_leave");
+  }
+
+  async promoteBenchHero(benchRosterId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("promote_bench_hero", { benchRosterId });
+  }
+
+  async swapBenchWithTeam(benchRosterId: number, teamRosterId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("swap_bench_with_team", { benchRosterId, teamRosterId });
+  }
+
+  async campChoose(actionId: number): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("camp_choose", { actionId });
+  }
+
+  async queueRunBattleCommand(command: BattleCommand): Promise<boolean> {
+    const result = this.callApi<{ accepted: boolean }>("queue_run_battle_command", command);
+    return result.accepted;
+  }
+
+  async restartRun(config?: unknown): Promise<RunSnapshot> {
+    return this.callApi<RunSnapshot>("restart_run", config);
   }
 }

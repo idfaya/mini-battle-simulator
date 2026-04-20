@@ -6,6 +6,13 @@ export type BattleStoreState = {
   animations: AnimationEvent[];
   flashUntil: number;
   banner: string | null;
+  runContext: {
+    chapterLabel: string;
+    nodeTitle: string;
+    gold: number;
+    relicCount: number;
+    blessingCount: number;
+  } | null;
 };
 
 type Listener = (state: BattleStoreState) => void;
@@ -17,6 +24,7 @@ export class BattleStore {
     animations: [],
     flashUntil: 0,
     banner: null,
+    runContext: null,
   };
 
   private listeners = new Set<Listener>();
@@ -33,6 +41,11 @@ export class BattleStore {
 
   setSnapshot(snapshot: BattleSnapshot) {
     this.state = { ...this.state, snapshot };
+    this.emit();
+  }
+
+  setRunContext(runContext: BattleStoreState["runContext"]) {
+    this.state = { ...this.state, runContext };
     this.emit();
   }
 

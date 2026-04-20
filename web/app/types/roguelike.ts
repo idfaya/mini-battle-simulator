@@ -1,0 +1,163 @@
+import type { BattleCommand, BattleEvent, BattleSnapshot } from "./battle";
+
+export type RunPhase =
+  | "map"
+  | "battle"
+  | "event"
+  | "shop"
+  | "camp"
+  | "reward"
+  | "chapter_result"
+  | "failed";
+
+export type RunNodeType = "battle_normal" | "battle_elite" | "event" | "shop" | "camp" | "boss";
+
+export type RunMapNodeState = {
+  id: number;
+  floor: number;
+  lane: number;
+  nodeType: RunNodeType;
+  title: string;
+  visited: boolean;
+  current: boolean;
+  selectable: boolean;
+};
+
+export type RunMapState = {
+  chapterId: number;
+  floorCount: number;
+  startNodeId: number;
+  bossNodeId: number;
+  nodes: RunMapNodeState[];
+};
+
+export type RunTeamMember = {
+  rosterId?: number;
+  heroId: number;
+  name: string;
+  classId: number;
+  level: number;
+  star: number;
+  hp: number;
+  maxHp: number;
+  isDead: boolean;
+};
+
+export type RelicState = {
+  relicId: number;
+  name: string;
+  rarity: string;
+  code: string;
+};
+
+export type BlessingState = {
+  blessingId: number;
+  name: string;
+  rarity: string;
+  code: string;
+};
+
+export type RewardOption = {
+  rewardType: "gold" | "heal_pct" | "relic" | "blessing" | "recruit";
+  refId?: number;
+  value?: number;
+  label: string;
+  description: string;
+};
+
+export type RewardState = {
+  groupId: number;
+  kind: string;
+  options: RewardOption[];
+};
+
+export type EventOptionState = {
+  id: number;
+  label: string;
+  costType?: string;
+  costValue?: number;
+};
+
+export type EventState = {
+  id: number;
+  chapterId: number;
+  code: string;
+  title: string;
+  kind: string;
+  options: EventOptionState[];
+};
+
+export type ShopGoodsState = {
+  goodsId: number;
+  goodsType: string;
+  refId?: number;
+  code?: string;
+  price: number;
+  rarity: string;
+  sold: boolean;
+};
+
+export type ShopState = {
+  shopId: number;
+  name: string;
+  refreshCost: number;
+  refreshCount: number;
+  maxRefresh: number;
+  goods: ShopGoodsState[];
+};
+
+export type CampActionState = {
+  id: number;
+  label: string;
+  available: boolean;
+};
+
+export type CampState = {
+  campId: number;
+  name: string;
+  actions: CampActionState[];
+};
+
+export type ChapterResult = {
+  success: boolean;
+  reason: string;
+  gold?: number;
+  relicCount?: number;
+  blessingCount?: number;
+};
+
+export type RunSnapshot = {
+  phase: RunPhase;
+  chapterId: number;
+  currentNodeId: number | null;
+  maxHeroCount: number;
+  gold: number;
+  food: number;
+  lastActionMessage: string;
+  map: RunMapState | null;
+  team: RunTeamMember[];
+  bench: RunTeamMember[];
+  relics: RelicState[];
+  blessings: BlessingState[];
+  eventState: EventState | null;
+  shopState: ShopState | null;
+  campState: CampState | null;
+  rewardState: RewardState | null;
+  battleSnapshot: BattleSnapshot | null;
+  chapterResult: ChapterResult | null;
+  debug: {
+    availableNextNodeIds: number[];
+  };
+};
+
+export type RunActionResponse = {
+  accepted: boolean;
+  reason?: string;
+};
+
+export type RunTickResult = {
+  events: BattleEvent[];
+  snapshot: RunSnapshot;
+};
+
+export type RunBattleCommand = BattleCommand;

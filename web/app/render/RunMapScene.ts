@@ -1,0 +1,156 @@
+import type { RunSnapshot } from "../types/roguelike";
+
+export class RunMapScene {
+  draw(ctx: CanvasRenderingContext2D, width: number, height: number, snapshot: RunSnapshot | null) {
+    ctx.clearRect(0, 0, width, height);
+    this.drawBackground(ctx, width, height);
+
+    if (!snapshot?.map) {
+      ctx.fillStyle = "#f8f9fa";
+      ctx.font = "24px sans-serif";
+      ctx.fillText("地图加载中...", width / 2 - 70, height / 2);
+      return;
+    }
+
+    const map = snapshot.map;
+    const nodesByFloor = new Map<number, typeof map.nodes>();
+    for (const node of map.nodes) {
+      const bucket = nodesByFloor.get(node.floor) ?? [];
+      bucket.push(node);
+      nodesByFloor.set(node.floor, bucket);
+    }
+
+    const nodePositions = new Map<number, { x: number; y: number }>();
+    const top = 96;
+    const left = 120;
+    const floorGap = 112;
+
+    for (let floor = 1; floor <= map.floorCount; floor += 1) {
+      const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
+      const laneGap = floorNodes.length <= 1 ? 0 : 160;
+      const startY = height / 2 - ((floorNodes.length - 1) * laneGap) / 2;
+      for (let index = 0; index < floorNodes.length; index += 1) {
+        const node = floorNodes[index];
+        nodePositions.set(node.id, {
+          x: left + (floor - 1) * floorGap,
+          y: startY + index * laneGap,
+        });
+      }
+    }
+
+    for (const node of map.nodes) {
+      const from = nodePositions.get(node.id);
+      if (!from) {
+        continue;
+      }
+      const nextIds = map.nodes
+        .filter((candidate) => candidate.floor === node.floor + 1)
+        .map((candidate) => candidate.id);
+      for (const nextId of nextIds) {
+        const to = nodePositions.get(nextId);
+        if (!to) {
+          continue;
+        }
+        ctx.strokeStyle = "rgba(255,255,255,0.1)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(from.x + 18, from.y);
+        ctx.lineTo(to.x - 18, to.y);
+        ctx.stroke();
+      }
+    }
+
+    for (const node of map.nodes) {
+      const pos = nodePositions.get(node.id);
+      if (!pos) {
+        continue;
+      }
+      this.drawNode(ctx, pos.x, pos.y, node);
+    }
+
+    ctx.fillStyle = "#f8f9fa";
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText(`Act 1 · Chapter ${snapshot.chapterId}`, 42, 50);
+    ctx.font = "14px sans-serif";
+    ctx.fillText(`金币 ${snapshot.gold} · 遗物 ${snapshot.relics.length} · 祝福 ${snapshot.blessings.length}`, 42, 74);
+
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = "13px sans-serif";
+    ctx.fillText("点击右侧按钮推进节点。地图高亮表示当前和可选路线。", 42, height - 26);
+  }
+
+  private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "#12263a");
+    gradient.addColorStop(1, "#0b1320");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  private drawNode(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    node: RunSnapshot["map"]["nodes"][number],
+  ) {
+    const color = this.getNodeColor(node.nodeType);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
+    ctx.fillStyle = node.current ? "#ffd166" : color.fill;
+    ctx.fill();
+    ctx.lineWidth = node.selectable ? 4 : node.visited ? 2 : 1;
+    ctx.strokeStyle = node.selectable ? "#80ed99" : color.stroke;
+    ctx.stroke();
+
+    ctx.fillStyle = "#0b1320";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.getNodeShortLabel(node.nodeType), x, y);
+
+    ctx.fillStyle = node.selectable || node.current ? "#f8f9fa" : "rgba(255,255,255,0.6)";
+    ctx.font = "12px sans-serif";
+    ctx.fillText(node.title, x, y + 42);
+    ctx.restore();
+  }
+
+  private getNodeShortLabel(nodeType: string) {
+    switch (nodeType) {
+      case "battle_normal":
+        return "战";
+      case "battle_elite":
+        return "精";
+      case "event":
+        return "事";
+      case "shop":
+        return "商";
+      case "camp":
+        return "营";
+      case "boss":
+        return "B";
+      default:
+        return "?";
+    }
+  }
+
+  private getNodeColor(nodeType: string) {
+    switch (nodeType) {
+      case "battle_normal":
+        return { fill: "#4cc9f0", stroke: "#a9def9" };
+      case "battle_elite":
+        return { fill: "#ef476f", stroke: "#ffb3c1" };
+      case "event":
+        return { fill: "#ffd166", stroke: "#ffe29a" };
+      case "shop":
+        return { fill: "#06d6a0", stroke: "#93f5d8" };
+      case "camp":
+        return { fill: "#118ab2", stroke: "#8ecae6" };
+      case "boss":
+        return { fill: "#8338ec", stroke: "#d0b3ff" };
+      default:
+        return { fill: "#65748b", stroke: "#d9e2ec" };
+    }
+  }
+}
+

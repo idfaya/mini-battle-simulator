@@ -124,6 +124,52 @@ body {
   color: #d9e2ec;
 }
 
+.run-team-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.run-team-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(23, 63, 95, 0.5);
+  color: #f8f9fa;
+  font-size: 13px;
+}
+
+.run-roster-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.run-roster-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.run-roster-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(23, 63, 95, 0.4);
+}
+
+.run-roster-card.active {
+  border-color: rgba(128, 237, 153, 0.75);
+  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.35) inset;
+}
+
+.run-roster-meta {
+  color: #f8f9fa;
+  font-size: 12px;
+}
+
 .diagnostics,
 .fatal-error {
   min-height: 240px;

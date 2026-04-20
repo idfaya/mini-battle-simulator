@@ -82,6 +82,14 @@
       "moduleName": "config.roguelike.run_blessing_config"
     },
     {
+      "path": "config/roguelike/run_boss_phase.lua",
+      "moduleName": "config.roguelike.run_boss_phase"
+    },
+    {
+      "path": "config/roguelike/run_camp_config.lua",
+      "moduleName": "config.roguelike.run_camp_config"
+    },
+    {
       "path": "config/roguelike/run_chapter_config.lua",
       "moduleName": "config.roguelike.run_chapter_config"
     },
@@ -324,6 +332,38 @@
     {
       "path": "modules/passive_handlers.lua",
       "moduleName": "modules.passive_handlers"
+    },
+    {
+      "path": "modules/roguelike_battle_bridge.lua",
+      "moduleName": "modules.roguelike_battle_bridge"
+    },
+    {
+      "path": "modules/roguelike_camp.lua",
+      "moduleName": "modules.roguelike_camp"
+    },
+    {
+      "path": "modules/roguelike_event.lua",
+      "moduleName": "modules.roguelike_event"
+    },
+    {
+      "path": "modules/roguelike_map.lua",
+      "moduleName": "modules.roguelike_map"
+    },
+    {
+      "path": "modules/roguelike_reward.lua",
+      "moduleName": "modules.roguelike_reward"
+    },
+    {
+      "path": "modules/roguelike_run.lua",
+      "moduleName": "modules.roguelike_run"
+    },
+    {
+      "path": "modules/roguelike_shop.lua",
+      "moduleName": "modules.roguelike_shop"
+    },
+    {
+      "path": "modules/roguelike_snapshot.lua",
+      "moduleName": "modules.roguelike_snapshot"
     },
     {
       "path": "modules/skill_effect_registry.lua",

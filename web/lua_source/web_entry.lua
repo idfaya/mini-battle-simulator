@@ -105,6 +105,7 @@ do
 end
 
 local Runtime = require("modules.browser_battle_runtime")
+local RunRuntime = require("modules.roguelike_run")
 
 MiniBattleWebApi = {}
 
@@ -182,5 +183,158 @@ function MiniBattleWebApi.restart_battle(configJson)
             config = JSON.JsonDecode(configJson)
         end
         return JSON.JsonEncode(Runtime.restart(config))
+    end)
+end
+
+function MiniBattleWebApi.start_run(configJson)
+    return safeCall(function()
+        local config = nil
+        if configJson and configJson ~= "" then
+            config = JSON.JsonDecode(configJson)
+        end
+        return JSON.JsonEncode(RunRuntime.StartRun(config))
+    end)
+end
+
+function MiniBattleWebApi.tick_run(deltaJson)
+    return safeCall(function()
+        local payload = nil
+        if deltaJson and deltaJson ~= "" then
+            payload = JSON.JsonDecode(deltaJson)
+        end
+        local deltaMs = payload and payload.deltaMs or 16
+        return JSON.JsonEncode(RunRuntime.Tick(deltaMs))
+    end)
+end
+
+function MiniBattleWebApi.get_run_snapshot()
+    return safeCall(function()
+        return JSON.JsonEncode(RunRuntime.GetSnapshot())
+    end)
+end
+
+function MiniBattleWebApi.choose_path(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.ChoosePath(payload and payload.nodeId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.enter_node()
+    return safeCall(function()
+        local ok, reason = RunRuntime.EnterCurrentNode()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.choose_reward(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.ChooseReward(payload and payload.index)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.choose_event_option(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.ChooseEventOption(payload and payload.optionId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.shop_buy(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.ShopBuy(payload and payload.goodsId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.shop_refresh()
+    return safeCall(function()
+        local ok, reason = RunRuntime.ShopRefresh()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.shop_leave()
+    return safeCall(function()
+        local ok, reason = RunRuntime.ShopLeave()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.promote_bench_hero(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.PromoteBenchHero(payload and payload.benchRosterId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.swap_bench_with_team(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.SwapBenchWithTeam(payload and payload.benchRosterId, payload and payload.teamRosterId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.camp_choose(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, reason = RunRuntime.CampChoose(payload and payload.actionId)
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.queue_run_battle_command(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        return JSON.JsonEncode({
+            accepted = RunRuntime.QueueBattleCommand(payload),
+        })
+    end)
+end
+
+function MiniBattleWebApi.restart_run(configJson)
+    return safeCall(function()
+        local config = nil
+        if configJson and configJson ~= "" then
+            config = JSON.JsonDecode(configJson)
+        end
+        return JSON.JsonEncode(RunRuntime.RestartRun(config))
     end)
 end

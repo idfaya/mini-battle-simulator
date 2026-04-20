@@ -19,6 +19,9 @@ export function createControls(
   onAutoUltChange: (enabled: boolean) => void,
   initialSetup: BattleSetup,
   initialAutoUlt: boolean,
+  options?: {
+    showSetupPanel?: boolean;
+  },
 ): Controls {
   const root = document.createElement("div");
   root.className = "hud";
@@ -107,6 +110,7 @@ export function createControls(
     { value: 1, label: "x1" },
     { value: 2, label: "x2" },
     { value: 3, label: "x3" },
+    { value: 4, label: "x4" },
   ]);
 
   const readSetup = (): BattleSetup => ({
@@ -114,7 +118,7 @@ export function createControls(
     heroCount: Math.max(1, Math.min(6, Number(heroCountField.input.value) || initialSetup.heroCount)),
     enemyCount: Math.max(1, Math.min(6, Number(enemyCountField.input.value) || initialSetup.enemyCount)),
     initialEnergy: initialSetup.initialEnergy,
-    speed: Math.max(1, Math.min(3, Number(speedField.select.value) || initialSetup.speed)),
+    speed: Math.max(1, Math.min(4, Number(speedField.select.value) || initialSetup.speed)),
   });
 
   speedField.select.onchange = () => {
@@ -147,6 +151,11 @@ export function createControls(
   autoUltLabel.append(autoUltToggle, autoUltText);
 
   actions.append(restartButton, autoUltLabel);
+  if (options?.showSetupPanel === false) {
+    setupPanel.style.display = "none";
+    actions.style.display = "none";
+  }
+
   root.append(status, setupPanel, buttonsHost, actions, logList);
 
   return {

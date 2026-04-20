@@ -1,8 +1,11 @@
 import { LuaBattleHost } from "./lua/LuaBattleHost";
 import { CanvasRenderer } from "./render/CanvasRenderer";
 import { BattleStore } from "./state/battleStore";
+import { RunStore } from "./state/runStore";
 import type { BattleSetup } from "./types/battle";
+import type { RunSnapshot } from "./types/roguelike";
 import { createControls, renderControls } from "./ui/domControls";
+import { createRunControls, renderRunControls } from "./ui/runControls";
 
 export async function bootstrapApp(container: HTMLElement) {
   const shell = document.createElement("div");
@@ -13,41 +16,39 @@ export async function bootstrapApp(container: HTMLElement) {
 
   const diagnostics = document.createElement("pre");
   diagnostics.className = "diagnostics";
-  diagnostics.textContent = "正在初始化浏览器战斗运行时...";
+  diagnostics.textContent = "正在初始化 Roguelike 第一章运行时...";
   stage.append(diagnostics);
 
-  const sidePanel = document.createElement("div");
-  sidePanel.className = "hud";
+  const panelHost = document.createElement("div");
+  panelHost.className = "hud";
 
-  shell.append(stage, sidePanel);
+  shell.append(stage, panelHost);
   container.append(shell);
 
   const host = await LuaBattleHost.create();
-  const store = new BattleStore();
   const renderer = new CanvasRenderer();
-  // #region debug-point A:runtime-debug
-  const enableTraeDebug = new URLSearchParams(window.location.search).has("traeDebug");
-  const debugReport = (
-    hypothesisId: "A" | "B" | "C" | "D" | "E",
-    msg: string,
-    data: Record<string, unknown>,
-  ) =>
-    enableTraeDebug
-      ? fetch("http://127.0.0.1:7777/event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "mobile-battle-speed",
-            runId: "pre-fix",
-            hypothesisId,
-            location: "web/app/app.ts",
-            msg: `[DEBUG] ${msg}`,
-            data,
-            ts: Date.now(),
-          }),
-        }).catch(() => {})
-      : Promise.resolve();
-  // #endregion
+  const battleStore = new BattleStore();
+  const runStore = new RunStore();
+  const params = new URLSearchParams(window.location.search);
+  const standaloneBattleMode = params.get("mode") === "battle";
+
+  diagnostics.remove();
+  stage.append(renderer.canvas);
+
+  if (standaloneBattleMode) {
+    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore);
+    return;
+  }
+
+  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore);
+}
+
+async function bootstrapStandaloneBattle(
+  host: LuaBattleHost,
+  renderer: CanvasRenderer,
+  panelHost: HTMLDivElement,
+  store: BattleStore,
+) {
   const setup: BattleSetup = {
     level: 50,
     heroCount: 6,
@@ -64,9 +65,6 @@ export async function bootstrapApp(container: HTMLElement) {
     enemyCount: nextSetup.enemyCount,
     initialEnergy: nextSetup.initialEnergy,
   });
-
-  diagnostics.remove();
-  stage.append(renderer.canvas);
 
   const castUltimate = async (heroId: string) => {
     await host.queueCommand({ type: "cast_ultimate", heroId });
@@ -90,105 +88,186 @@ export async function bootstrapApp(container: HTMLElement) {
     setup,
     autoUltimate,
   );
-
-  sidePanel.replaceWith(controls.root);
+  panelHost.replaceChildren(controls.root);
 
   const initialSnapshot = await host.initBattle(toRuntimeConfig(setup));
   store.setSnapshot(initialSnapshot);
-  // #region debug-point D:init-snapshot
-  void debugReport("D", "initial battle snapshot", {
-    speed,
-    round: initialSnapshot.round,
-    phase: initialSnapshot.phase,
-    pendingCommands: initialSnapshot.pendingCommands,
-    hasResult: Boolean(initialSnapshot.result),
-  });
-  // #endregion
 
   let lastFrame = performance.now();
-  let frameCount = 0;
   let inFlight = false;
-  let battleStartWallClock = performance.now();
-  let lastRound = initialSnapshot.round;
-
   const frame = async (now: number) => {
     const delta = Math.min(120, now - lastFrame);
     lastFrame = now;
-    const logicDelta = delta * speed;
-    frameCount += 1;
-
-    // #region debug-point A:reentry
-    if (inFlight) {
-      void debugReport("A", "frame reentry detected", {
-        now,
-        delta,
-        logicDelta,
-        speed,
-        frameCount,
-      });
+    if (!inFlight) {
+      inFlight = true;
+      const { events, snapshot } = await host.tick(delta * speed);
+      inFlight = false;
+      store.appendEvents(events);
+      store.setSnapshot(snapshot);
+      if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0) {
+        const readyUnit = snapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
+        if (readyUnit) {
+          await castUltimate(readyUnit.id);
+        }
+      }
     }
-    // #endregion
+    renderer.renderBattle(store.getState(), now);
+    renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+    store.clearTransient(now);
+    requestAnimationFrame(frame);
+  };
 
-    inFlight = true;
-    const { events, snapshot } = await host.tick(logicDelta);
-    inFlight = false;
-    store.appendEvents(events);
-    store.setSnapshot(snapshot);
+  renderer.renderBattle(store.getState(), performance.now());
+  renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+  requestAnimationFrame(frame);
+}
 
-    if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0) {
-      const readyUnit = snapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
-      if (readyUnit) {
-        await castUltimate(readyUnit.id);
+async function bootstrapRunMode(
+  host: LuaBattleHost,
+  renderer: CanvasRenderer,
+  panelHost: HTMLDivElement,
+  battleStore: BattleStore,
+  runStore: RunStore,
+) {
+  let autoUltimate = true;
+  let battleSpeed = 4;
+  let runSnapshot: RunSnapshot | null = null;
+  let runUiDirty = true;
+
+  const syncRunSnapshot = (snapshot: RunSnapshot) => {
+    runSnapshot = snapshot;
+    runStore.setSnapshot(snapshot);
+    runUiDirty = true;
+    if (snapshot.battleSnapshot) {
+      battleStore.setSnapshot(snapshot.battleSnapshot);
+      battleStore.setRunContext({
+        chapterLabel: `Act 1`,
+        nodeTitle:
+          snapshot.map?.nodes.find((node) => node.id === snapshot.currentNodeId)?.title ?? `Node ${snapshot.currentNodeId ?? "-"}`,
+        gold: snapshot.gold,
+        relicCount: snapshot.relics.length,
+        blessingCount: snapshot.blessings.length,
+      });
+    } else {
+      battleStore.setRunContext(null);
+    }
+  };
+
+  const castRunUltimate = async (heroId: string) => {
+    await host.queueRunBattleCommand({ type: "cast_ultimate", heroId });
+  };
+
+  const battleControls = createControls(
+    castRunUltimate,
+    async () => {},
+    (nextSpeed) => {
+      battleSpeed = nextSpeed;
+    },
+    (enabled) => {
+      autoUltimate = enabled;
+    },
+    {
+      level: 20,
+      heroCount: 3,
+      enemyCount: 3,
+      initialEnergy: 40,
+      speed: 4,
+    },
+    autoUltimate,
+    { showSetupPanel: false },
+  );
+
+  const runControls = createRunControls({
+    onChooseNode: async (nodeId) => {
+      await host.choosePath(nodeId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onEnterNode: async () => {
+      await host.enterNode();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onChooseEventOption: async (optionId) => {
+      await host.chooseEventOption(optionId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onChooseReward: async (index) => {
+      await host.chooseReward(index);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onShopBuy: async (goodsId) => {
+      await host.shopBuy(goodsId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onShopRefresh: async () => {
+      await host.shopRefresh();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onShopLeave: async () => {
+      await host.shopLeave();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onPromoteBenchHero: async (benchRosterId) => {
+      await host.promoteBenchHero(benchRosterId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onSwapBenchWithTeam: async (benchRosterId, teamRosterId) => {
+      await host.swapBenchWithTeam(benchRosterId, teamRosterId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onCampChoose: async (actionId) => {
+      await host.campChoose(actionId);
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onRestart: async () => {
+      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900007, 900002] }));
+    },
+  });
+
+  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900007, 900002] }));
+
+  let lastFrame = performance.now();
+  let inFlight = false;
+  const frame = async (now: number) => {
+    const delta = Math.min(120, now - lastFrame);
+    lastFrame = now;
+
+    if (runSnapshot?.phase === "battle" && !inFlight) {
+      inFlight = true;
+      const { events, snapshot } = await host.tickRun(delta * battleSpeed);
+      inFlight = false;
+      syncRunSnapshot(snapshot);
+      battleStore.appendEvents(events);
+
+      const battleSnapshot = snapshot.battleSnapshot;
+      if (autoUltimate && battleSnapshot && !battleSnapshot.result && battleSnapshot.pendingCommands === 0) {
+        const readyUnit = battleSnapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
+        if (readyUnit) {
+          await castRunUltimate(readyUnit.id);
+        }
       }
     }
 
-    // #region debug-point B:frame-sample
-    if (frameCount <= 5 || frameCount % 20 === 0) {
-      void debugReport("B", "frame sample", {
-        now,
-        delta,
-        logicDelta,
-        speed,
-        frameCount,
-        eventCount: events.length,
-        round: snapshot.round,
-        phase: snapshot.phase,
-        hasResult: Boolean(snapshot.result),
-      });
+    if (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot) {
+      panelHost.replaceChildren(battleControls.root);
+      renderer.renderBattle(battleStore.getState(), now);
+      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate);
+      battleStore.clearTransient(now);
+    } else {
+      if (panelHost.firstChild !== runControls.root) {
+        panelHost.replaceChildren(runControls.root);
+        runUiDirty = true;
+      }
+      renderer.renderMap(runSnapshot);
+      if (runUiDirty) {
+        renderRunControls(runControls, runStore.getState().snapshot, runStore.getState().logs);
+        runUiDirty = false;
+      }
     }
-    // #endregion
-
-    // #region debug-point C:round-and-end
-    if (snapshot.round !== lastRound) {
-      void debugReport("C", "round advanced", {
-        round: snapshot.round,
-        previousRound: lastRound,
-        elapsedWallClockMs: Math.round(now - battleStartWallClock),
-        activeHeroId: snapshot.activeHeroId,
-        phase: snapshot.phase,
-      });
-      lastRound = snapshot.round;
-    }
-
-    if (snapshot.result) {
-      void debugReport("E", "battle finished", {
-        elapsedWallClockMs: Math.round(now - battleStartWallClock),
-        round: snapshot.round,
-        winner: snapshot.result.winner,
-        reason: snapshot.result.reason,
-        speed,
-      });
-    }
-    // #endregion
-
-    renderer.render(store.getState(), now);
-    renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
-    store.clearTransient(now);
 
     requestAnimationFrame(frame);
   };
 
-  renderer.render(store.getState(), performance.now());
-  renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+  renderer.renderMap(runSnapshot);
+  renderRunControls(runControls, runStore.getState().snapshot, runStore.getState().logs);
   requestAnimationFrame(frame);
 }
