@@ -46,6 +46,11 @@ body {
   padding: 14px;
 }
 
+.hud-status {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 .ult-panel,
 .global-actions {
   display: grid;

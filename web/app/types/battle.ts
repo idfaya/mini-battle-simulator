@@ -17,6 +17,13 @@ export type UnitState = {
   classIcon: string;
   hp: number;
   maxHp: number;
+  speed: number;
+  ac: number;
+  hit: number;
+  spellDC: number;
+  saveFort: number;
+  saveRef: number;
+  saveWill: number;
   energy: number;
   maxEnergy: number;
   isAlive: boolean;

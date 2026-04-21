@@ -50,7 +50,7 @@ async function bootstrapStandaloneBattle(
   store: BattleStore,
 ) {
   const setup: BattleSetup = {
-    level: 50,
+    level: 20,
     heroCount: 6,
     enemyCount: 6,
     initialEnergy: 80,

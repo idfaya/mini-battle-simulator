@@ -261,6 +261,9 @@ function BattleVisualEvents.BuildSkillTimelineFrame(hero, skill, frameData, inde
         damage = frameData and frameData.damage,
         healAmount = frameData and frameData.healAmount,
         buffId = frameData and frameData.buffId,
+        -- 5e-style roll meta (optional). Intended for UI/log readability.
+        rollMeta = frameData and frameData.__hitMetaByTarget,
+        savedTargets = frameData and frameData.__savedTargets,
         targets = targets,
     }
 end

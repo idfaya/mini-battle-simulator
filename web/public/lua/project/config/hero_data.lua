@@ -21,6 +21,142 @@ local QUALITY_NAMES = {
     [6] = "Myth",
 }
 
+-- True 5e-style role templates.
+-- Values are band anchors for T1..T5 (Lv1-10, 11-20, 21-30, 31-40, 41-50).
+-- We interpolate inside each band instead of reusing the legacy base+growth curve.
+local HERO_ROLE_TEMPLATES = {
+    [1] = { -- A1 追击流
+        hp = { 42, 54, 66, 78, 90 },
+        atk = { 8, 10, 11, 13, 15 },
+        def = { 2, 3, 3, 4, 4 },
+        speed = { 102, 103, 104, 105, 106 },
+        ac = { 16, 17, 18, 19, 20 },
+        hit = { 7, 8, 9, 10, 11 },
+        spellDC = { 12, 12, 13, 13, 14 },
+        saveFort = { 3, 4, 4, 5, 5 },
+        saveRef = { 5, 6, 7, 8, 9 },
+        saveWill = { 2, 3, 4, 5, 6 },
+        critRate = 1000, blockRate = 500,
+    },
+    [2] = { -- D1 格挡流
+        hp = { 64, 82, 100, 118, 136 },
+        atk = { 7, 8, 9, 10, 11 },
+        def = { 4, 5, 6, 7, 8 },
+        speed = { 91, 92, 93, 94, 95 },
+        ac = { 18, 19, 20, 21, 22 },
+        hit = { 5, 6, 7, 8, 9 },
+        spellDC = { 12, 13, 13, 14, 15 },
+        saveFort = { 5, 6, 7, 8, 9 },
+        saveRef = { 2, 3, 4, 5, 6 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 300, blockRate = 2000,
+    },
+    [3] = { -- S1 连击流
+        hp = { 48, 60, 72, 84, 96 },
+        atk = { 8, 10, 11, 12, 14 },
+        def = { 2, 3, 3, 4, 4 },
+        speed = { 105, 106, 107, 108, 109 },
+        ac = { 17, 18, 19, 20, 21 },
+        hit = { 7, 8, 9, 10, 11 },
+        spellDC = { 12, 12, 13, 13, 14 },
+        saveFort = { 3, 4, 5, 6, 7 },
+        saveRef = { 5, 6, 7, 8, 9 },
+        saveWill = { 2, 3, 4, 5, 6 },
+        critRate = 800, blockRate = 500,
+    },
+    [4] = { -- B1 战意流
+        hp = { 68, 88, 108, 126, 145 },
+        atk = { 7, 8, 10, 11, 12 },
+        def = { 3, 4, 5, 5, 6 },
+        speed = { 94, 95, 96, 97, 98 },
+        ac = { 16, 17, 18, 19, 20 },
+        hit = { 5, 6, 7, 8, 9 },
+        spellDC = { 12, 13, 13, 14, 15 },
+        saveFort = { 4, 5, 6, 7, 8 },
+        saveRef = { 2, 3, 4, 5, 6 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 500, blockRate = 1000,
+    },
+    [5] = { -- T1 毒爆流
+        hp = { 50, 63, 76, 89, 102 },
+        atk = { 8, 9, 10, 11, 12 },
+        def = { 2, 3, 3, 4, 4 },
+        speed = { 98, 99, 100, 101, 102 },
+        ac = { 15, 16, 17, 18, 19 },
+        hit = { 6, 7, 8, 9, 10 },
+        spellDC = { 13, 14, 15, 16, 17 },
+        saveFort = { 3, 4, 5, 6, 7 },
+        saveRef = { 4, 5, 6, 7, 8 },
+        saveWill = { 2, 3, 4, 5, 6 },
+        critRate = 500, blockRate = 800,
+    },
+    [6] = { -- H1 圣光流
+        hp = { 44, 56, 68, 80, 92 },
+        atk = { 5, 6, 7, 8, 9 },
+        def = { 2, 3, 3, 4, 4 },
+        speed = { 98, 99, 100, 101, 102 },
+        ac = { 14, 15, 16, 16, 17 },
+        hit = { 3, 4, 5, 5, 6 },
+        spellDC = { 14, 15, 16, 17, 18 },
+        saveFort = { 2, 3, 4, 5, 6 },
+        saveRef = { 2, 3, 4, 5, 6 },
+        saveWill = { 5, 6, 7, 8, 9 },
+        critRate = 300, blockRate = 500, healBonus = 800,
+    },
+    [7] = { -- M1 火法
+        hp = { 38, 48, 58, 68, 78 },
+        atk = { 5, 6, 7, 8, 9 },
+        def = { 1, 2, 2, 3, 3 },
+        speed = { 100, 101, 102, 103, 104 },
+        ac = { 13, 13, 14, 15, 15 },
+        hit = { 3, 3, 4, 4, 5 },
+        spellDC = { 15, 16, 17, 18, 19 },
+        saveFort = { 2, 3, 4, 5, 6 },
+        saveRef = { 3, 4, 5, 6, 7 },
+        saveWill = { 4, 5, 6, 7, 8 },
+        critRate = 500, blockRate = 300,
+    },
+    [8] = { -- M2 冰法
+        hp = { 42, 53, 64, 75, 86 },
+        atk = { 5, 6, 7, 8, 9 },
+        def = { 2, 2, 3, 3, 4 },
+        speed = { 98, 99, 100, 101, 102 },
+        ac = { 14, 14, 15, 15, 16 },
+        hit = { 3, 3, 4, 4, 5 },
+        spellDC = { 14, 15, 16, 17, 18 },
+        saveFort = { 3, 4, 5, 6, 7 },
+        saveRef = { 3, 4, 5, 6, 7 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 400, blockRate = 500,
+    },
+    [9] = { -- M3 雷法
+        hp = { 39, 49, 59, 69, 80 },
+        atk = { 5, 6, 7, 8, 9 },
+        def = { 1, 2, 2, 3, 3 },
+        speed = { 101, 102, 103, 104, 105 },
+        ac = { 13, 13, 14, 15, 15 },
+        hit = { 3, 3, 4, 4, 5 },
+        spellDC = { 15, 16, 17, 18, 19 },
+        saveFort = { 2, 3, 4, 5, 6 },
+        saveRef = { 4, 5, 6, 7, 8 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 800, blockRate = 300,
+    },
+    default = {
+        hp = { 50, 62, 74, 86, 98 },
+        atk = { 6, 7, 8, 9, 10 },
+        def = { 2, 3, 3, 4, 4 },
+        speed = { 98, 99, 100, 101, 102 },
+        ac = { 15, 16, 17, 18, 19 },
+        hit = { 5, 6, 7, 8, 9 },
+        spellDC = { 13, 14, 15, 16, 17 },
+        saveFort = { 3, 4, 5, 6, 7 },
+        saveRef = { 3, 4, 5, 6, 7 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 500, blockRate = 500,
+    },
+}
+
 local function OpenConfigFile(fileName)
     local paths = {
         "config/" .. fileName,
@@ -38,7 +174,69 @@ local function OpenConfigFile(fileName)
 end
 
 local function GetStarMultiplier(star)
-    return 1.0 + (star - 1) * 0.15
+    return 1.0 + math.max(0, (tonumber(star) or 1) - 1) * 0.04
+end
+
+local HERO_LEVEL_MAX = 20
+-- 5e-ish tier boundaries (inclusive start, exclusive end)
+-- T1: 1-4, T2: 5-10, T3: 11-16, T4: 17-20
+local HERO_TIER_STARTS = { 1, 5, 11, 17, HERO_LEVEL_MAX + 1 }
+
+local function GetTier(level)
+    local lv = tonumber(level) or 1
+    lv = math.max(1, math.min(HERO_LEVEL_MAX, lv))
+    if lv >= HERO_TIER_STARTS[4] then return 4 end
+    if lv >= HERO_TIER_STARTS[3] then return 3 end
+    if lv >= HERO_TIER_STARTS[2] then return 2 end
+    return 1
+end
+
+local function GetRoleTemplate(classId)
+    return HERO_ROLE_TEMPLATES[tonumber(classId) or 0] or HERO_ROLE_TEMPLATES.default
+end
+
+local function GetInterpolatedTemplateValue(series, level)
+    if type(series) ~= "table" or #series == 0 then
+        return 0
+    end
+    local lv = math.max(1, math.min(HERO_LEVEL_MAX, tonumber(level) or 1))
+    -- We only use the first 4 anchors as T1..T4 even if the table has more values.
+    local a1 = tonumber(series[1]) or 0
+    local a2 = tonumber(series[2]) or a1
+    local a3 = tonumber(series[3]) or a2
+    local a4 = tonumber(series[4]) or a3
+
+    local tier = GetTier(lv)
+    if tier == 1 then
+        local progress = (lv - HERO_TIER_STARTS[1]) / (HERO_TIER_STARTS[2] - HERO_TIER_STARTS[1])
+        return a1 + (a2 - a1) * progress
+    elseif tier == 2 then
+        local progress = (lv - HERO_TIER_STARTS[2]) / (HERO_TIER_STARTS[3] - HERO_TIER_STARTS[2])
+        return a2 + (a3 - a2) * progress
+    elseif tier == 3 then
+        local progress = (lv - HERO_TIER_STARTS[3]) / (HERO_TIER_STARTS[4] - HERO_TIER_STARTS[3])
+        return a3 + (a4 - a3) * progress
+    end
+    return a4
+end
+
+local function GetTemplateStats(classId, level)
+    local tpl = GetRoleTemplate(classId)
+    return {
+        hp = GetInterpolatedTemplateValue(tpl.hp, level),
+        atk = GetInterpolatedTemplateValue(tpl.atk, level),
+        def = GetInterpolatedTemplateValue(tpl.def, level),
+        speed = GetInterpolatedTemplateValue(tpl.speed, level),
+        ac = GetInterpolatedTemplateValue(tpl.ac, level),
+        hit = GetInterpolatedTemplateValue(tpl.hit, level),
+        spellDC = GetInterpolatedTemplateValue(tpl.spellDC, level),
+        saveFort = GetInterpolatedTemplateValue(tpl.saveFort, level),
+        saveRef = GetInterpolatedTemplateValue(tpl.saveRef, level),
+        saveWill = GetInterpolatedTemplateValue(tpl.saveWill, level),
+        critRate = tpl.critRate or 0,
+        blockRate = tpl.blockRate or 0,
+        healBonus = tpl.healBonus or 0,
+    }
 end
 
 local function ParseSkillIDs(skillData)
@@ -222,26 +420,15 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
         return nil
     end
 
-    local baseHp = hero.HpBaseNum or 1000
-    local baseAtk = hero.AtkBaseNum or 100
-    local baseDef = hero.DefBaseNum or 50
-    local baseSpd = 100
+    local level = math.max(1, math.min(HERO_LEVEL_MAX, tonumber(level) or 1))
     local quality = hero.BaseQuality or hero.Quality or 1
     local starMultiplier = GetStarMultiplier(star)
+    local template = GetTemplateStats(hero.Class, level)
 
-    local hpGrowthRate = 0.06 + quality * 0.008
-    local atkGrowthRate = 0.05 + quality * 0.006
-    local defGrowthRate = 0.04 + quality * 0.005
-    local levelDiff = math.max(0, level - 1)
-
-    local hpGrowth = math.floor(baseHp * hpGrowthRate * levelDiff)
-    local atkGrowth = math.floor(baseAtk * atkGrowthRate * levelDiff)
-    local defGrowth = math.floor(baseDef * defGrowthRate * levelDiff)
-
-    local finalHp = math.floor((baseHp + hpGrowth) * starMultiplier)
-    local finalAtk = math.floor((baseAtk + atkGrowth) * starMultiplier)
-    local finalDef = math.floor((baseDef + defGrowth) * starMultiplier)
-    local finalSpd = baseSpd + math.floor(level * 0.5)
+    local finalHp = math.max(1, math.floor(template.hp * starMultiplier))
+    local finalAtk = math.max(1, math.floor(template.atk * starMultiplier))
+    local finalDef = math.max(0, math.floor(template.def * starMultiplier))
+    local finalSpd = math.max(60, math.floor(template.speed))
 
     return {
         hp = finalHp,
@@ -250,6 +437,15 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
         def = finalDef,
         spd = finalSpd,
         speed = finalSpd,
+        critRate = template.critRate or 0,
+        blockRate = template.blockRate or 0,
+        healBonus = template.healBonus or 0,
+        ac = math.max(10, math.floor(template.ac)),
+        hit = math.max(0, math.floor(template.hit)),
+        spellDC = math.max(10, math.floor(template.spellDC)),
+        saveFort = math.max(0, math.floor(template.saveFort)),
+        saveRef = math.max(0, math.floor(template.saveRef)),
+        saveWill = math.max(0, math.floor(template.saveWill)),
         level = level,
         star = star,
         quality = quality,
@@ -321,6 +517,15 @@ function HeroData.ConvertToHeroData(heroId, level, star)
         maxHp = attrs.maxHp,
         spd = attrs.spd,
         speed = attrs.speed,
+        ac = attrs.ac,
+        hit = attrs.hit,
+        spellDC = attrs.spellDC,
+        saveFort = attrs.saveFort,
+        saveRef = attrs.saveRef,
+        saveWill = attrs.saveWill,
+        critRate = attrs.critRate,
+        blockRate = attrs.blockRate,
+        healBonus = attrs.healBonus,
         skillsConfig = skillsConfig,
         config = hero,
     }
@@ -390,10 +595,10 @@ function HeroData.CreateTestBattleConfig()
     local leftHeroes = {}
     local rightHeroes = {}
     for i = 1, 3 do
-        table.insert(leftHeroes, { id = heroes[i].AllyID, level = 50, star = 5, wpType = i })
+        table.insert(leftHeroes, { id = heroes[i].AllyID, level = HERO_LEVEL_MAX, star = 5, wpType = i })
     end
     for i = 4, 6 do
-        table.insert(rightHeroes, { id = heroes[i].AllyID, level = 50, star = 5, wpType = i - 3 })
+        table.insert(rightHeroes, { id = heroes[i].AllyID, level = HERO_LEVEL_MAX, star = 5, wpType = i - 3 })
     end
 
     return HeroData.CreateBattleConfig(leftHeroes, rightHeroes, 30)

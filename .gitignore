@@ -9,3 +9,8 @@ web/test-results/
 
 # Local generated outputs
 out.txt
+
+# Local IDE / debug artifacts
+.dbg/
+.trae/
+debug-mobile-battle-speed.md

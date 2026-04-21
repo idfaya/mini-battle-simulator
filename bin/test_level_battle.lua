@@ -1,7 +1,7 @@
 --[[
     等级输入随机战斗测试脚本
     使用方法: lua test_level_battle.lua [等级] [英雄数量] [敌人数量] [更新速度(毫秒)]
-    示例: lua test_level_battle.lua 50 3 4 500
+    示例: lua test_level_battle.lua 20 3 4 500
     更新速度: 0=极速(无延迟), 100=快, 500=正常, 1000=慢
 --]]
 
@@ -9,7 +9,7 @@ os.execute("chcp 65001 >nul 2>&1")
 
 package.path = package.path .. ";../?.lua"
 
-local targetLevel = tonumber(arg[1]) or 50
+local targetLevel = tonumber(arg[1]) or 20
 local heroCount = tonumber(arg[2]) or 3
 local enemyCount = tonumber(arg[3]) or 4
 local updateSpeed = tonumber(arg[4]) or 200
@@ -73,8 +73,8 @@ local function Main()
         end
     end
     
-    local minLevel = math.max(1, targetLevel - 10)
-    local maxLevel = targetLevel + 10
+    local minLevel = math.max(1, targetLevel - 4)
+    local maxLevel = math.min(20, targetLevel + 4)
     
     local heroes = {}
     print("【英雄阵容】")
@@ -108,7 +108,7 @@ local function Main()
     Sleep(500)
     
     BattleDriver.Init({
-        maxSteps = 20000,
+        maxSteps = 5000,
         updateInterval = updateSpeed,
         refreshInterval = 10
     })

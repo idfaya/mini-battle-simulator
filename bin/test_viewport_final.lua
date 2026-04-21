@@ -8,7 +8,7 @@ os.execute("chcp 65001 >nul 2>&1")
 
 package.path = package.path .. ";../?.lua;../?/init.lua"
 
-local targetLevel = tonumber(arg[1]) or 50
+local targetLevel = tonumber(arg[1]) or 20
 local heroCount = math.min(tonumber(arg[2]) or 3, 6)
 local enemyCount = math.min(tonumber(arg[3]) or 6, 6)
 local updateSpeed = tonumber(arg[4]) or 800

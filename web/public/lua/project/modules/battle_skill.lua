@@ -12,6 +12,7 @@ local Logger = require("utils.logger")
 local SkillConfig = require("config.skill_config")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
+local ClassRoleConfig = require("config.class_role_config")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -63,6 +64,84 @@ local function InferSpecialEffectTag(skillId, skillCfg, mergedConfig)
     return SPECIAL_EFFECT_TAGS[skillId]
         or (skillCfg and skillCfg.SpecialEffectTag)
         or nil
+end
+
+-- ---------------------------------------------------------------------------
+-- 5e-style unified dice helpers
+-- ---------------------------------------------------------------------------
+
+local function IsSpellClass(hero)
+    local classId = tonumber(hero and (hero.class or hero.Class)) or 0
+    return not ClassRoleConfig.IsMelee(classId)
+end
+
+function BattleSkill.GetPhysicalDamageDice(hero, skill, damageKind)
+    local sid = skill and skill.skillId or 0
+    local stype = skill and skill.skillType or E_SKILL_TYPE_NORMAL
+    if stype == E_SKILL_TYPE_ULTIMATE then
+        return "2d8+4"
+    end
+    if sid == 80003003 then
+        return "1d6+3"
+    end
+    return "1d8+3"
+end
+
+function BattleSkill.GetSpellDamageDice(hero, skill, isMultiTarget, damageKind)
+    local stype = skill and skill.skillType or E_SKILL_TYPE_NORMAL
+    if stype == E_SKILL_TYPE_ULTIMATE then
+        if isMultiTarget then
+            return "4d6"
+        end
+        return "4d8"
+    end
+    if isMultiTarget then
+        return "3d6"
+    end
+    return "2d8"
+end
+
+function BattleSkill.ApplyUnifiedDamageScale(attacker, defender, rawDamage, damageKind)
+    local value = math.max(0, math.floor(tonumber(rawDamage) or 0))
+    if value <= 0 then
+        return 0
+    end
+    local kind = damageKind or "direct"
+    local resist = defender and defender.resistances
+    local vuln = defender and defender.vulnerabilities
+    local immune = defender and defender.immunities
+    if type(immune) == "table" and immune[kind] then
+        return 0
+    end
+    if type(resist) == "table" and resist[kind] then
+        value = math.floor(value * 0.5)
+    end
+    if type(vuln) == "table" and vuln[kind] then
+        value = value * 2
+    end
+    return math.max(0, value)
+end
+
+-- Called after target takes damage. Used for 5e-style concentration/chant interruption.
+function BattleSkill.OnDamagedInterrupt(target, damage)
+    if not target or (tonumber(damage) or 0) <= 0 then
+        return
+    end
+    local BattleFormula = require("core.battle_formula")
+    if target.__pendingCast then
+        local r = BattleFormula.RollConcentration(target, damage, { ignoreNatRules = target.__ignoreNatRules == true })
+        if not r.success then
+            Logger.Log(string.format("[CHANT] %s 吟唱被伤害打断 (DC=%d, total=%d)", target.name or "Unknown", r.dc or 0, r.total or 0))
+            target.__pendingCast = nil
+        end
+    end
+    if target.__concentrationSkillId then
+        local r = BattleFormula.RollConcentration(target, damage, { ignoreNatRules = target.__ignoreNatRules == true })
+        if not r.success then
+            Logger.Log(string.format("[CONC] %s 专注被打断 (skill=%s, DC=%d, total=%d)", target.name or "Unknown", tostring(target.__concentrationSkillId), r.dc or 0, r.total or 0))
+            target.__concentrationSkillId = nil
+        end
+    end
 end
 
 --- 初始化英雄技能
@@ -471,13 +550,35 @@ function BattleSkill.CastSmallSkill(hero, target)
     return BattleSkill.CastSkillInSeq(hero, target, normalSkill.skillId)
 end
 
-function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete)
+function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts)
+    opts = opts or {}
     local skill, targets = PrepareSkillCast(hero, target, skillId)
     if not skill then
         if type(onComplete) == "function" then
             onComplete(false, { totalDamage = 0, succeeded = false })
         end
         return false
+    end
+
+    -- Chanting: delay execution and create an interruptible window.
+    local Skill5eMeta = require("config.skill_5e_meta")
+    local meta = Skill5eMeta.Get(skillId)
+    if not opts.ignoreChant and meta and tonumber(meta.chantTurns) and tonumber(meta.chantTurns) > 0 then
+        -- Do not start timeline now. The battle loop will count down and release later.
+        hero.__pendingCast = {
+            skillId = skillId,
+            skillName = skill and skill.name,
+            targetId = targets and targets[1] and (targets[1].instanceId or targets[1].id) or nil,
+            remainTurns = tonumber(meta.chantTurns),
+        }
+        Logger.Log(string.format("[CHANT] %s 开始吟唱 %s (%d)",
+            hero.name or "Unknown",
+            tostring(skill and skill.name or skillId),
+            hero.__pendingCast.remainTurns))
+        if type(onComplete) == "function" then
+            onComplete(true, { totalDamage = 0, succeeded = true, chanting = true })
+        end
+        return true
     end
 
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
@@ -529,14 +630,14 @@ end
 ---@param target table 目标
 ---@param skillId number 技能ID
 ---@return boolean 是否释放成功
-function BattleSkill.CastSkillInSeq(hero, target, skillId)
+function BattleSkill.CastSkillInSeq(hero, target, skillId, opts)
     local completed = nil
     local started = BattleSkill.StartSkillCastInSeq(hero, target, skillId, function(succeeded, result)
         completed = {
             succeeded = succeeded,
             result = result,
         }
-    end)
+    end, opts)
     if not started then
         return false
     end
@@ -596,8 +697,60 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     target.name or "Unknown",
                     healAmount))
             else
-                -- 计算伤害
-                local damage, damageResult = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
+                -- 5e-style default attack: hit check vs AC + dice damage (scaled),
+                -- keeping legacy damageRate as a multiplier so existing balance knobs still work.
+                local BattleFormula = require("core.battle_formula")
+                local Dice = require("core.dice")
+                local Skill5eMeta = require("config.skill_5e_meta")
+                local diceScale = (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
+
+                local damage = 0
+                local damageResult = {}
+                local meta = Skill5eMeta.Get(skill and skill.skillId)
+
+                if meta and meta.kind == "spell" then
+                    local dc = tonumber(hero and hero.spellDC) or 10
+                    local saveType = meta.saveType or "ref"
+                    local saveBonus = 0
+                    if saveType == "fort" then
+                        saveBonus = tonumber(target.saveFort) or 0
+                    elseif saveType == "will" then
+                        saveBonus = tonumber(target.saveWill) or 0
+                    else
+                        saveBonus = tonumber(target.saveRef) or 0
+                    end
+                    local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {
+                        ignoreNatRules = (target.__ignoreNatRules == true) or (hero and hero.__ignoreNatRules == true),
+                    })
+                    damageResult.save = saveResult
+                    local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(hero, skill, meta and meta.isAOE, "direct")) or "1d6+3"
+                    local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
+                    local successMode = meta.onSaveSuccess or "half"
+                    if saveResult.success then
+                        damage = (successMode == "half") and math.floor(full / 2) or 0
+                    else
+                        damage = full
+                    end
+                else
+                    local hitResult = BattleFormula.RollHit(hero, target, {
+                        mode = "normal",
+                        ignoreNatRules = (target.__ignoreNatRules == true) or (hero and hero.__ignoreNatRules == true),
+                    })
+                    damageResult.hit = hitResult
+                    if hitResult.hit then
+                        local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(hero, skill, "direct")) or "1d6+2"
+                        local rolled = Dice.Roll(diceExpr, { crit = hitResult.crit == true }) * diceScale
+                        damage = rolled
+                        damageResult.isCrit = hitResult.crit == true
+                    else
+                        damage = 0
+                        damageResult.isDodged = true
+                    end
+                end
+
+                if damageRate and damageRate > 0 then
+                    damage = math.floor((tonumber(damage) or 0) * damageRate / 10000)
+                end
                 local damageContext = {
                     attacker = hero,
                     target = target,
@@ -610,13 +763,34 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 
                 -- 使用 ApplyDamage 应用伤害（会触发事件）
                 local BattleDmgHeal = require("modules.battle_dmg_heal")
-                BattleDmgHeal.ApplyDamage(target, damage, hero, {
-                    isCrit = damageResult and damageResult.isCrit or false,
-                    isBlocked = damageResult and damageResult.isBlock or false,
-                    skillId = skill and skill.skillId or nil,
-                    skillName = skill and skill.name or nil,
-                    damageKind = "direct",
-                })
+                if damage > 0 then
+                    BattleDmgHeal.ApplyDamage(target, damage, hero, {
+                        isCrit = damageResult and damageResult.isCrit or false,
+                        isDodged = damageResult and damageResult.isDodged or false,
+                        isBlocked = damageResult and damageResult.isBlock or false,
+                        skillId = skill and skill.skillId or nil,
+                        skillName = skill and skill.name or nil,
+                        damageKind = "direct",
+                    })
+                else
+                    -- Log miss/save for readability (design goal: readable outcomes).
+                    if damageResult and damageResult.hit and damageResult.hit.hit == false then
+                        Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
+                            hero.name or "Unknown",
+                            target.name or "Unknown",
+                            damageResult.hit.roll or 0,
+                            damageResult.hit.total or 0,
+                            damageResult.hit.targetAC or 0))
+                    elseif damageResult and damageResult.save then
+                        Logger.Log(string.format("[SAVE] %s 对 %s 豁免%s (roll=%d total=%d vs DC=%d)",
+                            target.name or "Unknown",
+                            hero.name or "Unknown",
+                            (damageResult.save.success and "成功" or "失败"),
+                            damageResult.save.roll or 0,
+                            damageResult.save.total or 0,
+                            damageResult.save.dc or 0))
+                    end
+                end
 
                 Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
                     hero.name or "Unknown",
@@ -800,36 +974,45 @@ end
 --- 计算治疗量
 ---@param healer table 治疗者
 ---@param target table 目标
----@param healRate number 治疗倍率（万分比）
+---@param healRate number 治疗倍率（万分比，按目标最大生命值计算）
 ---@return number 治疗量
 function BattleSkill.CalculateHeal(healer, target, healRate)
-    local BattleAttribute = require("modules.battle_attribute")
-    local BattleBuff = require("modules.battle_buff")
-    
-    -- 基础治疗量 = 治疗者攻击力 * 治疗倍率
-    local atk = BattleAttribute.GetAttribute(healer, BattleAttribute.ATTR_ID.ATK) or healer.atk or 0
-    local warSpiritPct = BattleBuff.GetBuffStackNumBySubType(healer, 840001) * 500
-    local auraAtkPct = 0
-    if BattleBuff.GetBuffBySubType(healer, 840003) then
-        auraAtkPct = 5000
-    elseif BattleBuff.GetBuffBySubType(healer, 840002) then
-        auraAtkPct = 2000
+    local maxHp = target and target.maxHp or 0
+    if maxHp <= 0 then
+        return 0
     end
-    atk = math.floor(atk * (1 + (warSpiritPct + auraAtkPct) / 10000))
-    local healAmount = math.floor(atk * healRate / 10000)
-    
-    -- 添加随机波动 (90% - 110%)
-    local randomFactor = math.random(9000, 11000) / 10000
-    healAmount = math.floor(healAmount * randomFactor)
-    
-    Logger.Log(string.format("[CalculateHeal] %s 治疗 %s: 基础治疗=%d, 倍率=%.2f%%, 最终=%d",
+
+    local healAmount = math.floor(maxHp * (tonumber(healRate) or 0) / 10000)
+
+    -- Keep legacy aura / war-spirit interactions (used by B1 passives) even though
+    -- base heal is MaxHP% in the new balance model.
+    local BattleBuff = require("modules.battle_buff")
+    local warSpiritPct = (BattleBuff.GetBuffStackNumBySubType(healer, 840001) or 0) * 500
+    local auraPct = 0
+    if BattleBuff.GetBuffBySubType(healer, 840003) then
+        auraPct = 5000
+    elseif BattleBuff.GetBuffBySubType(healer, 840002) then
+        auraPct = 2000
+    end
+    local auraTotal = warSpiritPct + auraPct
+    if auraTotal ~= 0 then
+        healAmount = math.floor(healAmount * (1 + auraTotal / 10000))
+    end
+
+    local healBonus = healer and healer.healBonus or 0
+    if healBonus ~= 0 then
+        healAmount = math.floor(healAmount * (1 + healBonus / 10000))
+    end
+
+    Logger.Log(string.format("[CalculateHeal] %s 治疗 %s: 目标MaxHp=%d, 倍率=%.2f%%, 治疗加成=%.2f%%, 最终=%d",
         healer.name or "Unknown",
         target.name or "Unknown",
-        atk,
+        maxHp,
         healRate / 100,
+        healBonus / 100,
         healAmount))
-    
-    return math.max(1, healAmount)  -- 最小治疗1点
+
+    return math.max(1, healAmount)
 end
 
 --- 触发伤害相关Buff
@@ -1789,8 +1972,13 @@ end
 ---@return table|nil 目标
 function BattleSkill.SelectLowestHpEnemy(hero)
     local BattleFormation = require("modules.battle_formation")
-    local enemies = BattleFormation.GetSelectableEnemyHeroes and BattleFormation.GetSelectableEnemyHeroes(hero, false)
-        or BattleFormation.GetEnemyTeam(hero)
+    local enemies = nil
+    if BattleFormation.GetSelectableEnemyHeroes then
+        enemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
+    end
+    if not enemies or #enemies == 0 then
+        enemies = BattleFormation.GetEnemyTeam(hero)
+    end
     
     if not enemies or #enemies == 0 then return nil end
     
@@ -1816,8 +2004,13 @@ end
 ---@return table 目标列表
 function BattleSkill.SelectRandomAliveEnemies(hero, count)
     local BattleFormation = require("modules.battle_formation")
-    local enemies = BattleFormation.GetSelectableEnemyHeroes and BattleFormation.GetSelectableEnemyHeroes(hero, false)
-        or BattleFormation.GetEnemyTeam(hero)
+    local enemies = nil
+    if BattleFormation.GetSelectableEnemyHeroes then
+        enemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
+    end
+    if not enemies or #enemies == 0 then
+        enemies = BattleFormation.GetEnemyTeam(hero)
+    end
     
     if not enemies or #enemies == 0 then return {} end
     

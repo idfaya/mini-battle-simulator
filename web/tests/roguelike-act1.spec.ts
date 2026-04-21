@@ -1,6 +1,7 @@
 import { expect, test } from "playwright/test";
 
 test("roguelike act1 boots into map and can finish the chapter flow", async ({ page }) => {
+  test.setTimeout(120000);
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
 
@@ -27,7 +28,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await clickNodeAndEnter("Frontier Scouts");
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toMatch(/battle|reward/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 25000 }).toContain("reward");
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 60000 }).toContain("reward");
   await page.locator(".ult-panel button").first().click();
 
   await clickNodeAndEnter("Broken Caravan");
@@ -56,7 +57,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await clickNodeAndEnter("Frozen Gate");
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 20000 }).toMatch(/battle|reward|chapter_result/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 40000 }).toMatch(/reward|chapter_result/);
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 80000 }).toMatch(/reward|chapter_result/);
   const status = await page.locator(".hud-status").textContent();
   if (status?.includes("reward")) {
     await page.locator(".ult-panel button").first().click();

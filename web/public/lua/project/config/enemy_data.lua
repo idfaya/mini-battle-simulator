@@ -14,14 +14,25 @@ local MONSTER_TYPE_NAMES = {
     [2] = "BOSS",
 }
 
-local STAR_MULTIPLIERS = {
-    [1] = 1.0,
-    [2] = 1.1,
-    [3] = 1.2,
-    [4] = 1.3,
-    [5] = 1.5,
-    [6] = 1.8,
-    [7] = 2.2,
+-- True 5e-style enemy templates.
+-- Base role template is picked by class, then monster type applies a clean modifier.
+local ENEMY_ROLE_TEMPLATES = {
+    [1] = { hp = { 38, 48, 58, 70, 82 }, atk = { 7, 8, 9, 10, 11 }, def = { 2, 3, 3, 4, 4 }, speed = { 101, 102, 103, 104, 105 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 4, 5, 5 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 800, blockRate = 400 },
+    [2] = { hp = { 52, 66, 80, 94, 108 }, atk = { 6, 7, 8, 9, 10 }, def = { 3, 4, 5, 6, 7 }, speed = { 92, 93, 94, 95, 96 }, ac = { 17, 18, 19, 20, 21 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 300, blockRate = 1600 },
+    [3] = { hp = { 44, 56, 68, 80, 92 }, atk = { 7, 8, 9, 10, 12 }, def = { 2, 3, 3, 4, 4 }, speed = { 104, 105, 106, 107, 108 }, ac = { 16, 17, 18, 19, 20 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 700, blockRate = 400 },
+    [4] = { hp = { 56, 72, 88, 104, 120 }, atk = { 6, 7, 8, 10, 11 }, def = { 3, 4, 4, 5, 6 }, speed = { 94, 95, 96, 97, 98 }, ac = { 16, 17, 18, 19, 20 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 900 },
+    [5] = { hp = { 46, 58, 70, 82, 94 }, atk = { 7, 8, 9, 10, 11 }, def = { 2, 3, 3, 4, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 500, blockRate = 700 },
+    [6] = { hp = { 42, 52, 62, 72, 82 }, atk = { 4, 5, 6, 7, 8 }, def = { 2, 2, 3, 3, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 15, 15, 16, 17 }, hit = { 3, 4, 4, 5, 6 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 300, blockRate = 400, healBonus = 800 },
+    [7] = { hp = { 36, 46, 56, 66, 76 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 99, 100, 101, 102, 103 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 500, blockRate = 300 },
+    [8] = { hp = { 40, 50, 60, 70, 80 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 14, 15, 15, 16 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 400, blockRate = 400 },
+    [9] = { hp = { 37, 47, 57, 67, 77 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 100, 101, 102, 103, 104 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 700, blockRate = 300 },
+    default = { hp = { 42, 52, 62, 72, 82 }, atk = { 5, 6, 7, 8, 9 }, def = { 2, 2, 3, 3, 4 }, speed = { 98, 99, 100, 101, 102 }, ac = { 15, 16, 17, 18, 19 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 500 },
+}
+
+local MONSTER_TYPE_TEMPLATES = {
+    [0] = { hpMul = 0.85, atkMul = 0.95, defMul = 0.95, acDelta = -1, hitDelta = -1, spellDCDelta = -1, saveDelta = -1, speedDelta = 0 },
+    [1] = { hpMul = 1.15, atkMul = 1.05, defMul = 1.00, acDelta = 0, hitDelta = 0, spellDCDelta = 0, saveDelta = 0, speedDelta = 0 },
+    [2] = { hpMul = 1.80, atkMul = 1.15, defMul = 1.10, acDelta = 1, hitDelta = 1, spellDCDelta = 1, saveDelta = 1, speedDelta = 1 },
 }
 
 local function GetConfigFilePath(fileName)
@@ -86,13 +97,14 @@ local function BuildScaledSkillIds(enemy, level)
 
     for family, _ in pairs(families) do
         Add(family * 10 + 1)
-        if level >= 12 or (enemy.MonsterType or 0) >= 1 then
+        -- 1-20 scale: unlock more family skills as level rises.
+        if level >= 6 or (enemy.MonsterType or 0) >= 1 then
             Add(family * 10 + 2)
         end
-        if level >= 24 or (enemy.MonsterType or 0) >= 1 then
+        if level >= 12 or (enemy.MonsterType or 0) >= 1 then
             Add(family * 10 + 3)
         end
-        if level >= 36 or (enemy.MonsterType or 0) >= 2 then
+        if level >= 17 or (enemy.MonsterType or 0) >= 2 then
             Add(family * 10 + 4)
         end
     end
@@ -100,8 +112,83 @@ local function BuildScaledSkillIds(enemy, level)
     return result
 end
 
-local function GetStarMultiplier(star)
-    return STAR_MULTIPLIERS[star] or 1.0
+local ENEMY_LEVEL_MAX = 20
+local ENEMY_TIER_STARTS = { 1, 5, 11, 17, ENEMY_LEVEL_MAX + 1 }
+
+local function GetTier(level)
+    local lv = tonumber(level) or 1
+    lv = math.max(1, math.min(ENEMY_LEVEL_MAX, lv))
+    if lv >= ENEMY_TIER_STARTS[4] then return 4 end
+    if lv >= ENEMY_TIER_STARTS[3] then return 3 end
+    if lv >= ENEMY_TIER_STARTS[2] then return 2 end
+    return 1
+end
+
+local function GetRoleTemplate(classId)
+    return ENEMY_ROLE_TEMPLATES[tonumber(classId) or 0] or ENEMY_ROLE_TEMPLATES.default
+end
+
+local function GetInterpolatedTemplateValue(series, level)
+    if type(series) ~= "table" or #series == 0 then
+        return 0
+    end
+    local lv = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
+    local a1 = tonumber(series[1]) or 0
+    local a2 = tonumber(series[2]) or a1
+    local a3 = tonumber(series[3]) or a2
+    local a4 = tonumber(series[4]) or a3
+
+    local tier = GetTier(lv)
+    if tier == 1 then
+        local progress = (lv - ENEMY_TIER_STARTS[1]) / (ENEMY_TIER_STARTS[2] - ENEMY_TIER_STARTS[1])
+        return a1 + (a2 - a1) * progress
+    elseif tier == 2 then
+        local progress = (lv - ENEMY_TIER_STARTS[2]) / (ENEMY_TIER_STARTS[3] - ENEMY_TIER_STARTS[2])
+        return a2 + (a3 - a2) * progress
+    elseif tier == 3 then
+        local progress = (lv - ENEMY_TIER_STARTS[3]) / (ENEMY_TIER_STARTS[4] - ENEMY_TIER_STARTS[3])
+        return a3 + (a4 - a3) * progress
+    end
+    return a4
+end
+
+local function GetBaseTemplateStats(classId, level)
+    local tpl = GetRoleTemplate(classId)
+    return {
+        hp = GetInterpolatedTemplateValue(tpl.hp, level),
+        atk = GetInterpolatedTemplateValue(tpl.atk, level),
+        def = GetInterpolatedTemplateValue(tpl.def, level),
+        speed = GetInterpolatedTemplateValue(tpl.speed, level),
+        ac = GetInterpolatedTemplateValue(tpl.ac, level),
+        hit = GetInterpolatedTemplateValue(tpl.hit, level),
+        spellDC = GetInterpolatedTemplateValue(tpl.spellDC, level),
+        saveFort = GetInterpolatedTemplateValue(tpl.saveFort, level),
+        saveRef = GetInterpolatedTemplateValue(tpl.saveRef, level),
+        saveWill = GetInterpolatedTemplateValue(tpl.saveWill, level),
+        critRate = tpl.critRate or 0,
+        blockRate = tpl.blockRate or 0,
+        healBonus = tpl.healBonus or 0,
+    }
+end
+
+local function GetEnemyTemplateStats(classId, level, monsterType)
+    local base = GetBaseTemplateStats(classId, level)
+    local mt = MONSTER_TYPE_TEMPLATES[tonumber(monsterType) or 0] or MONSTER_TYPE_TEMPLATES[0]
+    return {
+        hp = math.max(1, math.floor(base.hp * mt.hpMul)),
+        atk = math.max(1, math.floor(base.atk * mt.atkMul)),
+        def = math.max(0, math.floor(base.def * mt.defMul)),
+        speed = math.max(60, math.floor(base.speed + mt.speedDelta)),
+        ac = math.max(10, math.floor(base.ac + mt.acDelta)),
+        hit = math.max(0, math.floor(base.hit + mt.hitDelta)),
+        spellDC = math.max(10, math.floor(base.spellDC + mt.spellDCDelta)),
+        saveFort = math.max(0, math.floor(base.saveFort + mt.saveDelta)),
+        saveRef = math.max(0, math.floor(base.saveRef + mt.saveDelta)),
+        saveWill = math.max(0, math.floor(base.saveWill + mt.saveDelta)),
+        critRate = base.critRate,
+        blockRate = base.blockRate,
+        healBonus = base.healBonus,
+    }
 end
 
 local function loadJsonFile(filename)
@@ -232,44 +319,30 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
 
     local name = enemy.EnemyName or string.format("Enemy_%d", enemyId)
     local level = overrideLevel or enemy.Level or 1
+    level = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
     local star = enemy.Star or 1
     local quality = enemy.Quality or 1
     local monsterType = enemy.MonsterType or 0
     local class = enemy.Class or 2
-
-    local baseHp, baseAtk, baseDef, baseSpeed
-    if ClassRoleConfig.IsMelee(class) then
-        baseHp, baseAtk, baseDef, baseSpeed = 1200, 105, 78, 88
-    else
-        baseHp, baseAtk, baseDef, baseSpeed = 920, 152, 48, 108
-    end
-
-    local hpGrowthRate = 0.12 + quality * 0.015
-    local atkGrowthRate = 0.095 + quality * 0.012
-    local defGrowthRate = 0.075 + quality * 0.010
-    local levelDiff = math.max(0, level - 1)
-
-    local hpGrowth = math.floor(baseHp * hpGrowthRate * levelDiff)
-    local atkGrowth = math.floor(baseAtk * atkGrowthRate * levelDiff)
-    local defGrowth = math.floor(baseDef * defGrowthRate * levelDiff)
-
-    local qualityMultipliers = {1.0, 1.06, 1.12, 1.18, 1.26, 1.34}
-    local qualityMultiplier = qualityMultipliers[quality] or 1.0
-    local typeMultipliers = {[0] = 1.0, [1] = 1.15, [2] = 1.35}
-    local typeMultiplier = typeMultipliers[monsterType] or 1.0
-    local starMultiplier = GetStarMultiplier(star)
-    local totalMultiplier = qualityMultiplier * typeMultiplier * starMultiplier
-    local atkMultiplier = 1.0 + (totalMultiplier - 1.0) * 0.45
+    local template = GetEnemyTemplateStats(class, level, monsterType)
 
     local heroData = {
         id = enemyId,
         name = name,
-        hp = math.floor((baseHp + hpGrowth) * totalMultiplier),
-        atk = math.floor((baseAtk + atkGrowth) * atkMultiplier),
-        def = math.floor((baseDef + defGrowth) * totalMultiplier),
-        speed = baseSpeed,
-        critRate = 0.05 + (quality * 0.01),
-        critDmg = 1.3 + (star * 0.05),
+        hp = template.hp,
+        atk = template.atk,
+        def = template.def,
+        speed = template.speed,
+        ac = template.ac,
+        hit = template.hit,
+        spellDC = template.spellDC,
+        saveFort = template.saveFort,
+        saveRef = template.saveRef,
+        saveWill = template.saveWill,
+        critRate = template.critRate or 0,
+        critDamage = 150,
+        blockRate = template.blockRate or 0,
+        healBonus = template.healBonus or 0,
         skills = {},
         class = class,
         _originalEnemy = enemy,

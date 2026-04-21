@@ -1,5 +1,8 @@
 import type { BattleSetup, BattleSnapshot } from "../types/battle";
 
+const LEVEL_MIN = 1;
+const LEVEL_MAX = 20;
+
 type Controls = {
   root: HTMLDivElement;
   logList: HTMLUListElement;
@@ -69,6 +72,11 @@ export function createControls(
     input.max = String(max);
     input.step = "1";
     input.value = String(value);
+    input.onblur = () => {
+      const numericValue = Number(input.value);
+      const fallback = Number.isFinite(numericValue) ? numericValue : value;
+      input.value = String(Math.max(min, Math.min(max, Math.round(fallback))));
+    };
 
     wrapper.append(text, input);
     return { wrapper, input };
@@ -103,7 +111,7 @@ export function createControls(
     return { wrapper, select };
   };
 
-  const levelField = createNumberField("等级", "battle-level", initialSetup.level, 1, 100);
+  const levelField = createNumberField("等级", "battle-level", initialSetup.level, LEVEL_MIN, LEVEL_MAX);
   const heroCountField = createNumberField("英雄数量", "battle-hero-count", initialSetup.heroCount, 1, 6);
   const enemyCountField = createNumberField("敌人数量", "battle-enemy-count", initialSetup.enemyCount, 1, 6);
   const speedField = createSelectField("速度", "battle-speed", initialSetup.speed, [
@@ -114,7 +122,7 @@ export function createControls(
   ]);
 
   const readSetup = (): BattleSetup => ({
-    level: Math.max(1, Math.min(100, Number(levelField.input.value) || initialSetup.level)),
+    level: Math.max(LEVEL_MIN, Math.min(LEVEL_MAX, Number(levelField.input.value) || initialSetup.level)),
     heroCount: Math.max(1, Math.min(6, Number(heroCountField.input.value) || initialSetup.heroCount)),
     enemyCount: Math.max(1, Math.min(6, Number(enemyCountField.input.value) || initialSetup.enemyCount)),
     initialEnergy: initialSetup.initialEnergy,
@@ -177,9 +185,28 @@ export function renderControls(
   logEntries: string[],
   onUltCast: (heroId: string) => void,
 ) {
-  controls.status.textContent = snapshot?.result
-    ? `胜负: ${snapshot.result.winner} · ${snapshot.result.reason}`
-    : `战斗状态: ${snapshot ? snapshot.phase : "loading"}`;
+  const allUnits = [...(snapshot?.leftTeam ?? []), ...(snapshot?.rightTeam ?? [])];
+  const activeUnit =
+    snapshot?.activeHeroId != null
+      ? allUnits.find((unit) => unit.id === snapshot.activeHeroId)
+      : null;
+  const focusUnit =
+    activeUnit ??
+    (snapshot?.leftTeam ?? []).find((unit) => unit.isAlive) ??
+    (snapshot?.rightTeam ?? []).find((unit) => unit.isAlive) ??
+    null;
+  const lines: string[] = [];
+  if (snapshot?.result) {
+    lines.push(`result: ${snapshot.result.reason} | 胜负: ${snapshot.result.winner} · ${snapshot.result.reason}`);
+  } else {
+    lines.push(`battle: ${snapshot ? snapshot.phase : "loading"} | 战斗状态: ${snapshot ? snapshot.phase : "loading"}`);
+  }
+  if (focusUnit) {
+    lines.push(
+      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 速度 ${focusUnit.speed} | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}`,
+    );
+  }
+  controls.status.textContent = lines.join("\n");
 
   controls.buttonsHost.replaceChildren();
   for (const unit of snapshot?.leftTeam ?? []) {

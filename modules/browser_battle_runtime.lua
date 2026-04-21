@@ -214,6 +214,14 @@ local function serializeHero(hero)
         classIcon = ClassRoleConfig.GetIcon(classId),
         hp = hero.hp or 0,
         maxHp = hero.maxHp or 0,
+        -- 5e-style debug stats (shown in web status panel)
+        speed = hero.speed or hero.spd or 0,
+        ac = hero.ac or 0,
+        hit = hero.hit or 0,
+        spellDC = hero.spellDC or 0,
+        saveFort = hero.saveFort or 0,
+        saveRef = hero.saveRef or 0,
+        saveWill = hero.saveWill or 0,
         energy = hero.curEnergy or 0,
         maxEnergy = hero.maxEnergy or 100,
         isAlive = hero.isAlive and not hero.isDead,
@@ -336,7 +344,7 @@ local function buildSeedArray()
 end
 
 local function buildRuntimeTeamConfig(options)
-    local level = clamp(tonumber(options and options.level) or 50, 1, 100)
+    local level = clamp(tonumber(options and options.level) or 20, 1, 20)
     local heroCount = clamp(math.floor(tonumber(options and options.heroCount) or 3), 1, 6)
     local enemyCount = clamp(math.floor(tonumber(options and options.enemyCount) or 4), 1, 6)
     local initialEnergy = clamp(math.floor(tonumber(options and options.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100)
@@ -506,7 +514,7 @@ end
 
 local function createDefaultConfig()
     return buildRuntimeTeamConfig({
-        level = 50,
+        level = 20,
         heroCount = 3,
         enemyCount = 4,
     })

@@ -4,9 +4,18 @@ import type { RunActionResponse, RunSnapshot } from "../types/roguelike";
 import { normalizeEvent } from "./eventBridge";
 
 const { lua, lauxlib, lualib, to_jsstring, to_luastring } = fengari;
+const cacheNonce =
+  typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV
+    ? String(Date.now())
+    : "";
 const assetUrl = (path: string) => {
   const base = typeof document !== "undefined" ? document.baseURI : window.location.href;
-  return new URL(path, base);
+  const url = new URL(path, base);
+  // Avoid stale cached lua assets during local development.
+  if (cacheNonce) {
+    url.searchParams.set("v", cacheNonce);
+  }
+  return url;
 };
 
 type LuaManifest = {
@@ -39,19 +48,21 @@ export class LuaBattleHost {
   }
 
   private async bootstrap() {
-    const manifest = (await fetch(assetUrl("lua/project/manifest.json")).then((res) =>
-      res.json(),
+    const manifest = (await fetch(assetUrl("lua/project/manifest.json"), { cache: "no-store" }).then(
+      (res) => res.json(),
     )) as LuaManifest;
     await Promise.all(
       manifest.modules.map(async (module) => {
-        const source = await fetch(assetUrl(`lua/project/${module.path}`)).then((res) => res.text());
+        const source = await fetch(assetUrl(`lua/project/${module.path}`), {
+          cache: "no-store",
+        }).then((res) => res.text());
         this.preloadModule(module.moduleName, source);
       }),
     );
 
-    const entrySource = await fetch(assetUrl(`lua/project/${manifest.entry}`)).then((res) =>
-      res.text(),
-    );
+    const entrySource = await fetch(assetUrl(`lua/project/${manifest.entry}`), {
+      cache: "no-store",
+    }).then((res) => res.text());
     this.runChunk(entrySource, manifest.entry);
   }
 

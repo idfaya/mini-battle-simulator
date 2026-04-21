@@ -168,9 +168,29 @@ function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs:
 }
 
 export function renderRunControls(controls: RunControls, snapshot: RunSnapshot | null, logs: string[]) {
-  controls.status.textContent = snapshot
-    ? `Run 阶段: ${snapshot.phase}${snapshot.lastActionMessage ? ` · ${snapshot.lastActionMessage}` : ""}`
-    : "Run 加载中";
+  if (!snapshot) {
+    controls.status.textContent = "run: loading | Run 加载中";
+  } else if (snapshot.phase === "battle") {
+    const bs = snapshot.battleSnapshot;
+    const allUnits = [...(bs?.leftTeam ?? []), ...(bs?.rightTeam ?? [])];
+    const active =
+      bs?.activeHeroId != null ? allUnits.find((unit) => unit.id === bs.activeHeroId) : null;
+    const focus =
+      active ??
+      (bs?.leftTeam ?? []).find((unit) => unit.isAlive) ??
+      (bs?.rightTeam ?? []).find((unit) => unit.isAlive) ??
+      null;
+    const lines: string[] = [];
+    lines.push(`battle: ${bs?.phase ?? "running"} | 战斗状态: ${bs?.phase ?? "running"}`);
+    if (focus) {
+      lines.push(
+        `${active ? "当前行动" : "当前角色"}: ${focus.name} | HP ${focus.hp}/${focus.maxHp} | 速度 ${focus.speed ?? 0} | AC ${focus.ac ?? 0} | 命中 ${focus.hit ?? 0} | 法术命中 ${focus.spellDC ?? 0} | 豁免 F/R/W ${focus.saveFort ?? 0}/${focus.saveRef ?? 0}/${focus.saveWill ?? 0}`,
+      );
+    }
+    controls.status.textContent = lines.join("\n");
+  } else {
+    controls.status.textContent = `run: ${snapshot.phase}${snapshot.lastActionMessage ? ` | ${snapshot.lastActionMessage}` : ""}`;
+  }
 
   controls.panel.replaceChildren();
   if (!snapshot) {

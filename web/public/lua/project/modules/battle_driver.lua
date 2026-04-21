@@ -11,12 +11,14 @@ local ConsoleRenderer = require("ui.console_renderer")
 local BattleEvent = require("core.battle_event")
 local BattleFormation = require("modules.battle_formation")
 local BattleActionOrder = require("modules.battle_action_order")
+local BattleRhythmConfig = require("config.battle_rhythm_config")
 
 -- 默认配置
 local DEFAULT_CONFIG = {
-    maxSteps = 20000,        -- 最大步数
+    maxSteps = 5000,         -- 最大步数（逻辑步，不再允许长时间空转）
     updateInterval = 0,      -- 更新间隔（毫秒）
     refreshInterval = 10,    -- 每N步强制刷新一次
+    logicStepMs = BattleRhythmConfig.logicStepMs or 80,
 }
 
 -- 当前状态
@@ -31,6 +33,8 @@ local _config = {}
 --- 简单的睡眠函数（毫秒）
 local function Sleep(ms)
     if ms <= 0 then return end
+    -- Avoid long busy-waits in CI/sandbox runs.
+    ms = math.min(ms, 1)
     local start = os.clock()
     while (os.clock() - start) * 1000 < ms do
         -- 忙等待
@@ -105,7 +109,7 @@ function BattleDriver.Update()
     end
     
     -- 执行战斗更新
-    BattleMain.Update()
+    BattleMain.Update(_config.logicStepMs)
     _step = _step + 1
     
     -- 根据速度设置添加延迟

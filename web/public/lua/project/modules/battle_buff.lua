@@ -212,6 +212,12 @@ function BattleBuff.Add(caster, target, buffConfig)
         table.insert(buffList, newBuff)
         Logger.Debug(string.format("BattleBuff.Add: 添加新Buff [%s] ID=%d 类型=%d", 
             newBuff.name, newBuff.id, newBuff.mainType))
+
+        -- 5e-style: hard control immediately interrupts chanting.
+        if target.__pendingCast and tonumber(newBuff.mainType) == 3 then
+            Logger.Log(string.format("[CHANT] %s 吟唱被控制打断: %s", target.name or "Unknown", tostring(target.__pendingCast.skillName or target.__pendingCast.skillId)))
+            target.__pendingCast = nil
+        end
         
         -- 触发添加时效果
         BattleBuff.ProcessBuffEffect(newBuff, target, E_BUFF_TIMING.ON_ADD)

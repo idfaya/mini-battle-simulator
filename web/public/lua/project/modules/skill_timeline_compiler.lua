@@ -51,6 +51,9 @@ local function ExecuteOp(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local BattlePassiveSkill = require("modules.battle_passive_skill")
+        local BattleFormula = require("core.battle_formula")
+        local Dice = require("core.dice")
+        local Skill5eMeta = require("config.skill_5e_meta")
         local rate = frameCopy.damageRate
         if not rate and frameCopy.rateKey and ctx.skillDef and ctx.skillDef.params then
             rate = ctx.skillDef.params[frameCopy.rateKey]
@@ -58,13 +61,82 @@ local function ExecuteOp(ctx, frameCopy)
         rate = tonumber(rate) or 0
         local total = 0
         local targets = frameCopy.targets or {}
+        local savedTargets = {}
+        local hitMetaByTarget = {}
+        local skillId = tonumber(ctx.skill and ctx.skill.skillId) or 0
+        local meta = Skill5eMeta.Get(skillId)
+        local diceScale = tonumber(meta and meta.diceScale) or (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
         for _, target in ipairs(targets) do
             if target and not target.isDead then
-                local finalRate = rate
-                if BattleSkill.ApplyDamageKindBonus then
-                    finalRate = BattleSkill.ApplyDamageKindBonus(ctx.hero, target, finalRate, frameCopy.damageKind)
+                local dmg = 0
+                local isCrit = false
+                local resolvedKind = frameCopy.damageKind or "direct"
+
+                local isSpell = meta and meta.kind == "spell"
+
+                if isSpell then
+                    local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
+                    local saveType = (type(frameCopy.saveType) == "string" and frameCopy.saveType ~= "" and frameCopy.saveType) or (meta and meta.saveType) or "ref"
+
+                    local saveBonus = 0
+                    if saveType == "fort" then
+                        saveBonus = tonumber(target.saveFort) or 0
+                    elseif saveType == "will" then
+                        saveBonus = tonumber(target.saveWill) or 0
+                    else
+                        saveBonus = tonumber(target.saveRef) or 0
+                    end
+
+                    local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {
+                        ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
+                    })
+                    hitMetaByTarget[target.instanceId] = { save = saveResult, saveType = saveType, dc = dc }
+                    if saveResult.success then
+                        savedTargets[target.instanceId] = true
+                    end
+
+                    local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(ctx.hero, ctx.skill, meta and meta.isAOE, resolvedKind)) or "1d6+3"
+                    local rolled = 0
+                    if not saveResult.success then
+                        rolled = Dice.Roll(diceExpr, { crit = false }) * diceScale
+                    else
+                        local successMode = (meta and meta.onSaveSuccess) or "half"
+                        local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
+                        if successMode == "half" then
+                            rolled = math.floor(full / 2)
+                        else
+                            rolled = 0
+                        end
+                    end
+                    -- Apply skill rate as a multiplier, keeping existing passive scaling meaningful.
+                    if rate and rate > 0 then
+                        rolled = math.floor((tonumber(rolled) or 0) * rate / 10000)
+                    end
+                    dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
+                    if hitMetaByTarget[target.instanceId] then
+                        hitMetaByTarget[target.instanceId].damage = dmg
+                    end
+                else
+                    local hitResult = BattleFormula.RollHit(ctx.hero, target, {
+                        mode = "normal",
+                        ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
+                    })
+                    hitMetaByTarget[target.instanceId] = { hit = hitResult }
+                    if hitResult.hit then
+                        isCrit = hitResult.crit == true
+                        local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(ctx.hero, ctx.skill, resolvedKind)) or "1d6+2"
+                        local rolled = Dice.Roll(diceExpr, { crit = isCrit }) * diceScale
+                        if rate and rate > 0 then
+                            rolled = math.floor((tonumber(rolled) or 0) * rate / 10000)
+                        end
+                        dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
+                    else
+                        dmg = 0
+                    end
+                    if hitMetaByTarget[target.instanceId] then
+                        hitMetaByTarget[target.instanceId].damage = dmg
+                    end
                 end
-                local dmg = BattleSkill.CalculateDamageWithRate(ctx.hero, target, finalRate)
 
                 -- Allow defender-side passives to modify incoming damage.
                 local damageContext = {
@@ -79,7 +151,8 @@ local function ExecuteOp(ctx, frameCopy)
                     BattleDmgHeal.ApplyDamage(target, dmg, ctx.hero, {
                         skillId = ctx.skill and ctx.skill.skillId or nil,
                         skillName = ctx.skill and ctx.skill.name or nil,
-                        damageKind = frameCopy.damageKind or "direct",
+                        damageKind = resolvedKind,
+                        isCrit = isCrit,
                     })
                     total = total + dmg
                 end
@@ -95,6 +168,8 @@ local function ExecuteOp(ctx, frameCopy)
                 ctx.lastHitTargets = { target }
             end
         end
+        frameCopy.__savedTargets = savedTargets
+        frameCopy.__hitMetaByTarget = hitMetaByTarget
         -- Avoid leaking per-cast crit bonus into later actions when a skill has no explicit "effect" frame.
         if ctx and ctx.hero then
             ctx.hero.__timelineCritRateBonus = nil

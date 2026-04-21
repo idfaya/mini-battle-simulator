@@ -77,6 +77,15 @@ local function CalculatePercentMaxHpValue(target, rate)
     return math.max(1, math.floor(maxHp * (tonumber(rate) or 0) / 10000))
 end
 
+local function CalculateHealByMaxHp(caster, target, rate)
+    local heal = CalculatePercentMaxHpValue(target, rate)
+    local healBonus = caster and caster.healBonus or 0
+    if healBonus ~= 0 then
+        heal = math.max(1, math.floor(heal * (1 + healBonus / 10000)))
+    end
+    return heal
+end
+
 local function ResolveBattleIntentBuff(skill)
     local SkillConfig = require("config.skill_config")
     local skillConfig = skill and (skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)) or nil
@@ -135,15 +144,15 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("group_heal", function(ctx, frameCopy)
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
-        local healCount = ctx.skill and ctx.skill.skillParam and ctx.skill.skillParam[2] or 3
-        local healRate = ctx.skill and ctx.skill.skillParam and ctx.skill.skillParam[1] or 2000
+        local healCount = 3
+        local healRate = 1200
         local sortedAllies = SortByLowestHpRatio(allies)
         local selected = {}
         local healed = 0
         for i = 1, math.min(healCount, #sortedAllies) do
             local ally = sortedAllies[i]
             if ally then
-                local healAmount = CalculatePercentMaxHpValue(ally, healRate)
+                local healAmount = CalculateHealByMaxHp(ctx.hero, ally, healRate)
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
                 healed = healed + healAmount
                 table.insert(selected, ally)
@@ -160,6 +169,9 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local BattleFormation = require("modules.battle_formation")
+        local BattleFormula = require("core.battle_formula")
+        local Dice = require("core.dice")
+        local Skill5eMeta = require("config.skill_5e_meta")
         local target = frameCopy.targets and frameCopy.targets[1] or nil
         local allies = ResolveFriendTargets(ctx.hero, BattleFormation.GetFriendTeam(ctx.hero) or {})
         local mostInjuredAlly = nil
@@ -186,10 +198,27 @@ function SkillEffectRegistry.RegisterBuiltins()
         local damage = 0
         local healAmount = 0
         if isAlly then
-            healAmount = CalculatePercentMaxHpValue(target, 1000)
+            healAmount = CalculateHealByMaxHp(ctx.hero, target, 2000)
             BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
         else
-            damage = BattleSkill.CalculateDamageWithRate(ctx.hero, target, 10000)
+            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
+            local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
+            local saveType = (meta and meta.saveType) or "will"
+            local saveBonus = (saveType == "fort" and (tonumber(target.saveFort) or 0))
+                or (saveType == "ref" and (tonumber(target.saveRef) or 0))
+                or (tonumber(target.saveWill) or 0)
+            local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {
+                ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
+            })
+            local diceScale = tonumber(meta and meta.diceScale) or (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
+            local diceExpr = (meta and meta.damageDice) or "1d6+3"
+            local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
+            local successMode = (meta and meta.onSaveSuccess) or "half"
+            if saveResult.success then
+                damage = (successMode == "half") and math.floor(full / 2) or 0
+            else
+                damage = full
+            end
             BattleDmgHeal.ApplyDamage(target, damage, ctx.hero, {
                 skillId = ctx.skill and ctx.skill.skillId or nil,
                 skillName = ctx.skill and ctx.skill.name or nil,
@@ -214,7 +243,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local allies = CollectAliveHeroes(BattleFormation.GetFriendTeam(ctx.hero) or {})
         local healed = 0
         for _, ally in ipairs(allies) do
-            local healAmount = math.max(0, (ally.maxHp or 0) - (ally.hp or 0))
+            local healAmount = CalculateHealByMaxHp(ctx.hero, ally, 800)
             if healAmount > 0 then
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
                 healed = healed + healAmount
@@ -253,8 +282,8 @@ function SkillEffectRegistry.RegisterBuiltins()
         for _, enemy in ipairs(targets) do
             local stacks = enemy and BattleBuff.GetBuffStackNumBySubType(enemy, 850001) or 0
             if enemy and stacks > 0 then
-                -- Ultimate burst was too swingy in 6v6; reduce per-stack multiplier.
-                local burstDamage = BattleSkill.CalculateDamageWithRate(ctx.hero, enemy, 3500 * stacks)
+                -- Keep poison burst threatening without turning stacked dots into a guaranteed wipe.
+                local burstDamage = BattleSkill.CalculateDamageWithRate(ctx.hero, enemy, 2500 * stacks)
                 BattleDmgHeal.ApplyDamage(enemy, burstDamage, ctx.hero)
                 total = total + burstDamage
                 BattleBuff.DelBuffBySubType(enemy, 850001)
@@ -295,7 +324,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         local slowPct = tonumber(p and p.slowPct) or 0
         for _, t in ipairs(frameCopy.targets or {}) do
             if t and not t.isDead then
-                BattleSkill.ApplyFreeze(t, turns, slowPct, ctx.hero)
+                -- Hard control: if the target saved against this spell frame, do not apply.
+                if frameCopy.__savedTargets and frameCopy.__savedTargets[t.instanceId] then
+                    -- skip
+                else
+                    BattleSkill.ApplyFreeze(t, turns, slowPct, ctx.hero)
+                end
             end
         end
         return { buffId = 880001 }
@@ -417,8 +451,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
         local chance = BattleSkill.GetPassiveAdjustedChance(ctx.hero, baseChance, key)
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and math.random(1, 10000) <= chance then
-                BattleSkill.ApplyFreeze(t, turns, slowPct, ctx.hero)
+            if t and not t.isDead then
+                if frameCopy.__savedTargets and frameCopy.__savedTargets[t.instanceId] then
+                    -- Hard control: saved -> immune to control.
+                elseif math.random(1, 10000) <= chance then
+                    BattleSkill.ApplyFreeze(t, turns, slowPct, ctx.hero)
+                end
             end
         end
         return nil

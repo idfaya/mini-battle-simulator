@@ -517,6 +517,14 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     if params.isBlocked then
         BattleEnergy.OnBlock(target)
     end
+
+    -- 5e-style: damage can break concentration / interrupt chanting.
+    if actualDamage > 0 then
+        local ok, BattleSkill = pcall(require, "modules.battle_skill")
+        if ok and BattleSkill and BattleSkill.OnDamagedInterrupt then
+            BattleSkill.OnDamagedInterrupt(target, actualDamage)
+        end
+    end
     
     -- 触发旧版伤害事件（用于 BattleDisplay 战斗日志）
     BattleEvent.Publish("Damage", target, damage, false)

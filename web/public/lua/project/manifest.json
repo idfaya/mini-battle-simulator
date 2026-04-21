@@ -118,6 +118,10 @@
       "moduleName": "config.roguelike.run_shop_goods"
     },
     {
+      "path": "config/skill_5e_meta.lua",
+      "moduleName": "config.skill_5e_meta"
+    },
+    {
       "path": "config/skill_config.lua",
       "moduleName": "config.skill_config"
     },
@@ -260,6 +264,10 @@
     {
       "path": "core/battle_types.lua",
       "moduleName": "core.battle_types"
+    },
+    {
+      "path": "core/dice.lua",
+      "moduleName": "core.dice"
     },
     {
       "path": "core/skill_timeline.lua",

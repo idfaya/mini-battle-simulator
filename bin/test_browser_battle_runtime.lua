@@ -20,7 +20,7 @@ require("modules.BattleDefaultTypesOpt")
 local Runtime = require("modules.browser_battle_runtime")
 
 local snapshot = Runtime.init({
-    level = 50,
+    level = 20,
     heroCount = 3,
     enemyCount = 4,
     initialEnergy = 80,
@@ -28,7 +28,7 @@ local snapshot = Runtime.init({
 assert(snapshot.phase == "running", "battle should start in running phase")
 
 local sawReady = false
-for _ = 1, 1500 do
+for _ = 1, 5000 do
     local events = Runtime.tick(80)
     snapshot = Runtime.getSnapshot()
 

@@ -215,6 +215,41 @@ function BattleLogic.ProcessHeroAction(hero)
         return
     end
 
+    -- If the hero is chanting a spell, consume the action to progress or release it.
+    if hero.__pendingCast then
+        -- Being controlled immediately breaks the chant.
+        if BattleLogic.IsHeroControlled(hero) then
+            Logger.Log(string.format("[CHANT] %s 吟唱被控制打断: %s", hero.name or "Unknown", tostring(hero.__pendingCast.skillName or hero.__pendingCast.skillId)))
+            hero.__pendingCast = nil
+            BattleLogic.OnHeroActionFinish(hero)
+            return
+        end
+
+        hero.__pendingCast.remainTurns = math.max(0, (tonumber(hero.__pendingCast.remainTurns) or 0) - 1)
+        if hero.__pendingCast.remainTurns > 0 then
+            Logger.Log(string.format("[CHANT] %s 吟唱中: %s (剩余%d)", hero.name or "Unknown", tostring(hero.__pendingCast.skillName or hero.__pendingCast.skillId), hero.__pendingCast.remainTurns))
+            BattleLogic.OnHeroActionFinish(hero)
+            return
+        end
+
+        local BattleFormation = require("modules.battle_formation")
+        local targetObj = nil
+        local tid = hero.__pendingCast.targetId
+        if tid and BattleFormation.FindHeroByInstanceId then
+            targetObj = BattleFormation.FindHeroByInstanceId(tid)
+        end
+        if not targetObj or (targetObj.isDead or targetObj.hp <= 0) then
+            targetObj = BattleLogic.SelectDefaultTarget(hero)
+        end
+
+        local castSkillId = hero.__pendingCast.skillId
+        Logger.Log(string.format("[CHANT] %s 吟唱完成，释放: %s", hero.name or "Unknown", tostring(hero.__pendingCast.skillName or castSkillId)))
+        hero.__pendingCast = nil
+        BattleSkill.CastSkillInSeq(hero, targetObj, castSkillId, { ignoreChant = true })
+        BattleLogic.OnHeroActionFinish(hero)
+        return
+    end
+
     -- 检查英雄是否被控制（眩晕、冰冻等）
     if BattleLogic.IsHeroControlled(hero) then
         Logger.Log(string.format("BattleLogic.ProcessHeroAction - 英雄 %s 被控制，跳过行动", hero.name or "Unknown"))

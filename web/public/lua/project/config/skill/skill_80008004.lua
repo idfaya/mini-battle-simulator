@@ -11,11 +11,11 @@ local DEF = {
             op = "damage",
             effect = "skill_80008004_execute",
             targetRef = "selected",
-            damageRate = 10000,
+            damageRate = 9500,
             tags = {
                 { tag = "set_targets_all_alive_enemies", phase = "pre" },
-                { tag = "set_damage_rate_passive", phase = "pre", param = { base = 10000, key = "iceDamageBonusPct" } },
-                { tag = "chance_apply_freeze", phase = "post", param = { baseChance = 5000, key = "iceFreezeChanceBonus", turns = 1, slowPct = 3000 } },
+                { tag = "set_damage_rate_passive", phase = "pre", param = { base = 9500, key = "iceDamageBonusPct" } },
+                { tag = "chance_apply_freeze", phase = "post", param = { baseChance = 4000, key = "iceFreezeChanceBonus", turns = 1, slowPct = 2500 } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80008004_end", targetRef = "selected" },
@@ -27,6 +27,5 @@ function skill_80008004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008004
-
 
 
