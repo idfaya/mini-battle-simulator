@@ -154,10 +154,18 @@ local function CreateHero(heroData, wpType, isLeft)
         -- 扩展属性
         critRate = heroData.crt or heroData.critRate or 0,
         critDamage = heroData.crtd or heroData.critDamage or 150,
+        hit = heroData.hit or heroData.hitRate or 0,
         hitRate = heroData.hit or heroData.hitRate or 100,
         dodgeRate = heroData.res or heroData.dodgeRate or 0,
         damageReduce = heroData.damageReduce or 0,
         damageIncrease = heroData.damageIncrease or 0,
+        healBonus = heroData.healBonus or 0,
+        blockRate = heroData.blockRate or 0,
+        ac = heroData.ac or 10,
+        spellDC = heroData.spellDC or 10,
+        saveFort = heroData.saveFort or 0,
+        saveRef = heroData.saveRef or 0,
+        saveWill = heroData.saveWill or 0,
         
         -- 技能相关
         skills = heroData.skills or {},

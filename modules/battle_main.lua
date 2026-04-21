@@ -747,6 +747,24 @@ function BattleMain.GetActiveHeroInstanceId()
     return SkillTimeline.GetActiveHeroId()
 end
 
+-- Browser/runtime command gate:
+-- accept manual/auto commands only when battle is idle and not in post-gap.
+function BattleMain.CanAcceptExternalCommand()
+    if not isRunning or isPaused then
+        return false
+    end
+    if battleResult and battleResult.isFinished then
+        return false
+    end
+    if currentAction then
+        return false
+    end
+    if SkillTimeline.IsRunning() then
+        return false
+    end
+    return (tonumber(actionPostGapRemainingMs) or 0) <= 0
+end
+
 --- 获取战斗结果
 ---@return table 战斗结果 {winner, isFinished, reason}
 function BattleMain.GetBattleResult()

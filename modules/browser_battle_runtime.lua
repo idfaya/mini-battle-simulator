@@ -166,6 +166,10 @@ local function canCastUltimate(hero)
         return false
     end
 
+    if hero.__pendingCast then
+        return false
+    end
+
     local skill = getUltimateSkill(hero)
     if not skill then
         return false
@@ -543,6 +547,10 @@ local function rejectCommand(command, reason)
 end
 
 local function castUltimateNow(hero)
+    if hero and hero.__pendingCast then
+        return false, "pending_cast"
+    end
+
     local skill = getUltimateSkill(hero)
     if not skill then
         return false, "ultimate_not_found"
@@ -584,6 +592,10 @@ local function processNextCommand()
         return false
     end
 
+    if BattleMain.CanAcceptExternalCommand and not BattleMain.CanAcceptExternalCommand() then
+        return false
+    end
+
     if BattleMain.GetActiveHeroInstanceId and BattleMain.GetActiveHeroInstanceId() then
         return false
     end
@@ -591,18 +603,19 @@ local function processNextCommand()
     local command = table.remove(state.queuedCommands, 1)
     if not command or command.type ~= "cast_ultimate" then
         rejectCommand(command, "unsupported_command")
-        return true
+        return false
     end
 
     local hero = BattleFormation.FindHeroByInstanceId(tonumber(command.heroId))
     if not hero or hero.isDead or not hero.isAlive or not hero.isLeft then
         rejectCommand(command, "hero_unavailable")
-        return true
+        return false
     end
 
     local success, reason = castUltimateNow(hero)
     if not success then
         rejectCommand(command, reason)
+        return false
     end
 
     return true

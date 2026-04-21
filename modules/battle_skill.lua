@@ -552,6 +552,13 @@ end
 
 function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts)
     opts = opts or {}
+    if hero and hero.__pendingCast and not opts.ignoreChant then
+        if type(onComplete) == "function" then
+            onComplete(false, { totalDamage = 0, succeeded = false, reason = "pending_cast" })
+        end
+        return false
+    end
+
     local skill, targets = PrepareSkillCast(hero, target, skillId)
     if not skill then
         if type(onComplete) == "function" then
