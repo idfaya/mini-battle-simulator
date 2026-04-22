@@ -22,7 +22,7 @@ local QUALITY_NAMES = {
 }
 
 -- True 5e-style role templates.
--- Values are band anchors for T1..T5 (Lv1-10, 11-20, 21-30, 31-40, 41-50).
+-- Values are band anchors for T1..T4 (Lv1-4, 5-10, 11-16, 17-20).
 -- We interpolate inside each band instead of reusing the legacy base+growth curve.
 local HERO_ROLE_TEMPLATES = {
     [1] = { -- A1 追击流
@@ -171,10 +171,6 @@ local function OpenConfigFile(fileName)
     end
 
     return nil
-end
-
-local function GetStarMultiplier(star)
-    return 1.0 + math.max(0, (tonumber(star) or 1) - 1) * 0.04
 end
 
 local HERO_LEVEL_MAX = 20
@@ -422,12 +418,12 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
 
     local level = math.max(1, math.min(HERO_LEVEL_MAX, tonumber(level) or 1))
     local quality = hero.BaseQuality or hero.Quality or 1
-    local starMultiplier = GetStarMultiplier(star)
     local template = GetTemplateStats(hero.Class, level)
 
-    local finalHp = math.max(1, math.floor(template.hp * starMultiplier))
-    local finalAtk = math.max(1, math.floor(template.atk * starMultiplier))
-    local finalDef = math.max(0, math.floor(template.def * starMultiplier))
+    -- 5e growth: level drives progression; star no longer affects stats.
+    local finalHp = math.max(1, math.floor(template.hp))
+    local finalAtk = math.max(1, math.floor(template.atk))
+    local finalDef = math.max(0, math.floor(template.def))
     local finalSpd = math.max(60, math.floor(template.speed))
 
     return {
@@ -447,7 +443,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
         saveRef = math.max(0, math.floor(template.saveRef)),
         saveWill = math.max(0, math.floor(template.saveWill)),
         level = level,
-        star = star,
+        star = 1,
         quality = quality,
         class = hero.Class,
         faction = hero.Faction,
@@ -473,7 +469,13 @@ function HeroData.ConvertToHeroData(heroId, level, star)
             local skillLevel = skillInfo.level or 1
             local skillConfig, actualSkillId = ResolveSkillConfig(classId, skillLevel)
 
-            if skillConfig then
+            -- Skill unlock now follows level only (ignore UnlockStar in 5e growth mode).
+            local canUnlock = true
+            if skillConfig and skillConfig.UnlockLevel then
+                canUnlock = level >= (tonumber(skillConfig.UnlockLevel) or 1)
+            end
+
+            if skillConfig and canUnlock then
                 local skillType = E_SKILL_TYPE_PASSIVE
                 if skillConfig.Type == 1 then
                     skillType = E_SKILL_TYPE_NORMAL
@@ -490,7 +492,7 @@ function HeroData.ConvertToHeroData(heroId, level, star)
                     name = skillConfig.Name or ("Skill_" .. actualSkillId),
                     skillCost = skillConfig.Cost or 0,
                 })
-            else
+            elseif canUnlock then
                 table.insert(skillsConfig, {
                     skillId = actualSkillId,
                     classId = classId,

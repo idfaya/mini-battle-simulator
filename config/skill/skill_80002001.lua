@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80002001_execute",
             targetRef = "selected",
-            damageRate = 11500,
+            damageRate = 10500,
             tags = {
                 { tag = "apply_buff_targets", phase = "post", param = { buffId = 820001 } },
             },
@@ -25,6 +25,7 @@ function skill_80002001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80002001
+
 
 
 

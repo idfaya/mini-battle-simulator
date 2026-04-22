@@ -337,6 +337,43 @@ function BattleBuff.DelBuffBySubType(target, subType, count)
     return removedCount
 end
 
+--- 按 buffId 与施法者删除 Buff
+---@param target table 目标英雄
+---@param buffId number Buff配置ID
+---@param caster table 施法者
+---@param count number 删除数量 (nil表示删除所有)
+---@return number 实际移除的Buff数量
+function BattleBuff.DelBuffByBuffIdAndCaster(target, buffId, caster, count)
+    local buffList = GetHeroBuffList(target)
+    if not buffList then
+        return 0
+    end
+
+    local removedCount = 0
+    local maxRemove = count or #buffList
+    for i = #buffList, 1, -1 do
+        if removedCount >= maxRemove then
+            break
+        end
+
+        local buff = buffList[i]
+        if buff.buffId == buffId and buff.caster == caster then
+            BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
+            BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
+            BattleEvent.Publish(BattleVisualEvents.BUFF_REMOVED, BattleVisualEvents.BuildBuffEvent(
+                BattleVisualEvents.BUFF_REMOVED, buff.caster, target, buff))
+            BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
+            table.remove(buffList, i)
+            removedCount = removedCount + 1
+        end
+    end
+
+    if #buffList == 0 then
+        heroBuffs[GetHeroBuffKey(target)] = nil
+    end
+    return removedCount
+end
+
 --- 根据主类型获取Buff层数
 ---@param target table 目标英雄
 ---@param mainType number 主类型
@@ -495,6 +532,14 @@ function BattleBuff.OnRoundEnd(hero)
         for i = #expiredBuffs, 1, -1 do
             local buffIndex = expiredBuffs[i]
             local buff = buffList[buffIndex]
+            local shouldClearConcentration = false
+            if buff and buff.caster and buff.caster.__concentrationSkillId then
+                local ok, BattleSkill = pcall(require, "modules.battle_skill")
+                shouldClearConcentration = ok
+                    and BattleSkill
+                    and BattleSkill.IsConcentrationBuff
+                    and BattleSkill.IsConcentrationBuff(buff.caster.__concentrationSkillId, buff.buffId)
+            end
             
             -- 触发移除时效果
             BattleBuff.ProcessBuffEffect(buff, buff.target, E_BUFF_TIMING.ON_REMOVE)
@@ -503,6 +548,13 @@ function BattleBuff.OnRoundEnd(hero)
             BattleEvent.Publish("BUFF_EXPIRED", buff.caster, buff.target, buff)
             
             table.remove(buffList, buffIndex)
+
+            if shouldClearConcentration then
+                local ok, BattleSkill = pcall(require, "modules.battle_skill")
+                if ok and BattleSkill and BattleSkill.ClearConcentration then
+                    BattleSkill.ClearConcentration(buff.caster, "expired")
+                end
+            end
         end
         
         -- 如果该英雄没有Buff了，清理表

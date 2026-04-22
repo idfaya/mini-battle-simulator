@@ -106,6 +106,11 @@ function BattleVisualEvents.BuildHeroStateChanged(hero)
         energyType = hero.energyType,
         isAlive = hero.isAlive and not hero.isDead,
         position = hero.wpType or hero.position,
+        isChanting = hero.__pendingCast ~= nil,
+        pendingSkillName = hero.__pendingCast and hero.__pendingCast.skillName or nil,
+        isConcentrating = hero.__concentrationSkillId ~= nil,
+        concentrationSkillId = hero.__concentrationSkillId or nil,
+        concentrationSkillName = hero.__concentrationSkillName or nil,
     }
 end
 

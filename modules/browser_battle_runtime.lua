@@ -229,6 +229,11 @@ local function serializeHero(hero)
         energy = hero.curEnergy or 0,
         maxEnergy = hero.maxEnergy or 100,
         isAlive = hero.isAlive and not hero.isDead,
+        isChanting = hero.__pendingCast ~= nil,
+        pendingSkillName = hero.__pendingCast and hero.__pendingCast.skillName or nil,
+        isConcentrating = hero.__concentrationSkillId ~= nil,
+        concentrationSkillId = hero.__concentrationSkillId or nil,
+        concentrationSkillName = hero.__concentrationSkillName or nil,
         buffs = buffs,
         ultimateReady = canCastUltimate(hero),
         ultimateSkillName = skill and skill.name or "ULT",
@@ -284,6 +289,14 @@ local function refreshUltimateReadiness()
         local previous = state.readyMap[heroId]
         if previous == nil then
             state.readyMap[heroId] = ready
+            if ready then
+                local skill = getUltimateSkill(hero)
+                emitEvent("ultimate_ready", {
+                    heroId = heroId,
+                    heroName = hero.name,
+                    skillName = skill and skill.name or "ULT",
+                })
+            end
         elseif previous ~= ready then
             state.readyMap[heroId] = ready
             if ready then
@@ -348,7 +361,7 @@ local function buildSeedArray()
 end
 
 local function buildRuntimeTeamConfig(options)
-    local level = clamp(tonumber(options and options.level) or 20, 1, 20)
+    local level = clamp(tonumber(options and options.level) or 1, 1, 20)
     local heroCount = clamp(math.floor(tonumber(options and options.heroCount) or 3), 1, 6)
     local enemyCount = clamp(math.floor(tonumber(options and options.enemyCount) or 4), 1, 6)
     local initialEnergy = clamp(math.floor(tonumber(options and options.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100)
@@ -518,7 +531,7 @@ end
 
 local function createDefaultConfig()
     return buildRuntimeTeamConfig({
-        level = 20,
+        level = 1,
         heroCount = 3,
         enemyCount = 4,
     })

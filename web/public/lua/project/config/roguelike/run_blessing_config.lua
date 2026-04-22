@@ -9,9 +9,9 @@ RunBlessingConfig.BLESSINGS = {
         scope = "class",
         effectType = "class_stat_pct",
         params = {
-            classIds = { 1, 2, 3, 4, 5 },
-            hpPct = 0.12,
-            defPct = 0.10,
+            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+            hpPct = 0.18,
+            defPct = 0.16,
         },
     },
     [101002] = {
@@ -22,8 +22,8 @@ RunBlessingConfig.BLESSINGS = {
         scope = "team",
         effectType = "turn_start_energy",
         params = {
-            rounds = 2,
-            amount = 8,
+            rounds = 3,
+            amount = 12,
         },
     },
     [101003] = {
@@ -48,7 +48,7 @@ RunBlessingConfig.BLESSINGS = {
         effectType = "class_dot_damage_pct",
         params = {
             classIds = { 5, 7, 8, 9 },
-            value = 0.25,
+            value = 0.35,
         },
     },
     [101005] = {

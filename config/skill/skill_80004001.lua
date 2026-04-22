@@ -6,7 +6,7 @@ local DEF = {
     id = 80004001,
     frames = {
         { frame = 0, op = "cast", effect = "skill_80004001_cast", targetRef = "selected" },
-        { frame = 24, op = "damage", effect = "skill_80004001_execute", targetRef = "selected", damageRate = 12500 },
+        { frame = 24, op = "damage", effect = "skill_80004001_execute", targetRef = "selected", damageRate = 11000 },
         { frame = 36, op = "effect", effect = "skill_80004001_end", targetRef = "selected" },
     },
 }
@@ -16,6 +16,7 @@ function skill_80004001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80004001
+
 
 
 

@@ -77,28 +77,28 @@ local function CalculatePercentMaxHpValue(target, rate)
     return math.max(1, math.floor(maxHp * (tonumber(rate) or 0) / 10000))
 end
 
-local function CalculateHealByMaxHp(caster, target, rate)
-    local heal = CalculatePercentMaxHpValue(target, rate)
-    local healBonus = caster and caster.healBonus or 0
-    if healBonus ~= 0 then
-        heal = math.max(1, math.floor(heal * (1 + healBonus / 10000)))
-    end
-    return heal
+local function CalculateHealByDice(caster, target, diceExpr)
+    local BattleSkill = require("modules.battle_skill")
+    return BattleSkill.CalculateHealDice(caster, target, diceExpr)
+end
+
+local function GetClassId(unit)
+    return tonumber(unit and (unit.class or unit.Class)) or 0
 end
 
 local function ResolveBattleIntentBuff(skill)
     local SkillConfig = require("config.skill_config")
     local skillConfig = skill and (skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)) or nil
     if skillConfig and skillConfig.SkillLevel == 4 then
-        return 840003, 3
+        return 840003, 2
     end
     if skillConfig and skillConfig.SkillLevel == 3 then
-        return 840002, 3
+        return 840002, 2
     end
-    return nil, 3
+    return nil, 2
 end
 
-local function ApplyChainLightningDirect(hero, hitCount, damageRate)
+local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local totalDamage = 0
@@ -106,8 +106,14 @@ local function ApplyChainLightningDirect(hero, hitCount, damageRate)
         local picked = BattleSkill.SelectRandomAliveEnemies(hero, 1)
         local target = picked and picked[1] or nil
         if target and not target.isDead then
-            local damage = BattleSkill.CalculateDamageWithRate(hero, target, damageRate)
-            BattleDmgHeal.ApplyDamage(target, damage, hero)
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
+                skipCheck = true,
+                kind = "spell",
+                damageKind = "spell",
+                damageDice = diceExpr,
+            })
+            local damage = tonumber(damageResult and damageResult.damage) or 0
+            BattleDmgHeal.ApplyDamage(target, damage, hero, { damageKind = "spell" })
             totalDamage = totalDamage + damage
         end
     end
@@ -144,15 +150,18 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("group_heal", function(ctx, frameCopy)
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
-        local healCount = 3
-        local healRate = 1200
+        local skillParam = ctx and ctx.skill and ctx.skill.skillParam or {}
+        local healCount = tonumber(skillParam[2]) or 2
+        local Skill5eMeta = require("config.skill_5e_meta")
+        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006003)
+        local healDice = (meta and meta.healDice) or "1d8+2"
         local sortedAllies = SortByLowestHpRatio(allies)
         local selected = {}
         local healed = 0
         for i = 1, math.min(healCount, #sortedAllies) do
             local ally = sortedAllies[i]
             if ally then
-                local healAmount = CalculateHealByMaxHp(ctx.hero, ally, healRate)
+                local healAmount = CalculateHealByDice(ctx.hero, ally, healDice)
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
                 healed = healed + healAmount
                 table.insert(selected, ally)
@@ -198,7 +207,9 @@ function SkillEffectRegistry.RegisterBuiltins()
         local damage = 0
         local healAmount = 0
         if isAlly then
-            healAmount = CalculateHealByMaxHp(ctx.hero, target, 2000)
+            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
+            local healDice = (meta and meta.healDice) or "1d8+1"
+            healAmount = CalculateHealByDice(ctx.hero, target, healDice)
             BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
         else
             local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
@@ -236,22 +247,17 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("full_heal_cleanse", function(ctx, frameCopy)
         local BattleDmgHeal = require("modules.battle_dmg_heal")
-        local BattleBuff = require("modules.battle_buff")
         local BattleFormation = require("modules.battle_formation")
-        -- Holy Radiance is always a full-team friendly effect. Avoid depending on
-        -- upstream selected targets so it never degrades into a single-target heal.
         local allies = CollectAliveHeroes(BattleFormation.GetFriendTeam(ctx.hero) or {})
         local healed = 0
+        local Skill5eMeta = require("config.skill_5e_meta")
+        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006004)
+        local healDice = (meta and meta.healDice) or "2d6+2"
         for _, ally in ipairs(allies) do
-            local healAmount = CalculateHealByMaxHp(ctx.hero, ally, 800)
+            local healAmount = CalculateHealByDice(ctx.hero, ally, healDice)
             if healAmount > 0 then
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
                 healed = healed + healAmount
-            end
-            if BattleBuff.RemoveAllDebuffs then
-                BattleBuff.RemoveAllDebuffs(ally)
-            elseif BattleBuff.ClearAllBuffs then
-                BattleBuff.ClearAllBuffs(ally)
             end
         end
         return { effectValue = healed, healAmount = healed, targets = allies }
@@ -270,6 +276,7 @@ function SkillEffectRegistry.RegisterBuiltins()
             BattleSkill.ApplyBuffFromSkill(ctx.hero, target, buffId, ctx.skill, { duration = duration })
             applied = applied + 1
         end
+        BattleSkill.SetConcentration(ctx.hero, ctx.skill and ctx.skill.skillId, ctx.skill)
         return { effectValue = applied, buffId = buffId, targets = targets }
     end)
 
@@ -282,9 +289,20 @@ function SkillEffectRegistry.RegisterBuiltins()
         for _, enemy in ipairs(targets) do
             local stacks = enemy and BattleBuff.GetBuffStackNumBySubType(enemy, 850001) or 0
             if enemy and stacks > 0 then
-                -- Keep poison burst threatening without turning stacked dots into a guaranteed wipe.
-                local burstDamage = BattleSkill.CalculateDamageWithRate(ctx.hero, enemy, 2500 * stacks)
-                BattleDmgHeal.ApplyDamage(enemy, burstDamage, ctx.hero)
+                local diceExpr = string.format("%dd6", stacks) -- per stack +1d6 burst
+                local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, enemy, {
+                    skipCheck = true,
+                    noClassScalar = true,
+                    kind = "spell",
+                    damageKind = "poison",
+                    damageDice = diceExpr,
+                })
+                local burstDamage = tonumber(damageResult and damageResult.damage) or 0
+                BattleDmgHeal.ApplyDamage(enemy, burstDamage, ctx.hero, {
+                    isCrit = damageResult and damageResult.isCrit or false,
+                    isDodged = damageResult and damageResult.isDodged or false,
+                    damageKind = "poison",
+                })
                 total = total + burstDamage
                 BattleBuff.DelBuffBySubType(enemy, 850001)
             end
@@ -412,27 +430,31 @@ function SkillEffectRegistry.RegisterBuiltins()
     end)
 
     SkillEffectRegistry.Register("chain_lightning", function(ctx, frameCopy, _, spec)
+        local Skill5eMeta = require("config.skill_5e_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hitCount = tonumber(p and p.hitCount) or 1
-        local rate = tonumber(p and p.damageRate) or 10000
-        local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, rate)
+        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+        local diceExpr = meta.chainDice or "1d6+1"
+        local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, diceExpr)
         local cur = tonumber(frameCopy.damage) or 0
         return { damage = cur + dmg }
     end)
 
     SkillEffectRegistry.Register("chance_chain_lightning", function(ctx, frameCopy, _, spec)
         local BattleSkill = require("modules.battle_skill")
+        local Skill5eMeta = require("config.skill_5e_meta")
         local p = type(spec) == "table" and spec.param or {}
         local baseChance = tonumber(p and p.baseChance) or 0
         local key = p and p.key
         local hitCount = tonumber(p and p.hitCount) or 1
-        local rate = tonumber(p and p.damageRate) or 10000
         if type(key) ~= "string" then
             return nil
         end
         local chance = BattleSkill.GetPassiveAdjustedChance(ctx.hero, baseChance, key)
         if math.random(1, 10000) <= chance then
-            local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, rate)
+            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+            local diceExpr = meta.chainDice or "1d6+1"
+            local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, diceExpr)
             local cur = tonumber(frameCopy.damage) or 0
             return { damage = cur + dmg }
         end
@@ -465,17 +487,26 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("random_hits_damage", function(ctx, frameCopy, _, spec)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
+        local Skill5eMeta = require("config.skill_5e_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hits = tonumber(p and p.hits) or 1
-        local rate = tonumber(p and p.damageRate) or 10000
         local enablePursuit = p and p.pursuitOnKill == true
         local total = 0
+        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+        local diceExpr = meta.multiHitDice or meta.damageDice
         for _ = 1, hits do
             local picked = BattleSkill.SelectRandomAliveEnemies(ctx.hero, 1)
             local t = picked and picked[1] or nil
             if t and not t.isDead then
-                local dmg = BattleSkill.CalculateDamageWithRate(ctx.hero, t, rate)
-                BattleDmgHeal.ApplyDamage(t, dmg, ctx.hero)
+                local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, t, {
+                    skill = ctx.skill,
+                    damageKind = "direct",
+                    damageDice = diceExpr,
+                })
+                local dmg = tonumber(damageResult and damageResult.damage) or 0
+                BattleDmgHeal.ApplyDamage(t, dmg, ctx.hero, {
+                    damageKind = "direct",
+                })
                 total = total + dmg
                 if enablePursuit and t.isDead then
                     BattleSkill.ProcessPursuitEffect(ctx.hero, t, ctx.skill)

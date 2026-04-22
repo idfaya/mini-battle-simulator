@@ -97,17 +97,25 @@ local function CreateBlockCounterPassive(context)
         end
 
         if BattleBuff.GetBuffBySubType(hero, 820003) then
-            extraParam.damage = math.max(0, math.floor((extraParam.damage or 0) * 0.5))
+            extraParam.damage = math.max(0, math.floor((extraParam.damage or 0) * 0.65))
             extraParam.blocked = true
-            local counterDamage = BattleSkill.CalculateDamageWithRate(hero, attacker, 15000)
-            BattleDmgHeal.ApplyDamage(attacker, counterDamage, hero)
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, attacker, {
+                meta = { kind = "physical", damageDice = "1d8+2" },
+                damageKind = "direct",
+                noWeapon = true,
+            })
+            BattleDmgHeal.ApplyDamage(attacker, tonumber(damageResult and damageResult.damage) or 0, hero, { damageKind = "direct" })
             return
         end
 
         if BattleBuff.GetBuffBySubType(hero, 820002) then
             BattleBuff.DelBuffBySubType(hero, 820002, 1)
-            local counterDamage = BattleSkill.CalculateDamageWithRate(hero, attacker, 15000)
-            BattleDmgHeal.ApplyDamage(attacker, counterDamage, hero)
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, attacker, {
+                meta = { kind = "physical", damageDice = "1d8+2" },
+                damageKind = "direct",
+                noWeapon = true,
+            })
+            BattleDmgHeal.ApplyDamage(attacker, tonumber(damageResult and damageResult.damage) or 0, hero, { damageKind = "direct" })
             return
         end
 

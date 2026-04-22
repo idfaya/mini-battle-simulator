@@ -13,7 +13,7 @@ function skill_80007001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "fireball_hit",
                 target = t,
-                damageRate = 13500,
+                damageRate = 12000,
                 tags = {
                     -- Tag as fire damage so fire affinity can scale it.
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "fire" } },
@@ -27,3 +27,4 @@ function skill_80007001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80007001
+

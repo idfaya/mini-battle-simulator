@@ -27,6 +27,11 @@ export type UnitState = {
   energy: number;
   maxEnergy: number;
   isAlive: boolean;
+  isChanting: boolean;
+  pendingSkillName: string | null;
+  isConcentrating: boolean;
+  concentrationSkillId: number | null;
+  concentrationSkillName: string | null;
   buffs: BuffState[];
   ultimateReady: boolean;
   ultimateSkillName: string;

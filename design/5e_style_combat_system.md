@@ -171,17 +171,17 @@
 - `concentrating`：UI 标识。
 - `chanting`：UI 标识。
 
-## 7. 数值框架（T1-T5 可配置区间）
+## 7. 数值框架（Lv1-20 / T1-T4）
 
 ### 7.1 熟练加值（Proficiency）
 
-- T1（Lv1-10）：+2
-- T2（Lv11-20）：+3
-- T3（Lv21-30）：+4
-- T4（Lv31-40）：+5
-- T5（Lv41-50）：+6
+- Lv1-4：+2
+- Lv5-8：+3
+- Lv9-12：+4
+- Lv13-16：+5
+- Lv17-20：+6
 
-### 7.2 bounded accuracy 区间（T5）
+### 7.2 bounded accuracy 区间（终局，Lv17-20 / T4）
 
 AC：
 - 后排：13-15
@@ -231,4 +231,3 @@ AC：
 - Phase 2：法术全部迁移为 save vs spellDC。
 - Phase 3：补齐优势/劣势来源（状态/站位/技能）。
 - Phase 4：接入专注与吟唱，并在 UI 展示。
-

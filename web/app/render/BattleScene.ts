@@ -358,7 +358,19 @@ export class BattleScene {
       ctx.fillText(`${Math.max(0, Math.floor(activeUnit.hp))}/${Math.floor(activeUnit.maxHp)}`, x + 12, y + 46);
       ctx.fillText(`EN ${Math.floor(activeUnit.energy)}/${Math.floor(activeUnit.maxEnergy)}`, x + infoWidth - 62, y + 72);
 
-      this.drawBuffSummary(ctx, x + 12, y + 80, infoWidth - 24, activeUnit);
+      const stateBits: string[] = [];
+      if (activeUnit.isChanting) {
+        stateBits.push(`吟唱:${activeUnit.pendingSkillName ?? "未知技能"}`);
+      }
+      if (activeUnit.isConcentrating) {
+        stateBits.push(`专注:${activeUnit.concentrationSkillName ?? activeUnit.concentrationSkillId ?? "未知技能"}`);
+      }
+      if (stateBits.length > 0) {
+        ctx.fillStyle = "#ffd166";
+        ctx.fillText(stateBits.join(" / "), x + 12, y + 84);
+      }
+
+      this.drawBuffSummary(ctx, x + 12, stateBits.length > 0 ? y + 94 : y + 80, infoWidth - 24, activeUnit);
     }
 
     ctx.fillStyle = "#f8f9fa";

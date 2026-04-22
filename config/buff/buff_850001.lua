@@ -1,4 +1,5 @@
 local BattleDmgHeal = require("modules.battle_dmg_heal")
+local BattleSkill = require("modules.battle_skill")
 
 local buff_850001 = {
     buffId = 850001,
@@ -19,9 +20,18 @@ local buff_850001 = {
                 if not hero or hero.isDead then
                     return
                 end
-                local damage = math.max(1, math.floor((hero.maxHp or 0) * 0.02 * buff.stackCount))
+                local stacks = math.max(1, tonumber(buff.stackCount) or 1)
+                local diceExpr = string.format("%dd4", stacks) -- per stack +1d4
+                local dmgResult = BattleSkill.ResolveScaledDamage(buff.caster or hero, hero, {
+                    skipCheck = true,
+                    noClassScalar = true,
+                    kind = "spell",
+                    damageKind = "poison",
+                    damageDice = diceExpr,
+                })
+                local damage = tonumber(dmgResult and dmgResult.damage) or 0
                 BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero, {
-                    damageKind = "dot",
+                    damageKind = "poison",
                 })
             end
         }

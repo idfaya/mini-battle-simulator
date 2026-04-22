@@ -10,8 +10,9 @@ local RunEncounterGroup = require("config.roguelike.run_encounter_group")
 local HeroData = require("config.hero_data")
 
 local RoguelikeRun = {}
-local STARTER_LEVEL = 20
-local STARTER_STAR = 4
+local STARTER_LEVEL = 1
+-- 5e growth: no star progression.
+local STARTER_STAR = 1
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)

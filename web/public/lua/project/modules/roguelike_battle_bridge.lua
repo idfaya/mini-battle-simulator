@@ -70,6 +70,8 @@ local function buildBattleModifiers(runState, encounter)
         atkPctByClass = {},
         hpPctByClass = {},
         defPctByClass = {},
+        damageIncreaseByClass = {},
+        healBonusByClass = {},
         bonusGold = 0,
         postBattleHealPct = 0,
     }
@@ -94,6 +96,12 @@ local function buildBattleModifiers(runState, encounter)
         if blessing and blessing.effectType == "class_stat_pct" then
             applyClassPct(result.hpPctByClass, params.classIds, params.hpPct)
             applyClassPct(result.defPctByClass, params.classIds, params.defPct)
+        elseif blessing and blessing.effectType == "turn_start_energy" then
+            result.extraEnergy = result.extraEnergy + (params.amount or 0)
+        elseif blessing and blessing.effectType == "class_heal_bonus_pct" then
+            applyClassPct(result.healBonusByClass, params.classIds, params.value)
+        elseif blessing and blessing.effectType == "class_dot_damage_pct" then
+            applyClassPct(result.damageIncreaseByClass, params.classIds, params.value)
         elseif blessing and blessing.effectType == "damage_pct_vs_monster_type" then
             local monsterType = 0
             if encounter.kind == "elite" then
@@ -128,6 +136,8 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor((rosterHero.currentHp or oldMaxHp) * hpScale)))
     heroData.atk = math.max(1, math.floor((heroData.atk or 0) * atkScale))
     heroData.def = math.max(0, math.floor((heroData.def or 0) * defScale))
+    heroData.damageIncrease = math.max(0, math.floor((heroData.damageIncrease or 0) + ((modifiers.damageIncreaseByClass[rosterHero.classId] or 0) * 10000)))
+    heroData.healBonus = math.max(0, math.floor((heroData.healBonus or 0) + ((modifiers.healBonusByClass[rosterHero.classId] or 0) * 10000)))
     heroData.wpType = rosterHero.wpType or 1
     heroData.id = rosterHero.heroId
     return heroData
@@ -145,6 +155,25 @@ local function buildEnemyForBattle(enemyId, level, wpType, encounter)
     enemyData.def = math.max(0, math.floor((enemyData.def or 0) * (tonumber(enemyScale.def) or 1.0)))
     enemyData.wpType = wpType
     return enemyData
+end
+
+local function buildDeterministicSeedArray(runState, encounter)
+    -- Deterministic battle RNG:
+    -- - Keeps roguelike flow stable for tests and avoids flaky outcomes caused by wall-clock seeds.
+    -- - Still varies by node/encounter so different nodes don't share identical RNG.
+    local chapterId = tonumber(runState and runState.chapterId) or 0
+    local nodeId = tonumber(runState and runState.currentNodeId) or 0
+    local encounterId = tonumber(encounter and encounter.id) or 0
+    local base = (chapterId * 1000003 + nodeId * 10007 + encounterId * 131 + 12345) % 2147483647
+    if base <= 0 then
+        base = 123456789
+    end
+    return {
+        base,
+        (base * 1103515245 + 12345) % 2147483647,
+        (base * 69069 + 1) % 2147483647,
+        (base * 1664525 + 1013904223) % 2147483647,
+    }
 end
 
 local function buildBattleConfig(runState, encounter)
@@ -179,6 +208,7 @@ local function buildBattleConfig(runState, encounter)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
+        seedArray = buildDeterministicSeedArray(runState, encounter),
         initialEnergy = encounter.initialEnergy or 40,
         disableDefaultRenderer = true,
     }, modifiers
@@ -207,7 +237,23 @@ function RoguelikeBattleBridge.StartBattle(runState, encounter)
 end
 
 function RoguelikeBattleBridge.Tick(deltaMs)
-    return BattleRuntime.tick(deltaMs)
+    local dt = tonumber(deltaMs) or 16
+    if dt <= 0 then
+        return {}
+    end
+
+    -- Substep to keep simulation stable regardless of frame delta / speed multiplier.
+    local step = 33
+    local events = {}
+    while dt > 0 do
+        local slice = math.min(step, dt)
+        local batch = BattleRuntime.tick(slice) or {}
+        for _, e in ipairs(batch) do
+            events[#events + 1] = e
+        end
+        dt = dt - slice
+    end
+    return events
 end
 
 function RoguelikeBattleBridge.QueueCommand(command)

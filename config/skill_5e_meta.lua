@@ -18,25 +18,53 @@ local DEFAULT_DICE_SCALE = 1
 -- concentration: boolean         (optional; false default)
 
 local OVERRIDES = {
+    -- Assassin (A1)
+    [80001001] = { kind = "physical", damageDice = "1d4" },
+    [80001003] = { kind = "physical", damageDice = "2d6" },
+    [80001004] = { kind = "physical", damageDice = "1d6" },
+
+    -- Defender (D1)
+    [80002001] = { kind = "physical", damageDice = "1d4" },
+    [80002003] = { kind = "physical", damageDice = "1d6" },
+    [80002004] = { kind = "physical", damageDice = "1d6" },
+
+    -- Swordmaster (S1)
+    [80003001] = { kind = "physical", damageDice = "1d4" },
+    [80003003] = { kind = "physical", damageDice = "1d4" },
+    [80003004] = { kind = "physical", damageDice = "1d4", multiHitDice = "1d4" },
+
+    -- Warrior (F4) - sustained team auras require concentration.
+    [80004001] = { kind = "physical", damageDice = "2d6+4" },
+    [80004003] = { kind = "physical", concentration = true, damageDice = "1d4" },
+    [80004004] = { kind = "physical", concentration = true, damageDice = "1d6" },
+
+    -- Venom (T1)
+    [80005001] = { kind = "physical", damageDice = "1d4" },
+    [80005003] = { kind = "physical", damageDice = "1d4" },
+    [80005004] = { kind = "physical", damageDice = "1d6" },
+
     -- Holy (H1)
-    [80006001] = { kind = "auto" }, -- holy_light is handled by effect registry (ally heal / enemy spell)
-    [80006003] = { kind = "auto" }, -- group heal
-    [80006004] = { kind = "auto" }, -- full heal + cleanse
+    -- Note: holy skills use custom handlers for ally heal / enemy damage.
+    -- We still define heal dice here so runtime can stay free of MaxHP% healing.
+    [80006001] = { kind = "auto", healDice = "1d8+1" },
+    [80006002] = { kind = "auto", healDice = "1d4" },    -- passive tick
+    [80006003] = { kind = "auto", healDice = "1d8+2" },  -- heals 2 allies
+    [80006004] = { kind = "auto", healDice = "2d6+2" },  -- team prayer
 
     -- Fire (M1) - all offensive spells use save vs spellDC (ref)
-    [80007001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half" },
-    [80007003] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half" },
-    [80007004] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half", chantTurns = 1 },
+    [80007001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half", damageDice = "3d8+4" },
+    [80007003] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "3d6+4" },
+    [80007004] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "4d6+5", chantTurns = 1 },
 
     -- Ice (M2)
-    [80008001] = { kind = "spell", saveType = "ref", isAOE = false, hardControl = false, onSaveSuccess = "half" },
-    [80008003] = { kind = "spell", saveType = "ref", isAOE = true, hardControl = true, onSaveSuccess = "half" },
-    [80008004] = { kind = "spell", saveType = "ref", isAOE = true, hardControl = true, onSaveSuccess = "half", chantTurns = 1 },
+    [80008001] = { kind = "spell", saveType = "ref", isAOE = false, hardControl = false, onSaveSuccess = "half", damageDice = "2d8+4" },
+    [80008003] = { kind = "spell", saveType = "ref", isAOE = true, hardControl = true, onSaveSuccess = "half", damageDice = "2d6+3" },
+    [80008004] = { kind = "spell", saveType = "ref", isAOE = true, hardControl = true, onSaveSuccess = "half", damageDice = "3d6+4", chantTurns = 1 },
 
     -- Thunder (M3)
-    [80009001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half" },
-    [80009003] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half" },
-    [80009004] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", chantTurns = 1 },
+    [80009001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half", damageDice = "2d8+4", chainDice = "1d6+1" },
+    [80009003] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "2d6+3" },
+    [80009004] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "3d6+4", chantTurns = 1, chainDice = "1d6+1" },
 }
 
 local function resolveDefault(skillId)

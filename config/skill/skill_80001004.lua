@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80001004_execute",
             targetRef = "selected",
-            damageRate = 23000,
+            damageRate = 14000,
             tags = {
                 { tag = "pursuit_on_kill", phase = "post" },
             },
@@ -25,6 +25,7 @@ function skill_80001004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80001004
+
 
 
 

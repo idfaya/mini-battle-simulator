@@ -1,7 +1,7 @@
 --[[
     等级输入随机战斗测试脚本
-    使用方法: lua test_level_battle.lua [等级] [英雄数量] [敌人数量] [更新速度(毫秒)]
-    示例: lua test_level_battle.lua 20 3 4 500
+    使用方法: lua test_level_battle.lua [等级] [英雄数量] [敌人数量] [更新速度(毫秒)] [是否包含Boss:1/0]
+    示例: lua test_level_battle.lua 20 3 4 500 1
     更新速度: 0=极速(无延迟), 100=快, 500=正常, 1000=慢
 --]]
 
@@ -13,16 +13,22 @@ local targetLevel = tonumber(arg[1]) or 20
 local heroCount = tonumber(arg[2]) or 3
 local enemyCount = tonumber(arg[3]) or 4
 local updateSpeed = tonumber(arg[4]) or 200
+local includeBoss = tonumber(arg[5])
+if includeBoss == nil then
+    includeBoss = 1
+end
 
 print(string.format("=== 等级 %d 随机战斗测试 ===", targetLevel))
 print(string.format("英雄数量: %d, 敌人数量: %d", heroCount, enemyCount))
 print(string.format("更新速度: %d毫秒 (0=极速)", updateSpeed))
+print(string.format("包含Boss: %s", includeBoss == 1 and "是" or "否"))
 print("")
 
 require("core.battle_enum")
 require("modules.BattleDefaultTypesOpt")
 local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")
+local BattleMain = require("modules.battle_main")
 local Logger = require("utils.logger")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
@@ -59,7 +65,7 @@ local function Main()
     local selectedHeroIds = ArrayUtils.RandomSelect(allHeroIds, heroCount)
     
     local selectedEnemyIds = {}
-    if #allBossIds > 0 then
+    if includeBoss == 1 and #allBossIds > 0 then
         local randomBossId = allBossIds[math.random(#allBossIds)]
         table.insert(selectedEnemyIds, randomBossId)
         print(string.format("\n【本场Boss】ID: %d", randomBossId))
@@ -125,13 +131,17 @@ local function Main()
     BattleDriver.RunUntilEnd()
     
     local status = BattleDriver.GetStatus()
+    local currentRound = BattleMain.GetCurrentRound() or 0
     if battleResult then
         if battleResult.totalRound then
             print(string.format("\n总回合数: %d", battleResult.totalRound))
         end
+        print(string.format("行动回合数: %d", currentRound))
+        print(string.format("近似整轮数: %.2f", currentRound / math.max(1, heroCount + enemyCount)))
         print(string.format("执行步数: %d", status.step))
     else
         print("△ 战斗未完成或达到最大步数限制")
+        print(string.format("行动回合数: %d", currentRound))
         print(string.format("执行步数: %d", status.step))
     end
     

@@ -107,7 +107,7 @@ do
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008001, name = "冰箭术" }, timeline)
     assert_true(ok, "IceArrow timeline execute ok")
-    assert_true(BattleBuff.GetBuffValueBySubType(target, 880001) == 3000, "IceArrow applies slow 3000")
+    assert_true(BattleBuff.GetBuffValueBySubType(target, 880001) == 2500, "IceArrow applies slow 2500")
 end
 
 -- Test 3: Frost Nova freezes and target skips action (80008003)
@@ -216,7 +216,7 @@ do
     assert_true(target.hp < target.maxHp, "PoisonBurst deals damage")
 end
 
--- Test 7: Holy Radiance heals and dispels debuffs (80006004)
+-- Test 7: Cleric ultimate heals but does not auto-cleanse (80006004)
 do
     local hero = new_unit(1501, "Tester_Holy", 10000, 200, 0)
     hero.isLeft = true
@@ -241,8 +241,8 @@ do
     BattleFormation.GetFriendTeam = oldGetFriendTeam
     assert_true(ok, "HolyRadiance timeline execute ok")
     assert_true(ally.hp > 2500, "HolyRadiance heals ally")
-    assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) == 0, "HolyRadiance removes poison")
-    assert_true(BattleBuff.IsHeroUnderControl(ally) == false, "HolyRadiance removes control")
+    assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) > 0, "Cleric ultimate does not auto-cleanse poison")
+    assert_true(BattleBuff.IsHeroUnderControl(ally) == true, "Cleric ultimate does not auto-remove control")
 end
 
 -- Test 8: Combo slash triggers extra small skill when combo effect returns 1 (80003001)
@@ -304,7 +304,7 @@ do
     math.random = function(a, b)
         -- Only force the 1..10000 roll used by chance checks. Keep dice rolls sane.
         if b == 10000 then
-            return 4900
+            return 4400
         end
         return math.floor((a + b) / 2)
     end
@@ -321,7 +321,7 @@ do
     BattleSkill.SelectAllAliveTargets = oldSelectAllAliveTargets
     BattleSkill.ApplyFreeze = oldApplyFreeze
     math.random = oldRandom
-    assert_true(freezeTriggered == true, "IceAffinity makes 49% roll trigger Blizzard freeze")
+    assert_true(freezeTriggered == true, "IceAffinity makes 44% roll trigger Blizzard freeze")
 end
 
 -- Test 8d: Thunder affinity writes unified passive runtime and boosts chain chance (80009002)
@@ -392,7 +392,7 @@ do
     assert_true(nextTarget.hp < nextTarget.maxHp, "Pursuit triggers follow-up attack")
 end
 
--- Test 10: Taunt forces target selection and Shield Wall halves damage (80002001/80002004)
+-- Test 10: Taunt forces target selection and Shield Wall reduces damage (80002001/80002004)
 do
     local tank = new_unit(1801, "Tester_Tankwall", 12000, 200, 50)
     local attacker = new_unit(2801, "Taunted_Enemy", 12000, 200, 0)
@@ -424,7 +424,7 @@ do
     local attackerHpBefore = attacker.hp
     war:OnDefBeforeDmg({ data = { extraParam = extra } })
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
-    assert_true(extra.damage == 1000, "ShieldWall halves incoming damage")
+    assert_true(extra.damage == 1300, "ShieldWall reduces incoming damage to 65%")
     assert_true(attacker.hp < attackerHpBefore, "ShieldWall counterattacks attacker")
 end
 
@@ -450,29 +450,35 @@ do
     end
 
     math.randomseed(12345)
-    local baseDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, 10000)
+    local baseDamage = (BattleSkill.ResolveScaledDamage(hero, enemy, { meta = { kind = "physical", damageDice = "2d6+4" } }).damage) or 0
     local aura3 = require("config.skill.skill_80004003")
     local SkillTimeline = require("core.skill_timeline")
     SkillTimeline.Execute(hero, { ally }, { skillId = 80004003, name = "全军突击" }, aura3.BuildTimeline(hero, { ally }, { skillId = 80004003, name = "全军突击" }))
     assert_true(BattleBuff.GetBuffBySubType(hero, 840002) ~= nil, "WarCharge applies 840002 aura")
+    assert_true(hero.__concentrationSkillId == 80004003, "WarCharge enters concentration")
     math.randomseed(12345)
-    local auraDamage = BattleSkill.CalculateDamageWithRate(hero, enemy, 10000)
+    local auraDamage = (BattleSkill.ResolveScaledDamage(hero, enemy, { meta = { kind = "physical", damageDice = "2d6+4" } }).damage) or 0
     assert_true(auraDamage > baseDamage, "WarCharge increases damage")
+    BattleSkill.OnDamagedInterrupt(hero, 999)
+    assert_true(hero.__concentrationSkillId == nil, "Damage can break concentration")
+    assert_true(BattleBuff.GetBuffBySubType(hero, 840002) == nil, "Concentration break removes WarCharge aura from caster")
+    assert_true(BattleBuff.GetBuffBySubType(ally, 840002) == nil, "Concentration break removes WarCharge aura from ally")
 
     local aura4 = require("config.skill.skill_80004004")
     SkillTimeline.Execute(hero, { ally }, { skillId = 80004004, name = "战神降临" }, aura4.BuildTimeline(hero, { ally }, { skillId = 80004004, name = "战神降临" }))
     assert_true(BattleBuff.GetBuffBySubType(hero, 840003) ~= nil, "WarGod applies 840003 aura")
+    assert_true(hero.__concentrationSkillId == 80004004, "WarGod refreshes concentration source")
     math.randomseed(54321)
     local baseHealHero = new_unit(1903, "Heal_NoAura", 10000, 300, 0)
     local healTarget = new_unit(1904, "Heal_Target", 10000, 0, 0)
-    local baseHeal = BattleSkill.CalculateHeal(baseHealHero, healTarget, 2000)
+    local baseHeal = BattleSkill.CalculateHealDice(baseHealHero, healTarget, "2d6+2")
     math.randomseed(54321)
-    local auraHeal = BattleSkill.CalculateHeal(hero, healTarget, 2000)
+    local auraHeal = BattleSkill.CalculateHealDice(hero, healTarget, "2d6+2")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
     assert_true(auraHeal > baseHeal, "WarGod increases heal through aura and war spirit")
 end
 
--- Test 12: Group Heal heals lowest three allies only (80006003)
+-- Test 12: Group Heal heals lowest two allies only (80006003)
 do
     local hero = new_unit(2001, "Tester_GroupHeal", 10000, 200, 0)
     local a1 = new_unit(2002, "Heal_A1", 10000, 0, 0)
@@ -494,10 +500,12 @@ do
     local beforeA1, beforeA2, beforeA3, beforeA4 = a1.hp, a2.hp, a3.hp, a4.hp
     local skillLua = require("config.skill.skill_80006003")
     local SkillTimeline = require("core.skill_timeline")
-    local ok, _ = SkillTimeline.Execute(hero, { a1, a2, a3, a4 }, { skillId = 80006003, name = "群疗" }, skillLua.BuildTimeline(hero, { a1, a2, a3, a4 }, { skillId = 80006003, name = "群疗" }))
+    local skill = { skillId = 80006003, name = "群疗", skillParam = { 1200, 2 } }
+    local ok, _ = SkillTimeline.Execute(hero, { a1, a2, a3, a4 }, skill, skillLua.BuildTimeline(hero, { a1, a2, a3, a4 }, skill))
     BattleFormation.GetFriendTeam = oldGetFriendTeam
     assert_true(ok, "GroupHeal timeline execute ok")
-    assert_true(a1.hp > beforeA1 and a2.hp > beforeA2 and a3.hp > beforeA3, "GroupHeal heals lowest three allies")
+    assert_true(a1.hp > beforeA1 and a2.hp > beforeA2, "GroupHeal heals lowest two allies")
+    assert_true(a3.hp == beforeA3, "GroupHeal does not heal the third-lowest ally")
     assert_true(a4.hp == beforeA4, "GroupHeal does not heal healthiest ally")
 end
 
@@ -525,7 +533,7 @@ do
         local burn = BattleBuff.GetBuff(enemy, 870001)
         assert_true(enemy.hp < enemy.maxHp, "Meteor damages all enemies: " .. enemy.name)
         assert_true(burn and burn.stackCount == 2, "Meteor applies 2 burn stacks: " .. enemy.name)
-        assert_true(burn and burn.duration == 4, "FireAffinity extends meteor burn to 4 turns: " .. enemy.name)
+        assert_true(burn and burn.duration == 3, "FireAffinity extends meteor burn to 3 turns: " .. enemy.name)
     end
 end
 

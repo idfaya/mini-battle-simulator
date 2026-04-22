@@ -54,11 +54,6 @@ local function ExecuteOp(ctx, frameCopy)
         local BattleFormula = require("core.battle_formula")
         local Dice = require("core.dice")
         local Skill5eMeta = require("config.skill_5e_meta")
-        local rate = frameCopy.damageRate
-        if not rate and frameCopy.rateKey and ctx.skillDef and ctx.skillDef.params then
-            rate = ctx.skillDef.params[frameCopy.rateKey]
-        end
-        rate = tonumber(rate) or 0
         local total = 0
         local targets = frameCopy.targets or {}
         local savedTargets = {}
@@ -108,10 +103,6 @@ local function ExecuteOp(ctx, frameCopy)
                             rolled = 0
                         end
                     end
-                    -- Apply skill rate as a multiplier, keeping existing passive scaling meaningful.
-                    if rate and rate > 0 then
-                        rolled = math.floor((tonumber(rolled) or 0) * rate / 10000)
-                    end
                     dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
                     if hitMetaByTarget[target.instanceId] then
                         hitMetaByTarget[target.instanceId].damage = dmg
@@ -126,9 +117,6 @@ local function ExecuteOp(ctx, frameCopy)
                         isCrit = hitResult.crit == true
                         local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(ctx.hero, ctx.skill, resolvedKind)) or "1d6+2"
                         local rolled = Dice.Roll(diceExpr, { crit = isCrit }) * diceScale
-                        if rate and rate > 0 then
-                            rolled = math.floor((tonumber(rolled) or 0) * rate / 10000)
-                        end
                         dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
                     else
                         dmg = 0
@@ -181,16 +169,14 @@ local function ExecuteOp(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local BattlePassiveSkill = require("modules.battle_passive_skill")
-        local rate = frameCopy.healRate
-        if not rate and frameCopy.rateKey and ctx.skillDef and ctx.skillDef.params then
-            rate = ctx.skillDef.params[frameCopy.rateKey]
-        end
-        rate = tonumber(rate) or 0
+        local Skill5eMeta = require("config.skill_5e_meta")
+        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+        local healDice = frameCopy.healDice or meta.healDice or "1d8+1"
         local total = 0
         local targets = frameCopy.targets or {}
         for _, target in ipairs(targets) do
             if target and not target.isDead then
-                local heal = BattleSkill.CalculateHeal(ctx.hero, target, rate)
+                local heal = BattleSkill.CalculateHealDice(ctx.hero, target, healDice)
                 BattleDmgHeal.ApplyHeal(target, heal, ctx.hero)
                 total = total + heal
                 -- Keep heal-side hooks available for future balance extensions.

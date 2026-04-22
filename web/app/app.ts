@@ -50,7 +50,7 @@ async function bootstrapStandaloneBattle(
   store: BattleStore,
 ) {
   const setup: BattleSetup = {
-    level: 20,
+    level: 1,
     heroCount: 6,
     enemyCount: 6,
     initialEnergy: 80,
@@ -129,7 +129,8 @@ async function bootstrapRunMode(
   battleStore: BattleStore,
   runStore: RunStore,
 ) {
-  let autoUltimate = true;
+  // Disable auto-ultimate by default in roguelike mode to keep early battles stable and reproducible.
+  let autoUltimate = false;
   let battleSpeed = 4;
   let runSnapshot: RunSnapshot | null = null;
   let runUiDirty = true;
@@ -167,7 +168,7 @@ async function bootstrapRunMode(
       autoUltimate = enabled;
     },
     {
-      level: 20,
+      level: 1,
       heroCount: 3,
       enemyCount: 3,
       initialEnergy: 40,

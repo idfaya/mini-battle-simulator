@@ -11,10 +11,10 @@ local DEF = {
             op = "damage",
             effect = "skill_80009004_execute",
             targetRef = "selected",
-            damageRate = 7000,
+            damageRate = 8500,
             tags = {
                 { tag = "set_targets_all_alive_enemies", phase = "pre" },
-                { tag = "chain_lightning", phase = "post", param = { hitCount = 2, damageRate = 3500 } },
+                { tag = "chain_lightning", phase = "post", param = { hitCount = 2, damageRate = 3000 } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80009004_end", targetRef = "selected" },
@@ -26,5 +26,7 @@ function skill_80009004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009004
+
+
 
 

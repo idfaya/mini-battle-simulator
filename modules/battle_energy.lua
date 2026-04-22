@@ -235,8 +235,14 @@ function BattleEnergy.OnSkillHit(hero, skill, hitResult)
     end
 
     local totalGain = 0
-    if (hitResult.successfulHits or 0) > 0 then
-        totalGain = totalGain + BattleEnergy.AddEnergy(hero, GetSkillHitGain(hero, skill), "skill_hit")
+    local successfulHits = math.floor(tonumber(hitResult.successfulHits) or 0)
+    if successfulHits > 0 then
+        local gains = EnergyConfig.gains or {}
+        local caps = EnergyConfig.caps or {}
+        local perHit = GetSkillHitGain(hero, skill)
+        local raw = perHit * successfulHits
+        local capped = ClampFloor(raw, 0, caps.singleSkillHit)
+        totalGain = totalGain + BattleEnergy.AddEnergy(hero, capped, "skill_hit")
     end
 
     if (hitResult.killCount or 0) > 0 then

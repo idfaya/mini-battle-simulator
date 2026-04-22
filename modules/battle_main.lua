@@ -187,6 +187,21 @@ local function InitSubsystems(beginState)
     BattleEnergy.Init()
     Logger.Debug("  BattleEnergy 初始化完成")
 
+    -- Seed initial energy for CLI/runtime battles driven by BattleMain.
+    -- (Browser runtime seeds energy separately.)
+    local initialEnergy = beginState and beginState.initialEnergy
+    if initialEnergy == nil then
+        initialEnergy = BattleEnergy.GetDefaultInitialEnergy()
+    end
+    initialEnergy = tonumber(initialEnergy) or 0
+    if initialEnergy > 0 then
+        for _, hero in ipairs(allHeroes) do
+            if hero and not hero.isDead then
+                BattleEnergy.AddEnergy(hero, initialEnergy, "initial_energy", { silent = true })
+            end
+        end
+    end
+
     -- 10. 初始化伤害/治疗系统
     BattleDmgHeal.Init()
     Logger.Debug("  BattleDmgHeal 初始化完成")

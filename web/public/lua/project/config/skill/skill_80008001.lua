@@ -13,10 +13,10 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "ice_arrow_hit",
                 target = t,
-                damageRate = 12000,
+                damageRate = 10500,
                 tags = {
                     { tag = "set_damage_rate_passive", phase = "pre", param = { base = 12000, key = "iceDamageBonusPct" } },
-                    { tag = "apply_freeze", phase = "post", param = { turns = 0, slowPct = 3000 } },
+                    { tag = "apply_freeze", phase = "post", param = { turns = 0, slowPct = 2500 } },
                 },
             })
             table.insert(frames, { frame = 36, op = "effect", effect = "ice_arrow_end", target = t })
@@ -27,5 +27,7 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008001
+
+
 
 

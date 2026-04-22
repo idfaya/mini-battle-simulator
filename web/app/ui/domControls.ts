@@ -202,8 +202,15 @@ export function renderControls(
     lines.push(`battle: ${snapshot ? snapshot.phase : "loading"} | 战斗状态: ${snapshot ? snapshot.phase : "loading"}`);
   }
   if (focusUnit) {
+    const stateBits: string[] = [];
+    if (focusUnit.isChanting) {
+      stateBits.push(`吟唱:${focusUnit.pendingSkillName ?? "未知技能"}`);
+    }
+    if (focusUnit.isConcentrating) {
+      stateBits.push(`专注:${focusUnit.concentrationSkillName ?? focusUnit.concentrationSkillId ?? "未知技能"}`);
+    }
     lines.push(
-      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 速度 ${focusUnit.speed} | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}`,
+      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 速度 ${focusUnit.speed} | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
     );
   }
   controls.status.textContent = lines.join("\n");

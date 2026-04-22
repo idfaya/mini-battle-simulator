@@ -4,7 +4,7 @@ local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local HeroData = require("config.hero_data")
 
 local RoguelikeReward = {}
-local RECRUIT_LEVEL = 18
+local RECRUIT_LEVEL = 1
 local RECRUIT_STAR = 4
 
 local function allocateRosterId(runState)

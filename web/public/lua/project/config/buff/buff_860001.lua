@@ -1,4 +1,6 @@
 local BattleDmgHeal = require("modules.battle_dmg_heal")
+local Skill5eMeta = require("config.skill_5e_meta")
+local Dice = require("core.dice")
 
 local buff_860001 = {
     buffId = 860001,
@@ -19,7 +21,9 @@ local buff_860001 = {
                 if not hero or hero.isDead then
                     return
                 end
-                local healAmount = math.max(1, math.floor((hero.maxHp or 0) * 0.10))
+                local meta = Skill5eMeta.Get(80006002) or {}
+                local expr = meta.healDice or "1d4"
+                local healAmount = math.max(1, math.floor(Dice.Roll(expr, { crit = false })))
                 BattleDmgHeal.ApplyHeal(hero, healAmount, hero)
             end
         }

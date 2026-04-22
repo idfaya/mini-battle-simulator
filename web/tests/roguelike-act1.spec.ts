@@ -36,7 +36,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await page.getByRole("button", { name: "Salvage the crates" }).click();
 
   await clickNodeAndEnter("Ash Merchant");
-  await page.getByRole("button", { name: /recruit .*900001.*96/i }).click();
+  await page.getByRole("button", { name: /recruit .*900001/i }).click();
   await expect(page.getByText("候补编成")).toBeVisible();
   await page.getByRole("button", { name: "选择候补" }).first().click();
   await page.getByRole("button", { name: "替换上阵" }).first().click();
