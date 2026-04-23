@@ -474,9 +474,9 @@ do
     math.randomseed(54321)
     local baseHealHero = new_unit(1903, "Heal_NoAura", 10000, 300, 0)
     local healTarget = new_unit(1904, "Heal_Target", 10000, 0, 0)
-    local baseHeal = BattleSkill.CalculateHealDice(baseHealHero, healTarget, "20d6+20")
+    local baseHeal = BattleSkill.CalculateHealDice(baseHealHero, healTarget, "100d6+100")
     math.randomseed(54321)
-    local auraHeal = BattleSkill.CalculateHealDice(hero, healTarget, "20d6+20")
+    local auraHeal = BattleSkill.CalculateHealDice(hero, healTarget, "100d6+100")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
     assert_true(auraHeal > baseHeal, "WarGod increases heal through aura and war spirit")
 end

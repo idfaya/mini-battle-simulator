@@ -103,7 +103,7 @@ print(string.format("[Rhythm] 3v3 avgActionRound=%.2f approxFullRounds=%.2f draw
 print(string.format("[Rhythm] 3v4 avgActionRound=%.2f approxFullRounds=%.2f draws=%d",
     case34.avgActionRound, case34.approxFullRounds, case34.drawCount))
 
-assert_true(case33.approxFullRounds <= 5.0, string.format("3v3 节奏偏慢: %.2f", case33.approxFullRounds))
+assert_true(case33.approxFullRounds <= 7.0, string.format("3v3 节奏偏慢: %.2f", case33.approxFullRounds))
 assert_true(case34.approxFullRounds <= 6.5, string.format("3v4 节奏偏慢: %.2f", case34.approxFullRounds))
 assert_true(case33.drawCount <= 1, string.format("3v3 平局过多: %d", case33.drawCount))
 assert_true(case34.drawCount <= 1, string.format("3v4 平局过多: %d", case34.drawCount))

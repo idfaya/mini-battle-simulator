@@ -30,9 +30,9 @@ local ENEMY_ROLE_TEMPLATES = {
 }
 
 local MONSTER_TYPE_TEMPLATES = {
-    [0] = { hpMul = 0.85, atkMul = 0.95, defMul = 0.95, acDelta = -1, hitDelta = -1, spellDCDelta = -1, saveDelta = -1, speedDelta = 0 },
-    [1] = { hpMul = 1.15, atkMul = 1.05, defMul = 1.00, acDelta = 0, hitDelta = 0, spellDCDelta = 0, saveDelta = 0, speedDelta = 0 },
-    [2] = { hpMul = 1.80, atkMul = 1.15, defMul = 1.10, acDelta = 1, hitDelta = 1, spellDCDelta = 1, saveDelta = 1, speedDelta = 1 },
+    [0] = { hpMul = 0.55, atkMul = 0.95, defMul = 0.95, acDelta = -3, hitDelta = -1, spellDCDelta = -1, saveDelta = -1, speedDelta = 0 },
+    [1] = { hpMul = 0.78, atkMul = 1.05, defMul = 1.00, acDelta = -2, hitDelta = 0, spellDCDelta = 0, saveDelta = 0, speedDelta = 0 },
+    [2] = { hpMul = 1.12, atkMul = 1.15, defMul = 1.10, acDelta = -1, hitDelta = 1, spellDCDelta = 1, saveDelta = 1, speedDelta = 1 },
 }
 
 local function GetConfigFilePath(fileName)
@@ -115,6 +115,128 @@ end
 local ENEMY_LEVEL_MAX = 20
 local ENEMY_TIER_STARTS = { 1, 5, 11, 17, ENEMY_LEVEL_MAX + 1 }
 
+local ENEMY_ABILITY_SCORES = {
+    [910001] = { str = 10, dex = 8,  con = 14, int = 2,  wis = 8,  cha = 2  }, -- Slime
+    [910002] = { str = 8,  dex = 16, con = 10, int = 8,  wis = 8,  cha = 8  }, -- Goblin
+    [910003] = { str = 16, dex = 12, con = 16, int = 8,  wis = 8,  cha = 8  }, -- Orc
+    [910004] = { str = 14, dex = 14, con = 14, int = 6,  wis = 8,  cha = 5  }, -- Skeleton
+    [910005] = { str = 8,  dex = 14, con = 12, int = 16, wis = 12, cha = 10 }, -- DarkMage
+    [910006] = { str = 12, dex = 14, con = 16, int = 18, wis = 14, cha = 12 }, -- IceDemon
+    [910007] = { str = 10, dex = 16, con = 14, int = 18, wis = 12, cha = 12 }, -- ThunderLord
+}
+
+local function clampAbility(score)
+    local v = tonumber(score) or 10
+    return math.max(1, math.min(30, math.floor(v)))
+end
+
+local function getAbilityMod(score)
+    local s = clampAbility(score)
+    return math.floor((s - 10) / 2)
+end
+
+local function getEnemyAbilityScores(enemyId, classId)
+    local preset = ENEMY_ABILITY_SCORES[tonumber(enemyId) or 0]
+    if preset then
+        return preset
+    end
+    if ClassRoleConfig.IsMelee(classId) then
+        return { str = 14, dex = 12, con = 14, int = 8, wis = 10, cha = 8 }
+    end
+    return { str = 8, dex = 14, con = 12, int = 14, wis = 12, cha = 10 }
+end
+
+local function getClassHitDie(classId)
+    local id = tonumber(classId) or 0
+    if id == 4 then return 12 end
+    if id == 2 or id == 3 then return 10 end
+    if id == 1 or id == 5 or id == 6 then return 8 end
+    if id == 7 or id == 8 or id == 9 then return 6 end
+    return 8
+end
+
+local function getHitDieAvg(hitDie)
+    local d = tonumber(hitDie) or 8
+    if d == 6 then return 4 end
+    if d == 8 then return 5 end
+    if d == 10 then return 6 end
+    if d == 12 then return 7 end
+    return math.max(1, math.floor((d / 2) + 1))
+end
+
+local function calculate5eHp(level, hitDie, conMod)
+    local lv = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
+    local die = tonumber(hitDie) or 8
+    local avg = getHitDieAvg(die)
+    local cm = tonumber(conMod) or 0
+    local total = die + cm
+    for _ = 2, lv do
+        total = total + math.max(1, avg + cm)
+    end
+    return math.max(1, total)
+end
+
+local function getProficiencyBonus(level)
+    local lv = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
+    if lv >= 17 then return 6 end
+    if lv >= 13 then return 5 end
+    if lv >= 9 then return 4 end
+    if lv >= 5 then return 3 end
+    return 2
+end
+
+local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
+    local id = tonumber(classId) or 0
+    if id == 1 or id == 5 then return dexMod end
+    if id == 6 then return wisMod end
+    if id == 7 or id == 8 or id == 9 then return intMod end
+    return strMod
+end
+
+local function getSpellAbilityMod(classId, intMod, wisMod, chaMod)
+    local id = tonumber(classId) or 0
+    if id == 6 then return wisMod end
+    if id == 7 or id == 8 or id == 9 then return intMod end
+    if id == 4 then return chaMod end
+    return math.max(intMod, wisMod)
+end
+
+local function isSaveProficient(classId, saveType)
+    local id = tonumber(classId) or 0
+    local map = {
+        [1] = { fort = false, ref = true,  will = false },
+        [2] = { fort = true,  ref = false, will = true  },
+        [3] = { fort = true,  ref = true,  will = false },
+        [4] = { fort = true,  ref = false, will = false },
+        [5] = { fort = false, ref = true,  will = true  },
+        [6] = { fort = false, ref = false, will = true  },
+        [7] = { fort = false, ref = false, will = true  },
+        [8] = { fort = true,  ref = false, will = true  },
+        [9] = { fort = false, ref = true,  will = true  },
+    }
+    return map[id] and map[id][saveType] == true or false
+end
+
+local function calculateArmorClass(classId, dexMod, conMod)
+    local id = tonumber(classId) or 0
+    if id == 2 then
+        return 17
+    elseif id == 4 then
+        return 10 + dexMod + conMod
+    elseif id == 3 then
+        return 15 + math.min(2, dexMod)
+    elseif id == 1 then
+        return 11 + dexMod
+    elseif id == 5 then
+        return 12 + dexMod
+    elseif id == 6 then
+        return 13 + math.min(2, dexMod)
+    elseif id == 7 or id == 8 or id == 9 then
+        return 10 + dexMod
+    end
+    return 10 + dexMod
+end
+
 local function GetTier(level)
     local lv = tonumber(level) or 1
     lv = math.max(1, math.min(ENEMY_LEVEL_MAX, lv))
@@ -155,36 +277,59 @@ end
 local function GetBaseTemplateStats(classId, level)
     local tpl = GetRoleTemplate(classId)
     return {
-        hp = GetInterpolatedTemplateValue(tpl.hp, level),
         atk = GetInterpolatedTemplateValue(tpl.atk, level),
         def = GetInterpolatedTemplateValue(tpl.def, level),
         speed = GetInterpolatedTemplateValue(tpl.speed, level),
-        ac = GetInterpolatedTemplateValue(tpl.ac, level),
-        hit = GetInterpolatedTemplateValue(tpl.hit, level),
-        spellDC = GetInterpolatedTemplateValue(tpl.spellDC, level),
-        saveFort = GetInterpolatedTemplateValue(tpl.saveFort, level),
-        saveRef = GetInterpolatedTemplateValue(tpl.saveRef, level),
-        saveWill = GetInterpolatedTemplateValue(tpl.saveWill, level),
         critRate = tpl.critRate or 0,
         blockRate = tpl.blockRate or 0,
         healBonus = tpl.healBonus or 0,
     }
 end
 
-local function GetEnemyTemplateStats(classId, level, monsterType)
+local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
     local base = GetBaseTemplateStats(classId, level)
     local mt = MONSTER_TYPE_TEMPLATES[tonumber(monsterType) or 0] or MONSTER_TYPE_TEMPLATES[0]
+    local abilities = getEnemyAbilityScores(enemyId, classId)
+    local str = clampAbility(abilities.str)
+    local dex = clampAbility(abilities.dex)
+    local con = clampAbility(abilities.con)
+    local intl = clampAbility(abilities.int)
+    local wis = clampAbility(abilities.wis)
+    local cha = clampAbility(abilities.cha)
+    local strMod = getAbilityMod(str)
+    local dexMod = getAbilityMod(dex)
+    local conMod = getAbilityMod(con)
+    local intMod = getAbilityMod(intl)
+    local wisMod = getAbilityMod(wis)
+    local chaMod = getAbilityMod(cha)
+    local hitDie = getClassHitDie(classId)
+    local prof = getProficiencyBonus(level)
+
     return {
-        hp = math.max(1, math.floor(base.hp * mt.hpMul)),
+        hp = math.max(1, math.floor(calculate5eHp(level, hitDie, conMod) * mt.hpMul)),
         atk = math.max(1, math.floor(base.atk * mt.atkMul)),
         def = math.max(0, math.floor(base.def * mt.defMul)),
         speed = math.max(60, math.floor(base.speed + mt.speedDelta)),
-        ac = math.max(10, math.floor(base.ac + mt.acDelta)),
-        hit = math.max(0, math.floor(base.hit + mt.hitDelta)),
-        spellDC = math.max(10, math.floor(base.spellDC + mt.spellDCDelta)),
-        saveFort = math.max(0, math.floor(base.saveFort + mt.saveDelta)),
-        saveRef = math.max(0, math.floor(base.saveRef + mt.saveDelta)),
-        saveWill = math.max(0, math.floor(base.saveWill + mt.saveDelta)),
+        ac = math.max(10, math.floor(calculateArmorClass(classId, dexMod, conMod) + mt.acDelta)),
+        hit = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + mt.hitDelta)),
+        spellDC = math.max(10, math.floor(8 + prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod) + mt.spellDCDelta)),
+        saveFort = math.max(0, math.floor(conMod + (isSaveProficient(classId, "fort") and prof or 0) + mt.saveDelta)),
+        saveRef = math.max(0, math.floor(dexMod + (isSaveProficient(classId, "ref") and prof or 0) + mt.saveDelta)),
+        saveWill = math.max(0, math.floor(wisMod + (isSaveProficient(classId, "will") and prof or 0) + mt.saveDelta)),
+        str = str,
+        dex = dex,
+        con = con,
+        int = intl,
+        wis = wis,
+        cha = cha,
+        strMod = strMod,
+        dexMod = dexMod,
+        conMod = conMod,
+        intMod = intMod,
+        wisMod = wisMod,
+        chaMod = chaMod,
+        hitDie = hitDie,
+        proficiencyBonus = prof,
         critRate = base.critRate,
         blockRate = base.blockRate,
         healBonus = base.healBonus,
@@ -324,7 +469,7 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
     local quality = enemy.Quality or 1
     local monsterType = enemy.MonsterType or 0
     local class = enemy.Class or 2
-    local template = GetEnemyTemplateStats(class, level, monsterType)
+    local template = GetEnemyTemplateStats(enemyId, class, level, monsterType)
 
     local heroData = {
         id = enemyId,
@@ -343,6 +488,20 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         critDamage = 150,
         blockRate = template.blockRate or 0,
         healBonus = template.healBonus or 0,
+        str = template.str,
+        dex = template.dex,
+        con = template.con,
+        int = template.int,
+        wis = template.wis,
+        cha = template.cha,
+        strMod = template.strMod,
+        dexMod = template.dexMod,
+        conMod = template.conMod,
+        intMod = template.intMod,
+        wisMod = template.wisMod,
+        chaMod = template.chaMod,
+        hitDie = template.hitDie,
+        proficiencyBonus = template.proficiencyBonus,
         skills = {},
         class = class,
         _originalEnemy = enemy,

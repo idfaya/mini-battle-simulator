@@ -9,11 +9,11 @@ local ClassWeaponConfig = {}
 -- - classId 6..9 are backline/casters and should not use weapon dice for damage.
 
 ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
-    [1] = "1d8",  -- A1 pursuit: rapier-like
-    [2] = "1d8",  -- D1 defender: sword+shield baseline
-    [3] = "1d8",  -- S1 combo: longsword baseline
-    [4] = "1d10", -- B1 war spirit: heavier weapon baseline
-    [5] = "1d6",  -- T1 poison: light weapon baseline
+    [1] = "1d10", -- A1 pursuit: sharper burst to keep short fights lethal
+    [2] = "1d10", -- D1 defender: slower class still needs meaningful swings
+    [3] = "1d10", -- S1 combo: baseline longsword up one step
+    [4] = "1d12", -- B1 war spirit: heaviest martial baseline
+    [5] = "1d8",  -- T1 poison: finesse damage should not drag fights
 }
 
 function ClassWeaponConfig.GetWeaponDice(classId)
@@ -22,4 +22,3 @@ function ClassWeaponConfig.GetWeaponDice(classId)
 end
 
 return ClassWeaponConfig
-

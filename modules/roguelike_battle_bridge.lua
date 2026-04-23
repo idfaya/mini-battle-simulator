@@ -22,6 +22,9 @@ local DEFAULT_ENEMY_SCALE = {
     hp = 1.0,
     atk = 1.0,
     def = 1.0,
+    hitDelta = 0,
+    spellDCDelta = 0,
+    saveDelta = 0,
 }
 
 local function contains(list, value)
@@ -158,6 +161,14 @@ local function buildEnemyForBattle(enemyId, level, wpType, encounter)
     enemyData.maxHp = enemyData.hp
     enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * (tonumber(enemyScale.atk) or 1.0)))
     enemyData.def = math.max(0, math.floor((enemyData.def or 0) * (tonumber(enemyScale.def) or 1.0)))
+    enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(enemyScale.hitDelta) or 0)))
+    enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(enemyScale.spellDCDelta) or 0)))
+    local sd = tonumber(enemyScale.saveDelta) or 0
+    if sd ~= 0 then
+        enemyData.saveFort = math.max(0, math.floor((enemyData.saveFort or 0) + sd))
+        enemyData.saveRef = math.max(0, math.floor((enemyData.saveRef or 0) + sd))
+        enemyData.saveWill = math.max(0, math.floor((enemyData.saveWill or 0) + sd))
+    end
     enemyData.wpType = wpType
     return enemyData
 end

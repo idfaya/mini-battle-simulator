@@ -157,6 +157,139 @@ local HERO_ROLE_TEMPLATES = {
     },
 }
 
+-- 5e ability scores per hero (STR/DEX/CON/INT/WIS/CHA).
+-- These are used for true 5e HP (hit die + CON mod per level).
+local HERO_ABILITY_SCORES = {
+    [900001] = { str = 16, dex = 12, con = 14, int = 8,  wis = 10, cha = 10 }, -- ComboWarrior (S1)
+    [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- FireMage (M1)
+    [900003] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- IceMage (M2)
+    [900004] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- ThunderMage (M3)
+    [900005] = { str = 16, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Tank (D1)
+    [900006] = { str = 10, dex = 16, con = 14, int = 10, wis = 10, cha = 12 }, -- Assassin (A1)
+    [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Healer (H1)
+    [900008] = { str = 10, dex = 14, con = 13, int = 12, wis = 10, cha = 10 }, -- PoisonMage (T1)
+    [900009] = { str = 16, dex = 12, con = 16, int = 8,  wis = 10, cha = 10 }, -- BattleRage (B1)
+}
+
+local function clampAbility(score)
+    local v = tonumber(score) or 10
+    return math.max(1, math.min(30, math.floor(v)))
+end
+
+local function getAbilityMod(score)
+    local s = clampAbility(score)
+    return math.floor((s - 10) / 2)
+end
+
+local function getHeroAbilityScores(heroId, classId)
+    local preset = HERO_ABILITY_SCORES[tonumber(heroId) or 0]
+    if preset then
+        return preset
+    end
+    -- Fallback defaults by stream: melee favors STR/CON; casters favor INT/WIS.
+    local isMelee = ClassRoleConfig.IsMelee(classId)
+    if isMelee then
+        return { str = 14, dex = 12, con = 14, int = 10, wis = 10, cha = 10 }
+    end
+    return { str = 8, dex = 14, con = 12, int = 14, wis = 12, cha = 10 }
+end
+
+local function getClassHitDie(classId)
+    local id = tonumber(classId) or 0
+    -- Heuristic mapping to 5e:
+    -- B1: d12; D1/S1: d10; A1/T1/H1: d8; M1..M3: d6.
+    if id == 4 then return 12 end
+    if id == 2 or id == 3 then return 10 end
+    if id == 1 or id == 5 or id == 6 then return 8 end
+    if id == 7 or id == 8 or id == 9 then return 6 end
+    return 8
+end
+
+local function getHitDieAvg(hitDie)
+    local d = tonumber(hitDie) or 8
+    if d == 6 then return 4 end
+    if d == 8 then return 5 end
+    if d == 10 then return 6 end
+    if d == 12 then return 7 end
+    return math.max(1, math.floor((d / 2) + 1))
+end
+
+local function calculate5eHp(level, hitDie, conMod)
+    -- Keep this helper independent from the later local HERO_LEVEL_MAX definition.
+    local lv = math.max(1, math.min(20, tonumber(level) or 1))
+    local die = tonumber(hitDie) or 8
+    local avg = getHitDieAvg(die)
+    local cm = tonumber(conMod) or 0
+
+    local total = die + cm
+    for _ = 2, lv do
+        total = total + math.max(1, avg + cm)
+    end
+    return math.max(1, total)
+end
+
+local function getProficiencyBonus(level)
+    local lv = math.max(1, math.min(20, tonumber(level) or 1))
+    if lv >= 17 then return 6 end
+    if lv >= 13 then return 5 end
+    if lv >= 9 then return 4 end
+    if lv >= 5 then return 3 end
+    return 2
+end
+
+local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
+    local id = tonumber(classId) or 0
+    if id == 1 then return dexMod end -- Assassin
+    if id == 5 then return dexMod end -- Poison / finesse-ish melee
+    if id == 6 then return wisMod end -- Healer basic holy attack
+    if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
+    return strMod
+end
+
+local function getSpellAbilityMod(classId, intMod, wisMod, chaMod)
+    local id = tonumber(classId) or 0
+    if id == 6 then return wisMod end -- Holy caster
+    if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
+    if id == 4 then return chaMod end -- BattleRage shout/battle intent fallback
+    return math.max(intMod, wisMod)
+end
+
+local function isSaveProficient(classId, saveType)
+    local id = tonumber(classId) or 0
+    local map = {
+        [1] = { fort = false, ref = true,  will = false }, -- Assassin
+        [2] = { fort = true,  ref = false, will = true  }, -- Tank
+        [3] = { fort = true,  ref = true,  will = false }, -- ComboWarrior
+        [4] = { fort = true,  ref = false, will = false }, -- BattleRage
+        [5] = { fort = false, ref = true,  will = true  }, -- Poison
+        [6] = { fort = false, ref = false, will = true  }, -- Healer
+        [7] = { fort = false, ref = false, will = true  }, -- FireMage
+        [8] = { fort = true,  ref = false, will = true  }, -- IceMage
+        [9] = { fort = false, ref = true,  will = true  }, -- ThunderMage
+    }
+    return map[id] and map[id][saveType] == true or false
+end
+
+local function calculateArmorClass(classId, dexMod, conMod, wisMod, level)
+    local id = tonumber(classId) or 0
+    if id == 2 then
+        return 17 -- heavy armor + shield tank fantasy
+    elseif id == 4 then
+        return 10 + dexMod + conMod -- barbarian-like
+    elseif id == 3 then
+        return 15 + math.min(2, dexMod) -- medium armor duelist
+    elseif id == 1 then
+        return 11 + dexMod -- light armor assassin
+    elseif id == 5 then
+        return 12 + dexMod -- skirmisher / poison style
+    elseif id == 6 then
+        return 13 + math.min(2, dexMod) -- medium armor priest
+    elseif id == 7 or id == 8 or id == 9 then
+        return 10 + dexMod -- mage robe + dex
+    end
+    return 10 + dexMod
+end
+
 local function OpenConfigFile(fileName)
     local paths = {
         "config/" .. fileName,
@@ -421,10 +554,31 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
     local template = GetTemplateStats(hero.Class, level)
 
     -- 5e growth: level drives progression; star no longer affects stats.
-    local finalHp = math.max(1, math.floor(template.hp))
+    local abilities = getHeroAbilityScores(heroId, hero.Class)
+    local str = clampAbility(abilities.str)
+    local dex = clampAbility(abilities.dex)
+    local con = clampAbility(abilities.con)
+    local intl = clampAbility(abilities.int)
+    local wis = clampAbility(abilities.wis)
+    local cha = clampAbility(abilities.cha)
+    local strMod = getAbilityMod(str)
+    local dexMod = getAbilityMod(dex)
+    local conMod = getAbilityMod(con)
+    local intMod = getAbilityMod(intl)
+    local wisMod = getAbilityMod(wis)
+    local chaMod = getAbilityMod(cha)
+    local hitDie = getClassHitDie(hero.Class)
+    local prof = getProficiencyBonus(level)
+    local finalHp = calculate5eHp(level, hitDie, conMod)
     local finalAtk = math.max(1, math.floor(template.atk))
     local finalDef = math.max(0, math.floor(template.def))
     local finalSpd = math.max(60, math.floor(template.speed))
+    local finalAc = math.max(10, calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level))
+    local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
+    local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
+    local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
+    local finalSaveRef = dexMod + (isSaveProficient(hero.Class, "ref") and prof or 0)
+    local finalSaveWill = wisMod + (isSaveProficient(hero.Class, "will") and prof or 0)
 
     return {
         hp = finalHp,
@@ -433,15 +587,29 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
         def = finalDef,
         spd = finalSpd,
         speed = finalSpd,
+        str = str,
+        dex = dex,
+        con = con,
+        int = intl,
+        wis = wis,
+        cha = cha,
+        strMod = strMod,
+        dexMod = dexMod,
+        conMod = conMod,
+        intMod = intMod,
+        wisMod = wisMod,
+        chaMod = chaMod,
+        hitDie = hitDie,
+        proficiencyBonus = prof,
         critRate = template.critRate or 0,
         blockRate = template.blockRate or 0,
         healBonus = template.healBonus or 0,
-        ac = math.max(10, math.floor(template.ac)),
-        hit = math.max(0, math.floor(template.hit)),
-        spellDC = math.max(10, math.floor(template.spellDC)),
-        saveFort = math.max(0, math.floor(template.saveFort)),
-        saveRef = math.max(0, math.floor(template.saveRef)),
-        saveWill = math.max(0, math.floor(template.saveWill)),
+        ac = finalAc,
+        hit = finalHit,
+        spellDC = finalSpellDC,
+        saveFort = finalSaveFort,
+        saveRef = finalSaveRef,
+        saveWill = finalSaveWill,
         level = level,
         star = 1,
         quality = quality,
@@ -528,6 +696,20 @@ function HeroData.ConvertToHeroData(heroId, level, star)
         critRate = attrs.critRate,
         blockRate = attrs.blockRate,
         healBonus = attrs.healBonus,
+        str = attrs.str,
+        dex = attrs.dex,
+        con = attrs.con,
+        int = attrs.int,
+        wis = attrs.wis,
+        cha = attrs.cha,
+        strMod = attrs.strMod,
+        dexMod = attrs.dexMod,
+        conMod = attrs.conMod,
+        intMod = attrs.intMod,
+        wisMod = attrs.wisMod,
+        chaMod = attrs.chaMod,
+        hitDie = attrs.hitDie,
+        proficiencyBonus = attrs.proficiencyBonus,
         skillsConfig = skillsConfig,
         config = hero,
     }

@@ -21,7 +21,7 @@ RunRewardPool.GROUPS = {
             { rewardType = "recruit", refId = 900001, weight = 18 },
             { rewardType = "recruit", refId = 900006, weight = 18 },
             { rewardType = "recruit", refId = 900007, weight = 14 },
-            { rewardType = "heal_pct", value = 0.25, weight = 32 },
+            { rewardType = "heal_pct", value = 0.15, weight = 32 },
             { rewardType = "gold", value = 55, weight = 24 },
         },
     },
@@ -38,7 +38,7 @@ RunRewardPool.GROUPS = {
             { rewardType = "blessing", refId = 101003, weight = 25 },
             { rewardType = "blessing", refId = 101004, weight = 20 },
             { rewardType = "recruit", refId = 900005, weight = 16 },
-            { rewardType = "heal_pct", value = 0.30, weight = 22 },
+            { rewardType = "heal_pct", value = 0.18, weight = 22 },
         },
         constraints = {
             requireAtLeastOne = { "relic" },
@@ -54,7 +54,7 @@ RunRewardPool.GROUPS = {
             { rewardType = "gold", value = 65, weight = 24 },
             { rewardType = "relic", refId = 101004, weight = 20 },
             { rewardType = "blessing", refId = 101005, weight = 30 },
-            { rewardType = "heal_pct", value = 0.30, weight = 26 },
+            { rewardType = "heal_pct", value = 0.18, weight = 26 },
         },
     },
 
@@ -69,7 +69,7 @@ RunRewardPool.GROUPS = {
             { rewardType = "blessing", refId = 101006, weight = 30 },
             { rewardType = "blessing", refId = 101007, weight = 25 },
             { rewardType = "recruit", refId = 900005, weight = 18 },
-            { rewardType = "heal_pct", value = 0.30, weight = 18 },
+            { rewardType = "heal_pct", value = 0.18, weight = 18 },
         },
         constraints = {
             requireAtLeastOne = { "relic" },

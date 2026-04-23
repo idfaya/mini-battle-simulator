@@ -113,6 +113,43 @@ local function ApplyClassHealScalar(healer, rawHeal)
     return math.max(0, math.floor(value * scalar))
 end
 
+local function GetPhysicalDamageAbilityMod(hero)
+    if not hero then
+        return 0
+    end
+    local classId = GetClassId(hero)
+    local strMod = tonumber(hero.strMod) or 0
+    local dexMod = tonumber(hero.dexMod) or 0
+    local intMod = tonumber(hero.intMod) or 0
+    local wisMod = tonumber(hero.wisMod) or 0
+
+    if classId == 1 or classId == 5 then
+        return dexMod
+    end
+    if classId == 6 then
+        return wisMod
+    end
+    if classId == 7 or classId == 8 or classId == 9 then
+        return intMod
+    end
+    return strMod
+end
+
+local function ApplyPhysicalAbilityMod(hero, rawDamage, meta, opts)
+    if not hero then
+        return math.max(0, math.floor(tonumber(rawDamage) or 0))
+    end
+    if meta and meta.kind ~= "physical" then
+        return math.max(0, math.floor(tonumber(rawDamage) or 0))
+    end
+    if opts and opts.noAbilityMod == true then
+        return math.max(0, math.floor(tonumber(rawDamage) or 0))
+    end
+    local base = math.max(0, math.floor(tonumber(rawDamage) or 0))
+    local abilityMod = GetPhysicalDamageAbilityMod(hero)
+    return math.max(0, base + abilityMod)
+end
+
 local function JoinDiceParts(a, b)
     a = tostring(a or ""):gsub("^%s+", ""):gsub("%s+$", "")
     b = tostring(b or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -342,7 +379,8 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             or "1d6+2"
     end
     local rolled = Dice.Roll(diceExpr, { crit = hitResult.crit == true }) * diceScale
-    rolled = ApplyClassDiceScalar(attacker, rolled, false)
+        rolled = ApplyClassDiceScalar(attacker, rolled, false)
+        rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
     if useRate and damageRate > 0 then
         rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
     end

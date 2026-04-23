@@ -16,8 +16,8 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 20, max = 30 },
-        playerScale = { hp = 1.18, atk = 1.32, def = 1.08, energyBonus = 35 },
-        enemyScale = { hp = 0.72, atk = 0.84, def = 0.88 },
+        playerScale = { hp = 1.00, atk = 1.08, def = 1.00, energyBonus = 18 },
+        enemyScale = { hp = 0.78, atk = 0.98, def = 0.92 },
     },
     [101002] = {
         id = 101002,
@@ -30,8 +30,8 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 24, max = 38 },
-        playerScale = { hp = 1.08, atk = 1.22, def = 1.06, energyBonus = 26 },
-        enemyScale = { hp = 0.82, atk = 0.92, def = 0.92 },
+        playerScale = { hp = 0.98, atk = 1.06, def = 0.98, energyBonus = 12 },
+        enemyScale = { hp = 0.86, atk = 1.06, def = 0.96 },
     },
     [101003] = {
         id = 101003,
@@ -44,8 +44,8 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        playerScale = { hp = 1.06, atk = 1.18, def = 1.04, energyBonus = 22 },
-        enemyScale = { hp = 0.90, atk = 1.00, def = 0.96 },
+        playerScale = { hp = 0.96, atk = 1.04, def = 0.98, energyBonus = 8 },
+        enemyScale = { hp = 0.92, atk = 1.14, def = 1.00 },
     },
 
     -- Elite battles
@@ -61,8 +61,8 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 1 },
-        playerScale = { hp = 1.04, atk = 1.16, def = 1.04, energyBonus = 20 },
-        enemyScale = { hp = 0.92, atk = 1.02, def = 0.98 },
+        playerScale = { hp = 0.96, atk = 1.04, def = 0.98, energyBonus = 6 },
+        enemyScale = { hp = 0.96, atk = 1.18, def = 1.02 },
     },
     [101102] = {
         id = 101102,
@@ -76,8 +76,8 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 2 },
-        playerScale = { hp = 1.02, atk = 1.14, def = 1.02, energyBonus = 18 },
-        enemyScale = { hp = 0.96, atk = 1.06, def = 1.00 },
+        playerScale = { hp = 0.94, atk = 1.02, def = 0.96, energyBonus = 4 },
+        enemyScale = { hp = 1.00, atk = 1.26, def = 1.06 },
     },
 
     -- Event battles (optional branch, still useful for vertical slice)
@@ -92,8 +92,8 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 30, max = 46 },
-        playerScale = { hp = 1.06, atk = 1.18, def = 1.04, energyBonus = 22 },
-        enemyScale = { hp = 0.84, atk = 0.94, def = 0.92 },
+        playerScale = { hp = 0.98, atk = 1.06, def = 0.98, energyBonus = 10 },
+        enemyScale = { hp = 0.86, atk = 1.06, def = 0.96 },
     },
     [101104] = {
         id = 101104,
@@ -106,8 +106,8 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 46, max = 64 },
-        playerScale = { hp = 1.04, atk = 1.16, def = 1.04, energyBonus = 20 },
-        enemyScale = { hp = 0.90, atk = 1.00, def = 0.96 },
+        playerScale = { hp = 0.95, atk = 1.03, def = 0.97, energyBonus = 5 },
+        enemyScale = { hp = 0.98, atk = 1.20, def = 1.03 },
     },
 
     -- Boss battle
@@ -123,8 +123,8 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        playerScale = { hp = 1.06, atk = 1.18, def = 1.06, energyBonus = 24 },
-        enemyScale = { hp = 1.00, atk = 1.12, def = 1.02 },
+        playerScale = { hp = 0.95, atk = 1.04, def = 0.98, energyBonus = 8 },
+        enemyScale = { hp = 1.08, atk = 1.38, def = 1.08 },
     },
 }
 
