@@ -179,7 +179,13 @@ local function canCastUltimate(hero)
         return false
     end
 
-    return BattleEnergy.CanCastUltimate(hero, skill)
+    -- Ultimate is charge-gated (per rest), not energy-gated.
+    local charges = tonumber(hero.ultimateCharges)
+    local maxCharges = tonumber(hero.ultimateChargesMax) or 1
+    if charges == nil then
+        charges = maxCharges
+    end
+    return charges > 0
 end
 
 local function serializeBuff(buff)
@@ -228,6 +234,8 @@ local function serializeHero(hero)
         saveWill = hero.saveWill or 0,
         energy = hero.curEnergy or 0,
         maxEnergy = hero.maxEnergy or 100,
+        ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
+        ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
         isAlive = hero.isAlive and not hero.isDead,
         isChanting = hero.__pendingCast ~= nil,
         pendingSkillName = hero.__pendingCast and hero.__pendingCast.skillName or nil,
@@ -573,8 +581,13 @@ local function castUltimateNow(hero)
         return false, "ultimate_on_cooldown"
     end
 
-    if not BattleEnergy.CanCastUltimate(hero, skill) then
-        return false, "energy_not_enough"
+    local charges = tonumber(hero.ultimateCharges)
+    local maxCharges = tonumber(hero.ultimateChargesMax) or 1
+    if charges == nil then
+        charges = maxCharges
+    end
+    if charges <= 0 then
+        return false, "ultimate_no_charges"
     end
 
     local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)

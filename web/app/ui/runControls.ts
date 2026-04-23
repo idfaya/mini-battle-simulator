@@ -63,6 +63,8 @@ function renderSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
   const stats = document.createElement("div");
   stats.className = "setup-grid";
   stats.innerHTML = `
+    <div class="setup-field"><span>队伍等级</span><strong>Lv.${snapshot.partyLevel}</strong></div>
+    <div class="setup-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
     <div class="setup-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
     <div class="setup-field"><span>食物</span><strong>${snapshot.food}</strong></div>
     <div class="setup-field"><span>遗物</span><strong>${snapshot.relics.length}</strong></div>

@@ -245,22 +245,22 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
-    SkillEffectRegistry.Register("full_heal_cleanse", function(ctx, frameCopy)
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        local BattleFormation = require("modules.battle_formation")
-        local allies = CollectAliveHeroes(BattleFormation.GetFriendTeam(ctx.hero) or {})
-        local healed = 0
+    SkillEffectRegistry.Register("revive_latest_ally", function(ctx, frameCopy)
+        local BattleSkill = require("modules.battle_skill")
         local Skill5eMeta = require("config.skill_5e_meta")
-        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006004)
-        local healDice = (meta and meta.healDice) or "2d6+2"
-        for _, ally in ipairs(allies) do
-            local healAmount = CalculateHealByDice(ctx.hero, ally, healDice)
-            if healAmount > 0 then
-                BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
-                healed = healed + healAmount
-            end
+        local skillId = (ctx.skill and ctx.skill.skillId) or 80006004
+        local meta = Skill5eMeta.Get(skillId) or {}
+        local revived = BattleSkill.ReviveLatestDeadAlly(ctx.hero, {
+            hpPct = tonumber(meta.revivePct) or 0.20,
+            turns = tonumber(meta.revivePenaltyTurns) or 2,
+            atkMul = tonumber(meta.revivePenaltyAtkMul) or 0.75,
+            defMul = tonumber(meta.revivePenaltyDefMul) or 0.75,
+            speedMul = tonumber(meta.revivePenaltySpeedMul) or 0.80,
+        })
+        if not revived then
+            return { effectValue = 0, targets = {} }
         end
-        return { effectValue = healed, healAmount = healed, targets = allies }
+        return { effectValue = revived.hp or 0, healAmount = revived.hp or 0, targets = { revived }, target = revived }
     end)
 
     SkillEffectRegistry.Register("battle_intent_buff", function(ctx, frameCopy)

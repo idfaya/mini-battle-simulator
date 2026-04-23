@@ -12,7 +12,7 @@ local DEF = {
             effect = "skill_80006004_execute",
             targetRef = "selected",
             tags = {
-                { tag = "full_heal_cleanse", phase = "pre" },
+                { tag = "revive_latest_ally", phase = "pre" },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80006004_end", targetRef = "selected" },
@@ -24,7 +24,6 @@ function skill_80006004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80006004
-
 
 
 

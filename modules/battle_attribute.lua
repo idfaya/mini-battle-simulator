@@ -7,6 +7,7 @@ local Logger = require("utils.logger")
 
 ---@class BattleAttribute
 local BattleAttribute = {}
+local deadOrderCounter = 0
 
 -- 属性ID定义
 BattleAttribute.ATTR_ID = {
@@ -154,6 +155,8 @@ function BattleAttribute.SetHpByVal(hero, value)
 
     -- 如果HP变为0，触发死亡状态
     if hero.hp <= 0 and oldHp > 0 then
+        deadOrderCounter = deadOrderCounter + 1
+        hero.__deadOrder = deadOrderCounter
         Logger.Log(string.format("英雄 %s HP归零，进入死亡状态", hero.name or "Unknown"))
     end
 end
@@ -291,6 +294,11 @@ function BattleAttribute.UpdateHeroAttribute(hero)
         return
     end
 
+    -- Defensive init for ad-hoc test units / partial hero tables.
+    hero.attributes.base = hero.attributes.base or {}
+    hero.attributes.final = hero.attributes.final or {}
+    hero.attributes.bonus = hero.attributes.bonus or {}
+
     -- 计算每个属性的最终值
     for attrId = 1, 10 do
         local baseValue = hero.attributes.base[attrId] or GetAttrDefaultValue(attrId)
@@ -305,6 +313,19 @@ function BattleAttribute.UpdateHeroAttribute(hero)
 
         -- 最终值 = 基础值 + 加成
         hero.attributes.final[attrId] = baseValue + totalBonus
+    end
+
+    -- Apply revival sickness as a post multiplier so it doesn't overwrite other bonuses.
+    local rp = hero.__revivePenalty
+    if rp and (rp.remainingTurns or 0) > 0 then
+        local function mulFinal(attrId, mul, minValue)
+            local v = tonumber(hero.attributes.final[attrId]) or GetAttrDefaultValue(attrId)
+            local m = tonumber(mul) or 1.0
+            hero.attributes.final[attrId] = math.max(minValue, math.floor(v * m))
+        end
+        mulFinal(BattleAttribute.ATTR_ID.ATK, rp.atkMul or 1.0, 1)
+        mulFinal(BattleAttribute.ATTR_ID.DEF, rp.defMul or 1.0, 0)
+        mulFinal(BattleAttribute.ATTR_ID.SPEED, rp.speedMul or 1.0, 0)
     end
 
     -- 更新maxHp (基于HP属性)

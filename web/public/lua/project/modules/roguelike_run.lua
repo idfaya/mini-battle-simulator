@@ -10,9 +10,42 @@ local RunEncounterGroup = require("config.roguelike.run_encounter_group")
 local HeroData = require("config.hero_data")
 
 local RoguelikeRun = {}
+local state = nil
+local cachedBattleSnapshot = nil
 local STARTER_LEVEL = 1
 -- 5e growth: no star progression.
 local STARTER_STAR = 1
+local CHAPTER_LEVEL_CAP = 10
+local EXP_BY_NODE_TYPE = {
+    battle_normal = 1,
+    battle_elite = 2,
+    boss = 3,
+    event = 1,
+    shop = 1,
+    camp = 1,
+}
+local LEVEL_EXP_THRESHOLDS = {
+    [1] = 0,
+    [2] = 1,
+    [3] = 2,
+    [4] = 3,
+    [5] = 4,
+    [6] = 5,
+    [7] = 6,
+    [8] = 7,
+    [9] = 8,
+    [10] = 9,
+    [11] = 10,
+    [12] = 11,
+    [13] = 12,
+    [14] = 13,
+    [15] = 14,
+    [16] = 15,
+    [17] = 16,
+    [18] = 17,
+    [19] = 18,
+    [20] = 19,
+}
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)
@@ -52,6 +85,71 @@ local function addUnique(list, value)
     end
 end
 
+local function getExpThreshold(level)
+    local lv = math.max(1, tonumber(level) or 1)
+    return LEVEL_EXP_THRESHOLDS[lv] or (lv - 1)
+end
+
+local function getExpToNextLevel(level)
+    local lv = math.max(1, tonumber(level) or 1)
+    return math.max(1, getExpThreshold(lv + 1) - getExpThreshold(lv))
+end
+
+local function getNodeExp(nodeType)
+    return tonumber(EXP_BY_NODE_TYPE[nodeType]) or 0
+end
+
+local function applyRosterLevel(hero, newLevel)
+    if not hero then
+        return
+    end
+    local attrs = HeroData.CalculateHeroAttributes(hero.heroId, newLevel, 1)
+    if not attrs then
+        return
+    end
+    local oldMaxHp = tonumber(hero.maxHp) or 1
+    local oldCurrentHp = tonumber(hero.currentHp) or 0
+    hero.level = attrs.level or newLevel
+    hero.star = 1
+    hero.maxHp = attrs.maxHp or oldMaxHp
+    if hero.isDead then
+        hero.currentHp = 0
+    else
+        local deltaHp = hero.maxHp - oldMaxHp
+        hero.currentHp = math.max(1, math.min(hero.maxHp, oldCurrentHp + deltaHp))
+    end
+end
+
+local function grantRunExp(amount, sourceLabel)
+    local gain = math.max(0, math.floor(tonumber(amount) or 0))
+    if gain <= 0 then
+        return 0
+    end
+    state.partyExp = (state.partyExp or 0) + gain
+    local oldLevel = state.partyLevel or STARTER_LEVEL
+    local newLevel = oldLevel
+    local cap = state.levelCap or CHAPTER_LEVEL_CAP
+    while newLevel < cap and (state.partyExp or 0) >= getExpThreshold(newLevel + 1) do
+        newLevel = newLevel + 1
+    end
+    if newLevel > oldLevel then
+        state.partyLevel = newLevel
+        for _, hero in ipairs(state.teamRoster or {}) do
+            applyRosterLevel(hero, newLevel)
+        end
+        for _, hero in ipairs(state.benchRoster or {}) do
+            applyRosterLevel(hero, newLevel)
+        end
+        state.lastActionMessage = string.format("%s，队伍升到 Lv.%d", sourceLabel or "获得经验", newLevel)
+    else
+        state.lastActionMessage = string.format("%s，获得 %d 经验", sourceLabel or "获得经验", gain)
+    end
+    local currentThreshold = getExpThreshold(newLevel)
+    state.levelProgressExp = math.max(0, (state.partyExp or 0) - currentThreshold)
+    state.nextLevelExp = newLevel >= cap and 0 or getExpToNextLevel(newLevel)
+    return gain
+end
+
 local function buildStarterRoster(runState, heroIds)
     local roster = {}
     for _, heroId in ipairs(heroIds or {}) do
@@ -68,6 +166,8 @@ local function buildStarterRoster(runState, heroIds)
                 maxHp = attrs.maxHp,
                 currentHp = attrs.maxHp,
                 isDead = false,
+                ultimateCharges = 1,
+                ultimateChargesMax = 1,
                 source = "starter",
             }
         end
@@ -95,6 +195,10 @@ local function resetRunState()
         campState = nil,
         chapterResult = nil,
         lastActionMessage = "",
+        partyLevel = STARTER_LEVEL,
+        partyExp = 0,
+        levelProgressExp = 0,
+        levelCap = CHAPTER_LEVEL_CAP,
         shopRefreshCount = 0,
         shopSoldMap = {},
         pendingRecruitHeroId = nil,
@@ -106,8 +210,8 @@ local function resetRunState()
     }
 end
 
-local state = resetRunState()
-local cachedBattleSnapshot = nil
+state = resetRunState()
+cachedBattleSnapshot = nil
 
 local function refreshAvailableNodes()
     local available = RoguelikeMap.GetAvailableNextNodeIds(state.currentNodeId, state.visitedNodeIds, state.chapterId)
@@ -175,6 +279,16 @@ local function openReward(groupId)
     local rewardState = RoguelikeReward.GenerateRewardState(groupId)
     if not rewardState then
         return false, "reward_group_not_found"
+    end
+    state.phase = "reward"
+    state.rewardState = rewardState
+    return true
+end
+
+local function openBattleRecruitReward()
+    local rewardState = RoguelikeReward.GenerateRecruitRewardState(state, 3)
+    if not rewardState then
+        return false, "battle_recruit_unavailable"
     end
     state.phase = "reward"
     state.rewardState = rewardState
@@ -250,6 +364,11 @@ function RoguelikeRun.StartRun(config)
     state.gold = chapter.startGold or 0
     state.food = chapter.startFood or 0
     state.maxHeroCount = chapter.maxHeroCount or 5
+    state.partyLevel = STARTER_LEVEL
+    state.partyExp = 0
+    state.levelProgressExp = 0
+    state.levelCap = tonumber(chapter.targetMaxLevel) or CHAPTER_LEVEL_CAP
+    state.nextLevelExp = getExpToNextLevel(STARTER_LEVEL)
 
     local starterHeroIds = (config or {}).starterHeroIds or { 900005, 900007, 900002 }
     state.teamRoster = buildStarterRoster(state, starterHeroIds)
@@ -311,17 +430,20 @@ function RoguelikeRun.Tick(deltaMs)
 
         if resolved.won then
             local node = RunNodePool.GetNode(state.currentNodeId)
+            if node then
+                grantRunExp(getNodeExp(node.nodeType), "战斗胜利")
+            end
             if node and node.nodeType == "boss" then
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}
                 state.gold = (state.gold or 0) + (clearRewards.gold or 0)
                 state.rewardReturnMode = "chapter_result"
-                openReward(node.rewardGroupId or clearRewards.rewardGroupId)
+                openBattleRecruitReward()
                 return events or {}
             end
 
             state.rewardReturnMode = "map"
-            openReward(state.battleRewardGroupId)
+            openBattleRecruitReward()
         else
             state.phase = "failed"
             state.chapterResult = {
@@ -397,6 +519,9 @@ function RoguelikeRun.ChooseEventOption(optionId)
 
     local result = resultOrReason or {}
     if result.kind == "done" then
+        if node then
+            grantRunExp(getNodeExp(node.nodeType), "完成事件")
+        end
         leaveNodeBackToMap()
         return true
     end
@@ -406,12 +531,18 @@ function RoguelikeRun.ChooseEventOption(optionId)
     if result.kind == "blessing" then
         state.blessingIds = state.blessingIds or {}
         addUnique(state.blessingIds, result.blessingId)
+        if node then
+            grantRunExp(getNodeExp(node.nodeType), "完成事件")
+        end
         leaveNodeBackToMap()
         return true
     end
     if result.kind == "relic" then
         state.relicIds = state.relicIds or {}
         addUnique(state.relicIds, result.relicId)
+        if node then
+            grantRunExp(getNodeExp(node.nodeType), "完成事件")
+        end
         leaveNodeBackToMap()
         return true
     end
@@ -419,6 +550,9 @@ function RoguelikeRun.ChooseEventOption(optionId)
         local added, reason = RoguelikeReward.AddRecruit(state, result.heroId)
         if not added then
             return false, reason
+        end
+        if node then
+            grantRunExp(getNodeExp(node.nodeType), "完成事件")
         end
         leaveNodeBackToMap()
         return true
@@ -477,6 +611,10 @@ function RoguelikeRun.ShopLeave()
     if state.phase ~= "shop" then
         return false, "not_in_shop"
     end
+    local node = RunNodePool.GetNode(state.currentNodeId)
+    if node then
+        grantRunExp(getNodeExp(node.nodeType), "完成商店节点")
+    end
     leaveNodeBackToMap()
     return true
 end
@@ -490,6 +628,7 @@ function RoguelikeRun.CampChoose(actionId)
     if not ok then
         return false, reason
     end
+    grantRunExp(getNodeExp(node.nodeType), "完成营地节点")
     leaveNodeBackToMap()
     return true
 end

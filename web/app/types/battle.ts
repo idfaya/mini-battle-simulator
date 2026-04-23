@@ -26,6 +26,8 @@ export type UnitState = {
   saveWill: number;
   energy: number;
   maxEnergy: number;
+  ultimateCharges: number;
+  ultimateChargesMax: number;
   isAlive: boolean;
   isChanting: boolean;
   pendingSkillName: string | null;

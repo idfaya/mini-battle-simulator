@@ -11,6 +11,17 @@ local function applyTeamHeal(runState, healPct)
     end
 end
 
+local function restoreUltimateCharges(runState)
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+        hero.ultimateCharges = hero.ultimateChargesMax
+    end
+    for _, hero in ipairs(runState.benchRoster or {}) do
+        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+        hero.ultimateCharges = hero.ultimateChargesMax
+    end
+end
+
 local function reviveOne(runState, healPct)
     for _, hero in ipairs(runState.teamRoster or {}) do
         if hero.isDead then
@@ -78,7 +89,8 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
 
     if selected.effectType == "team_heal_pct" then
         applyTeamHeal(runState, (selected.params or {}).value)
-        runState.lastActionMessage = "营地休息"
+        restoreUltimateCharges(runState)
+        runState.lastActionMessage = "营地休息，大招次数恢复"
         return true
     end
     if selected.effectType == "grant_blessing" then

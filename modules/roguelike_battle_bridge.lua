@@ -140,6 +140,11 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     heroData.healBonus = math.max(0, math.floor((heroData.healBonus or 0) + ((modifiers.healBonusByClass[rosterHero.classId] or 0) * 10000)))
     heroData.wpType = rosterHero.wpType or 1
     heroData.id = rosterHero.heroId
+    heroData.ultimateChargesMax = tonumber(rosterHero.ultimateChargesMax) or 1
+    heroData.ultimateCharges = tonumber(rosterHero.ultimateCharges)
+    if heroData.ultimateCharges == nil then
+        heroData.ultimateCharges = heroData.ultimateChargesMax
+    end
     return heroData
 end
 
@@ -284,6 +289,10 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
             rosterHero.maxHp = math.max(rosterHero.maxHp or 1, battleHero.maxHp or rosterHero.maxHp or 1)
             rosterHero.currentHp = math.max(0, math.floor(battleHero.hp or 0))
             rosterHero.isDead = not (battleHero.isAlive and not battleHero.isDead)
+            rosterHero.ultimateChargesMax = tonumber(battleHero.ultimateChargesMax) or tonumber(rosterHero.ultimateChargesMax) or 1
+            rosterHero.ultimateCharges = tonumber(battleHero.ultimateCharges)
+                or tonumber(rosterHero.ultimateCharges)
+                or rosterHero.ultimateChargesMax
         else
             rosterHero.currentHp = 0
             rosterHero.isDead = true

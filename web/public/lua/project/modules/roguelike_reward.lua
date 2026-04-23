@@ -5,7 +5,7 @@ local HeroData = require("config.hero_data")
 
 local RoguelikeReward = {}
 local RECRUIT_LEVEL = 1
-local RECRUIT_STAR = 4
+local RECRUIT_STAR = 1
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)
@@ -17,6 +17,15 @@ end
 local function contains(list, value)
     for _, item in ipairs(list or {}) do
         if item == value then
+            return true
+        end
+    end
+    return false
+end
+
+local function containsHeroId(roster, heroId)
+    for _, hero in ipairs(roster or {}) do
+        if tonumber(hero.heroId) == tonumber(heroId) then
             return true
         end
     end
@@ -100,7 +109,8 @@ local function addUnique(list, value)
 end
 
 local function createHeroRecord(runState, heroId)
-    local attrs = HeroData.CalculateHeroAttributes(heroId, RECRUIT_LEVEL, RECRUIT_STAR)
+    local recruitLevel = math.max(RECRUIT_LEVEL, tonumber(runState and runState.partyLevel) or RECRUIT_LEVEL)
+    local attrs = HeroData.CalculateHeroAttributes(heroId, recruitLevel, RECRUIT_STAR)
     local heroInfo = HeroData.GetHeroInfo(heroId)
     if not attrs or not heroInfo then
         return nil
@@ -111,7 +121,7 @@ local function createHeroRecord(runState, heroId)
         heroId = heroId,
         name = HeroData.GetHeroName(heroId),
         classId = heroInfo.Class or 0,
-        level = attrs.level or RECRUIT_LEVEL,
+        level = attrs.level or recruitLevel,
         star = attrs.star or RECRUIT_STAR,
         maxHp = attrs.maxHp,
         currentHp = attrs.maxHp,
@@ -126,11 +136,21 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
     if not heroRecord then
         return false, "invalid_recruit"
     end
+    heroRecord.ultimateChargesMax = heroRecord.ultimateChargesMax or 1
+    heroRecord.ultimateCharges = heroRecord.ultimateCharges or heroRecord.ultimateChargesMax
 
     if recruitOptions.forceBench then
         runState.benchRoster[#runState.benchRoster + 1] = heroRecord
         runState.lastActionMessage = "新招募已加入候补"
         return true, heroRecord
+    end
+
+    for index, rosterHero in ipairs(runState.teamRoster or {}) do
+        if rosterHero.isDead or (tonumber(rosterHero.currentHp) or 0) <= 0 then
+            runState.teamRoster[index] = heroRecord
+            runState.lastActionMessage = "新招募已补入上阵空缺"
+            return true, heroRecord
+        end
     end
 
     if #(runState.teamRoster or {}) < (runState.maxHeroCount or 5) then
@@ -142,6 +162,45 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
     end
 
     return true, heroRecord
+end
+
+function RoguelikeReward.GenerateRecruitRewardState(runState, optionCount)
+    local count = math.max(1, tonumber(optionCount) or 3)
+    local pool = HeroData.GetAllHeroIds() or {}
+    local candidates = {}
+    for _, heroId in ipairs(pool) do
+        if not containsHeroId(runState.teamRoster, heroId) and not containsHeroId(runState.benchRoster, heroId) then
+            candidates[#candidates + 1] = heroId
+        end
+    end
+    if #candidates < count then
+        candidates = {}
+        for _, heroId in ipairs(pool) do
+            candidates[#candidates + 1] = heroId
+        end
+    end
+
+    local options = {}
+    local picked = {}
+    while #options < count and #picked < #candidates do
+        local idx = math.random(1, #candidates)
+        local heroId = candidates[idx]
+        if not picked[heroId] then
+            picked[heroId] = true
+            options[#options + 1] = {
+                rewardType = "recruit",
+                refId = heroId,
+                label = "招募 " .. HeroData.GetHeroName(heroId),
+                description = HeroData.GetClassName((HeroData.GetHeroInfo(heroId) or {}).Class or 0),
+            }
+        end
+    end
+
+    return {
+        groupId = 0,
+        kind = "battle_recruit",
+        options = options,
+    }
 end
 
 function RoguelikeReward.GenerateRewardState(groupId)

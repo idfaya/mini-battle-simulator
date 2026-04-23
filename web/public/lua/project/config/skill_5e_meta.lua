@@ -49,7 +49,14 @@ local OVERRIDES = {
     [80006001] = { kind = "auto", healDice = "1d8+1" },
     [80006002] = { kind = "auto", healDice = "1d4" },    -- passive tick
     [80006003] = { kind = "auto", healDice = "1d8+2" },  -- heals 2 allies
-    [80006004] = { kind = "auto", healDice = "2d6+2" },  -- team prayer
+    [80006004] = {
+        kind = "auto",
+        revivePct = 0.20,
+        revivePenaltyTurns = 2,
+        revivePenaltyAtkMul = 0.75,
+        revivePenaltyDefMul = 0.75,
+        revivePenaltySpeedMul = 0.80,
+    },  -- revive latest dead ally
 
     -- Fire (M1) - all offensive spells use save vs spellDC (ref)
     [80007001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half", damageDice = "3d8+4" },

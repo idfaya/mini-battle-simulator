@@ -131,6 +131,10 @@ export type RunSnapshot = {
   chapterId: number;
   currentNodeId: number | null;
   maxHeroCount: number;
+  partyLevel: number;
+  partyExp: number;
+  levelProgressExp: number;
+  nextLevelExp: number;
   gold: number;
   food: number;
   lastActionMessage: string;

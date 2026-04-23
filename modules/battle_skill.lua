@@ -37,7 +37,7 @@ local SPECIAL_EFFECT_TAGS = {
     [80005004] = "poison_burst",
     [80006001] = "holy_light",
     [80006003] = "group_heal",
-    [80006004] = "full_heal_cleanse",
+    [80006004] = "revive_latest_ally",
 }
 
 -- 是否已初始化
@@ -774,10 +774,16 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
 
     BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
 
-    if skill.skillType == E_SKILL_TYPE_ULTIMATE and skill.skillCost and skill.skillCost > 0 then
-        BattleEnergy.ConsumeEnergy(hero, skill.skillCost)
-        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗能量: %d, 剩余能量: %d",
-            hero.name or "Unknown", skill.skillCost, hero.curEnergy))
+    if skill.skillType == E_SKILL_TYPE_ULTIMATE then
+        -- Ultimate is charge-gated (per rest), not energy-gated.
+        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+        hero.ultimateCharges = tonumber(hero.ultimateCharges)
+        if hero.ultimateCharges == nil then
+            hero.ultimateCharges = hero.ultimateChargesMax
+        end
+        hero.ultimateCharges = math.max(0, hero.ultimateCharges - 1)
+        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗次数: %d/%d",
+            hero.name or "Unknown", hero.ultimateCharges, hero.ultimateChargesMax))
     end
 
     Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skill.skillId) .. ", hero: " .. tostring(hero.name))
@@ -2082,8 +2088,9 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     
     local roll = math.random(1, 10000)
     if roll <= comboRate then
-        Logger.Log(string.format("[ProcessComboEffect] %s 触发连击！概率: %d%%", 
-            hero.name or "Unknown", comboRate / 100))
+        local pct = math.floor((tonumber(comboRate) or 0) / 100)
+        Logger.Log(string.format("[ProcessComboEffect] %s 触发连击！概率: %d%%",
+            hero.name or "Unknown", pct))
         return 1
     end
     
@@ -2379,6 +2386,75 @@ function BattleSkill.ApplyFreeze(target, turns, slowPct, caster)
         target.name or "Unknown", turns or 0, slowPct or 0))
 end
 
+function BattleSkill.ReviveLatestDeadAlly(hero, optsOrPct)
+    local BattleFormation = require("modules.battle_formation")
+    local BattleEvent = require("core.battle_event")
+    local BattleVisualEvents = require("ui.battle_visual_events")
+    local BattleAttribute = require("modules.battle_attribute")
+    local allies = BattleFormation.GetFriendTeam(hero) or {}
+    local latestDead = nil
+    local bestOrder = -1
+    for _, ally in ipairs(allies) do
+        if ally and (ally.isDead or not ally.isAlive or (tonumber(ally.hp) or 0) <= 0) then
+            local ord = tonumber(ally.__deadOrder) or -1
+            if ord > bestOrder then
+                bestOrder = ord
+                latestDead = ally
+            elseif bestOrder < 0 then
+                -- Fallback: no dead order info; keep "last in array" behavior.
+                latestDead = ally
+            end
+        end
+    end
+    if not latestDead then
+        return nil
+    end
+
+    local opts = {}
+    if type(optsOrPct) == "table" then
+        opts = optsOrPct
+    else
+        opts.hpPct = optsOrPct
+    end
+
+    local maxHp = tonumber(latestDead.maxHp) or 1
+    local reviveHpPct = tonumber(opts.hpPct)
+    if reviveHpPct == nil then
+        reviveHpPct = 0.20
+    end
+    local reviveHp = math.max(1, math.floor(maxHp * reviveHpPct))
+    BattleAttribute.SetHpByVal(latestDead, reviveHp)
+    latestDead.isAlive = true
+    latestDead.isDead = false
+    latestDead.__deadOrder = nil
+
+    -- Revival sickness: apply as an attribute-layer multiplier so it stacks with other bonuses.
+    latestDead.__revivePenalty = {
+        atkMul = tonumber(opts.atkMul) or 0.75,
+        defMul = tonumber(opts.defMul) or 0.75,
+        speedMul = tonumber(opts.speedMul) or 0.80,
+        remainingTurns = tonumber(opts.turns) or 2,
+    }
+    latestDead.__skipNextAction = true
+    if latestDead.attributes
+        and latestDead.attributes.base
+        and latestDead.attributes.base[BattleAttribute.ATTR_ID.HP]
+    then
+        BattleAttribute.UpdateHeroAttribute(latestDead)
+    end
+
+    BattleEvent.Publish(BattleVisualEvents.HERO_REVIVED, {
+        eventType = BattleVisualEvents.HERO_REVIVED,
+        heroId = latestDead.id,
+        heroName = latestDead.name,
+        team = latestDead.isLeft and "left" or "right",
+        hp = latestDead.hp,
+        maxHp = latestDead.maxHp or maxHp,
+    })
+    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(latestDead))
+    return latestDead
+end
+
 function BattleSkill.ProcessTurnStartStatus(hero)
     if not hero or hero.isDead then
         return false
@@ -2386,6 +2462,26 @@ function BattleSkill.ProcessTurnStartStatus(hero)
 
     local BattleBuff = require("modules.battle_buff")
     BattleBuff.OnRoundBegin(hero)
+
+    if hero.__skipNextAction then
+        hero.__skipNextAction = false
+        Logger.Log(string.format("[ProcessTurnStartStatus] %s 因复活虚弱跳过行动", hero.name or "Unknown"))
+        return false
+    end
+
+    if hero.__revivePenalty and (hero.__revivePenalty.remainingTurns or 0) > 0 then
+        hero.__revivePenalty.remainingTurns = hero.__revivePenalty.remainingTurns - 1
+        if hero.__revivePenalty.remainingTurns <= 0 then
+            hero.__revivePenalty = nil
+            if hero.attributes
+                and hero.attributes.base
+                and hero.attributes.base[require("modules.battle_attribute").ATTR_ID.HP]
+            then
+                local BattleAttribute = require("modules.battle_attribute")
+                BattleAttribute.UpdateHeroAttribute(hero)
+            end
+        end
+    end
 
     if BattleBuff.IsHeroUnderControl(hero) then
         Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))

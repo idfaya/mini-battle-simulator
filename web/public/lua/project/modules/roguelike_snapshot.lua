@@ -25,6 +25,8 @@ local function serializeTeam(roster)
             hp = hero.currentHp,
             maxHp = hero.maxHp,
             isDead = hero.isDead == true,
+            ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
+            ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
         }
     end
     return result
@@ -99,6 +101,10 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         chapterId = runState.chapterId,
         currentNodeId = runState.currentNodeId,
         maxHeroCount = runState.maxHeroCount or 5,
+        partyLevel = runState.partyLevel or 1,
+        partyExp = runState.partyExp or 0,
+        levelProgressExp = runState.levelProgressExp or 0,
+        nextLevelExp = runState.nextLevelExp or 0,
         gold = runState.gold or 0,
         food = runState.food or 0,
         lastActionMessage = runState.lastActionMessage or "",

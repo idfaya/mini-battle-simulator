@@ -62,6 +62,7 @@ local DEFAULT_CONFIG = {
     maxBattleTicks = 1200,
     verbose = false,
     shopPolicy = "basic",
+    autoUltimate = false,
     starterHeroIds = { 900005, 900007, 900002 },
 }
 
@@ -327,7 +328,7 @@ local function resolveBattle(config)
     local maxRoundSeen = startRound
     while ticks < config.maxBattleTicks do
         ticks = ticks + 1
-        local readyHeroId = findReadyHero(snapshot)
+        local readyHeroId = config.autoUltimate and findReadyHero(snapshot) or nil
         if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
             Run.QueueBattleCommand({
                 type = "cast_ultimate",

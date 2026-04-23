@@ -216,13 +216,14 @@ do
     assert_true(target.hp < target.maxHp, "PoisonBurst deals damage")
 end
 
--- Test 7: Cleric ultimate heals but does not auto-cleanse (80006004)
+-- Test 7: Cleric ultimate revives latest dead ally with penalty (80006004)
 do
     local hero = new_unit(1501, "Tester_Holy", 10000, 200, 0)
     hero.isLeft = true
     local ally = new_unit(1502, "Holy_Ally", 10000, 0, 0)
     ally.isLeft = true
-    ally.hp = 2500
+    local BattleAttribute = require("modules.battle_attribute")
+    BattleAttribute.SetHpByVal(ally, 0)
     local BattleFormation = require("modules.battle_formation")
     local oldGetFriendTeam = BattleFormation.GetFriendTeam
     BattleFormation.GetFriendTeam = function(src)
@@ -235,14 +236,16 @@ do
     BattleSkill.ApplyFreeze(ally, 2, 3000, hero)
     assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) > 0, "Holy target has poison before cleanse")
     local skillLua = require("config.skill.skill_80006004")
-    local timeline = skillLua.BuildTimeline(hero, { ally }, { skillId = 80006004, name = "圣光普照" })
+    local timeline = skillLua.BuildTimeline(hero, { ally }, { skillId = 80006004, name = "复苏祷言" })
     local SkillTimeline = require("core.skill_timeline")
-    local ok, _ = SkillTimeline.Execute(hero, { ally }, { skillId = 80006004, name = "圣光普照" }, timeline)
+    local ok, _ = SkillTimeline.Execute(hero, { ally }, { skillId = 80006004, name = "复苏祷言" }, timeline)
     BattleFormation.GetFriendTeam = oldGetFriendTeam
-    assert_true(ok, "HolyRadiance timeline execute ok")
-    assert_true(ally.hp > 2500, "HolyRadiance heals ally")
-    assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) > 0, "Cleric ultimate does not auto-cleanse poison")
-    assert_true(BattleBuff.IsHeroUnderControl(ally) == true, "Cleric ultimate does not auto-remove control")
+    assert_true(ok, "RevivePrayer timeline execute ok")
+    assert_true(ally.isAlive and not ally.isDead, "RevivePrayer revives ally")
+    assert_true(ally.hp == 2000, "RevivePrayer restores ally to 20% max hp")
+    assert_true(BattleBuff.GetBuffStackNumBySubType(ally, 850001) > 0, "RevivePrayer does not auto-cleanse poison")
+    assert_true(BattleBuff.IsHeroUnderControl(ally) == true, "RevivePrayer does not auto-remove control")
+    assert_true(BattleSkill.ProcessTurnStartStatus(ally) == false, "Revived ally skips next action")
 end
 
 -- Test 8: Combo slash triggers extra small skill when combo effect returns 1 (80003001)
@@ -471,9 +474,9 @@ do
     math.randomseed(54321)
     local baseHealHero = new_unit(1903, "Heal_NoAura", 10000, 300, 0)
     local healTarget = new_unit(1904, "Heal_Target", 10000, 0, 0)
-    local baseHeal = BattleSkill.CalculateHealDice(baseHealHero, healTarget, "2d6+2")
+    local baseHeal = BattleSkill.CalculateHealDice(baseHealHero, healTarget, "20d6+20")
     math.randomseed(54321)
-    local auraHeal = BattleSkill.CalculateHealDice(hero, healTarget, "2d6+2")
+    local auraHeal = BattleSkill.CalculateHealDice(hero, healTarget, "20d6+20")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
     assert_true(auraHeal > baseHeal, "WarGod increases heal through aura and war spirit")
 end
