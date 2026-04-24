@@ -8,11 +8,12 @@ local DEF = {
         { frame = 0, op = "cast", effect = "skill_80003004_cast", targetRef = "selected" },
         {
             frame = 42,
-            op = "effect",
+            op = "damage",
             effect = "skill_80003004_execute",
             targetRef = "selected",
+            damageRate = 13500,
             tags = {
-                { tag = "random_hits_damage", phase = "pre", param = { hits = 5, damageRate = 4000, pursuitOnKill = true } },
+                { tag = "apply_buff_targets", phase = "post", param = { buffId = 880002 } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80003004_end", targetRef = "selected" },
@@ -24,6 +25,5 @@ function skill_80003004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80003004
-
 
 

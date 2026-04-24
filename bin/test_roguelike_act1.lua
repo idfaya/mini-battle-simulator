@@ -18,29 +18,64 @@ require("core.battle_default_types")
 require("modules.BattleDefaultTypesOpt")
 
 local Run = require("modules.roguelike_run")
+local BattleFormation = require("modules.battle_formation")
 
-local function findReadyHero(snapshot)
-    local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
-    if not battleSnapshot then
+local function getUltimateSkillForUnit(unitId)
+    local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
+    local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
+    if not instances then
         return nil
     end
-    for _, unit in ipairs(battleSnapshot.leftTeam or {}) do
-        if unit.isAlive and unit.ultimateReady then
-            return unit.id
+    for _, skill in pairs(instances) do
+        if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            return skill
         end
     end
     return nil
 end
 
+local function isEnemyOrOutputUltimate(unit)
+    if not unit or not unit.id or unit.ultimateReady ~= true then
+        return false
+    end
+
+    local ult = getUltimateSkillForUnit(unit.id)
+    if not ult then
+        return false
+    end
+
+    local ts = ult.targetsSelections or (ult.config and ult.config.targetsSelections) or nil
+    local castTarget = ts and ts.castTarget or ult.castTarget
+    if castTarget == E_CAST_TARGET.Enemy or castTarget == E_CAST_TARGET.EnemyPos then
+        return true
+    end
+
+    -- "输出型"：用技能描述里的骰子/伤害关键词做保守判断；治疗/复活类不自动点。
+    local desc = (ult.skillConfig and ult.skillConfig.Description) or ""
+    if desc:find("治疗") or desc:find("复活") then
+        return false
+    end
+    if desc:find("伤害骰") or desc:find("%dd%d+") or desc:find("d%d+") then
+        return true
+    end
+    return false
+end
+
 local function runBattleUntilResolved(maxSteps)
     local snapshot = Run.GetSnapshot()
+    local castedUltimate = false
     for _ = 1, maxSteps do
-        local readyHeroId = findReadyHero(snapshot)
-        if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
-            Run.QueueBattleCommand({
-                type = "cast_ultimate",
-                heroId = readyHeroId,
-            })
+        if not castedUltimate and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
+            for _, unit in ipairs(snapshot.battleSnapshot.leftTeam or {}) do
+                if isEnemyOrOutputUltimate(unit) then
+                    Run.QueueBattleCommand({
+                        type = "cast_ultimate",
+                        heroId = unit.id,
+                    })
+                    castedUltimate = true
+                    break
+                end
+            end
         end
         Run.Tick(800)
         snapshot = Run.GetSnapshot()

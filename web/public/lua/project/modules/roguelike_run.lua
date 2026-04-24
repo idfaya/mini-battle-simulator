@@ -168,6 +168,8 @@ local function buildStarterRoster(runState, heroIds)
                 isDead = false,
                 ultimateCharges = 1,
                 ultimateChargesMax = 1,
+                -- Persisted skill cooldowns across battles. Map: skillId -> rounds remaining.
+                skillCooldowns = {},
                 source = "starter",
             }
         end

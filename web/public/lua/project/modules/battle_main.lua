@@ -107,9 +107,12 @@ local function InitSubsystems(beginState)
     -- 1. 初始化战斗数学模块（随机数生成器）
     if beginState.seedArray then
         BattleMath.Init(beginState.seedArray)
+        -- Keep Lua's global RNG deterministic too, since some subsystems still use math.random.
+        math.randomseed(tonumber(beginState.seedArray[1]) or 123456789)
     else
         -- 使用默认种子
         BattleMath.Init({123456789, 362436069, 521288629, 88675123})
+        math.randomseed(123456789)
     end
     Logger.Debug("  BattleMath 初始化完成")
 

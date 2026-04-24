@@ -568,6 +568,18 @@ function BattleSkill.Init(hero, skillsConfig)
         end
     end
 
+    -- Optional: allow external systems (e.g. roguelike) to inject starting cooldowns.
+    -- Keys are skillIds, values are integer rounds remaining.
+    if type(hero.initialCooldowns) == "table" then
+        for k, v in pairs(hero.initialCooldowns) do
+            local sid = tonumber(k)
+            if sid then
+                local cd = math.max(0, math.floor(tonumber(v) or 0))
+                hero.skillData.coolDowns[sid] = cd
+            end
+        end
+    end
+
     Logger.Log("[BattleSkill.Init] Initialized " .. #hero.skills .. " skills for hero: " .. tostring(hero.name))
 end
 
@@ -812,8 +824,8 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
 
     BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
 
-    if skill.skillType == E_SKILL_TYPE_ULTIMATE then
-        -- Ultimate is charge-gated (per rest), not energy-gated.
+    if skill.skillType == E_SKILL_TYPE_LIMITED then
+        -- Limited-use skills are gated by per-rest charges (legacy fields: ultimateCharges/ultimateChargesMax).
         hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
         hero.ultimateCharges = tonumber(hero.ultimateCharges)
         if hero.ultimateCharges == nil then
@@ -854,6 +866,18 @@ local function PrepareSkillCast(hero, target, skillId)
     if curCd > 0 then
         Logger.Log("[BattleSkill.CastSkillInSeq] Skill in cooldown: " .. tostring(skillId) .. ", cd: " .. curCd)
         return nil
+    end
+
+    if skill.skillType == E_SKILL_TYPE_LIMITED then
+        local maxCharges = tonumber(hero.ultimateChargesMax) or 1
+        local charges = tonumber(hero.ultimateCharges)
+        if charges == nil then
+            charges = maxCharges
+        end
+        if charges <= 0 then
+            Logger.Log("[BattleSkill.CastSkillInSeq] Skill has no charges: " .. tostring(skillId))
+            return nil
+        end
     end
 
     local targets = target and { target } or BattleSkill.SelectTarget(hero, skill)

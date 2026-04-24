@@ -33,6 +33,27 @@ local function reviveOne(runState, healPct)
     return false
 end
 
+local function clearAllSkillCooldowns(runState)
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        hero.skillCooldowns = {}
+    end
+    for _, hero in ipairs(runState.benchRoster or {}) do
+        hero.skillCooldowns = {}
+    end
+end
+
+local function healTeamAddPctOfMax(runState, pct)
+    local p = tonumber(pct) or 0
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        if not hero.isDead then
+            local maxHp = tonumber(hero.maxHp) or 0
+            local add = math.floor(maxHp * p)
+            local cur = tonumber(hero.currentHp) or 0
+            hero.currentHp = math.min(maxHp, cur + add)
+        end
+    end
+end
+
 function RoguelikeCamp.GetCamp(campId)
     return RunCampConfig.GetCamp(campId)
 end
@@ -88,9 +109,14 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
     end
 
     if selected.effectType == "team_heal_pct" then
-        applyTeamHeal(runState, (selected.params or {}).value)
+        -- Camp is treated as long rest:
+        -- - clear all cooldowns
+        -- - restore ultimate charges
+        -- - HP heals by +50% max HP (capped to full)
+        healTeamAddPctOfMax(runState, 0.50)
+        clearAllSkillCooldowns(runState)
         restoreUltimateCharges(runState)
-        runState.lastActionMessage = "营地休息，大招次数恢复"
+        runState.lastActionMessage = "篝火长休：清CD与次数，血量+50%上限"
         return true
     end
     if selected.effectType == "grant_blessing" then

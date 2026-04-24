@@ -5,7 +5,10 @@
 
 E_SKILL_TYPE_NORMAL = 1
 E_SKILL_TYPE_ACTIVE = 2    -- 主动技能
-E_SKILL_TYPE_ULTIMATE = 3  -- 大招
+-- Legacy name kept for compatibility. In the 5e refactor we no longer have "ultimate".
+-- Value 3 is treated as "limited-use" (per-rest charges) skill.
+E_SKILL_TYPE_ULTIMATE = 3
+E_SKILL_TYPE_LIMITED = 3
 E_SKILL_TYPE_PASSIVE = 4
 E_SKILL_TYPE_COLLECT = 5
 E_SKILL_TYPE_HIDE = 9

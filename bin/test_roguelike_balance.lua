@@ -22,6 +22,7 @@ local RunNodePool = require("config.roguelike.run_node_pool")
 local RunShopGoods = require("config.roguelike.run_shop_goods")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RunRelicConfig = require("config.roguelike.run_relic_config")
+local BattleFormation = require("modules.battle_formation")
 
 --[[
 平衡测试工具
@@ -62,7 +63,7 @@ local DEFAULT_CONFIG = {
     maxBattleTicks = 1200,
     verbose = false,
     shopPolicy = "basic",
-    autoUltimate = false,
+    autoUltimate = true,
     starterHeroIds = { 900005, 900007, 900002 },
 }
 
@@ -233,13 +234,53 @@ local function getBattleTeamStats(snapshot)
     return totalHp, totalMaxHp, aliveCount
 end
 
+local function getUltimateSkillForUnit(unitId)
+    local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
+    local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
+    if not instances then
+        return nil
+    end
+    for _, skill in pairs(instances) do
+        if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            return skill
+        end
+    end
+    return nil
+end
+
+local function isEnemyOrOutputUltimate(unit)
+    if not unit or not unit.id or unit.ultimateReady ~= true then
+        return false
+    end
+
+    local ult = getUltimateSkillForUnit(unit.id)
+    if not ult then
+        return false
+    end
+
+    local ts = ult.targetsSelections or (ult.config and ult.config.targetsSelections) or nil
+    local castTarget = ts and ts.castTarget or ult.castTarget
+    if castTarget == E_CAST_TARGET.Enemy or castTarget == E_CAST_TARGET.EnemyPos then
+        return true
+    end
+
+    local desc = (ult.skillConfig and ult.skillConfig.Description) or ""
+    if desc:find("治疗") or desc:find("复活") then
+        return false
+    end
+    if desc:find("伤害骰") or desc:find("%dd%d+") or desc:find("d%d+") then
+        return true
+    end
+    return false
+end
+
 local function findReadyHero(snapshot)
     local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
     if not battleSnapshot then
         return nil
     end
     for _, unit in ipairs(battleSnapshot.leftTeam or {}) do
-        if unit.isAlive and unit.ultimateReady then
+        if isEnemyOrOutputUltimate(unit) then
             return unit.id
         end
     end
@@ -336,18 +377,20 @@ end
 local function resolveBattle(config)
     local snapshot = Run.GetSnapshot()
     local ticks = 0
+    local castedUltimate = false
     local startRound = getBattleRound(snapshot)
     local lastRound = startRound
     local maxRoundSeen = startRound
     local lastBattleHp, lastBattleMaxHp, lastBattleAlive = getBattleTeamStats(snapshot)
     while ticks < config.maxBattleTicks do
         ticks = ticks + 1
-        local readyHeroId = config.autoUltimate and findReadyHero(snapshot) or nil
+        local readyHeroId = (config.autoUltimate and not castedUltimate) and findReadyHero(snapshot) or nil
         if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
             Run.QueueBattleCommand({
                 type = "cast_ultimate",
                 heroId = readyHeroId,
             })
+            castedUltimate = true
         end
         Run.Tick(config.tickMs)
         snapshot = Run.GetSnapshot()
@@ -414,6 +457,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
     local snapshot = Run.StartRun({
         chapterId = config.chapterId,
         starterHeroIds = config.starterHeroIds,
+        seed = config.seed + routeIndex * 10000 + runIndex,
     })
 
     local runReport = {

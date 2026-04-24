@@ -184,6 +184,13 @@ export function renderControls(
   snapshot: BattleSnapshot | null,
   logEntries: string[],
   onUltCast: (heroId: string) => void,
+  options?: {
+    extraActions?: Array<{
+      label: string;
+      disabled?: boolean;
+      onClick: () => void;
+    }>;
+  },
 ) {
   const allUnits = [...(snapshot?.leftTeam ?? []), ...(snapshot?.rightTeam ?? [])];
   const activeUnit =
@@ -231,6 +238,16 @@ export function renderControls(
         onUltCast(unit.id);
       }
     };
+    controls.buttonsHost.append(button);
+  }
+
+  for (const action of options?.extraActions ?? []) {
+    const button = document.createElement("button");
+    button.className = "ult-button";
+    button.type = "button";
+    button.disabled = action.disabled === true;
+    button.textContent = action.label;
+    button.onclick = action.onClick;
     controls.buttonsHost.append(button);
   }
 

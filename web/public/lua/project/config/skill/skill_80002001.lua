@@ -11,7 +11,7 @@ local DEF = {
             op = "damage",
             effect = "skill_80002001_execute",
             targetRef = "selected",
-            damageRate = 10500,
+            damageRate = 9000,
             tags = {
                 { tag = "apply_buff_targets", phase = "post", param = { buffId = 820001 } },
             },

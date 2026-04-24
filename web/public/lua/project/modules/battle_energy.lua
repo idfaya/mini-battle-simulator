@@ -164,21 +164,9 @@ end
 
 --- 检查能量是否足够
 function BattleEnergy.CanCastUltimate(hero, skill)
-    if not hero or not skill then
-        return false
-    end
-
-    local data = GetHeroEnergyData(hero)
-    if not data then
-        return false
-    end
-
-    local energyCost = skill.skillCost or skill.energyCost or 0
-    if energyCost <= 0 then
-        return true
-    end
-
-    return data.curEnergy >= energyCost
+    -- 5e refactor: "ultimate" is no longer an energy-gated mechanic.
+    -- Keep the API for compatibility; treat it as always castable here.
+    return hero ~= nil and skill ~= nil
 end
 
 --- 获取当前能量

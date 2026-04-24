@@ -1,5 +1,6 @@
 local BattleRuntime = require("modules.browser_battle_runtime")
 local BattleFormation = require("modules.battle_formation")
+local SkillConfig = require("config.skill_config")
 local BattleEnergy = require("modules.battle_energy")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
@@ -162,6 +163,10 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     if heroData.ultimateCharges == nil then
         heroData.ultimateCharges = heroData.ultimateChargesMax
     end
+
+    -- Inject persisted cooldowns from roguelike roster into battle heroes.
+    -- BattleSkill.Init reads hero.initialCooldowns and seeds hero.skillData.coolDowns.
+    heroData.initialCooldowns = rosterHero.skillCooldowns
     return heroData
 end
 
@@ -360,6 +365,28 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
             rosterHero.ultimateCharges = tonumber(battleHero.ultimateCharges)
                 or tonumber(rosterHero.ultimateCharges)
                 or rosterHero.ultimateChargesMax
+
+            -- Persist cooldowns back to roster for cross-battle carry.
+            rosterHero.skillCooldowns = rosterHero.skillCooldowns or {}
+            local cds = (battleHero.skillData and battleHero.skillData.coolDowns) or {}
+            for skillId, cd in pairs(cds) do
+                local sid = tonumber(skillId)
+                if sid then
+                    rosterHero.skillCooldowns[sid] = math.max(0, math.floor(tonumber(cd) or 0))
+                end
+            end
+
+            -- Post-battle short rest (auto):
+            -- - clear non-ultimate cooldowns
+            -- - do NOT heal
+            -- - do NOT clear ultimate cooldowns
+            -- - do NOT restore ultimate charges
+            for skillId, cd in pairs(rosterHero.skillCooldowns) do
+                local sid = tonumber(skillId)
+                if sid and (tonumber(SkillConfig.GetSkillType(sid)) or 0) ~= 3 then
+                    rosterHero.skillCooldowns[sid] = 0
+                end
+            end
         else
             rosterHero.currentHp = 0
             rosterHero.isDead = true

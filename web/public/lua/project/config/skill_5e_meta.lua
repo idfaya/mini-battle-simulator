@@ -24,19 +24,19 @@ local OVERRIDES = {
     [80001004] = { kind = "physical", damageDice = "1d6" },
 
     -- Defender (D1)
-    [80002001] = { kind = "physical", damageDice = "1d4" },
-    [80002003] = { kind = "physical", damageDice = "1d6" },
-    [80002004] = { kind = "physical", damageDice = "1d6" },
+    [80002001] = { kind = "physical", damageDice = "2d6+2" },
+    [80002003] = { kind = "physical", damageDice = "1d8+2" },
+    [80002004] = { kind = "physical", damageDice = "2d6+3" },
 
     -- Swordmaster (S1)
     [80003001] = { kind = "physical", damageDice = "1d4" },
-    [80003003] = { kind = "physical", damageDice = "1d4" },
-    [80003004] = { kind = "physical", damageDice = "1d4", multiHitDice = "1d4" },
+    [80003003] = { kind = "auto", healDice = "2d8+4" },
+    [80003004] = { kind = "spell", saveType = "fort", hardControl = true, onSaveSuccess = "half", damageDice = "3d8+4" },
 
     -- Warrior (F4) - sustained team auras require concentration.
     [80004001] = { kind = "physical", damageDice = "2d6+4" },
     [80004003] = { kind = "physical", concentration = true, damageDice = "1d4" },
-    [80004004] = { kind = "physical", concentration = true, damageDice = "1d6" },
+    [80004004] = { kind = "auto", healDice = "3d8+6" },
 
     -- Venom (T1)
     [80005001] = { kind = "physical", damageDice = "1d4" },
@@ -46,9 +46,9 @@ local OVERRIDES = {
     -- Holy (H1)
     -- Note: holy skills use custom handlers for ally heal / enemy damage.
     -- We still define heal dice here so runtime can stay free of MaxHP% healing.
-    [80006001] = { kind = "auto", healDice = "1d8+1" },
+    [80006001] = { kind = "physical", damageDice = "2d8+2" },
     [80006002] = { kind = "auto", healDice = "1d4" },    -- passive tick
-    [80006003] = { kind = "auto", healDice = "1d8+2" },  -- heals 2 allies
+    [80006003] = { kind = "auto", healDice = "2d8+5" },  -- heals 2 allies
     [80006004] = {
         kind = "auto",
         revivePct = 0.20,
@@ -59,8 +59,8 @@ local OVERRIDES = {
     },  -- revive latest dead ally
 
     -- Fire (M1) - all offensive spells use save vs spellDC (ref)
-    [80007001] = { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half", damageDice = "3d8+4" },
-    [80007003] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "3d6+4" },
+    [80007001] = { kind = "auto", damageDice = "2d8+2" },
+    [80008001] = { kind = "auto", damageDice = "1d8+3" },
     [80007004] = { kind = "spell", saveType = "ref", isAOE = true, onSaveSuccess = "half", damageDice = "4d6+5", chantTurns = 1 },
 
     -- Ice (M2)

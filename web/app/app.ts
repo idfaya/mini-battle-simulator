@@ -133,6 +133,8 @@ async function bootstrapRunMode(
   let autoUltimate = false;
   let battleSpeed = 4;
   let runSnapshot: RunSnapshot | null = null;
+  let deferredPostBattleSnapshot: RunSnapshot | null = null;
+  let holdBattleResultScene = false;
   let runUiDirty = true;
 
   const syncRunSnapshot = (snapshot: RunSnapshot) => {
@@ -156,6 +158,16 @@ async function bootstrapRunMode(
 
   const castRunUltimate = async (heroId: string) => {
     await host.queueRunBattleCommand({ type: "cast_ultimate", heroId });
+  };
+
+  const exitBattleScene = () => {
+    if (!deferredPostBattleSnapshot) {
+      return;
+    }
+    const nextSnapshot = deferredPostBattleSnapshot;
+    deferredPostBattleSnapshot = null;
+    holdBattleResultScene = false;
+    syncRunSnapshot(nextSnapshot);
   };
 
   const battleControls = createControls(
@@ -234,9 +246,31 @@ async function bootstrapRunMode(
 
     if (runSnapshot?.phase === "battle" && !inFlight) {
       inFlight = true;
+      const previousPhase = runSnapshot.phase;
+      const previousBattleSnapshot = battleStore.getState().snapshot;
       const { events, snapshot } = await host.tickRun(delta * battleSpeed);
       inFlight = false;
-      syncRunSnapshot(snapshot);
+
+      if (previousPhase === "battle" && snapshot.phase !== "battle") {
+        runSnapshot = snapshot;
+        deferredPostBattleSnapshot = snapshot;
+        holdBattleResultScene = true;
+        if (previousBattleSnapshot) {
+          battleStore.setSnapshot({
+            ...previousBattleSnapshot,
+            phase: "ended",
+            pendingCommands: 0,
+            result:
+              previousBattleSnapshot.result ??
+              {
+                winner: snapshot.phase === "failed" ? "right" : "left",
+                reason: snapshot.lastActionMessage || (snapshot.phase === "failed" ? "battle_failed" : "battle_resolved"),
+              },
+          });
+        }
+      } else {
+        syncRunSnapshot(snapshot);
+      }
       battleStore.appendEvents(events);
 
       const battleSnapshot = snapshot.battleSnapshot;
@@ -248,10 +282,20 @@ async function bootstrapRunMode(
       }
     }
 
-    if (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot) {
+    const shouldRenderBattle = holdBattleResultScene || (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot);
+    if (shouldRenderBattle && battleStore.getState().snapshot) {
       panelHost.replaceChildren(battleControls.root);
       renderer.renderBattle(battleStore.getState(), now);
-      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate);
+      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate, {
+        extraActions: holdBattleResultScene
+          ? [
+              {
+                label: "退出战斗",
+                onClick: exitBattleScene,
+              },
+            ]
+          : [],
+      });
       battleStore.clearTransient(now);
     } else {
       if (panelHost.firstChild !== runControls.root) {

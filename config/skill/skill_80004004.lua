@@ -5,14 +5,14 @@ local skill_80004004 = {}
 local DEF = {
     id = 80004004,
     frames = {
-        { frame = 0, op = "cast", effect = "skill_80004004_cast", targetRef = "selected" },
+        { frame = 0, op = "cast", effect = "skill_80004004_cast", targetRef = "self" },
         {
-            frame = 42,
+            frame = 30,
             op = "effect",
             effect = "skill_80004004_execute",
-            targetRef = "selected",
+            targetRef = "self",
             tags = {
-                { tag = "battle_intent_buff", phase = "pre" },
+                { tag = "group_heal", phase = "pre", param = { count = 2 } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80004004_end", targetRef = "selected" },
@@ -24,7 +24,6 @@ function skill_80004004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80004004
-
 
 
 

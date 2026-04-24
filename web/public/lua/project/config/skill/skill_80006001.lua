@@ -8,12 +8,10 @@ local DEF = {
         { frame = 0, op = "cast", effect = "skill_80006001_cast", targetRef = "selected" },
         {
             frame = 24,
-            op = "effect",
+            op = "damage",
             effect = "skill_80006001_execute",
             targetRef = "selected",
-            tags = {
-                { tag = "holy_light", phase = "pre" },
-            },
+            damageRate = 10500,
         },
         { frame = 36, op = "effect", effect = "skill_80006001_end", targetRef = "selected" },
     },
@@ -24,7 +22,6 @@ function skill_80006001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80006001
-
 
 
 

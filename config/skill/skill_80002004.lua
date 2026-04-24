@@ -8,12 +8,12 @@ local DEF = {
         { frame = 0, op = "cast", effect = "skill_80002004_cast", targetRef = "selected" },
         {
             frame = 42,
-            op = "effect",
+            op = "damage",
             effect = "skill_80002004_execute",
             targetRef = "selected",
+            damageRate = 10500,
             tags = {
-                { tag = "remove_buff_by_subtype", phase = "pre", param = { subType = 820002 } },
-                { tag = "apply_buff_self", phase = "pre", param = { buffId = 820003 } },
+                { tag = "select_random_enemies", phase = "pre", param = { count = 3 } },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80002004_end", targetRef = "selected" },
@@ -25,7 +25,4 @@ function skill_80002004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80002004
-
-
-
 

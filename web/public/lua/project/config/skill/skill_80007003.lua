@@ -11,8 +11,9 @@ local DEF = {
             op = "damage",
             effect = "skill_80007003_execute",
             targetRef = "selected",
-            damageRate = 10500,
+            damageRate = 8000,
             tags = {
+                { tag = "select_random_enemies", phase = "pre", param = { count = 3 } },
                 { tag = "apply_burn", phase = "post", param = { stacks = 1, turns = 2 } },
             },
         },
