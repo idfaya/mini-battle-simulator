@@ -14,6 +14,16 @@ local MONSTER_TYPE_NAMES = {
     [2] = "BOSS",
 }
 
+local ENEMY_CR_META = {
+    [910001] = { cr = "1/8", xp = 25, role = "fodder" },   -- Slime
+    [910002] = { cr = "1/4", xp = 50, role = "skirmisher" }, -- Goblin
+    [910003] = { cr = "1/2", xp = 100, role = "brute" },   -- Orc
+    [910004] = { cr = "1/4", xp = 50, role = "frontliner" }, -- Skeleton
+    [910005] = { cr = "1", xp = 200, role = "caster" },    -- DarkMage
+    [910006] = { cr = "3", xp = 700, role = "elite_caster" }, -- IceDemon
+    [910007] = { cr = "4", xp = 1100, role = "elite_caster" }, -- ThunderLord
+}
+
 -- True 5e-style enemy templates.
 -- Base role template is picked by class, then monster type applies a clean modifier.
 local ENEMY_ROLE_TEMPLATES = {
@@ -30,9 +40,9 @@ local ENEMY_ROLE_TEMPLATES = {
 }
 
 local MONSTER_TYPE_TEMPLATES = {
-    [0] = { hpMul = 0.55, atkMul = 0.95, defMul = 0.95, acDelta = -3, hitDelta = -1, spellDCDelta = -1, saveDelta = -1, speedDelta = 0 },
-    [1] = { hpMul = 0.78, atkMul = 1.05, defMul = 1.00, acDelta = -2, hitDelta = 0, spellDCDelta = 0, saveDelta = 0, speedDelta = 0 },
-    [2] = { hpMul = 1.12, atkMul = 1.15, defMul = 1.10, acDelta = -1, hitDelta = 1, spellDCDelta = 1, saveDelta = 1, speedDelta = 1 },
+    [0] = { hpMul = 0.58, atkMul = 1.00, defMul = 0.95, acDelta = -3, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
+    [1] = { hpMul = 0.80, atkMul = 1.10, defMul = 1.00, acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
+    [2] = { hpMul = 1.08, atkMul = 1.22, defMul = 1.10, acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
 }
 
 local function GetConfigFilePath(fileName)
@@ -450,6 +460,18 @@ function EnemyData.GetMonsterTypeName(monsterType)
     return MONSTER_TYPE_NAMES[monsterType] or "Unknown"
 end
 
+function EnemyData.GetChallengeMeta(enemyId)
+    local meta = ENEMY_CR_META[tonumber(enemyId) or 0]
+    if not meta then
+        return { cr = "1/4", xp = 50, role = "unknown" }
+    end
+    return {
+        cr = meta.cr,
+        xp = meta.xp,
+        role = meta.role,
+    }
+end
+
 function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
     if not skillConfigInited then
         SkillConfig.Init()
@@ -509,6 +531,7 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         _className = EnemyData.GetClassName(class),
         _monsterType = monsterType,
         _monsterTypeName = EnemyData.GetMonsterTypeName(monsterType),
+        _challenge = EnemyData.GetChallengeMeta(enemyId),
         _level = level,
         _star = star,
         _quality = quality,

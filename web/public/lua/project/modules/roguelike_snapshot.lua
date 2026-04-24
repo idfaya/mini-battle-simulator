@@ -118,6 +118,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         campState = runState.campState,
         rewardState = runState.rewardState,
         battleSnapshot = battleSnapshot,
+        currentEncounterBudget = runState.currentEncounterBudget,
         chapterResult = runState.chapterResult,
         debug = {
             availableNextNodeIds = shallowCopyArray(runState.availableNextNodeIds),

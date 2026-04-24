@@ -4,6 +4,7 @@ local BattleEnergy = require("modules.battle_energy")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 local ClassRoleConfig = require("config.class_role_config")
+local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local RunRelicConfig = require("config.roguelike.run_relic_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 
@@ -26,6 +27,19 @@ local DEFAULT_ENEMY_SCALE = {
     spellDCDelta = 0,
     saveDelta = 0,
 }
+
+local function roundInt(value)
+    local v = tonumber(value) or 0
+    if v >= 0 then
+        return math.floor(v + 0.5)
+    end
+    return math.ceil(v - 0.5)
+end
+
+local function clamp(value, minValue, maxValue)
+    local v = tonumber(value) or 0
+    return math.max(minValue, math.min(maxValue, v))
+end
 
 local function contains(list, value)
     for _, item in ipairs(list or {}) do
@@ -151,19 +165,59 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     return heroData
 end
 
-local function buildEnemyForBattle(enemyId, level, wpType, encounter)
+local function buildEncounterBudgetAdjust(runState, encounter, aliveCount)
+    local budget = encounter and encounter.budget
+    if not budget then
+        return {
+            hpMul = 1.0,
+            atkMul = 1.0,
+            defMul = 1.0,
+            hitDelta = 0,
+            spellDCDelta = 0,
+            saveDelta = 0,
+            report = nil,
+        }
+    end
+
+    local enemyMetas = {}
+    for _, enemyId in ipairs(encounter.enemyIds or {}) do
+        enemyMetas[#enemyMetas + 1] = EnemyData.GetChallengeMeta(enemyId)
+    end
+    local report = RunEncounterBudget.BuildReport(
+        tonumber(runState and runState.partyLevel) or tonumber(encounter.level) or 1,
+        aliveCount,
+        enemyMetas,
+        budget.difficulty or "deadly",
+        budget.pressureFactor or 1.0
+    )
+    local gap = (report.targetAdjustedXp > 0) and (report.targetAdjustedXp / math.max(1, report.adjustedXp)) or 1.0
+    return {
+        hpMul = clamp(1.00 + (gap - 1.0) * 0.10, 0.85, 2.00),
+        atkMul = clamp(1.00 + (gap - 1.0) * 0.35, 0.85, 4.00),
+        defMul = clamp(1.00 + (gap - 1.0) * 0.08, 0.90, 1.60),
+        hitDelta = roundInt(clamp((gap - 1.0) * 2.0, -2, 10)),
+        spellDCDelta = roundInt(clamp((gap - 1.0) * 1.5, -2, 8)),
+        saveDelta = roundInt(clamp((gap - 1.0) * 0.75, -1, 4)),
+        report = report,
+    }
+end
+
+local function buildEnemyForBattle(enemyId, level, wpType, encounter, budgetAdjust)
     local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
     if not enemyData then
         return nil
     end
     local enemyScale = encounter.enemyScale or DEFAULT_ENEMY_SCALE
-    enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * (tonumber(enemyScale.hp) or 1.0)))
+    local budgetHp = tonumber(budgetAdjust and budgetAdjust.hpMul) or 1.0
+    local budgetAtk = tonumber(budgetAdjust and budgetAdjust.atkMul) or 1.0
+    local budgetDef = tonumber(budgetAdjust and budgetAdjust.defMul) or 1.0
+    enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * (tonumber(enemyScale.hp) or 1.0) * budgetHp))
     enemyData.maxHp = enemyData.hp
-    enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * (tonumber(enemyScale.atk) or 1.0)))
-    enemyData.def = math.max(0, math.floor((enemyData.def or 0) * (tonumber(enemyScale.def) or 1.0)))
-    enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(enemyScale.hitDelta) or 0)))
-    enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(enemyScale.spellDCDelta) or 0)))
-    local sd = tonumber(enemyScale.saveDelta) or 0
+    enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * (tonumber(enemyScale.atk) or 1.0) * budgetAtk))
+    enemyData.def = math.max(0, math.floor((enemyData.def or 0) * (tonumber(enemyScale.def) or 1.0) * budgetDef))
+    enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(enemyScale.hitDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
+    enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(enemyScale.spellDCDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
+    local sd = (tonumber(enemyScale.saveDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0)
     if sd ~= 0 then
         enemyData.saveFort = math.max(0, math.floor((enemyData.saveFort or 0) + sd))
         enemyData.saveRef = math.max(0, math.floor((enemyData.saveRef or 0) + sd))
@@ -206,9 +260,11 @@ local function buildBattleConfig(runState, encounter)
     end
 
     local teamRight = {}
+    local budgetAdjust = buildEncounterBudgetAdjust(runState, encounter, #teamLeft)
+    runState.currentEncounterBudget = budgetAdjust.report
     for index, enemyId in ipairs(encounter.enemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, encounter.level, wpType, encounter)
+        local enemyData = buildEnemyForBattle(enemyId, encounter.level, wpType, encounter, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end

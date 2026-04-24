@@ -220,6 +220,19 @@ local function getTeamStats(snapshot)
     return totalHp, totalMaxHp, aliveCount
 end
 
+local function getBattleTeamStats(snapshot)
+    local totalHp, totalMaxHp, aliveCount = 0, 0, 0
+    local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
+    for _, hero in ipairs(battleSnapshot and battleSnapshot.leftTeam or {}) do
+        totalHp = totalHp + (hero.hp or 0)
+        totalMaxHp = totalMaxHp + (hero.maxHp or 0)
+        if not hero.isDead and hero.isAlive and (hero.hp or 0) > 0 then
+            aliveCount = aliveCount + 1
+        end
+    end
+    return totalHp, totalMaxHp, aliveCount
+end
+
 local function findReadyHero(snapshot)
     local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
     if not battleSnapshot then
@@ -326,6 +339,7 @@ local function resolveBattle(config)
     local startRound = getBattleRound(snapshot)
     local lastRound = startRound
     local maxRoundSeen = startRound
+    local lastBattleHp, lastBattleMaxHp, lastBattleAlive = getBattleTeamStats(snapshot)
     while ticks < config.maxBattleTicks do
         ticks = ticks + 1
         local readyHeroId = config.autoUltimate and findReadyHero(snapshot) or nil
@@ -342,6 +356,7 @@ local function resolveBattle(config)
             if lastRound > maxRoundSeen then
                 maxRoundSeen = lastRound
             end
+            lastBattleHp, lastBattleMaxHp, lastBattleAlive = getBattleTeamStats(snapshot)
         end
         if snapshot.phase ~= "battle" then
             return snapshot, ticks, false, {
@@ -349,6 +364,9 @@ local function resolveBattle(config)
                 endRound = lastRound,
                 maxRoundSeen = maxRoundSeen,
                 roundsSpent = math.max(0, lastRound - startRound + (lastRound > 0 and 1 or 0)),
+                lastBattleHp = lastBattleHp,
+                lastBattleMaxHp = lastBattleMaxHp,
+                lastBattleAlive = lastBattleAlive,
             }
         end
     end
@@ -357,6 +375,9 @@ local function resolveBattle(config)
         endRound = lastRound,
         maxRoundSeen = maxRoundSeen,
         roundsSpent = math.max(0, lastRound - startRound + (lastRound > 0 and 1 or 0)),
+        lastBattleHp = lastBattleHp,
+        lastBattleMaxHp = lastBattleMaxHp,
+        lastBattleAlive = lastBattleAlive,
     }
 end
 
@@ -421,9 +442,11 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
 
         snapshot = Run.GetSnapshot()
         if snapshot.phase == "battle" then
-            local beforeHp, beforeMaxHp, beforeAlive = getTeamStats(snapshot)
+            local beforeHp, beforeMaxHp, beforeAlive = getBattleTeamStats(snapshot)
             local resolved, ticks, timedOut, roundStats = resolveBattle(config)
-            local afterHp, afterMaxHp, afterAlive = getTeamStats(resolved)
+            local afterHp = roundStats.lastBattleHp or 0
+            local afterMaxHp = roundStats.lastBattleMaxHp or 0
+            local afterAlive = roundStats.lastBattleAlive or 0
             local battleResult = resolved.battleSnapshot and resolved.battleSnapshot.result or nil
             local battleReason = timedOut and "battle_timeout"
                 or (battleResult and battleResult.reason)

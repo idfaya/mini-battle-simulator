@@ -102,6 +102,10 @@
       "moduleName": "config.roguelike.run_chapter_config"
     },
     {
+      "path": "config/roguelike/run_encounter_budget.lua",
+      "moduleName": "config.roguelike.run_encounter_budget"
+    },
+    {
       "path": "config/roguelike/run_encounter_group.lua",
       "moduleName": "config.roguelike.run_encounter_group"
     },

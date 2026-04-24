@@ -12,7 +12,7 @@ RunCampConfig.CAMPS = {
                 label = "Rest",
                 effectType = "team_heal_pct",
                 params = {
-                    value = 0.22,
+                    value = 0.16,
                 },
             },
             {
@@ -28,7 +28,7 @@ RunCampConfig.CAMPS = {
                 label = "Revive",
                 effectType = "revive_one",
                 params = {
-                    healPct = 0.30,
+                    healPct = 0.25,
                 },
                 requirements = {
                     hasDeadHero = true,
