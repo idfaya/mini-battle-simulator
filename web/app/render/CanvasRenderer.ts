@@ -12,7 +12,7 @@ export class CanvasRenderer {
   constructor() {
     this.canvas = document.createElement("canvas");
     this.canvas.width = 960;
-    this.canvas.height = 640;
+    this.canvas.height = 760;
     const context = this.canvas.getContext("2d");
     if (!context) {
       throw new Error("Canvas 2D context is not available");
