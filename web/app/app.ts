@@ -30,13 +30,18 @@ export async function bootstrapApp(container: HTMLElement) {
   const battleStore = new BattleStore();
   const runStore = new RunStore();
   const params = new URLSearchParams(window.location.search);
-  const standaloneBattleMode = params.get("mode") === "battle";
+  const mode = params.get("mode");
+  const standaloneBattleMode = mode === "battle";
+  const singleBattleMode = mode === "single-battle" || mode === "single";
 
   diagnostics.remove();
   stage.append(renderer.canvas);
 
-  if (standaloneBattleMode) {
-    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore);
+  if (standaloneBattleMode || singleBattleMode) {
+    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore, {
+      singleBattleMode,
+      params,
+    });
     return;
   }
 
@@ -48,22 +53,44 @@ async function bootstrapStandaloneBattle(
   renderer: CanvasRenderer,
   panelHost: HTMLDivElement,
   store: BattleStore,
+  options?: {
+    singleBattleMode?: boolean;
+    params?: URLSearchParams;
+  },
 ) {
+  const readIdList = (value: string | null): number[] =>
+    (value ?? "")
+      .split(/[,\s]+/)
+      .map((part) => Number(part.trim()))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .slice(0, 6);
+
+  const queryHeroIds = readIdList(options?.params?.get("heroes") ?? null);
+  const queryEnemyIds = readIdList(options?.params?.get("enemies") ?? null);
+  const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900007, 900002];
+  const singleEnemyIds = queryEnemyIds.length > 0 ? queryEnemyIds : [910004, 910002];
   const setup: BattleSetup = {
-    level: 1,
-    heroCount: 6,
-    enemyCount: 6,
-    initialEnergy: 80,
-    speed: 1,
+    level: Number(options?.params?.get("level")) || 1,
+    heroCount: options?.singleBattleMode ? singleHeroIds.length : 6,
+    enemyCount: options?.singleBattleMode ? singleEnemyIds.length : 6,
+    initialEnergy: options?.singleBattleMode ? 90 : 80,
+    speed: options?.singleBattleMode ? 4 : 1,
+    heroIds: options?.singleBattleMode ? singleHeroIds : undefined,
+    enemyIds: options?.singleBattleMode ? singleEnemyIds : undefined,
+    seed: options?.singleBattleMode ? Number(options?.params?.get("seed")) || 101001 : undefined,
   };
   let speed = setup.speed;
-  let autoUltimate = false;
+  let autoUltimate = options?.singleBattleMode === true;
 
   const toRuntimeConfig = (nextSetup: BattleSetup) => ({
     level: nextSetup.level,
     heroCount: nextSetup.heroCount,
     enemyCount: nextSetup.enemyCount,
     initialEnergy: nextSetup.initialEnergy,
+    heroIds: nextSetup.heroIds,
+    enemyIds: nextSetup.enemyIds,
+    seed: nextSetup.seed,
+    seedArray: nextSetup.seedArray,
   });
 
   const castUltimate = async (heroId: string) => {
@@ -290,7 +317,7 @@ async function bootstrapRunMode(
         extraActions: holdBattleResultScene
           ? [
               {
-                label: "退出战斗",
+                label: "查看奖励",
                 onClick: exitBattleScene,
               },
             ]

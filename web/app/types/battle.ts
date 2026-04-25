@@ -18,6 +18,9 @@ export type UnitState = {
   hp: number;
   maxHp: number;
   speed: number;
+  initiativeRoll: number;
+  initiativeMod: number;
+  initiative: number;
   ac: number;
   hit: number;
   spellDC: number;
@@ -35,6 +38,8 @@ export type UnitState = {
   concentrationSkillId: number | null;
   concentrationSkillName: string | null;
   buffs: BuffState[];
+  actionBar: number;
+  actionBarMax: number;
   ultimateReady: boolean;
   ultimateSkillName: string;
 };
@@ -44,12 +49,25 @@ export type BattleResult = {
   reason: string;
 };
 
+export type ActionOrderState = {
+  id: string;
+  name: string;
+  team: TeamSide;
+  classId: number;
+  classIcon: string;
+  progress: number;
+  max: number;
+  initiative: number;
+  isAlive: boolean;
+};
+
 export type BattleSnapshot = {
   phase: "running" | "ended";
   round: number;
   activeHeroId: string | null;
   leftTeam: UnitState[];
   rightTeam: UnitState[];
+  actionOrder: ActionOrderState[];
   pendingCommands: number;
   result: BattleResult | null;
 };
@@ -71,6 +89,10 @@ export type BattleSetup = {
   enemyCount: number;
   initialEnergy: number;
   speed: number;
+  heroIds?: number[];
+  enemyIds?: number[];
+  seed?: number;
+  seedArray?: number[];
 };
 
 export type AnimationEvent =

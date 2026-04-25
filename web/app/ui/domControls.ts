@@ -8,12 +8,15 @@ type Controls = {
   logList: HTMLUListElement;
   status: HTMLDivElement;
   buttonsHost: HTMLDivElement;
+  screenTabs: HTMLDivElement;
   autoUltToggle: HTMLInputElement;
   levelInput: HTMLInputElement;
   heroCountInput: HTMLInputElement;
   enemyCountInput: HTMLInputElement;
   speedSelect: HTMLSelectElement;
 };
+
+type HudScreen = "battle" | "settings" | "log";
 
 export function createControls(
   onUltCast: (heroId: string) => void,
@@ -28,6 +31,33 @@ export function createControls(
 ): Controls {
   const root = document.createElement("div");
   root.className = "hud";
+  root.dataset.screen = "battle";
+
+  const screenTabs = document.createElement("div");
+  screenTabs.className = "hud-screen-tabs";
+
+  const setScreen = (screen: HudScreen) => {
+    root.dataset.screen = screen;
+    root.closest(".shell")?.setAttribute("data-screen", screen);
+    for (const button of screenTabs.querySelectorAll<HTMLButtonElement>("button[data-screen]")) {
+      button.classList.toggle("active", button.dataset.screen === screen);
+    }
+  };
+
+  const addScreenButton = (screen: HudScreen, label: string) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.screen = screen;
+    button.textContent = label;
+    button.onclick = () => setScreen(screen);
+    screenTabs.append(button);
+  };
+
+  addScreenButton("battle", "战斗");
+  if (options?.showSetupPanel !== false) {
+    addScreenButton("settings", "设置");
+  }
+  addScreenButton("log", "日志");
 
   const status = document.createElement("div");
   status.className = "hud-status";
@@ -127,6 +157,10 @@ export function createControls(
     enemyCount: Math.max(1, Math.min(6, Number(enemyCountField.input.value) || initialSetup.enemyCount)),
     initialEnergy: initialSetup.initialEnergy,
     speed: Math.max(1, Math.min(4, Number(speedField.select.value) || initialSetup.speed)),
+    heroIds: initialSetup.heroIds,
+    enemyIds: initialSetup.enemyIds,
+    seed: initialSetup.seed,
+    seedArray: initialSetup.seedArray,
   });
 
   speedField.select.onchange = () => {
@@ -164,13 +198,15 @@ export function createControls(
     actions.style.display = "none";
   }
 
-  root.append(status, setupPanel, buttonsHost, actions, logList);
+  root.append(screenTabs, status, setupPanel, buttonsHost, actions, logList);
+  setScreen("battle");
 
   return {
     root,
     logList,
     status,
     buttonsHost,
+    screenTabs,
     autoUltToggle,
     levelInput: levelField.input,
     heroCountInput: heroCountField.input,
@@ -217,7 +253,7 @@ export function renderControls(
       stateBits.push(`专注:${focusUnit.concentrationSkillName ?? focusUnit.concentrationSkillId ?? "未知技能"}`);
     }
     lines.push(
-      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 速度 ${focusUnit.speed} | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
+      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 先攻 ${focusUnit.initiative ?? 0} (${focusUnit.initiativeRoll ?? 0}${(focusUnit.initiativeMod ?? 0) >= 0 ? "+" : ""}${focusUnit.initiativeMod ?? 0}) | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
     );
   }
   controls.status.textContent = lines.join("\n");
@@ -228,7 +264,16 @@ export function renderControls(
     button.className = "ult-button";
     button.type = "button";
     button.disabled = !unit.ultimateReady || !unit.isAlive;
-    button.textContent = `${unit.name} · ${unit.ultimateSkillName}`;
+    const name = document.createElement("span");
+    name.className = "ult-button-name";
+    name.textContent = unit.name;
+    const skill = document.createElement("span");
+    skill.className = "ult-button-skill";
+    skill.textContent = unit.ultimateSkillName;
+    const charges = document.createElement("span");
+    charges.className = "ult-button-charges";
+    charges.textContent = `次数 ${unit.ultimateCharges}/${unit.ultimateChargesMax}`;
+    button.replaceChildren(name, skill, charges);
     if (unit.ultimateReady) {
       button.classList.add("ready");
     }
@@ -247,7 +292,12 @@ export function renderControls(
     button.type = "button";
     button.disabled = action.disabled === true;
     button.textContent = action.label;
-    button.onclick = action.onClick;
+    button.onpointerdown = (event) => {
+      event.preventDefault();
+      if (!button.disabled) {
+        action.onClick();
+      }
+    };
     controls.buttonsHost.append(button);
   }
 

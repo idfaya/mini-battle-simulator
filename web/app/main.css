@@ -5,9 +5,15 @@
   color: #f8f9fa;
 }
 
+html,
 body {
   margin: 0;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   background:
     radial-gradient(circle at top, rgba(76, 201, 240, 0.16), transparent 32%),
     linear-gradient(180deg, #12263a 0%, #0b1320 100%);
@@ -16,24 +22,92 @@ body {
 #app {
   display: flex;
   justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100dvh;
   padding: 24px;
+  overflow: hidden;
 }
 
 .shell {
   display: grid;
-  grid-template-columns: 960px 320px;
+  grid-template-columns: minmax(0, 960px) 320px;
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
+  position: relative;
+  width: min(100%, 1300px);
+  height: 100%;
+  min-height: 0;
+}
+
+.stage {
+  min-width: 0;
+  min-height: 0;
 }
 
 .stage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
 }
 
 .hud {
   display: grid;
   gap: 12px;
+  min-height: 0;
+}
+
+.shell > .hud {
+  overflow: hidden;
+}
+
+.shell > .hud > .hud {
+  height: 100%;
+}
+
+.hud[data-screen="battle"] {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.hud[data-screen="settings"] {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  align-content: stretch;
+}
+
+.hud[data-screen="log"] {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.hud[data-screen="settings"] .setup-panel,
+.hud[data-screen="log"] .battle-log {
+  min-height: 0;
+}
+
+.hud-screen-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  order: 99;
+}
+
+.hud-screen-tabs button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(23, 63, 95, 0.72);
+  color: #d9e2ec;
+  padding: 10px 8px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hud-screen-tabs button.active {
+  background: #245f4b;
+  color: #f8f9fa;
+  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.45) inset;
 }
 
 .hud-status,
@@ -42,13 +116,53 @@ body {
 .battle-log {
   background: rgba(9, 17, 30, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 14px;
 }
 
 .hud-status {
   white-space: pre-wrap;
   line-height: 1.5;
+  overflow: hidden;
+  order: 1;
+}
+
+.ult-panel {
+  order: 2;
+}
+
+.setup-panel {
+  order: 1;
+}
+
+.global-actions {
+  order: 2;
+}
+
+.battle-log {
+  order: 1;
+}
+
+.hud[data-screen="battle"] .ult-panel {
+  order: 1;
+}
+
+.hud[data-screen="battle"] .hud-status {
+  order: 2;
+}
+
+.hud[data-screen="battle"] .setup-panel,
+.hud[data-screen="battle"] .global-actions,
+.hud[data-screen="battle"] .battle-log,
+.hud[data-screen="battle"] .hud-status,
+.hud[data-screen="settings"] .hud-status,
+.hud[data-screen="settings"] .ult-panel,
+.hud[data-screen="settings"] .battle-log,
+.hud[data-screen="log"] .hud-status,
+.hud[data-screen="log"] .setup-panel,
+.hud[data-screen="log"] .global-actions,
+.hud[data-screen="log"] .ult-panel {
+  display: none;
 }
 
 .ult-panel,
@@ -57,12 +171,16 @@ body {
   gap: 10px;
 }
 
+.global-actions {
+  align-items: center;
+}
+
 .setup-panel {
   display: grid;
   gap: 12px;
   background: rgba(9, 17, 30, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 14px;
 }
 
@@ -88,22 +206,63 @@ body {
 .setup-field input,
 .setup-field select {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #173f5f;
   color: #f8f9fa;
   padding: 10px;
   font: inherit;
 }
 
+.setup-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: #245f4b;
+}
+
+.global-actions .setup-field {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+}
+
 .ult-button,
 .global-actions button {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #173f5f;
   color: #f8f9fa;
   padding: 12px 10px;
   font: inherit;
   cursor: pointer;
+}
+
+.ult-button {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ult-button-name,
+.ult-button-skill,
+.ult-button-charges {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ult-button-name {
+  font-weight: 800;
+}
+
+.ult-button-skill,
+.ult-button-charges {
+  color: #d9e2ec;
+  font-size: 12px;
 }
 
 .ult-button.ready {
@@ -120,7 +279,6 @@ body {
   list-style: none;
   margin: 0;
   padding-left: 14px;
-  max-height: 360px;
   overflow: auto;
 }
 
@@ -136,7 +294,7 @@ body {
 
 .run-team-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: rgba(23, 63, 95, 0.5);
   color: #f8f9fa;
@@ -160,7 +318,7 @@ body {
   display: grid;
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px;
   background: rgba(23, 63, 95, 0.4);
 }
@@ -183,7 +341,7 @@ body {
   white-space: pre-wrap;
   background: rgba(9, 17, 30, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: 8px;
   color: #f8f9fa;
 }
 
@@ -199,5 +357,129 @@ body {
   .stage canvas {
     width: 100%;
     height: auto;
+  }
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  #app {
+    padding: 8px;
+  }
+
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .shell[data-screen="settings"],
+  .shell[data-screen="log"] {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .shell[data-screen="settings"] .stage,
+  .shell[data-screen="log"] .stage {
+    display: none;
+  }
+
+  .stage canvas {
+    width: 100%;
+    height: 100%;
+    background: rgba(9, 17, 30, 0.68);
+    box-shadow: none;
+  }
+
+  .shell > .hud > .hud {
+    gap: 8px;
+  }
+
+  .hud[data-screen="battle"] {
+    display: block;
+  }
+
+  .shell[data-screen="battle"] > .hud,
+  .hud[data-screen="battle"] {
+    overflow: visible;
+  }
+
+  .hud[data-screen="battle"] .ult-panel {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 56px;
+    z-index: 2;
+    box-sizing: border-box;
+  }
+
+  .hud-screen-tabs {
+    gap: 6px;
+  }
+
+  .hud-screen-tabs button {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  .hud-status,
+  .ult-panel,
+  .global-actions,
+  .setup-panel,
+  .battle-log {
+    padding: 10px;
+  }
+
+  .hud-status {
+    max-height: 48px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .ult-panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-content: start;
+    overflow: hidden;
+  }
+
+  .ult-button,
+  .global-actions button {
+    min-height: 50px;
+    padding: 8px 6px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .ult-button-skill,
+  .ult-button-charges {
+    font-size: 11px;
+  }
+
+  .setup-panel {
+    align-content: start;
+    overflow: auto;
+  }
+
+  .setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-field input,
+  .setup-field select {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+
+  .global-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .battle-log {
+    min-height: 0;
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-y: auto;
+  }
+
+  .battle-log li {
+    margin-bottom: 6px;
   }
 }

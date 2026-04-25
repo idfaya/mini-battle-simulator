@@ -1,24 +1,63 @@
 ---
 --- Battle Action Order Module
---- 管理战斗中的行动顺序系统，基于速度属性的行动条/进度机制
+--- 管理战斗中的行动顺序系统，基于 5e 先攻的行动条/进度机制
 ---
 
 local Logger = require("utils.logger")
 local BattleAttribute = require("modules.battle_attribute")
+local Dice = require("core.dice")
 
 ---@class BattleActionOrder
 local BattleActionOrder = {}
 
 -- 行动条阈值常量
 local ACTION_BAR_THRESHOLD = 1000
+local ACTION_BAR_STEP = 100
+local INITIATIVE_MIN = -5
+local INITIATIVE_MAX = 25
 
 -- 内部数据存储
 local _heroes = {}           -- 所有英雄列表
 local _actionBars = {}       -- 英雄行动条进度 { [heroId] = progress }
+local _initiative = {}        -- 5e 先攻结果 { [heroId] = {roll, mod, total} }
 local _isRunning = false     -- 是否正在运行
 local _currentHero = nil     -- 当前正在行动的英雄
 local _teamLeft = nil        -- 左侧队伍
 local _teamRight = nil       -- 右侧队伍
+
+local function clamp(value, minValue, maxValue)
+    value = tonumber(value) or 0
+    if value < minValue then
+        return minValue
+    end
+    if value > maxValue then
+        return maxValue
+    end
+    return value
+end
+
+local function getDexMod(hero)
+    if not hero then
+        return 0
+    end
+    return tonumber(hero.dexMod) or 0
+end
+
+local function rollInitiative(hero)
+    local roll = Dice.RollD20("normal")
+    local mod = getDexMod(hero)
+    local total = roll + mod
+    return {
+        roll = roll,
+        mod = mod,
+        total = total,
+    }
+end
+
+local function getInitialActionBar(initiativeTotal)
+    local normalized = (clamp(initiativeTotal, INITIATIVE_MIN, INITIATIVE_MAX) - INITIATIVE_MIN) / (INITIATIVE_MAX - INITIATIVE_MIN)
+    return math.floor(normalized * ACTION_BAR_THRESHOLD)
+end
 
 --- 初始化行动顺序系统
 ---@param teamLeft table 左侧队伍英雄列表
@@ -30,6 +69,7 @@ function BattleActionOrder.Init(teamLeft, teamRight)
     _teamRight = teamRight or {}
     _heroes = {}
     _actionBars = {}
+    _initiative = {}
     _isRunning = false
     _currentHero = nil
 
@@ -37,18 +77,22 @@ function BattleActionOrder.Init(teamLeft, teamRight)
     for _, hero in ipairs(_teamLeft) do
         if hero and hero.instanceId then
             table.insert(_heroes, hero)
-            _actionBars[hero.instanceId] = 0
-            Logger.Debug(string.format("  添加左侧英雄: %s (ID: %s, 速度: %d)",
-                hero.name or "Unknown", hero.instanceId, BattleAttribute.GetSpeed(hero)))
+            _initiative[hero.instanceId] = rollInitiative(hero)
+            _actionBars[hero.instanceId] = getInitialActionBar(_initiative[hero.instanceId].total)
+            Logger.Debug(string.format("  添加左侧英雄: %s (ID: %s, 先攻: %d = d20(%d) %+d)",
+                hero.name or "Unknown", hero.instanceId, _initiative[hero.instanceId].total,
+                _initiative[hero.instanceId].roll, _initiative[hero.instanceId].mod))
         end
     end
 
     for _, hero in ipairs(_teamRight) do
         if hero and hero.instanceId then
             table.insert(_heroes, hero)
-            _actionBars[hero.instanceId] = 0
-            Logger.Debug(string.format("  添加右侧英雄: %s (ID: %s, 速度: %d)",
-                hero.name or "Unknown", hero.instanceId, BattleAttribute.GetSpeed(hero)))
+            _initiative[hero.instanceId] = rollInitiative(hero)
+            _actionBars[hero.instanceId] = getInitialActionBar(_initiative[hero.instanceId].total)
+            Logger.Debug(string.format("  添加右侧英雄: %s (ID: %s, 先攻: %d = d20(%d) %+d)",
+                hero.name or "Unknown", hero.instanceId, _initiative[hero.instanceId].total,
+                _initiative[hero.instanceId].roll, _initiative[hero.instanceId].mod))
         end
     end
 
@@ -61,6 +105,7 @@ function BattleActionOrder.OnFinal()
 
     _heroes = {}
     _actionBars = {}
+    _initiative = {}
     _isRunning = false
     _currentHero = nil
     _teamLeft = nil
@@ -68,15 +113,12 @@ function BattleActionOrder.OnFinal()
 end
 
 --- 更新所有英雄的行动条
---- 根据速度属性累积行动点数
+--- 5e 先攻只决定开场顺序；战斗中所有单位等速推进，避免旧 speed 造成多动
 function BattleActionOrder.UpdateActionBars()
     for _, hero in ipairs(_heroes) do
         if hero and hero.instanceId and BattleAttribute.IsAlive(hero) then
-            local speed = BattleAttribute.GetSpeed(hero)
             local currentProgress = _actionBars[hero.instanceId] or 0
-
-            -- 速度越快，积累的行动点数越多
-            _actionBars[hero.instanceId] = currentProgress + speed
+            _actionBars[hero.instanceId] = currentProgress + ACTION_BAR_STEP
         end
     end
 end
@@ -107,21 +149,25 @@ function BattleActionOrder.GetActionOrder()
         if hero and hero.instanceId and BattleAttribute.IsAlive(hero) then
             table.insert(orderList, {
                 hero = hero,
-                progress = _actionBars[hero.instanceId] or 0
+                progress = _actionBars[hero.instanceId] or 0,
+                initiative = _initiative[hero.instanceId] and _initiative[hero.instanceId].total or 0,
             })
         end
     end
 
-    -- 按行动条进度降序排序
+    -- 按行动条进度降序排序；进度相同按 5e 先攻高者优先
     table.sort(orderList, function(a, b)
-        return a.progress > b.progress
+        if a.progress ~= b.progress then
+            return a.progress > b.progress
+        end
+        return (a.initiative or 0) > (b.initiative or 0)
     end)
 
     return orderList
 end
 
 --- 选择下一个行动的英雄
---- 基于速度的行动条机制，返回行动条已满且进度最高的英雄
+--- 基于 5e 先攻初始位置的行动条机制，返回行动条已满且进度最高的英雄
 ---@return table|nil 下一个行动的英雄，如果没有英雄准备好则返回nil
 function BattleActionOrder.Run()
     if not _isRunning then
@@ -138,8 +184,8 @@ function BattleActionOrder.Run()
     for _, item in ipairs(orderList) do
         if item.progress >= ACTION_BAR_THRESHOLD then
             _currentHero = item.hero
-            Logger.Log(string.format("[行动] 英雄 %s 准备行动 (行动条: %d)",
-                item.hero.name or "Unknown", item.progress))
+            Logger.Log(string.format("[行动] 英雄 %s 准备行动 (行动条: %d, 先攻: %d)",
+                item.hero.name or "Unknown", item.progress, item.initiative or 0))
             return _currentHero
         end
     end
@@ -220,6 +266,16 @@ function BattleActionOrder.GetHeroActionBar(hero)
         return 0
     end
     return _actionBars[hero.instanceId] or 0
+end
+
+--- 获取指定英雄的 5e 先攻信息
+---@param hero table 英雄对象
+---@return table 先攻信息 {roll, mod, total}
+function BattleActionOrder.GetHeroInitiative(hero)
+    if not hero or not hero.instanceId then
+        return { roll = 0, mod = 0, total = 0 }
+    end
+    return _initiative[hero.instanceId] or { roll = 0, mod = getDexMod(hero), total = getDexMod(hero) }
 end
 
 --- 获取行动条阈值

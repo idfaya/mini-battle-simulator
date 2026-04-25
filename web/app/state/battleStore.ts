@@ -55,6 +55,9 @@ export class BattleStore {
     }
 
     const log = [...this.state.log];
+    const appendLog = (message: string) => {
+      log.push(message);
+    };
     const animations: AnimationEvent[] = [];
     let flashUntil = this.state.flashUntil;
     let banner = this.state.banner;
@@ -62,10 +65,10 @@ export class BattleStore {
     for (const event of events) {
       switch (event.type) {
         case "turn_started":
-          log.unshift(`回合 ${String(event.payload.round ?? "")} - ${String(event.payload.heroName ?? "")} 行动`);
+          appendLog(`回合 ${String(event.payload.round ?? "")} - ${String(event.payload.heroName ?? "")} 行动`);
           break;
         case "damage_dealt":
-          log.unshift(`${String(event.payload.attackerName ?? "")} 对 ${String(event.payload.targetName ?? "")} 造成 ${String(event.payload.damage ?? 0)} 伤害`);
+          appendLog(`${String(event.payload.attackerName ?? "")} 对 ${String(event.payload.targetName ?? "")} 造成 ${String(event.payload.damage ?? 0)} 伤害`);
           animations.push({
             type: "damage",
             heroId: String(event.payload.targetId ?? ""),
@@ -74,7 +77,7 @@ export class BattleStore {
           });
           break;
         case "heal_received":
-          log.unshift(`${String(event.payload.healerName ?? "")} 治疗 ${String(event.payload.targetName ?? "")} ${String(event.payload.healAmount ?? 0)}`);
+          appendLog(`${String(event.payload.healerName ?? "")} 治疗 ${String(event.payload.targetName ?? "")} ${String(event.payload.healAmount ?? 0)}`);
           animations.push({
             type: "heal",
             heroId: String(event.payload.targetId ?? ""),
@@ -93,7 +96,7 @@ export class BattleStore {
             skillName: String(event.payload.skillName ?? ""),
             totalFrames: Number(event.payload.totalFrames ?? 0),
           });
-          log.unshift(`${String(event.payload.heroName ?? "")} 开始演出 ${String(event.payload.skillName ?? "")}`);
+          appendLog(`${String(event.payload.heroName ?? "")} 开始演出 ${String(event.payload.skillName ?? "")}`);
           break;
         case "skill_timeline_frame":
           animations.push({
@@ -126,19 +129,19 @@ export class BattleStore {
             totalDamage: Number(event.payload.totalDamage ?? 0),
             succeeded: Boolean(event.payload.succeeded),
           });
-          log.unshift(`${String(event.payload.heroName ?? "")} 完成演出 ${String(event.payload.skillName ?? "")}`);
+          appendLog(`${String(event.payload.heroName ?? "")} 完成演出 ${String(event.payload.skillName ?? "")}`);
           break;
         case "ultimate_ready":
-          log.unshift(`${String(event.payload.heroName ?? "")} 大招已就绪`);
+          appendLog(`${String(event.payload.heroName ?? "")} 大招已就绪`);
           break;
         case "ultimate_cast_queued":
-          log.unshift(`已下达大招指令: ${String(event.payload.heroId ?? "")}`);
+          appendLog(`已下达大招指令: ${String(event.payload.heroId ?? "")}`);
           break;
         case "command_rejected":
-          log.unshift(`指令失效: ${String(event.payload.reason ?? "unknown")}`);
+          appendLog(`指令失效: ${String(event.payload.reason ?? "unknown")}`);
           break;
         case "battle_ended":
-          log.unshift(`战斗结束: ${String(event.payload.reason ?? "")}`);
+          appendLog(`战斗结束: ${String(event.payload.reason ?? "")}`);
           break;
         default:
           break;
@@ -147,7 +150,7 @@ export class BattleStore {
 
     this.state = {
       ...this.state,
-      log: log.slice(0, 16),
+      log,
       animations,
       flashUntil,
       banner,

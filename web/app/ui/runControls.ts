@@ -193,7 +193,7 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
         stateBits.push(`专注:${focus.concentrationSkillName ?? focus.concentrationSkillId ?? "未知技能"}`);
       }
       lines.push(
-        `${active ? "当前行动" : "当前角色"}: ${focus.name} | HP ${focus.hp}/${focus.maxHp} | 速度 ${focus.speed ?? 0} | AC ${focus.ac ?? 0} | 命中 ${focus.hit ?? 0} | 法术命中 ${focus.spellDC ?? 0} | 豁免 F/R/W ${focus.saveFort ?? 0}/${focus.saveRef ?? 0}/${focus.saveWill ?? 0}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
+        `${active ? "当前行动" : "当前角色"}: ${focus.name} | HP ${focus.hp}/${focus.maxHp} | 先攻 ${focus.initiative ?? 0} (${focus.initiativeRoll ?? 0}${(focus.initiativeMod ?? 0) >= 0 ? "+" : ""}${focus.initiativeMod ?? 0}) | AC ${focus.ac ?? 0} | 命中 ${focus.hit ?? 0} | 法术命中 ${focus.spellDC ?? 0} | 豁免 F/R/W ${focus.saveFort ?? 0}/${focus.saveRef ?? 0}/${focus.saveWill ?? 0}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
       );
     }
     controls.status.textContent = lines.join("\n");
@@ -237,7 +237,7 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = "选择奖励";
+    title.textContent = "选择奖励后继续";
     controls.panel.append(title);
     snapshot.rewardState.options.forEach((option, index) => {
       controls.panel.append(

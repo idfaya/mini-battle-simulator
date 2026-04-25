@@ -1,6 +1,6 @@
 import { createFloatingText, drawFloatingText, type FloatingText } from "./animations";
 import type { BattleStoreState } from "../state/battleStore";
-import type { AnimationEvent, UnitState } from "../types/battle";
+import type { ActionOrderState, AnimationEvent, UnitState } from "../types/battle";
 
 type FormationSide = "player" | "enemy";
 type FormationRow = "front" | "back";
@@ -87,11 +87,11 @@ type FormationMetrics = {
   playerBackY: number;
 };
 
-const TOP_BAR_TEXT_Y = 52;
-const TIMELINE_PANEL_Y = 72;
-const TIMELINE_PANEL_HEIGHT = 104;
-const BATTLEFIELD_TOP_SAFE_Y = TIMELINE_PANEL_Y + TIMELINE_PANEL_HEIGHT + 26;
-const BATTLEFIELD_BOTTOM_SAFE_Y = 76;
+const TOP_BAR_TEXT_Y = 36;
+const ACTION_ORDER_BAR_Y = 50;
+const ACTION_ORDER_BAR_HEIGHT = 56;
+const BATTLEFIELD_TOP_SAFE_Y = ACTION_ORDER_BAR_Y + ACTION_ORDER_BAR_HEIGHT + 22;
+const BATTLEFIELD_BOTTOM_SAFE_Y = 150;
 const TEAM_ROW_GAP = 26;
 const TEAM_CENTER_GAP = 44;
 
@@ -132,8 +132,7 @@ export class BattleScene {
     this.drawProjectileAnimations(ctx, allLayouts, now);
     this.drawImpactBursts(ctx, allLayouts, now);
     this.drawTopBar(ctx, width, state);
-    this.drawTimelineOverlay(ctx, width, now, state);
-    this.drawBottomHint(ctx, width, height, state);
+    this.drawActionOrderBar(ctx, width, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
 
@@ -171,7 +170,9 @@ export class BattleScene {
     ctx.strokeStyle = "rgba(255,255,255,0.08)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(24, boardTop, width - 48, boardBottom - boardTop, 24);
+    const boardMarginX = width < 520 ? 8 : 24;
+    const boardLabelX = boardMarginX + 14;
+    ctx.roundRect(boardMarginX, boardTop, width - boardMarginX * 2, boardBottom - boardTop, 24);
     ctx.stroke();
 
     ctx.strokeStyle = "rgba(255, 209, 102, 0.22)";
@@ -197,24 +198,24 @@ export class BattleScene {
 
     ctx.fillStyle = "rgba(248, 249, 250, 0.72)";
     ctx.font = "bold 14px sans-serif";
-    ctx.fillText("Enemy Formation", 40, boardTop + 20);
-    ctx.fillText("Your Formation", 40, boardBottom - 14);
+    ctx.fillText("Enemy Formation", boardLabelX, boardTop + 20);
+    ctx.fillText("Your Formation", boardLabelX, boardBottom - 14);
     ctx.restore();
   }
 
   private computeFormationMetrics(width: number, height: number): FormationMetrics {
-    const marginX = 48;
+    const marginX = width < 520 ? 18 : 48;
     const desiredCardWidth = 208;
-    const desiredGapX = 28;
-    const minCardWidth = 158;
-    const minGapX = 16;
+    const desiredGapX = width < 520 ? 14 : 28;
+    const minCardWidth = width < 520 ? 96 : 158;
+    const minGapX = width < 520 ? 8 : 16;
 
     const desiredCardHeight = 110;
-    const minCardHeight = 92;
+    const minCardHeight = width < 520 ? 62 : 92;
     const desiredRowGap = TEAM_ROW_GAP;
-    const minRowGap = 12;
+    const minRowGap = width < 520 ? 8 : 12;
     const desiredCenterGap = TEAM_CENTER_GAP;
-    const minCenterGap = 24;
+    const minCenterGap = width < 520 ? 16 : 24;
 
     const availableX = Math.max(0, width - marginX * 2);
     const desiredTotalX = desiredCardWidth * 3 + desiredGapX * 2;
@@ -402,38 +403,31 @@ export class BattleScene {
       ctx.fill();
     }
 
-    this.drawClassIconBadge(ctx, x + 12, y + 10, 22, classBadge, unit.classIcon);
-
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText(unit.name, x + 44, y + 26);
-
-    this.drawPill(
-      ctx,
-      x + width - 72,
-      y + 10,
-      56,
-      18,
-      layout.row === "front" ? "FRONT" : "BACK",
-      "rgba(255,255,255,0.08)",
-      "rgba(255,255,255,0.16)",
-      "#d9e2ec",
-      "bold 10px sans-serif",
-    );
-
-    if (unit.ultimateReady) {
-      ctx.fillStyle = "#80ed99";
-      ctx.font = "bold 12px sans-serif";
-      ctx.fillText("ULT READY", x + width - 90, y + 44);
+    const compact = width < 120;
+    const badgeSize = compact ? 16 : 22;
+    const nameX = compact ? x + 30 : x + 44;
+    if (compact) {
+      this.drawClassIconBadge(ctx, x + 8, y + 8, badgeSize, classBadge, unit.classIcon);
+    } else {
+      this.drawClassIconBadge(ctx, x + 12, y + 10, badgeSize, classBadge, unit.classIcon);
     }
 
-    this.drawBar(ctx, x + 16, y + 52, width - 32, 12, unit.maxHp > 0 ? unit.hp / unit.maxHp : 0, "#ef476f", "#4a4a4a");
-    this.drawBar(ctx, x + 16, y + 74, width - 32, 10, unit.maxEnergy > 0 ? unit.energy / unit.maxEnergy : 0, "#4cc9f0", "#2a2a2a");
+    ctx.fillStyle = "#f8f9fa";
+    ctx.font = compact ? "bold 11px sans-serif" : "bold 18px sans-serif";
+    ctx.fillText(unit.name, nameX, y + (compact ? 21 : 26), width - (compact ? 38 : 52));
 
-    ctx.fillStyle = "#d9e2ec";
-    ctx.font = "12px sans-serif";
-    ctx.fillText(`HP ${Math.max(0, Math.floor(unit.hp))}/${Math.floor(unit.maxHp)}`, x + 16, y + 102);
-    ctx.fillText(`EN ${Math.floor(unit.energy)}/${Math.floor(unit.maxEnergy)}`, x + width - 96, y + 102);
+    const hpY = compact ? y + height - 15 : y + 52;
+    const hpRate = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
+    this.drawBar(ctx, x + 12, hpY, width - 24, compact ? 8 : 10, hpRate, this.getHpBarColor(hpRate), "#263238");
+    ctx.fillStyle = "#f8f9fa";
+    ctx.font = compact ? "bold 7px sans-serif" : "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${Math.max(0, Math.floor(unit.hp))}/${Math.floor(unit.maxHp)}`, x + width / 2, hpY + (compact ? 4 : 5));
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+
+    this.drawBuffIcons(ctx, compact ? x + 10 : x + 16, compact ? y + 27 : y + 72, compact ? width - 20 : width - 32, unit);
 
     if (!unit.isAlive) {
       ctx.fillStyle = "rgba(0,0,0,0.48)";
@@ -441,8 +435,10 @@ export class BattleScene {
       ctx.roundRect(x, y, width, height, 18);
       ctx.fill();
       ctx.fillStyle = "#f8f9fa";
-      ctx.font = "bold 20px sans-serif";
-      ctx.fillText("DEFEATED", x + 64, y + 62);
+      ctx.font = compact ? "bold 10px sans-serif" : "bold 20px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("DEFEATED", x + width / 2, y + height / 2 + 4, width - 8);
+      ctx.textAlign = "left";
     }
 
     ctx.restore();
@@ -526,16 +522,123 @@ export class BattleScene {
     ctx.fillRect(x, y, width * Math.max(0, Math.min(1, rate)), height);
   }
 
+  private getHpBarColor(rate: number) {
+    const hpRate = Math.max(0, Math.min(1, rate));
+    if (hpRate > 0.72) {
+      return "#43d17a";
+    }
+    if (hpRate > 0.45) {
+      return "#ffd166";
+    }
+    if (hpRate > 0.22) {
+      return "#ff9f1c";
+    }
+    return "#ef476f";
+  }
+
+  private drawBuffIcons(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
+    const buffs = (unit.buffs ?? []).slice(0, 4);
+    ctx.save();
+    ctx.font = "10px sans-serif";
+
+    if (buffs.length === 0) {
+      ctx.restore();
+      return;
+    }
+
+    const iconSize = 18;
+    const gap = 6;
+    for (let index = 0; index < buffs.length; index += 1) {
+      const buff = buffs[index];
+      const iconX = x + index * (iconSize + gap);
+      if (iconX + iconSize > x + width) {
+        break;
+      }
+      const style = this.getBuffIconStyle(buff.buffId, buff.name);
+
+      ctx.fillStyle = style.fill;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(iconX, y, iconSize, iconSize, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f8f9fa";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 10px sans-serif";
+      ctx.fillText(style.label, iconX + iconSize / 2, y + iconSize / 2 + 0.5);
+
+      const stackText = buff.stackCount > 1 ? String(buff.stackCount) : buff.duration > 0 && buff.duration < 99 ? String(buff.duration) : "";
+      if (stackText) {
+        ctx.fillStyle = "rgba(11, 19, 32, 0.95)";
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize - 2, y + iconSize - 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f8f9fa";
+        ctx.font = "bold 8px sans-serif";
+        ctx.fillText(stackText, iconX + iconSize - 2, y + iconSize - 2.5);
+      }
+    }
+
+    if ((unit.buffs?.length ?? 0) > buffs.length) {
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = "#d9e2ec";
+      ctx.font = "10px sans-serif";
+      ctx.fillText(`+${(unit.buffs?.length ?? 0) - buffs.length}`, x + buffs.length * (iconSize + gap), y + 13);
+    }
+
+    ctx.restore();
+  }
+
+  private getBuffIconStyle(buffId: number, name: string) {
+    const id = Math.floor((Number(buffId) || 0) / 10000);
+    if (id === 82) {
+      return { label: "嘲", fill: "#3b5b7a", stroke: "#91c9ff" };
+    }
+    if (id === 84) {
+      return { label: "战", fill: "#5c4a1f", stroke: "#ffd166" };
+    }
+    if (id === 85) {
+      return { label: "毒", fill: "#24573a", stroke: "#80ed99" };
+    }
+    if (id === 86) {
+      return { label: "亲", fill: "#29445f", stroke: "#4cc9f0" };
+    }
+    if (id === 87) {
+      return { label: "火", fill: "#6f2a1f", stroke: "#ff8a65" };
+    }
+    if (id === 88) {
+      return { label: name.includes("冻") ? "冻" : "慢", fill: "#263b5f", stroke: "#90caf9" };
+    }
+    return { label: String(name || "?").slice(0, 1), fill: "#263238", stroke: "rgba(255,255,255,0.45)" };
+  }
+
   private drawTopBar(ctx: CanvasRenderingContext2D, width: number, state: BattleStoreState) {
     if (!state.snapshot) {
       return;
     }
 
+    const compact = width < 520;
     ctx.fillStyle = "#f8f9fa";
-    ctx.font = "bold 24px sans-serif";
-    ctx.fillText(`Round ${state.snapshot.round}`, 48, TOP_BAR_TEXT_Y);
-    ctx.font = "14px sans-serif";
-    ctx.fillText(state.banner ?? "AFK 战斗进行中", width / 2 - 70, TOP_BAR_TEXT_Y - 2);
+    ctx.font = compact ? "bold 20px sans-serif" : "bold 24px sans-serif";
+    ctx.fillText(`Round ${state.snapshot.round}`, compact ? 28 : 48, compact ? 30 : TOP_BAR_TEXT_Y);
+
+    const resultText = state.snapshot.result
+      ? `Result ${state.snapshot.result.winner} · ${state.snapshot.result.reason}`
+      : "Result running";
+    ctx.textAlign = compact ? "right" : "center";
+    ctx.font = compact ? "bold 12px sans-serif" : "bold 14px sans-serif";
+    ctx.fillText(resultText, compact ? width - 24 : width / 2, compact ? 24 : TOP_BAR_TEXT_Y - 6, compact ? width - 150 : undefined);
+
+    if (state.banner) {
+      ctx.font = compact ? "11px sans-serif" : "12px sans-serif";
+      ctx.fillStyle = "#d9e2ec";
+      ctx.fillText(state.banner, compact ? width - 24 : width / 2, compact ? 40 : TOP_BAR_TEXT_Y + 12, compact ? width - 150 : undefined);
+    }
+    ctx.textAlign = "left";
 
     if (state.runContext) {
       ctx.font = "12px sans-serif";
@@ -543,109 +646,97 @@ export class BattleScene {
       ctx.fillText(
         `${state.runContext.chapterLabel} · ${state.runContext.nodeTitle} · 金币 ${state.runContext.gold} · 遗物 ${state.runContext.relicCount} · 祝福 ${state.runContext.blessingCount}`,
         48,
-        TOP_BAR_TEXT_Y + 18,
+        TOP_BAR_TEXT_Y + 14,
       );
     }
   }
 
-  private drawTimelineOverlay(ctx: CanvasRenderingContext2D, width: number, now: number, state: BattleStoreState) {
+  private drawActionOrderBar(ctx: CanvasRenderingContext2D, width: number, state: BattleStoreState) {
     const snapshot = state.snapshot;
-    const activeUnit = snapshot
-      ? [...snapshot.leftTeam, ...snapshot.rightTeam].find((unit) => unit.id === snapshot.activeHeroId) ?? null
-      : null;
-
-    if (!this.activeTimeline && !activeUnit) {
+    if (!snapshot) {
       return;
     }
 
-    if (this.activeTimeline?.completedAt && now - this.activeTimeline.completedAt > 280) {
-      this.activeTimeline = null;
-    }
-
-    const overlay = this.activeTimeline;
-    const panelWidth = Math.min(520, Math.max(380, width - 120));
-    const panelHeight = TIMELINE_PANEL_HEIGHT;
+    const allUnits = [...snapshot.leftTeam, ...snapshot.rightTeam];
+    const order = this.resolveActionOrder(snapshot.actionOrder ?? [], allUnits);
+    const panelWidth = Math.min(760, Math.max(380, width - 96));
     const x = Math.round((width - panelWidth) / 2);
-    const y = TIMELINE_PANEL_Y;
-    const infoWidth = 180;
-    const timelineX = x + infoWidth + 12;
-    const timelineWidth = panelWidth - infoWidth - 28;
-    const keyframeCount = Math.max(overlay?.totalFrames ?? 1, 1);
-    const currentKeyframeIndex = Math.max(0, overlay?.frameIndex ?? 0);
-    const progress = overlay ? Math.max(0.08, Math.min(1, currentKeyframeIndex / keyframeCount)) : 0;
-    const timelineMs = Math.max(0, Math.round(((overlay?.frame ?? 0) || 0) * (1000 / 30)));
+    const y = ACTION_ORDER_BAR_Y;
+    const trackX = x + 34;
+    const trackY = y + ACTION_ORDER_BAR_HEIGHT / 2;
+    const trackWidth = panelWidth - 68;
+    const iconSize = width < 560 ? 24 : 28;
 
     ctx.save();
-    ctx.fillStyle = "rgba(11, 19, 32, 0.92)";
-    ctx.strokeStyle = overlay?.completedAt ? "#80ed99" : "#ffd166";
+    ctx.fillStyle = "rgba(11, 19, 32, 0.9)";
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(x, y, panelWidth, panelHeight, 12);
+    ctx.roundRect(x, y, panelWidth, ACTION_ORDER_BAR_HEIGHT, 10);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(x + infoWidth, y + 10, 1, panelHeight - 20);
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
+    ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(trackX, trackY);
+    ctx.lineTo(trackX + trackWidth, trackY);
+    ctx.stroke();
 
-    if (activeUnit) {
-      const badge = this.getClassBadge(activeUnit.classId);
-      const hpRate = activeUnit.maxHp > 0 ? activeUnit.hp / activeUnit.maxHp : 0;
-      const enRate = activeUnit.maxEnergy > 0 ? activeUnit.energy / activeUnit.maxEnergy : 0;
+    const step = order.length > 1 ? trackWidth / (order.length - 1) : 0;
+    for (let index = 0; index < order.length; index += 1) {
+      const item = order[index];
+      const isActive = snapshot.activeHeroId === item.id;
+      const badge = this.getClassBadge(item.classId);
+      const iconCenterX = trackX + Math.round(step * index);
+      const laneY = trackY;
+      const iconX = Math.max(trackX - iconSize / 2, Math.min(trackX + trackWidth - iconSize / 2, iconCenterX - iconSize / 2));
+      const iconY = laneY - iconSize / 2;
+      const teamStroke = item.team === "left" ? "#4cc9f0" : "#ef476f";
 
-      this.drawClassIconBadge(ctx, x + 12, y + 12, 24, badge, activeUnit.classIcon);
-      ctx.fillStyle = "#f8f9fa";
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText(activeUnit.name, x + 44, y + 20);
-
-      ctx.font = "11px sans-serif";
-      ctx.fillStyle = "#d9e2ec";
-      const actionText = overlay
-        ? overlay.skillName
-        : activeUnit.ultimateReady
-          ? `ULT READY · ${activeUnit.ultimateSkillName}`
-          : activeUnit.ultimateSkillName;
-      ctx.fillText(actionText, x + 44, y + 36);
-
-      this.drawBar(ctx, x + 12, y + 48, infoWidth - 24, 8, hpRate, "#ef476f", "#3a3a3a");
-      this.drawBar(ctx, x + 12, y + 62, infoWidth - 24, 6, enRate, "#4cc9f0", "#2a2a2a");
-
-      ctx.fillStyle = "#f8f9fa";
-      ctx.font = "10px sans-serif";
-      ctx.fillText(`${Math.max(0, Math.floor(activeUnit.hp))}/${Math.floor(activeUnit.maxHp)}`, x + 12, y + 46);
-      ctx.fillText(`EN ${Math.floor(activeUnit.energy)}/${Math.floor(activeUnit.maxEnergy)}`, x + infoWidth - 62, y + 72);
-
-      const stateBits: string[] = [];
-      if (activeUnit.isChanting) {
-        stateBits.push(`吟唱:${activeUnit.pendingSkillName ?? "未知技能"}`);
-      }
-      if (activeUnit.isConcentrating) {
-        stateBits.push(`专注:${activeUnit.concentrationSkillName ?? activeUnit.concentrationSkillId ?? "未知技能"}`);
-      }
-      if (stateBits.length > 0) {
-        ctx.fillStyle = "#ffd166";
-        ctx.fillText(stateBits.join(" / "), x + 12, y + 84);
+      if (isActive) {
+        ctx.shadowColor = "rgba(255, 209, 102, 0.65)";
+        ctx.shadowBlur = 12;
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(iconCenterX, laneY, iconSize / 2 + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
       }
 
-      this.drawBuffSummary(ctx, x + 12, stateBits.length > 0 ? y + 94 : y + 80, infoWidth - 24, activeUnit);
+      this.drawClassIconBadge(ctx, iconX, iconY, iconSize, badge, item.classIcon);
+
+      ctx.strokeStyle = isActive ? "#ffd166" : teamStroke;
+      ctx.lineWidth = isActive ? 3 : 2;
+      ctx.beginPath();
+      ctx.roundRect(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, 7);
+      ctx.stroke();
     }
 
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText(overlay ? `${overlay.heroName} · ${overlay.skillName}` : "等待技能时间轴", timelineX, y + 24);
-
-    ctx.font = "13px sans-serif";
-    const phaseText = overlay
-      ? overlay.completedAt
-        ? `完成 · ${overlay.succeeded ? "成功" : "失败"} · 总伤害 ${overlay.totalDamage}`
-        : `播放中 · 关键帧 ${overlay.frameIndex}/${keyframeCount} · 时间轴帧 ${overlay.frame} (~${timelineMs}ms)`
-      : "尚未进入技能时间轴，等待本轮动作开始";
-    ctx.fillText(phaseText, timelineX, y + 46);
-
-    ctx.fillStyle = "#263238";
-    ctx.fillRect(timelineX, y + 76, timelineWidth, 8);
-    ctx.fillStyle = overlay?.completedAt ? "#80ed99" : "#ffd166";
-    ctx.fillRect(timelineX, y + 76, Math.round(timelineWidth * progress), 8);
     ctx.restore();
+  }
+
+  private resolveActionOrder(actionOrder: ActionOrderState[], units: UnitState[]): ActionOrderState[] {
+    if (actionOrder.length > 0) {
+      return actionOrder.filter((item) => item.isAlive);
+    }
+
+    return units
+      .filter((unit) => unit.isAlive)
+      .map((unit) => ({
+        id: unit.id,
+        name: unit.name,
+        team: unit.team,
+        classId: unit.classId,
+        classIcon: unit.classIcon,
+        progress: unit.actionBar ?? 0,
+        max: unit.actionBarMax ?? 1000,
+        initiative: unit.initiative ?? 0,
+        isAlive: unit.isAlive,
+      }))
+      .sort((a, b) => b.initiative - a.initiative);
   }
 
   private drawBuffSummary(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
@@ -686,22 +777,6 @@ export class BattleScene {
     }
 
     ctx.restore();
-  }
-
-  private drawBottomHint(ctx: CanvasRenderingContext2D, width: number, height: number, state: BattleStoreState) {
-    const snapshot = state.snapshot;
-    if (!snapshot) {
-      return;
-    }
-
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "14px sans-serif";
-    const ready = snapshot.leftTeam.filter((unit) => unit.ultimateReady);
-    const hint = ready.length > 0
-      ? `可点击右侧大招栏立刻释放: ${ready.map((unit) => unit.name).join(" / ")}`
-      : "战斗自动进行中，等待大招蓄满";
-    ctx.fillText(hint, 48, height - 28);
-    ctx.fillText(`Pending Commands: ${snapshot.pendingCommands}`, width - 190, height - 28);
   }
 
   private consumeAnimations(events: AnimationEvent[], layouts: UnitLayout[], now: number) {

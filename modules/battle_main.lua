@@ -53,6 +53,8 @@ local MAX_BATTLE_ROUNDS = 100
 
 -- 当前回合数
 local currentRound = 0
+local roundParticipants = {}
+local roundActed = {}
 
 -- 战斗结果
 local battleResult = {
@@ -90,6 +92,8 @@ local function ResetState()
     onBattleEndCallback = nil
     currentBattleState = E_BATTLE_STATE.PREPARE
     currentRound = 0
+    roundParticipants = {}
+    roundActed = {}
     battleResult = {
         winner = nil,
         isFinished = false,
@@ -97,6 +101,58 @@ local function ResetState()
     }
     currentAction = nil
     actionPostGapRemainingMs = 0
+end
+
+local function GetHeroBattleId(hero)
+    if not hero then
+        return nil
+    end
+    return hero.instanceId or hero.id
+end
+
+local function BuildRoundParticipants()
+    local participants = {}
+    for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
+        local heroId = GetHeroBattleId(hero)
+        if hero and heroId and hero.isAlive and not hero.isDead then
+            participants[heroId] = true
+        end
+    end
+    return participants
+end
+
+local function StartNextCombatRound()
+    currentRound = currentRound + 1
+    roundParticipants = BuildRoundParticipants()
+    roundActed = {}
+end
+
+local function EnsureCombatRound(hero)
+    if currentRound <= 0 then
+        StartNextCombatRound()
+    end
+
+    local heroId = GetHeroBattleId(hero)
+    if heroId and not roundParticipants[heroId] then
+        roundParticipants[heroId] = true
+    end
+end
+
+local function MarkHeroActedAndAdvanceRound(hero)
+    local heroId = GetHeroBattleId(hero)
+    if heroId then
+        roundActed[heroId] = true
+    end
+
+    for participantId in pairs(roundParticipants) do
+        local participant = BattleFormation.FindHeroByInstanceId(participantId)
+        local stillNeedsTurn = participant and participant.isAlive and not participant.isDead and not roundActed[participantId]
+        if stillNeedsTurn then
+            return
+        end
+    end
+
+    StartNextCombatRound()
 end
 
 --- 初始化所有子系统
@@ -351,8 +407,7 @@ local function BeginNextAction()
     end
 
     if hero then
-        -- 增加回合数
-        currentRound = currentRound + 1
+        EnsureCombatRound(hero)
         
         Logger.Log(string.format("[行动] 英雄 %s 开始行动", hero.name or "Unknown"))
 
@@ -611,6 +666,7 @@ function BattleMain.CompleteHeroAction(actionState)
 
     BattleEvent.Publish(BattleVisualEvents.TURN_ENDED, BattleVisualEvents.BuildTurnEvent(
         BattleVisualEvents.TURN_ENDED, currentRound, hero))
+    MarkHeroActedAndAdvanceRound(hero)
 
     Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
     actionPostGapRemainingMs = math.max(0, tonumber(BattleRhythmConfig.postGapMs) or 0)

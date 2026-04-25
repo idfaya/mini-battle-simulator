@@ -3,6 +3,7 @@ local BattleFormation = require("modules.battle_formation")
 local BattleBuff = require("modules.battle_buff")
 local BattleSkill = require("modules.battle_skill")
 local BattleEnergy = require("modules.battle_energy")
+local BattleActionOrder = require("modules.battle_action_order")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local HeroData = require("config.hero_data")
@@ -200,6 +201,7 @@ end
 local function serializeHero(hero)
     local skill = getUltimateSkill(hero)
     local buffs = {}
+    local initiative = BattleActionOrder.GetHeroInitiative and BattleActionOrder.GetHeroInitiative(hero) or { roll = 0, mod = 0, total = 0 }
     for _, buff in ipairs(BattleBuff.GetAllBuffs(hero) or {}) do
         buffs[#buffs + 1] = serializeBuff(buff)
     end
@@ -226,6 +228,9 @@ local function serializeHero(hero)
         maxHp = hero.maxHp or 0,
         -- 5e-style debug stats (shown in web status panel)
         speed = hero.speed or hero.spd or 0,
+        initiativeRoll = initiative.roll or 0,
+        initiativeMod = initiative.mod or 0,
+        initiative = initiative.total or 0,
         ac = hero.ac or 0,
         hit = hero.hit or 0,
         spellDC = hero.spellDC or 0,
@@ -243,6 +248,8 @@ local function serializeHero(hero)
         concentrationSkillId = hero.__concentrationSkillId or nil,
         concentrationSkillName = hero.__concentrationSkillName or nil,
         buffs = buffs,
+        actionBar = BattleActionOrder.GetHeroActionBar and BattleActionOrder.GetHeroActionBar(hero) or 0,
+        actionBarMax = BattleActionOrder.GetActionBarThreshold and BattleActionOrder.GetActionBarThreshold() or 1000,
         ultimateReady = canCastUltimate(hero),
         ultimateSkillName = skill and skill.name or "ULT",
     }
@@ -265,6 +272,34 @@ end
 
 local function buildSnapshot()
     local leftTeam, rightTeam = serializeTeams()
+    local unitById = {}
+    for _, unit in ipairs(leftTeam) do
+        unitById[unit.id] = unit
+    end
+    for _, unit in ipairs(rightTeam) do
+        unitById[unit.id] = unit
+    end
+
+    local actionOrder = {}
+    if BattleActionOrder.GetActionOrder then
+        for _, item in ipairs(BattleActionOrder.GetActionOrder() or {}) do
+            local heroId = item.hero and item.hero.instanceId and tostring(item.hero.instanceId) or nil
+            local unit = heroId and unitById[heroId] or nil
+            if unit then
+                actionOrder[#actionOrder + 1] = {
+                    id = unit.id,
+                    name = unit.name,
+                    team = unit.team,
+                    classId = unit.classId,
+                    classIcon = unit.classIcon,
+                    progress = item.progress or unit.actionBar or 0,
+                    max = unit.actionBarMax or 1000,
+                    initiative = unit.initiative or 0,
+                    isAlive = unit.isAlive,
+                }
+            end
+        end
+    end
     local result = nil
     local battleResult = BattleMain.GetBattleResult and BattleMain.GetBattleResult() or state.battleResult
 
@@ -283,6 +318,7 @@ local function buildSnapshot()
             or nil,
         leftTeam = leftTeam,
         rightTeam = rightTeam,
+        actionOrder = actionOrder,
         pendingCommands = #state.queuedCommands,
         result = result,
     }
@@ -368,12 +404,75 @@ local function buildSeedArray()
     }
 end
 
+local function normalizeIdList(input, maxCount)
+    local result = {}
+    if type(input) == "table" then
+        for _, value in ipairs(input) do
+            local id = tonumber(value)
+            if id then
+                result[#result + 1] = id
+                if maxCount and #result >= maxCount then
+                    break
+                end
+            end
+        end
+    elseif type(input) == "string" then
+        for part in string.gmatch(input, "[^,%s]+") do
+            local id = tonumber(part)
+            if id then
+                result[#result + 1] = id
+                if maxCount and #result >= maxCount then
+                    break
+                end
+            end
+        end
+    elseif type(input) == "number" then
+        result[1] = input
+    end
+    return result
+end
+
+local function normalizeSeedArray(options)
+    local provided = options and options.seedArray
+    if type(provided) == "table" and #provided > 0 then
+        local result = {}
+        for i = 1, math.min(4, #provided) do
+            result[i] = tonumber(provided[i]) or (123456789 + i)
+        end
+        while #result < 4 do
+            result[#result + 1] = (result[#result] * 1103515245 + 12345) % 2147483647
+        end
+        return result
+    end
+
+    local seed = tonumber(options and options.seed)
+    if seed then
+        local base = math.max(1, math.floor(seed) % 2147483647)
+        return {
+            base,
+            (base * 1103515245 + 12345) % 2147483647,
+            (base * 69069 + 1) % 2147483647,
+            (base * 1664525 + 1013904223) % 2147483647,
+        }
+    end
+
+    return buildSeedArray()
+end
+
 local function buildRuntimeTeamConfig(options)
     local level = clamp(tonumber(options and options.level) or 1, 1, 20)
     local heroCount = clamp(math.floor(tonumber(options and options.heroCount) or 3), 1, 6)
     local enemyCount = clamp(math.floor(tonumber(options and options.enemyCount) or 4), 1, 6)
     local initialEnergy = clamp(math.floor(tonumber(options and options.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100)
-    local seedArray = buildSeedArray()
+    local seedArray = normalizeSeedArray(options)
+    local fixedHeroIds = normalizeIdList(options and options.heroIds, 6)
+    local fixedEnemyIds = normalizeIdList(options and options.enemyIds, 6)
+    if #fixedHeroIds > 0 then
+        heroCount = clamp(#fixedHeroIds, 1, 6)
+    end
+    if #fixedEnemyIds > 0 then
+        enemyCount = clamp(#fixedEnemyIds, 1, 6)
+    end
 
     math.randomseed(seedArray[1])
 
@@ -424,19 +523,24 @@ local function buildRuntimeTeamConfig(options)
         end
     end
 
-    local selectedHeroIds = {}
+    local selectedHeroIds = cloneArray(fixedHeroIds)
     local selectedHeroMap = {}
+    for _, heroId in ipairs(selectedHeroIds) do
+        selectedHeroMap[heroId] = true
+    end
     local allHeroes = HeroData.GetPlayableHeroes()
-    local heroFrontNeed, heroBackNeed = computeRowSplit(heroCount)
-    local frontHeroes, backHeroes = partitionByRowPreference(allHeroes, function(hero)
-        return hero and hero.Class or 0
-    end)
-    randomPickInto(selectedHeroIds, frontHeroes, heroFrontNeed, function(hero)
-        return hero and hero.AllyID
-    end, selectedHeroMap)
-    randomPickInto(selectedHeroIds, backHeroes, heroBackNeed, function(hero)
-        return hero and hero.AllyID
-    end, selectedHeroMap)
+    if #selectedHeroIds == 0 then
+        local heroFrontNeed, heroBackNeed = computeRowSplit(heroCount)
+        local frontHeroes, backHeroes = partitionByRowPreference(allHeroes, function(hero)
+            return hero and hero.Class or 0
+        end)
+        randomPickInto(selectedHeroIds, frontHeroes, heroFrontNeed, function(hero)
+            return hero and hero.AllyID
+        end, selectedHeroMap)
+        randomPickInto(selectedHeroIds, backHeroes, heroBackNeed, function(hero)
+            return hero and hero.AllyID
+        end, selectedHeroMap)
+    end
     if #selectedHeroIds < heroCount then
         -- Fallback if one side pool is insufficient.
         fillFromPool(selectedHeroIds, allHeroes, heroCount, function(hero)
@@ -446,8 +550,11 @@ local function buildRuntimeTeamConfig(options)
 
     local allEnemyIds = EnemyData.GetAllEnemyIds()
     local allBossIds = EnemyData.GetAllBossIds()
-    local selectedEnemyIds = {}
+    local selectedEnemyIds = cloneArray(fixedEnemyIds)
     local selectedEnemyMap = {}
+    for _, enemyId in ipairs(selectedEnemyIds) do
+        selectedEnemyMap[enemyId] = true
+    end
 
     local function addEnemyId(enemyId)
         if enemyId and not selectedEnemyMap[enemyId] then
@@ -456,52 +563,54 @@ local function buildRuntimeTeamConfig(options)
         end
     end
 
-    if #allBossIds > 0 then
-        addEnemyId(ArrayUtils.RandomSelect(allBossIds, 1)[1])
-    end
+    if #fixedEnemyIds == 0 then
+        if #allBossIds > 0 then
+            addEnemyId(ArrayUtils.RandomSelect(allBossIds, 1)[1])
+        end
 
-    local enemyFrontNeed, enemyBackNeed = computeRowSplit(enemyCount)
-    if #selectedEnemyIds > 0 then
-        local bossId = selectedEnemyIds[1]
-        local boss = bossId and EnemyData.GetEnemy and EnemyData.GetEnemy(bossId) or nil
-        local bossClass = boss and boss.Class or 0
-        if ClassRoleConfig.PreferFrontRow(bossClass) then
-            enemyFrontNeed = math.max(0, enemyFrontNeed - 1)
-        else
-            enemyBackNeed = math.max(0, enemyBackNeed - 1)
+        local enemyFrontNeed, enemyBackNeed = computeRowSplit(enemyCount)
+        if #selectedEnemyIds > 0 then
+            local bossId = selectedEnemyIds[1]
+            local boss = bossId and EnemyData.GetEnemy and EnemyData.GetEnemy(bossId) or nil
+            local bossClass = boss and boss.Class or 0
+            if ClassRoleConfig.PreferFrontRow(bossClass) then
+                enemyFrontNeed = math.max(0, enemyFrontNeed - 1)
+            else
+                enemyBackNeed = math.max(0, enemyBackNeed - 1)
+            end
         end
-    end
 
-    local enemyObjs = {}
-    for _, enemyId in ipairs(allEnemyIds or {}) do
-        local enemy = EnemyData.GetEnemy and EnemyData.GetEnemy(enemyId) or nil
-        if enemy and enemy.ID then
-            table.insert(enemyObjs, enemy)
-        end
-    end
-    local frontEnemies, backEnemies = partitionByRowPreference(enemyObjs, function(enemy)
-        return enemy and enemy.Class or 0
-    end)
-
-    -- Random select per row buckets, then fill any remaining from the full pool.
-    local function enemyReadId(enemy)
-        return enemy and enemy.ID
-    end
-    local function addFromPool(pool, count)
-        if count <= 0 then
-            return
-        end
-        for _, enemy in ipairs(ArrayUtils.RandomSelect(pool or {}, count) or {}) do
-            addEnemyId(enemyReadId(enemy))
-        end
-    end
-    addFromPool(frontEnemies, enemyFrontNeed)
-    addFromPool(backEnemies, enemyBackNeed)
-    if #selectedEnemyIds < enemyCount then
+        local enemyObjs = {}
         for _, enemyId in ipairs(allEnemyIds or {}) do
-            addEnemyId(enemyId)
-            if #selectedEnemyIds >= enemyCount then
-                break
+            local enemy = EnemyData.GetEnemy and EnemyData.GetEnemy(enemyId) or nil
+            if enemy and enemy.ID then
+                table.insert(enemyObjs, enemy)
+            end
+        end
+        local frontEnemies, backEnemies = partitionByRowPreference(enemyObjs, function(enemy)
+            return enemy and enemy.Class or 0
+        end)
+
+        -- Random select per row buckets, then fill any remaining from the full pool.
+        local function enemyReadId(enemy)
+            return enemy and enemy.ID
+        end
+        local function addFromPool(pool, count)
+            if count <= 0 then
+                return
+            end
+            for _, enemy in ipairs(ArrayUtils.RandomSelect(pool or {}, count) or {}) do
+                addEnemyId(enemyReadId(enemy))
+            end
+        end
+        addFromPool(frontEnemies, enemyFrontNeed)
+        addFromPool(backEnemies, enemyBackNeed)
+        if #selectedEnemyIds < enemyCount then
+            for _, enemyId in ipairs(allEnemyIds or {}) do
+                addEnemyId(enemyId)
+                if #selectedEnemyIds >= enemyCount then
+                    break
+                end
             end
         end
     end

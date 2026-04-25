@@ -54,9 +54,10 @@ local function PrintMenu()
     print("请选择操作:")
     print("  1. 运行简单战斗测试")
     print("  2. 运行完整战斗模拟")
-    print("  3. 退出")
+    print("  3. 运行单场战斗测试")
+    print("  4. 退出")
     print("")
-    io.write("请输入选项 (1-3): ")
+    io.write("请输入选项 (1-4): ")
 end
 
 -- 运行简单战斗测试
@@ -118,6 +119,30 @@ function RunBattleSimulation()
     io.read()
 end
 
+-- 运行单场战斗测试
+function RunSingleBattleTest()
+    print("")
+    print("========================================")
+    print("        运行单场战斗测试")
+    print("========================================")
+    print("")
+
+    local SingleBattleTest = require("modules.single_battle_test")
+    local success, result = pcall(function()
+        return SingleBattleTest.Run()
+    end)
+
+    if not success then
+        print("")
+        print("单场战斗测试执行失败:")
+        print(result)
+    end
+
+    print("")
+    print("按回车键继续...")
+    io.read()
+end
+
 -- 主函数
 local function Main()
     PrintWelcome()
@@ -141,6 +166,8 @@ local function Main()
         elseif choice == "2" then
             RunBattleSimulation()
         elseif choice == "3" then
+            RunSingleBattleTest()
+        elseif choice == "4" then
             running = false
             print("")
             print("感谢使用 Mini Battle Simulator，再见!")

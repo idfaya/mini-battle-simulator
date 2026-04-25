@@ -386,6 +386,10 @@
       "moduleName": "modules.roguelike_snapshot"
     },
     {
+      "path": "modules/single_battle_test.lua",
+      "moduleName": "modules.single_battle_test"
+    },
+    {
       "path": "modules/skill_effect_registry.lua",
       "moduleName": "modules.skill_effect_registry"
     },

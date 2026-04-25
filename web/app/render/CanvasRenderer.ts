@@ -8,6 +8,8 @@ export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly scene = new BattleScene();
   private readonly runMapScene = new RunMapScene();
+  private displayWidth = 960;
+  private displayHeight = 760;
 
   constructor() {
     this.canvas = document.createElement("canvas");
@@ -20,15 +22,35 @@ export class CanvasRenderer {
     this.ctx = context;
   }
 
+  resizeToDisplaySize() {
+    const rect = this.canvas.getBoundingClientRect();
+    const displayWidth = Math.max(1, Math.round(rect.width));
+    const displayHeight = Math.max(1, Math.round(rect.height));
+    const pixelRatio = Math.max(1, Math.min(3, Math.round(window.devicePixelRatio || 1)));
+    const backingWidth = displayWidth * pixelRatio;
+    const backingHeight = displayHeight * pixelRatio;
+
+    if (this.canvas.width !== backingWidth || this.canvas.height !== backingHeight) {
+      this.canvas.width = backingWidth;
+      this.canvas.height = backingHeight;
+    }
+    this.displayWidth = displayWidth;
+    this.displayHeight = displayHeight;
+    this.ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  }
+
   render(state: BattleStoreState, now: number) {
-    this.scene.draw(this.ctx, this.canvas.width, this.canvas.height, state, now);
+    this.resizeToDisplaySize();
+    this.scene.draw(this.ctx, this.displayWidth, this.displayHeight, state, now);
   }
 
   renderBattle(state: BattleStoreState, now: number) {
-    this.scene.draw(this.ctx, this.canvas.width, this.canvas.height, state, now);
+    this.resizeToDisplaySize();
+    this.scene.draw(this.ctx, this.displayWidth, this.displayHeight, state, now);
   }
 
   renderMap(snapshot: RunSnapshot | null) {
-    this.runMapScene.draw(this.ctx, this.canvas.width, this.canvas.height, snapshot);
+    this.resizeToDisplaySize();
+    this.runMapScene.draw(this.ctx, this.displayWidth, this.displayHeight, snapshot);
   }
 }
