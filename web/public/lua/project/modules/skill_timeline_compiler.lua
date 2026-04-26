@@ -92,11 +92,28 @@ local function ExecuteOp(ctx, frameCopy)
 
                     local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(ctx.hero, ctx.skill, meta and meta.isAOE, resolvedKind)) or "1d6+3"
                     local rolled = 0
+                    local damageRoll = nil
                     if not saveResult.success then
-                        rolled = Dice.Roll(diceExpr, { crit = false }) * diceScale
+                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
+                        rolled = diceTotal * diceScale
+                        damageRoll = {
+                            expr = diceExpr,
+                            total = diceTotal,
+                            scaledTotal = rolled,
+                            parts = diceDetail and diceDetail.parts or {},
+                            crit = false,
+                        }
                     else
                         local successMode = (meta and meta.onSaveSuccess) or "half"
-                        local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
+                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
+                        local full = diceTotal * diceScale
+                        damageRoll = {
+                            expr = diceExpr,
+                            total = diceTotal,
+                            scaledTotal = full,
+                            parts = diceDetail and diceDetail.parts or {},
+                            crit = false,
+                        }
                         if successMode == "half" then
                             rolled = math.floor(full / 2)
                         else
@@ -106,6 +123,7 @@ local function ExecuteOp(ctx, frameCopy)
                     dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
                     if hitMetaByTarget[target.instanceId] then
                         hitMetaByTarget[target.instanceId].damage = dmg
+                        hitMetaByTarget[target.instanceId].damageRoll = damageRoll
                     end
                 else
                     local hitResult = BattleFormula.RollHit(ctx.hero, target, {
@@ -116,9 +134,28 @@ local function ExecuteOp(ctx, frameCopy)
                     if hitResult.hit then
                         isCrit = hitResult.crit == true
                         local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(ctx.hero, ctx.skill, resolvedKind)) or "1d6+2"
-                        local rolled = Dice.Roll(diceExpr, { crit = isCrit }) * diceScale
+                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = isCrit })
+                        local rolled = diceTotal * diceScale
+                        hitMetaByTarget[target.instanceId].damageRoll = {
+                            expr = diceExpr,
+                            total = diceTotal,
+                            scaledTotal = rolled,
+                            parts = diceDetail and diceDetail.parts or {},
+                            crit = isCrit,
+                        }
                         dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
                     else
+                        local BattleEvent = require("core.battle_event")
+                        local BattleVisualEvents = require("ui.battle_visual_events")
+                        BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                            BattleVisualEvents.MISS,
+                            ctx.hero,
+                            target,
+                            {
+                                skillId = ctx.skill and ctx.skill.skillId or nil,
+                                skillName = ctx.skill and ctx.skill.name or nil,
+                                attackRoll = hitResult,
+                            }))
                         dmg = 0
                     end
                     if hitMetaByTarget[target.instanceId] then
@@ -141,6 +178,9 @@ local function ExecuteOp(ctx, frameCopy)
                         skillName = ctx.skill and ctx.skill.name or nil,
                         damageKind = resolvedKind,
                         isCrit = isCrit,
+                        attackRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].hit or nil,
+                        saveRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].save or nil,
+                        damageRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].damageRoll or nil,
                     })
                     total = total + dmg
                 end

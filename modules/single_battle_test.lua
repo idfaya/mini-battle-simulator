@@ -5,7 +5,7 @@ local SingleBattleTest = {}
 local DEFAULT_CONFIG = {
     level = 1,
     heroIds = { 900005, 900007, 900002 },
-    enemyIds = { 910004, 910002 },
+    enemyIds = { 910004, 910002, 910003 },
     initialEnergy = 90,
     seed = 101001,
 }

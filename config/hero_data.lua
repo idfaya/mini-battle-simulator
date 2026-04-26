@@ -241,7 +241,7 @@ local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
     local id = tonumber(classId) or 0
     if id == 1 then return dexMod end -- Assassin
     if id == 5 then return dexMod end -- Poison / finesse-ish melee
-    if id == 6 then return wisMod end -- Healer basic holy attack
+    if id == 6 then return strMod end -- Healer mace basic attack
     if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
     return strMod
 end

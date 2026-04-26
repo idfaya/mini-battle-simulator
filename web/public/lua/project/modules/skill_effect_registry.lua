@@ -98,6 +98,24 @@ local function ResolveBattleIntentBuff(skill)
     return nil, 2
 end
 
+local function DidFrameAffectTarget(frameCopy, target)
+    if not target then
+        return false
+    end
+
+    local targetId = target.instanceId or target.id
+    local hitMeta = frameCopy and frameCopy.__hitMetaByTarget and frameCopy.__hitMetaByTarget[targetId] or nil
+    if hitMeta then
+        return (tonumber(hitMeta.damage) or 0) > 0
+    end
+
+    if frameCopy and type(frameCopy.damage) == "number" then
+        return frameCopy.damage > 0
+    end
+
+    return true
+end
+
 local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -316,7 +334,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local stacks = tonumber(p and p.stacks) or 1
         local turns = tonumber(p and p.turns) or 2
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead then
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
                 BattleSkill.ApplyBurn(t, stacks, turns, ctx.hero)
             end
         end

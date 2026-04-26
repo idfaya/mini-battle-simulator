@@ -46,7 +46,7 @@ local OVERRIDES = {
     -- Holy (H1)
     -- Note: holy skills use custom handlers for ally heal / enemy damage.
     -- We still define heal dice here so runtime can stay free of MaxHP% healing.
-    [80006001] = { kind = "physical", damageDice = "2d8+2" },
+    [80006001] = { kind = "physical" }, -- Mace Strike: weapon-only melee basic
     [80006002] = { kind = "auto", healDice = "1d4" },    -- passive tick
     [80006003] = { kind = "auto", healDice = "2d8+5" },  -- heals 2 allies
     [80006004] = {

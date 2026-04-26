@@ -6,6 +6,8 @@ if (!root) {
   throw new Error("App root not found");
 }
 
+root.replaceChildren();
+
 void bootstrapApp(root).catch((error) => {
   const panel = document.createElement("pre");
   panel.className = "fatal-error";

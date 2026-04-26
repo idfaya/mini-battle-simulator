@@ -53,6 +53,8 @@ local MAX_BATTLE_ROUNDS = 100
 
 -- 当前回合数
 local currentRound = 0
+local roundParticipants = {}
+local roundActed = {}
 
 -- 战斗结果
 local battleResult = {
@@ -63,6 +65,7 @@ local battleResult = {
 
 local currentAction = nil
 local actionPostGapRemainingMs = 0
+local queuedUltimateByHero = {}
 
 local function SafeClock()
     local ok, result = pcall(function()
@@ -90,6 +93,9 @@ local function ResetState()
     onBattleEndCallback = nil
     currentBattleState = E_BATTLE_STATE.PREPARE
     currentRound = 0
+    roundParticipants = {}
+    roundActed = {}
+    queuedUltimateByHero = {}
     battleResult = {
         winner = nil,
         isFinished = false,
@@ -97,6 +103,101 @@ local function ResetState()
     }
     currentAction = nil
     actionPostGapRemainingMs = 0
+end
+
+local function GetHeroBattleId(hero)
+    if not hero then
+        return nil
+    end
+    return hero.instanceId or hero.id
+end
+
+local function BuildRoundParticipants()
+    local participants = {}
+    for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
+        local heroId = GetHeroBattleId(hero)
+        if hero and heroId and hero.isAlive and not hero.isDead then
+            participants[heroId] = true
+        end
+    end
+    return participants
+end
+
+local function StartNextCombatRound()
+    currentRound = currentRound + 1
+    roundParticipants = BuildRoundParticipants()
+    roundActed = {}
+end
+
+local function EnsureCombatRound(hero)
+    if currentRound <= 0 then
+        StartNextCombatRound()
+    end
+
+    local heroId = GetHeroBattleId(hero)
+    if heroId and not roundParticipants[heroId] then
+        roundParticipants[heroId] = true
+    end
+end
+
+local function MarkHeroActedAndAdvanceRound(hero)
+    local heroId = GetHeroBattleId(hero)
+    if heroId then
+        roundActed[heroId] = true
+    end
+
+    for participantId in pairs(roundParticipants) do
+        local participant = BattleFormation.FindHeroByInstanceId(participantId)
+        local stillNeedsTurn = participant and participant.isAlive and not participant.isDead and not roundActed[participantId]
+        if stillNeedsTurn then
+            return
+        end
+    end
+
+    StartNextCombatRound()
+end
+
+local function SelectNextRoundHero()
+    if currentRound <= 0 then
+        StartNextCombatRound()
+    end
+
+    local candidates = {}
+    for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
+        local heroId = GetHeroBattleId(hero)
+        if hero and heroId and roundParticipants[heroId] and not roundActed[heroId] and hero.isAlive and not hero.isDead then
+            local initiative = BattleActionOrder.GetHeroInitiative and BattleActionOrder.GetHeroInitiative(hero) or { total = 0 }
+            candidates[#candidates + 1] = {
+                hero = hero,
+                initiative = initiative.total or 0,
+                id = heroId,
+            }
+        end
+    end
+
+    if #candidates == 0 then
+        StartNextCombatRound()
+        for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
+            local heroId = GetHeroBattleId(hero)
+            if hero and heroId and roundParticipants[heroId] and not roundActed[heroId] and hero.isAlive and not hero.isDead then
+                local initiative = BattleActionOrder.GetHeroInitiative and BattleActionOrder.GetHeroInitiative(hero) or { total = 0 }
+                candidates[#candidates + 1] = {
+                    hero = hero,
+                    initiative = initiative.total or 0,
+                    id = heroId,
+                }
+            end
+        end
+    end
+
+    table.sort(candidates, function(a, b)
+        if a.initiative ~= b.initiative then
+            return a.initiative > b.initiative
+        end
+        return tostring(a.id) < tostring(b.id)
+    end)
+
+    return candidates[1] and candidates[1].hero or nil
 end
 
 --- 初始化所有子系统
@@ -333,27 +434,9 @@ local function BeginNextAction()
         return
     end
 
-    -- 循环运行行动顺序系统，直到找到下一个行动的英雄（跳过空转帧）
-    local hero = nil
-    local safetyCounter = 0
-    while not hero and safetyCounter < 1000 do
-        hero = BattleActionOrder.Run()
-        safetyCounter = safetyCounter + 1
-        
-        -- 如果没有人行动，检查一下战斗是否因为其他原因结束（虽然不太可能，但为了安全）
-        if not hero then
-            local isEndLoop, winnerLoop, reasonLoop = CheckBattleEnd()
-            if isEndLoop then
-                TriggerBattleEnd(winnerLoop, reasonLoop)
-                return
-            end
-        end
-    end
+    local hero = SelectNextRoundHero()
 
     if hero then
-        -- 增加回合数
-        currentRound = currentRound + 1
-        
         Logger.Log(string.format("[行动] 英雄 %s 开始行动", hero.name or "Unknown"))
 
         -- 触发回合开始事件
@@ -473,6 +556,28 @@ local function SelectAvailableSkill(hero)
     
     -- 从 hero.skillData.skillInstances 中获取实际可用的技能
     local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
+
+    local heroId = GetHeroBattleId(hero)
+    local queuedUltimate = heroId and queuedUltimateByHero[tostring(heroId)]
+    if hero and hero.isLeft and queuedUltimate then
+        for skillId, skill in pairs(availableSkills) do
+            if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+                local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
+                local charges = tonumber(hero.ultimateCharges)
+                local maxCharges = tonumber(hero.ultimateChargesMax) or 1
+                if charges == nil then
+                    charges = maxCharges
+                end
+                queuedUltimateByHero[tostring(heroId)] = nil
+                if cd == 0 and charges > 0 then
+                    Logger.Log(string.format("[SelectAvailableSkill] %s 使用已排队大招: %s",
+                        hero.name or "Unknown", skill.name or tostring(skillId)))
+                    return skill
+                end
+                break
+            end
+        end
+    end
 
     -- Enemy AI auto-casts ultimate when ready. Player side still uses manual/auto queue.
     if hero and not hero.isLeft then
@@ -611,6 +716,7 @@ function BattleMain.CompleteHeroAction(actionState)
 
     BattleEvent.Publish(BattleVisualEvents.TURN_ENDED, BattleVisualEvents.BuildTurnEvent(
         BattleVisualEvents.TURN_ENDED, currentRound, hero))
+    MarkHeroActedAndAdvanceRound(hero)
 
     Logger.Log(string.format("[行动] 英雄 %s 行动结束", hero.name or "Unknown"))
     actionPostGapRemainingMs = math.max(0, tonumber(BattleRhythmConfig.postGapMs) or 0)
@@ -637,6 +743,9 @@ function BattleMain.Update(deltaMs)
 
     if SkillTimeline.IsRunning() then
         SkillTimeline.Update(deltaMs)
+        if SkillTimeline.IsRunning() then
+            return
+        end
     end
 
     -- 如果战斗已结束，不再执行逻辑
@@ -763,6 +872,29 @@ function BattleMain.GetActiveHeroInstanceId()
         return currentAction.hero.instanceId or currentAction.hero.id
     end
     return SkillTimeline.GetActiveHeroId()
+end
+
+function BattleMain.QueueUltimate(heroId)
+    if heroId == nil then
+        return false
+    end
+    queuedUltimateByHero[tostring(heroId)] = true
+    return true
+end
+
+function BattleMain.HasQueuedUltimate(heroId)
+    if heroId == nil then
+        return false
+    end
+    return queuedUltimateByHero[tostring(heroId)] == true
+end
+
+function BattleMain.GetQueuedUltimateCount()
+    local count = 0
+    for _ in pairs(queuedUltimateByHero) do
+        count = count + 1
+    end
+    return count
 end
 
 -- Browser/runtime command gate:

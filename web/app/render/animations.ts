@@ -33,6 +33,16 @@ export function createFloatingText(event: AnimationEvent, unit: UnitState | unde
     };
   }
 
+  if (event.type === "miss") {
+    return {
+      text: event.text,
+      color: "#f8f9fa",
+      createdAt: now,
+      emphasis: true,
+      lifetimeMs: 1200,
+    };
+  }
+
   return null;
 }
 

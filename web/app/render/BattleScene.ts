@@ -102,6 +102,9 @@ export class BattleScene {
   private projectiles: ProjectileAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
   private lastProjectileAtByCaster = new Map<string, number>();
+  private actionOrderRound: number | null = null;
+  private actionOrderRosterKey = "";
+  private actionOrderIds: string[] = [];
 
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, state: BattleStoreState, now: number) {
     ctx.clearRect(0, 0, width, height);
@@ -416,7 +419,7 @@ export class BattleScene {
     ctx.font = compact ? "bold 11px sans-serif" : "bold 18px sans-serif";
     ctx.fillText(unit.name, nameX, y + (compact ? 21 : 26), width - (compact ? 38 : 52));
 
-    const hpY = compact ? y + height - 15 : y + 52;
+    const hpY = compact ? y + height - 30 : y + 52;
     const hpRate = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
     this.drawBar(ctx, x + 12, hpY, width - 24, compact ? 8 : 10, hpRate, this.getHpBarColor(hpRate), "#263238");
     ctx.fillStyle = "#f8f9fa";
@@ -427,7 +430,7 @@ export class BattleScene {
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
 
-    this.drawBuffIcons(ctx, compact ? x + 10 : x + 16, compact ? y + 27 : y + 72, compact ? width - 20 : width - 32, unit);
+    this.drawBuffIcons(ctx, compact ? x + 10 : x + 16, compact ? hpY + 12 : y + 72, compact ? width - 20 : width - 32, unit);
 
     if (!unit.isAlive) {
       ctx.fillStyle = "rgba(0,0,0,0.48)";
@@ -658,7 +661,7 @@ export class BattleScene {
     }
 
     const allUnits = [...snapshot.leftTeam, ...snapshot.rightTeam];
-    const order = this.resolveActionOrder(snapshot.actionOrder ?? [], allUnits);
+    const order = this.resolveActionOrder(snapshot, allUnits);
     const panelWidth = Math.min(760, Math.max(380, width - 96));
     const x = Math.round((width - panelWidth) / 2);
     const y = ACTION_ORDER_BAR_Y;
@@ -695,6 +698,7 @@ export class BattleScene {
       const iconY = laneY - iconSize / 2;
       const teamStroke = item.team === "left" ? "#4cc9f0" : "#ef476f";
 
+      ctx.globalAlpha = item.isAlive ? 1 : 0.32;
       if (isActive) {
         ctx.shadowColor = "rgba(255, 209, 102, 0.65)";
         ctx.shadowBlur = 12;
@@ -713,18 +717,35 @@ export class BattleScene {
       ctx.beginPath();
       ctx.roundRect(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, 7);
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
   }
 
-  private resolveActionOrder(actionOrder: ActionOrderState[], units: UnitState[]): ActionOrderState[] {
-    if (actionOrder.length > 0) {
-      return actionOrder.filter((item) => item.isAlive);
+  private resolveActionOrder(snapshot: NonNullable<BattleStoreState["snapshot"]>, units: UnitState[]): ActionOrderState[] {
+    const rosterKey = units
+      .map((unit) => `${unit.id}:${unit.team}:${unit.classId}:${unit.initiative}`)
+      .join("|");
+
+    if (this.actionOrderRound !== snapshot.round || this.actionOrderRosterKey !== rosterKey || this.actionOrderIds.length === 0) {
+      this.actionOrderRound = snapshot.round;
+      this.actionOrderRosterKey = rosterKey;
+      this.actionOrderIds = units
+        .filter((unit) => unit.isAlive)
+        .sort((a, b) => {
+          if (b.initiative !== a.initiative) {
+            return b.initiative - a.initiative;
+          }
+          return a.id.localeCompare(b.id);
+        })
+        .map((unit) => unit.id);
     }
 
-    return units
-      .filter((unit) => unit.isAlive)
+    const unitById = new Map(units.map((unit) => [unit.id, unit]));
+    return this.actionOrderIds
+      .map((id) => unitById.get(id))
+      .filter((unit): unit is UnitState => Boolean(unit))
       .map((unit) => ({
         id: unit.id,
         name: unit.name,
@@ -735,8 +756,7 @@ export class BattleScene {
         max: unit.actionBarMax ?? 1000,
         initiative: unit.initiative ?? 0,
         isAlive: unit.isAlive,
-      }))
-      .sort((a, b) => b.initiative - a.initiative);
+      }));
   }
 
   private drawBuffSummary(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
@@ -839,7 +859,7 @@ export class BattleScene {
         continue;
       }
 
-      if (event.type === "damage" || event.type === "heal") {
+      if (event.type === "damage" || event.type === "heal" || event.type === "miss") {
         const layout = layouts.find((item) => item.unit.id === event.heroId);
         const text = createFloatingText(event, layout?.unit, now);
         if (!text || !layout) {
@@ -849,6 +869,9 @@ export class BattleScene {
           ...text,
           unitId: layout.unit.id,
         });
+        if (event.type === "miss") {
+          continue;
+        }
         this.impactBursts.push({
           unitId: layout.unit.id,
           startedAt: now,

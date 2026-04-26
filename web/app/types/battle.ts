@@ -98,6 +98,7 @@ export type BattleSetup = {
 export type AnimationEvent =
   | { type: "damage"; heroId: string; value: number; critical: boolean }
   | { type: "heal"; heroId: string; value: number }
+  | { type: "miss"; heroId: string; text: string }
   | { type: "banner"; text: string; emphasis?: boolean }
   | {
       type: "timeline_started";

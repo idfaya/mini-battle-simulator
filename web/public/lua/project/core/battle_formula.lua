@@ -119,9 +119,11 @@ function BattleFormula.RollHit(attacker, defender, opts)
         crit = meta.nat20 == true,
         total = total,
         roll = roll,
+        bonus = attackBonus,
         nat20 = meta.nat20 == true,
         nat1 = meta.nat1 == true,
         targetAC = targetAC,
+        raw = meta.raw,
     }
 end
 
@@ -146,9 +148,11 @@ function BattleFormula.RollSave(target, dc, saveBonus, opts)
         success = success,
         total = total,
         roll = roll,
+        bonus = bonus,
         nat20 = meta.nat20 == true,
         nat1 = meta.nat1 == true,
         dc = saveDC,
+        raw = meta.raw,
     }
 end
 

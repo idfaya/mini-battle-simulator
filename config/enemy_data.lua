@@ -198,7 +198,7 @@ end
 local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
     local id = tonumber(classId) or 0
     if id == 1 or id == 5 then return dexMod end
-    if id == 6 then return wisMod end
+    if id == 6 then return strMod end
     if id == 7 or id == 8 or id == 9 then return intMod end
     return strMod
 end

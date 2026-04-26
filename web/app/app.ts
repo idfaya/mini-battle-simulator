@@ -23,7 +23,7 @@ export async function bootstrapApp(container: HTMLElement) {
   panelHost.className = "hud";
 
   shell.append(stage, panelHost);
-  container.append(shell);
+  container.replaceChildren(shell);
 
   const host = await LuaBattleHost.create();
   const renderer = new CanvasRenderer();
@@ -68,13 +68,13 @@ async function bootstrapStandaloneBattle(
   const queryHeroIds = readIdList(options?.params?.get("heroes") ?? null);
   const queryEnemyIds = readIdList(options?.params?.get("enemies") ?? null);
   const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900007, 900002];
-  const singleEnemyIds = queryEnemyIds.length > 0 ? queryEnemyIds : [910004, 910002];
+  const singleEnemyIds = queryEnemyIds.length > 0 ? queryEnemyIds : [910004, 910002, 910003];
   const setup: BattleSetup = {
     level: Number(options?.params?.get("level")) || 1,
     heroCount: options?.singleBattleMode ? singleHeroIds.length : 6,
     enemyCount: options?.singleBattleMode ? singleEnemyIds.length : 6,
     initialEnergy: options?.singleBattleMode ? 90 : 80,
-    speed: options?.singleBattleMode ? 4 : 1,
+    speed: 1,
     heroIds: options?.singleBattleMode ? singleHeroIds : undefined,
     enemyIds: options?.singleBattleMode ? singleEnemyIds : undefined,
     seed: options?.singleBattleMode ? Number(options?.params?.get("seed")) || 101001 : undefined,
@@ -131,7 +131,7 @@ async function bootstrapStandaloneBattle(
       inFlight = false;
       store.appendEvents(events);
       store.setSnapshot(snapshot);
-      if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0) {
+      if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0 && !snapshot.activeHeroId) {
         const readyUnit = snapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
         if (readyUnit) {
           await castUltimate(readyUnit.id);

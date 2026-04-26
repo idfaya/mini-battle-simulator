@@ -295,7 +295,15 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
 
     if opts.skipCheck == true then
         local diceExpr = opts.damageDice or (meta and meta.damageDice) or "1d4"
-        local rolled = Dice.Roll(diceExpr, { crit = false }) * diceScale
+        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
+        local rolled = diceTotal * diceScale
+        result.damageRoll = {
+            expr = diceExpr,
+            total = diceTotal,
+            scaledTotal = rolled,
+            parts = diceDetail and diceDetail.parts or {},
+            crit = false,
+        }
         if opts.noClassScalar ~= true then
             rolled = ApplyClassDiceScalar(attacker, rolled, meta and meta.kind == "spell")
         end
@@ -329,17 +337,35 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(attacker, skill, meta and meta.isAOE, damageKind))
             or "1d6+3"
         local rolled = 0
+        local damageRoll = nil
         if not saveResult.success then
-            rolled = Dice.Roll(diceExpr, { crit = false }) * diceScale
+            local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
+            rolled = diceTotal * diceScale
+            damageRoll = {
+                expr = diceExpr,
+                total = diceTotal,
+                scaledTotal = rolled,
+                parts = diceDetail and diceDetail.parts or {},
+                crit = false,
+            }
         else
             local successMode = meta.onSaveSuccess or "half"
-            local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
+            local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
+            local full = diceTotal * diceScale
+            damageRoll = {
+                expr = diceExpr,
+                total = diceTotal,
+                scaledTotal = full,
+                parts = diceDetail and diceDetail.parts or {},
+                crit = false,
+            }
             if successMode == "half" then
                 rolled = math.floor(full / 2)
             else
                 rolled = 0
             end
         end
+        result.damageRoll = damageRoll
         rolled = ApplyClassDiceScalar(attacker, rolled, true)
         if useRate and damageRate > 0 then
             rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
@@ -378,7 +404,15 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(attacker, skill, damageKind))
             or "1d6+2"
     end
-    local rolled = Dice.Roll(diceExpr, { crit = hitResult.crit == true }) * diceScale
+    local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = hitResult.crit == true })
+    local rolled = diceTotal * diceScale
+    result.damageRoll = {
+        expr = diceExpr,
+        total = diceTotal,
+        scaledTotal = rolled,
+        parts = diceDetail and diceDetail.parts or {},
+        crit = hitResult.crit == true,
+    }
         rolled = ApplyClassDiceScalar(attacker, rolled, false)
         rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
     if useRate and damageRate > 0 then
@@ -961,6 +995,14 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         return true
     end
 
+    local SkillTimeline = require("core.skill_timeline")
+    if SkillTimeline.IsRunning and SkillTimeline.IsRunning() then
+        if type(onComplete) == "function" then
+            onComplete(false, { totalDamage = 0, succeeded = false, reason = "timeline_busy" })
+        end
+        return false
+    end
+
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
 
     local BattlePassiveSkill = require("modules.battle_passive_skill")
@@ -982,7 +1024,6 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         timeline = BuildFallbackTimeline(hero, targets, skill)
     end
 
-    local SkillTimeline = require("core.skill_timeline")
     local started = SkillTimeline.Start(hero, targets, skill, timeline, function(succeeded, result)
         if not succeeded then
             if type(onComplete) == "function" then
@@ -1096,6 +1137,9 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                         skillId = skill and skill.skillId or nil,
                         skillName = skill and skill.name or nil,
                         damageKind = "direct",
+                        attackRoll = damageResult and damageResult.hit or nil,
+                        saveRoll = damageResult and damageResult.save or nil,
+                        damageRoll = damageResult and damageResult.damageRoll or nil,
                     })
                 else
                     -- Log miss/save for readability (design goal: readable outcomes).
@@ -1106,6 +1150,15 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                             damageResult.hit.roll or 0,
                             damageResult.hit.total or 0,
                             damageResult.hit.targetAC or 0))
+                        BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                            BattleVisualEvents.MISS,
+                            hero,
+                            target,
+                            {
+                                skillId = skill and skill.skillId or nil,
+                                skillName = skill and skill.name or nil,
+                                attackRoll = damageResult.hit,
+                            }))
                     elseif damageResult and damageResult.save then
                         Logger.Log(string.format("[SAVE] %s 对 %s 豁免%s (roll=%d total=%d vs DC=%d)",
                             target.name or "Unknown",

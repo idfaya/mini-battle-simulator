@@ -71,9 +71,12 @@ local visualEvents = {
     BattleVisualEvents.HERO_REVIVED,
     BattleVisualEvents.ENERGY_CHANGED,
     BattleVisualEvents.DODGE,
+    BattleVisualEvents.MISS,
     BattleVisualEvents.BLOCK,
     BattleVisualEvents.CRIT,
 }
+
+local visualHandlers = {}
 
 local function resetState()
     state.accumulatorMs = 0
@@ -162,6 +165,23 @@ local function getUltimateSkill(hero)
     return nil
 end
 
+local function hasDeadAlly(hero)
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if ally and (ally.isDead or ally.isAlive == false or (ally.hp or 0) <= 0) then
+            return true
+        end
+    end
+    return false
+end
+
+local function passesUltimateSemanticRules(hero, skill)
+    local skillId = tonumber(skill and skill.skillId) or 0
+    if skillId == 80006004 then
+        return hasDeadAlly(hero)
+    end
+    return true
+end
+
 local function canCastUltimate(hero)
     if not hero or hero.isDead or not hero.isAlive or not hero.isLeft then
         return false
@@ -186,7 +206,7 @@ local function canCastUltimate(hero)
     if charges == nil then
         charges = maxCharges
     end
-    return charges > 0
+    return charges > 0 and passesUltimateSemanticRules(hero, skill)
 end
 
 local function serializeBuff(buff)
@@ -319,7 +339,7 @@ local function buildSnapshot()
         leftTeam = leftTeam,
         rightTeam = rightTeam,
         actionOrder = actionOrder,
-        pendingCommands = #state.queuedCommands,
+        pendingCommands = #state.queuedCommands + (BattleMain.GetQueuedUltimateCount and BattleMain.GetQueuedUltimateCount() or 0),
         result = result,
     }
 end
@@ -357,7 +377,12 @@ end
 
 local function registerVisualListeners()
     for _, eventName in ipairs(visualEvents) do
-        BattleEvent.AddListener(eventName, function(payload)
+        if visualHandlers[eventName] then
+            BattleEvent.RemoveListener(eventName, visualHandlers[eventName])
+            visualHandlers[eventName] = nil
+        end
+
+        local handler = function(payload)
             if eventName == BattleVisualEvents.TURN_STARTED then
                 state.activeHeroId = payload and (payload.heroId or payload.instanceId) or state.activeHeroId
             elseif eventName == BattleVisualEvents.TURN_ENDED then
@@ -368,7 +393,10 @@ local function registerVisualListeners()
             end
 
             emitEvent(eventName, payload)
-        end)
+        end
+
+        visualHandlers[eventName] = handler
+        BattleEvent.AddListener(eventName, handler)
     end
 end
 
@@ -727,14 +755,6 @@ local function processNextCommand()
         return false
     end
 
-    if BattleMain.CanAcceptExternalCommand and not BattleMain.CanAcceptExternalCommand() then
-        return false
-    end
-
-    if BattleMain.GetActiveHeroInstanceId and BattleMain.GetActiveHeroInstanceId() then
-        return false
-    end
-
     local command = table.remove(state.queuedCommands, 1)
     if not command or command.type ~= "cast_ultimate" then
         rejectCommand(command, "unsupported_command")
@@ -747,12 +767,22 @@ local function processNextCommand()
         return false
     end
 
-    local success, reason = castUltimateNow(hero)
-    if not success then
-        rejectCommand(command, reason)
+    if not canCastUltimate(hero) then
+        rejectCommand(command, "ultimate_not_reasonable")
         return false
     end
 
+    if BattleMain.HasQueuedUltimate and BattleMain.HasQueuedUltimate(command.heroId) then
+        rejectCommand(command, "ultimate_already_queued")
+        return false
+    end
+
+    if not BattleMain.QueueUltimate or not BattleMain.QueueUltimate(command.heroId) then
+        rejectCommand(command, "queue_failed")
+        return false
+    end
+
+    refreshUltimateReadiness()
     return true
 end
 
@@ -863,13 +893,26 @@ function Runtime.queueCommand(command)
         return false
     end
 
+    local heroId = tostring(command.heroId)
+    if BattleMain.HasQueuedUltimate and BattleMain.HasQueuedUltimate(heroId) then
+        rejectCommand(command, "ultimate_already_queued")
+        return false
+    end
+
+    for _, queuedCommand in ipairs(state.queuedCommands) do
+        if queuedCommand and queuedCommand.type == "cast_ultimate" and tostring(queuedCommand.heroId) == heroId then
+            rejectCommand(command, "ultimate_already_queued")
+            return false
+        end
+    end
+
     state.queuedCommands[#state.queuedCommands + 1] = {
         type = "cast_ultimate",
-        heroId = tostring(command.heroId),
+        heroId = heroId,
     }
 
     emitEvent("ultimate_cast_queued", {
-        heroId = tostring(command.heroId),
+        heroId = heroId,
     })
     return true
 end

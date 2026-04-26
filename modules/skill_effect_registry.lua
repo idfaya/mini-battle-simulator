@@ -98,6 +98,24 @@ local function ResolveBattleIntentBuff(skill)
     return nil, 2
 end
 
+local function DidFrameAffectTarget(frameCopy, target)
+    if not target then
+        return false
+    end
+
+    local targetId = target.instanceId or target.id
+    local hitMeta = frameCopy and frameCopy.__hitMetaByTarget and frameCopy.__hitMetaByTarget[targetId] or nil
+    if hitMeta then
+        return (tonumber(hitMeta.damage) or 0) > 0
+    end
+
+    if frameCopy and type(frameCopy.damage) == "number" then
+        return frameCopy.damage > 0
+    end
+
+    return true
+end
+
 local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -212,29 +230,35 @@ function SkillEffectRegistry.RegisterBuiltins()
             healAmount = CalculateHealByDice(ctx.hero, target, healDice)
             BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
         else
-            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
-            local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
-            local saveType = (meta and meta.saveType) or "will"
-            local saveBonus = (saveType == "fort" and (tonumber(target.saveFort) or 0))
-                or (saveType == "ref" and (tonumber(target.saveRef) or 0))
-                or (tonumber(target.saveWill) or 0)
-            local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {
-                ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
+            local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
+                skill = ctx.skill,
+                damageKind = "direct",
             })
-            local diceScale = tonumber(meta and meta.diceScale) or (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
-            local diceExpr = (meta and meta.damageDice) or "1d6+3"
-            local full = Dice.Roll(diceExpr, { crit = false }) * diceScale
-            local successMode = (meta and meta.onSaveSuccess) or "half"
-            if saveResult.success then
-                damage = (successMode == "half") and math.floor(full / 2) or 0
-            else
-                damage = full
+            damage = tonumber(damageResult and damageResult.damage) or 0
+            if damage > 0 then
+                BattleDmgHeal.ApplyDamage(target, damage, ctx.hero, {
+                    isCrit = damageResult and damageResult.isCrit or false,
+                    isDodged = damageResult and damageResult.isDodged or false,
+                    isBlocked = damageResult and damageResult.isBlock or false,
+                    skillId = ctx.skill and ctx.skill.skillId or nil,
+                    skillName = ctx.skill and ctx.skill.name or nil,
+                    damageKind = "direct",
+                    attackRoll = damageResult and damageResult.hit or nil,
+                    damageRoll = damageResult and damageResult.damageRoll or nil,
+                })
+            elseif damageResult and damageResult.hit and damageResult.hit.hit == false then
+                local BattleEvent = require("core.battle_event")
+                local BattleVisualEvents = require("ui.battle_visual_events")
+                BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                    BattleVisualEvents.MISS,
+                    ctx.hero,
+                    target,
+                    {
+                        skillId = ctx.skill and ctx.skill.skillId or nil,
+                        skillName = ctx.skill and ctx.skill.name or nil,
+                        attackRoll = damageResult.hit,
+                    }))
             end
-            BattleDmgHeal.ApplyDamage(target, damage, ctx.hero, {
-                skillId = ctx.skill and ctx.skill.skillId or nil,
-                skillName = ctx.skill and ctx.skill.name or nil,
-                damageKind = "holy_light",
-            })
         end
         return {
             effectValue = isAlly and healAmount or damage,
@@ -316,7 +340,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local stacks = tonumber(p and p.stacks) or 1
         local turns = tonumber(p and p.turns) or 2
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead then
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
                 BattleSkill.ApplyBurn(t, stacks, turns, ctx.hero)
             end
         end

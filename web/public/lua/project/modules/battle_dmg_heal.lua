@@ -158,6 +158,14 @@ function BattleDmgHeal.MakeDmg(attacker, defender, atkType, dmgParam, isShowDmg,
         if result.isDodged then
             Logger.Debug(string.format("[BattleDmgHeal.MakeDmg] %s 的攻击被 %s 闪避",
                 attacker.name or "Unknown", defender.name or "Unknown"))
+            BattleEvent.Publish(BattleVisualEvents.DODGE, BattleVisualEvents.BuildCombatEvent(
+                BattleVisualEvents.DODGE,
+                attacker,
+                defender,
+                {
+                    skillId = dmgParam.skillId,
+                    skillName = dmgParam.skillName,
+                }))
             return result
         end
     end
@@ -539,6 +547,9 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
             isBlocked = params.isBlocked or false,
             skillId = params.skillId,
             skillName = params.skillName,
+            attackRoll = params.attackRoll,
+            saveRoll = params.saveRoll,
+            damageRoll = params.damageRoll,
         }))
     
     -- 触发目标状态变化事件

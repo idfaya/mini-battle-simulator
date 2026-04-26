@@ -82,6 +82,9 @@ BattleVisualEvents.ENERGY_CHANGED = "EnergyChanged"
 --- 闪避
 BattleVisualEvents.DODGE = "Dodge"
 
+--- 未命中
+BattleVisualEvents.MISS = "Miss"
+
 --- 格挡
 BattleVisualEvents.BLOCK = "Block"
 
@@ -135,6 +138,9 @@ function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
         damageType = params.damageType or 1,
         skillId = params.skillId,
         skillName = params.skillName,
+        attackRoll = params.attackRoll,
+        saveRoll = params.saveRoll,
+        damageRoll = params.damageRoll,
     }
 end
 
@@ -194,7 +200,7 @@ function BattleVisualEvents.BuildSkillCastEvent(eventType, hero, skill, targets)
     if targets then
         for _, target in ipairs(targets) do
             table.insert(targetData, {
-                id = target.id,
+                id = target.instanceId or target.id,
                 name = target.name,
             })
         end
@@ -202,7 +208,7 @@ function BattleVisualEvents.BuildSkillCastEvent(eventType, hero, skill, targets)
     
     return {
         eventType = eventType,
-        heroId = hero.id,
+        heroId = hero.instanceId or hero.id,
         heroName = hero.name,
         skillId = skill.skillId,
         skillName = skill.name,
@@ -299,6 +305,14 @@ end
 ---@param hero table 当前行动英雄
 ---@return table 事件数据
 function BattleVisualEvents.BuildTurnEvent(eventType, round, hero)
+    local initiative = { roll = 0, mod = 0, total = 0 }
+    if hero then
+        local ok, BattleActionOrder = pcall(require, "modules.battle_action_order")
+        if ok and BattleActionOrder and BattleActionOrder.GetHeroInitiative then
+            initiative = BattleActionOrder.GetHeroInitiative(hero) or initiative
+        end
+    end
+
     return {
         eventType = eventType,
         round = round,
@@ -306,6 +320,9 @@ function BattleVisualEvents.BuildTurnEvent(eventType, round, hero)
         heroId = hero and (hero.instanceId or hero.id),
         heroName = hero and hero.name,
         team = hero and (hero.isLeft and "left" or "right"),
+        initiativeRoll = initiative.roll or 0,
+        initiativeMod = initiative.mod or 0,
+        initiativeTotal = initiative.total or 0,
     }
 end
 
@@ -352,12 +369,14 @@ function BattleVisualEvents.BuildCombatEvent(eventType, attacker, target, params
     params = params or {}
     return {
         eventType = eventType,
-        attackerId = attacker and attacker.id,
+        attackerId = attacker and (attacker.instanceId or attacker.id),
         attackerName = attacker and attacker.name,
-        targetId = target.id,
+        targetId = target.instanceId or target.id,
         targetName = target.name,
         skillId = params.skillId,
         skillName = params.skillName,
+        attackRoll = params.attackRoll,
+        saveRoll = params.saveRoll,
     }
 end
 
