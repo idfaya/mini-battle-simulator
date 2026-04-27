@@ -1,5 +1,35 @@
+---@alias RunNodeType
+---| "battle_normal"
+---| "battle_elite"
+---| "boss"
+---| "event"
+---| "shop"
+---| "camp"
+
+---@class RunNodeEntry
+---@field id integer
+---@field chapterId integer
+---@field floor integer
+---@field lane integer
+---@field code string
+---@field nodeType RunNodeType
+---@field title string
+---@field encounterId integer|nil
+---@field rewardGroupId integer|nil
+---@field eventId integer|nil
+---@field shopId integer|nil
+---@field campId integer|nil
+---@field bossPhaseGroupId integer|nil
+---@field nextNodeIds integer[]
+
+---@class RunNodePoolModule
+---@field NODES table<integer, RunNodeEntry>
+---@field GetNode fun(nodeId: integer): RunNodeEntry|nil
+
+---@type RunNodePoolModule
 local RunNodePool = {}
 
+---@type table<integer, RunNodeEntry>
 RunNodePool.NODES = {
     [101001] = {
         id = 101001,

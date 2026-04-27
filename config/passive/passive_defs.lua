@@ -1,3 +1,11 @@
+---@class PassiveTriggerDef
+---@field luaFuncName string
+---@field triggerTime integer
+
+---@class PassiveDefEntry
+---@field triggers PassiveTriggerDef[]
+
+---@type table<integer, PassiveDefEntry>
 local PassiveDefs = {
     [8000020] = {
         triggers = {

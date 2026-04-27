@@ -1,7 +1,50 @@
+---@alias RunRelicRarity
+---| "common"
+---| "rare"
+---| "boss"
+
+---@alias RunRelicTrigger
+---| "battle_start"
+---| "battle_win"
+---| "elite_win"
+---| "ally_die"
+---| "turn_start"
+
+---@alias RunRelicEffectType
+---| "team_energy_flat"
+---| "bonus_gold_by_battle_kind"
+---| "team_heal_pct"
+---| "class_attack_pct"
+---| "team_shield_pct_max_hp"
+---| "team_attack_stack_pct"
+
+---@class RunRelicParams
+---@field amount integer|nil
+---@field normal integer|nil
+---@field elite integer|nil
+---@field classIds integer[]|nil
+---@field value number|nil
+---@field maxStacks integer|nil
+
+---@class RunRelicEntry
+---@field id integer
+---@field code string
+---@field name string
+---@field rarity RunRelicRarity
+---@field trigger RunRelicTrigger
+---@field effectType RunRelicEffectType
+---@field params RunRelicParams
+
+---@class RunRelicConfigModule
+---@field RELICS table<integer, RunRelicEntry>
+---@field GetRelic fun(relicId: integer): RunRelicEntry|nil
+
+---@type RunRelicConfigModule
 local RunRelicConfig = {}
 
 -- trigger examples:
 -- battle_start, battle_win, elite_win, ally_die, turn_start
+---@type table<integer, RunRelicEntry>
 RunRelicConfig.RELICS = {
     [101001] = {
         id = 101001,

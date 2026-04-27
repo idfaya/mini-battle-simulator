@@ -1,3 +1,8 @@
+---@class ClassWeaponConfigModule
+---@field WEAPON_DICE_BY_CLASS table<integer, string>
+---@field GetWeaponDice fun(classId: integer): string|nil
+
+---@type ClassWeaponConfigModule
 local ClassWeaponConfig = {}
 
 -- Dice-first model:
@@ -9,6 +14,7 @@ local ClassWeaponConfig = {}
 -- - classId 6 is a support caster, but its basic attack is a melee mace swing.
 -- - classId 7..9 are backline casters and should not use weapon dice for damage.
 
+---@type table<integer, string>
 ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
     [1] = "1d10", -- A1 pursuit: sharper burst to keep short fights lethal
     [2] = "1d10", -- D1 defender: slower class still needs meaningful swings

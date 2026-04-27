@@ -1,3 +1,60 @@
+---@alias RunEncounterBudgetDifficulty
+---| "easy"
+---| "medium"
+---| "hard"
+---| "deadly"
+
+---@class RunEncounterGoldRange
+---@field min integer
+---@field max integer
+
+---@class RunEncounterBudget
+---@field difficulty RunEncounterBudgetDifficulty
+---@field pressureFactor number
+
+---@class RunEncounterPlayerScale
+---@field hp number
+---@field atk number
+---@field def number
+---@field energyBonus integer
+
+---@class RunEncounterEnemyScale
+---@field hp number
+---@field atk number
+---@field def number
+---@field hitDelta integer
+---@field spellDCDelta integer
+---@field saveDelta integer|nil
+
+---@class RunEncounterEliteBonus
+---@field relicRoll integer
+---@field rewardRarityBonus integer
+
+---@class RunEncounterBoss
+---@field phaseGroupId integer
+
+---@class RunEncounterEntry
+---@field id integer
+---@field kind string
+---@field chapterId integer
+---@field difficulty integer
+---@field level integer
+---@field enemyCount integer
+---@field enemyIds integer[]
+---@field initialEnergy integer
+---@field speed number
+---@field gold RunEncounterGoldRange
+---@field budget RunEncounterBudget
+---@field playerScale RunEncounterPlayerScale
+---@field enemyScale RunEncounterEnemyScale
+---@field eliteBonus RunEncounterEliteBonus|nil
+---@field boss RunEncounterBoss|nil
+
+---@class RunEncounterGroupModule
+---@field ENCOUNTERS table<integer, RunEncounterEntry>
+---@field GetEncounter fun(encounterId: integer): RunEncounterEntry|nil
+
+---@type RunEncounterGroupModule
 local RunEncounterGroup = {}
 
 -- Encounter = one battle setup for roguelike node.
@@ -10,6 +67,7 @@ local RunEncounterGroup = {}
 --   * `enemyScale` 仅保留「语义化的轻微修正」（±10% 以内 / hitDelta ±1），
 --     不再用倍率堆砌压强（避免和 budget 双乘）。
 --   * `playerScale` 维持原结构，保留给职业/队伍容错的微调。
+---@type table<integer, RunEncounterEntry>
 RunEncounterGroup.ENCOUNTERS = {
     -- Normal battles (chapter 1 baseline)
     [101001] = {

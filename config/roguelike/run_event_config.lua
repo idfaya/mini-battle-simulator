@@ -1,5 +1,53 @@
+---@alias RunEventKind
+---| "choice"
+
+---@alias RunEventCostType
+---| "gold"
+---| "current_hp_pct"
+---| "hp_pct"
+
+---@alias RunEventResultType
+---| "grant_gold"
+---| "grant_recruit"
+---| "trigger_battle"
+---| "team_heal_pct"
+---| "grant_blessing"
+---| "grant_relic"
+---| "grant_reward_group"
+
+---@class RunEventResult
+---@field gold integer|nil
+---@field heroId integer|nil
+---@field encounterId integer|nil
+---@field rewardGroupId integer|nil
+---@field value number|nil
+---@field blessingId integer|nil
+---@field relicId integer|nil
+
+---@class RunEventOption
+---@field id integer
+---@field label string
+---@field costType RunEventCostType|nil
+---@field costValue number|nil
+---@field resultType RunEventResultType
+---@field result RunEventResult
+
+---@class RunEventEntry
+---@field id integer
+---@field chapterId integer
+---@field code string
+---@field title string
+---@field kind RunEventKind
+---@field options RunEventOption[]
+
+---@class RunEventConfigModule
+---@field EVENTS table<integer, RunEventEntry>
+---@field GetEvent fun(eventId: integer): RunEventEntry|nil
+
+---@type RunEventConfigModule
 local RunEventConfig = {}
 
+---@type table<integer, RunEventEntry>
 RunEventConfig.EVENTS = {
     [101001] = {
         id = 101001,

@@ -1,5 +1,38 @@
+---@alias RunCampActionEffectType
+---| "team_heal_pct"
+---| "grant_blessing"
+---| "revive_one"
+
+---@class RunCampActionParams
+---@field value number|nil
+---@field blessingId integer|nil
+---@field healPct number|nil
+
+---@class RunCampActionRequirements
+---@field hasDeadHero boolean|nil
+
+---@class RunCampAction
+---@field id integer
+---@field label string
+---@field effectType RunCampActionEffectType
+---@field params RunCampActionParams
+---@field requirements RunCampActionRequirements|nil
+
+---@class RunCampEntry
+---@field id integer
+---@field chapterId integer
+---@field code string
+---@field name string
+---@field actions RunCampAction[]
+
+---@class RunCampConfigModule
+---@field CAMPS table<integer, RunCampEntry>
+---@field GetCamp fun(campId: integer): RunCampEntry|nil
+
+---@type RunCampConfigModule
 local RunCampConfig = {}
 
+---@type table<integer, RunCampEntry>
 RunCampConfig.CAMPS = {
     [101001] = {
         id = 101001,

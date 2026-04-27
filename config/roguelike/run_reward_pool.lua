@@ -1,3 +1,38 @@
+---@alias RunRewardGroupKind
+---| "normal"
+---| "elite"
+---| "event"
+---| "boss"
+
+---@alias RunRewardType
+---| "gold"
+---| "heal_pct"
+---| "relic"
+---| "blessing"
+---| "recruit"
+---| "shop_discount"
+
+---@class RunRewardOption
+---@field rewardType RunRewardType
+---@field refId integer|nil
+---@field value number|nil
+---@field weight integer
+
+---@class RunRewardConstraints
+---@field requireAtLeastOne RunRewardType[]|nil
+
+---@class RunRewardGroup
+---@field id integer
+---@field kind RunRewardGroupKind
+---@field optionCount integer
+---@field options RunRewardOption[]
+---@field constraints RunRewardConstraints|nil
+
+---@class RunRewardPoolModule
+---@field GROUPS table<integer, RunRewardGroup>
+---@field GetGroup fun(groupId: integer): RunRewardGroup|nil
+
+---@type RunRewardPoolModule
 local RunRewardPool = {}
 
 -- rewardType:
@@ -9,6 +44,7 @@ local RunRewardPool = {}
 -- - "shop_discount": adjust shop price for current run (optional)
 --
 -- NOTE: This is a vertical-slice config. The runtime can evolve the schema later.
+---@type table<integer, RunRewardGroup>
 RunRewardPool.GROUPS = {
     -- Normal battle reward: 3 options, typically blessing / recruit / small heal.
     [101001] = {

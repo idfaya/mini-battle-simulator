@@ -1,5 +1,35 @@
+---@class RunBossPhaseModifiers
+---@field bossDamagePct number|nil
+---@field bossShieldPct number|nil
+---@field bossSpeedPct number|nil
+---@field bossControlChancePct number|nil
+---@field playerHealTakenPct number|nil
+---@field addMinionIds integer[]|nil
+
+---@class RunBossPhaseWarning
+---@field text string
+
+---@class RunBossPhaseEntry
+---@field phase integer
+---@field hpThreshold number
+---@field label string
+---@field modifiers RunBossPhaseModifiers
+---@field warning RunBossPhaseWarning|nil
+
+---@class RunBossPhaseGroup
+---@field id integer
+---@field chapterId integer
+---@field bossEncounterId integer
+---@field phases RunBossPhaseEntry[]
+
+---@class RunBossPhaseModule
+---@field PHASE_GROUPS table<integer, RunBossPhaseGroup>
+---@field GetGroup fun(groupId: integer): RunBossPhaseGroup|nil
+
+---@type RunBossPhaseModule
 local RunBossPhase = {}
 
+---@type table<integer, RunBossPhaseGroup>
 RunBossPhase.PHASE_GROUPS = {
     [101201] = {
         id = 101201,

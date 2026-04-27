@@ -2,18 +2,58 @@ local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
 
+---@class EnemyAbilityScores
+---@field str integer
+---@field dex integer
+---@field con integer
+---@field int integer
+---@field wis integer
+---@field cha integer
+
+---@class EnemyRoleTemplate
+---@field hp integer[]
+---@field atk integer[]
+---@field def integer[]
+---@field speed integer[]
+---@field ac integer[]
+---@field hit integer[]
+---@field spellDC integer[]
+---@field saveFort integer[]
+---@field saveRef integer[]
+---@field saveWill integer[]
+---@field critRate integer
+---@field blockRate integer
+---@field healBonus integer|nil
+
+---@class EnemyChallengeMeta
+---@field cr string
+---@field xp integer
+---@field role string
+
+---@class MonsterTypeTemplate
+---@field hpMul number
+---@field atkMul number
+---@field defMul number
+---@field acDelta integer
+---@field hitDelta integer
+---@field spellDCDelta integer
+---@field saveDelta integer
+---@field speedDelta integer
+
 local EnemyData = {}
 
 local enemyData = {}
 local isLoaded = false
 local skillConfigInited = false
 
+---@type table<integer, string>
 local MONSTER_TYPE_NAMES = {
     [0] = "Normal",
     [1] = "Elite",
     [2] = "BOSS",
 }
 
+---@type table<integer, EnemyChallengeMeta>
 local ENEMY_CR_META = {
     [910001] = { cr = "1/8", xp = 25, role = "fodder" },   -- Slime
     [910002] = { cr = "1/4", xp = 50, role = "skirmisher" }, -- Goblin
@@ -26,6 +66,7 @@ local ENEMY_CR_META = {
 
 -- True 5e-style enemy templates.
 -- Base role template is picked by class, then monster type applies a clean modifier.
+---@type table<integer|string, EnemyRoleTemplate>
 local ENEMY_ROLE_TEMPLATES = {
     [1] = { hp = { 38, 48, 58, 70, 82 }, atk = { 7, 8, 9, 10, 11 }, def = { 2, 3, 3, 4, 4 }, speed = { 101, 102, 103, 104, 105 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 4, 5, 5 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 800, blockRate = 400 },
     [2] = { hp = { 52, 66, 80, 94, 108 }, atk = { 6, 7, 8, 9, 10 }, def = { 3, 4, 5, 6, 7 }, speed = { 92, 93, 94, 95, 96 }, ac = { 17, 18, 19, 20, 21 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 300, blockRate = 1600 },
@@ -39,6 +80,7 @@ local ENEMY_ROLE_TEMPLATES = {
     default = { hp = { 42, 52, 62, 72, 82 }, atk = { 5, 6, 7, 8, 9 }, def = { 2, 2, 3, 3, 4 }, speed = { 98, 99, 100, 101, 102 }, ac = { 15, 16, 17, 18, 19 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 500 },
 }
 
+---@type table<integer, MonsterTypeTemplate>
 local MONSTER_TYPE_TEMPLATES = {
     [0] = { hpMul = 0.58, atkMul = 1.00, defMul = 0.95, acDelta = -3, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
     [1] = { hpMul = 0.80, atkMul = 1.10, defMul = 1.00, acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
@@ -123,8 +165,10 @@ local function BuildScaledSkillIds(enemy, level)
 end
 
 local ENEMY_LEVEL_MAX = 20
+---@type integer[]
 local ENEMY_TIER_STARTS = { 1, 5, 11, 17, ENEMY_LEVEL_MAX + 1 }
 
+---@type table<integer, EnemyAbilityScores>
 local ENEMY_ABILITY_SCORES = {
     [910001] = { str = 10, dex = 8,  con = 14, int = 2,  wis = 8,  cha = 2  }, -- Slime
     [910002] = { str = 8,  dex = 16, con = 10, int = 8,  wis = 8,  cha = 8  }, -- Goblin

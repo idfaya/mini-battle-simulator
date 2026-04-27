@@ -1,6 +1,42 @@
 -- Centralized 5e meta for skills.
 -- This avoids inferring behavior from "targets count" at runtime and keeps the rules explicit.
 
+---@alias Skill5eMetaKind
+---| "physical"
+---| "spell"
+---| "auto"
+
+---@alias Skill5eSaveType
+---| "fort"
+---| "ref"
+---| "will"
+
+---@alias Skill5eOnSaveSuccess
+---| "half"
+---| "none"
+
+---@class Skill5eMetaEntry
+---@field kind Skill5eMetaKind
+---@field saveType Skill5eSaveType|nil
+---@field onSaveSuccess Skill5eOnSaveSuccess|nil
+---@field isAOE boolean|nil
+---@field hardControl boolean|nil
+---@field damageDice string|nil
+---@field healDice string|nil
+---@field chainDice string|nil
+---@field diceScale number|nil
+---@field chantTurns integer|nil
+---@field concentration boolean|nil
+---@field revivePct number|nil
+---@field revivePenaltyTurns integer|nil
+---@field revivePenaltyAtkMul number|nil
+---@field revivePenaltyDefMul number|nil
+---@field revivePenaltySpeedMul number|nil
+
+---@class Skill5eMetaModule
+---@field Get fun(skillId: integer): Skill5eMetaEntry
+
+---@type Skill5eMetaModule
 local Skill5eMeta = {}
 
 -- Default dice scale for 5e-style small numbers.
@@ -17,6 +53,7 @@ local DEFAULT_DICE_SCALE = 1
 -- chantTurns: number             (optional; 0 default)
 -- concentration: boolean         (optional; false default)
 
+---@type table<integer, Skill5eMetaEntry>
 local OVERRIDES = {
     -- Assassin (A1)
     [80001001] = { kind = "physical", damageDice = "1d4" },

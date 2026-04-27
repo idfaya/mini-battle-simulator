@@ -2,6 +2,29 @@ local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
 
+---@class HeroAbilityScores
+---@field str integer
+---@field dex integer
+---@field con integer
+---@field int integer
+---@field wis integer
+---@field cha integer
+
+---@class HeroRoleTemplate
+---@field hp integer[]
+---@field atk integer[]
+---@field def integer[]
+---@field speed integer[]
+---@field ac integer[]
+---@field hit integer[]
+---@field spellDC integer[]
+---@field saveFort integer[]
+---@field saveRef integer[]
+---@field saveWill integer[]
+---@field critRate integer
+---@field blockRate integer
+---@field healBonus integer|nil
+
 local HeroData = {}
 
 local heroInfoMap = {}
@@ -12,6 +35,7 @@ local allHeroes = {}
 local playableHeroes = {}
 local initialized = false
 
+---@type table<integer, string>
 local QUALITY_NAMES = {
     [1] = "Common",
     [2] = "Good",
@@ -24,6 +48,7 @@ local QUALITY_NAMES = {
 -- True 5e-style role templates.
 -- Values are band anchors for T1..T4 (Lv1-4, 5-10, 11-16, 17-20).
 -- We interpolate inside each band instead of reusing the legacy base+growth curve.
+---@type table<integer|string, HeroRoleTemplate>
 local HERO_ROLE_TEMPLATES = {
     [1] = { -- A1 追击流
         hp = { 42, 54, 66, 78, 90 },
@@ -159,6 +184,7 @@ local HERO_ROLE_TEMPLATES = {
 
 -- 5e ability scores per hero (STR/DEX/CON/INT/WIS/CHA).
 -- These are used for true 5e HP (hit die + CON mod per level).
+---@type table<integer, HeroAbilityScores>
 local HERO_ABILITY_SCORES = {
     [900001] = { str = 16, dex = 12, con = 14, int = 8,  wis = 10, cha = 10 }, -- ComboWarrior (S1)
     [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- FireMage (M1)
@@ -309,6 +335,7 @@ end
 local HERO_LEVEL_MAX = 20
 -- 5e-ish tier boundaries (inclusive start, exclusive end)
 -- T1: 1-4, T2: 5-10, T3: 11-16, T4: 17-20
+---@type integer[]
 local HERO_TIER_STARTS = { 1, 5, 11, 17, HERO_LEVEL_MAX + 1 }
 
 local function GetTier(level)

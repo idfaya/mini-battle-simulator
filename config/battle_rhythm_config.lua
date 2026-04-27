@@ -1,3 +1,28 @@
+---@alias BattleRhythmProfileKind
+---| "normal"
+---| "active"
+---| "ultimate"
+
+---@class BattleRhythmProfile
+---@field impactFrame integer
+---@field endFrame integer
+
+---@class BattleRhythmTimeline
+---@field fps integer
+---@field maxKeyframes integer
+---@field profiles table<BattleRhythmProfileKind, BattleRhythmProfile>
+
+---@class BattleRhythmConfig
+---@field logicStepMs integer
+---@field postGapMs integer
+---@field inputWindowMs integer
+---@field damageScalar number
+---@field healScalar number
+---@field maxQueuedCommands integer
+---@field speedPresets number[]
+---@field timeline BattleRhythmTimeline
+
+---@type BattleRhythmConfig
 local BattleRhythmConfig = {
     logicStepMs = 80,
     postGapMs = 180,

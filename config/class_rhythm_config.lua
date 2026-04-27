@@ -1,3 +1,10 @@
+---@class ClassRhythmConfig
+---@field damageRateScalarByClass table<integer, number>
+---@field spellDiceScalarByClass table<integer, number>
+---@field physicalDiceScalarByClass table<integer, number>
+---@field healScalarByClass table<integer, number>
+
+---@type ClassRhythmConfig
 local ClassRhythmConfig = {
     damageRateScalarByClass = {
         [1] = 1.00,

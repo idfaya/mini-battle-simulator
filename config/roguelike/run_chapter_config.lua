@@ -1,5 +1,53 @@
+---@alias RunChapterMapVision
+---| "node_type_only"
+
+---@class RunChapterEncounterPools
+---@field normal integer[]
+---@field elite integer[]
+---@field boss integer[]
+---@field eventBattle integer[]
+
+---@class RunChapterRewardPools
+---@field normal integer
+---@field elite integer
+---@field event integer
+---@field boss integer
+
+---@class RunChapterClearRewards
+---@field gold integer
+---@field healPct number
+---@field rewardGroupId integer
+
+---@class RunChapterEntry
+---@field id integer
+---@field code string
+---@field name string
+---@field theme string
+---@field floorCount integer
+---@field startNodeId integer
+---@field bossNodeId integer
+---@field startGold integer
+---@field startFood integer
+---@field targetMaxLevel integer
+---@field initialHeroCount integer
+---@field maxHeroCount integer
+---@field reviveLimit integer
+---@field mapVision RunChapterMapVision
+---@field routeBlueprint table<integer, integer[]>
+---@field encounterPools RunChapterEncounterPools
+---@field rewardPools RunChapterRewardPools
+---@field shopId integer
+---@field campId integer
+---@field chapterClearRewards RunChapterClearRewards
+
+---@class RunChapterConfigModule
+---@field CHAPTERS table<integer, RunChapterEntry>
+---@field GetChapter fun(chapterId: integer): RunChapterEntry|nil
+
+---@type RunChapterConfigModule
 local RunChapterConfig = {}
 
+---@type table<integer, RunChapterEntry>
 RunChapterConfig.CHAPTERS = {
     [101] = {
         id = 101,

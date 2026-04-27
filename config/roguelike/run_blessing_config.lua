@@ -1,5 +1,52 @@
+---@alias RunBlessingRarity
+---| "common"
+---| "rare"
+---| "boss"
+
+---@alias RunBlessingScope
+---| "class"
+---| "team"
+
+---@alias RunBlessingEffectType
+---| "class_stat_pct"
+---| "turn_start_energy"
+---| "class_heal_bonus_pct"
+---| "class_dot_damage_pct"
+---| "extra_follow_up_trigger"
+---| "damage_pct_vs_monster_type"
+---| "battle_start_apply_shield_and_resist"
+
+---@class RunBlessingParams
+---@field classIds integer[]|nil
+---@field monsterTypes integer[]|nil
+---@field hpPct number|nil
+---@field atkPct number|nil
+---@field defPct number|nil
+---@field value number|nil
+---@field rounds integer|nil
+---@field amount integer|nil
+---@field overhealShieldPct number|nil
+---@field perRoundLimit integer|nil
+---@field shieldPct number|nil
+---@field controlResistPct number|nil
+
+---@class RunBlessingEntry
+---@field id integer
+---@field code string
+---@field name string
+---@field rarity RunBlessingRarity
+---@field scope RunBlessingScope
+---@field effectType RunBlessingEffectType
+---@field params RunBlessingParams
+
+---@class RunBlessingConfigModule
+---@field BLESSINGS table<integer, RunBlessingEntry>
+---@field GetBlessing fun(blessingId: integer): RunBlessingEntry|nil
+
+---@type RunBlessingConfigModule
 local RunBlessingConfig = {}
 
+---@type table<integer, RunBlessingEntry>
 RunBlessingConfig.BLESSINGS = {
     [101001] = {
         id = 101001,

@@ -1,5 +1,52 @@
+---@alias RunShopGoodsType
+---| "relic"
+---| "blessing"
+---| "recruit"
+---| "service"
+
+---@alias RunShopRarity
+---| "common"
+---| "rare"
+---| "boss"
+
+---@alias RunShopServiceEffectType
+---| "team_heal_pct"
+---| "revive_one"
+---| "remove_one_curse"
+
+---@class RunShopServicePayload
+---@field effectType RunShopServiceEffectType
+---@field value number|nil
+---@field healPct number|nil
+
+---@class RunShopEntry
+---@field id integer
+---@field chapterId integer
+---@field code string
+---@field name string
+---@field refreshCost integer
+---@field maxRefresh integer
+---@field stock integer[]
+
+---@class RunGoodsEntry
+---@field id integer
+---@field goodsType RunShopGoodsType
+---@field refId integer|nil
+---@field code string|nil
+---@field price integer
+---@field rarity RunShopRarity
+---@field payload RunShopServicePayload|nil
+
+---@class RunShopGoodsModule
+---@field SHOPS table<integer, RunShopEntry>
+---@field GOODS table<integer, RunGoodsEntry>
+---@field GetShop fun(shopId: integer): RunShopEntry|nil
+---@field GetGoods fun(goodsId: integer): RunGoodsEntry|nil
+
+---@type RunShopGoodsModule
 local RunShopGoods = {}
 
+---@type table<integer, RunShopEntry>
 RunShopGoods.SHOPS = {
     [101001] = {
         id = 101001,
@@ -21,6 +68,7 @@ RunShopGoods.SHOPS = {
     },
 }
 
+---@type table<integer, RunGoodsEntry>
 RunShopGoods.GOODS = {
     [101001] = {
         id = 101001,
