@@ -317,6 +317,7 @@ async function bootstrapRunMode(
         const currentScreen = battleControls.root.dataset.screen ?? "battle";
         panelHost.closest(".shell")?.setAttribute("data-screen", currentScreen);
       }
+      battleControls.root.classList.toggle("battle-ended", holdBattleResultScene);
       renderer.renderBattle(battleStore.getState(), now);
       renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate, {
         extraActions: holdBattleResultScene

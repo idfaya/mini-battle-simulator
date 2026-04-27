@@ -8,6 +8,7 @@ type Controls = {
   logList: HTMLUListElement;
   status: HTMLDivElement;
   buttonsHost: HTMLDivElement;
+  resultActionsHost: HTMLDivElement;
   screenTabs: HTMLDivElement;
   autoUltToggle: HTMLInputElement;
   levelInput: HTMLInputElement;
@@ -62,6 +63,10 @@ export function createControls(
 
   const buttonsHost = document.createElement("div");
   buttonsHost.className = "ult-panel";
+
+  const resultActionsHost = document.createElement("div");
+  resultActionsHost.className = "result-actions";
+  resultActionsHost.style.display = "none";
 
   const logList = document.createElement("ul");
   logList.className = "battle-log";
@@ -193,6 +198,7 @@ export function createControls(
   actions.append(restartButton, autoUltLabel);
   if (options?.showSetupPanel === false) {
     // Roguelike 模式无需重新配队伍，仍保留"速度/自动大招"便于战斗中调节
+    actions.classList.add("compact-settings");
     setupPanel.style.display = "none";
     restartButton.style.display = "none";
     const speedCopy = speedField.wrapper.cloneNode(true) as HTMLLabelElement;
@@ -212,7 +218,7 @@ export function createControls(
     actions.append(speedCopy);
   }
 
-  root.append(screenTabs, status, setupPanel, buttonsHost, actions, logList);
+  root.append(screenTabs, status, setupPanel, buttonsHost, actions, resultActionsHost, logList);
   setScreen("battle");
 
   return {
@@ -220,6 +226,7 @@ export function createControls(
     logList,
     status,
     buttonsHost,
+    resultActionsHost,
     screenTabs,
     autoUltToggle,
     levelInput: levelField.input,
@@ -300,19 +307,29 @@ export function renderControls(
     controls.buttonsHost.append(button);
   }
 
-  for (const action of options?.extraActions ?? []) {
-    const button = document.createElement("button");
-    button.className = "ult-button";
-    button.type = "button";
-    button.disabled = action.disabled === true;
-    button.textContent = action.label;
-    button.onpointerdown = (event) => {
-      event.preventDefault();
-      if (!button.disabled) {
-        action.onClick();
-      }
-    };
-    controls.buttonsHost.append(button);
+  // Battle result actions live in a dedicated host (not mixed with ult buttons).
+  const extraActions = options?.extraActions ?? [];
+  if (extraActions.length > 0) {
+    controls.resultActionsHost.style.display = "";
+    controls.resultActionsHost.replaceChildren(
+      ...extraActions.map((action) => {
+        const button = document.createElement("button");
+        button.className = "ult-button";
+        button.type = "button";
+        button.disabled = action.disabled === true;
+        button.textContent = action.label;
+        button.onpointerdown = (event) => {
+          event.preventDefault();
+          if (!button.disabled) {
+            action.onClick();
+          }
+        };
+        return button;
+      }),
+    );
+  } else {
+    controls.resultActionsHost.replaceChildren();
+    controls.resultActionsHost.style.display = "none";
   }
 
   controls.logList.replaceChildren(

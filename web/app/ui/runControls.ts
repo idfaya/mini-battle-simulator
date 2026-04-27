@@ -117,13 +117,18 @@ export function createRunControls(handlers: RunHandlers): RunControls {
   return controls;
 }
 
-function makeButton(label: string, disabled: boolean, onClick: () => void) {
+function makeButton(label: string, disabled: boolean, onClick: () => void | Promise<void>) {
   const button = document.createElement("button");
   button.className = "ult-button";
   button.type = "button";
   button.disabled = disabled;
   button.textContent = label;
-  button.onclick = onClick;
+  button.onclick = () => {
+    const result = onClick();
+    if (result && typeof (result as Promise<void>).then === "function") {
+      void result;
+    }
+  };
   return button;
 }
 
@@ -339,18 +344,13 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     const selectable = snapshot.map.nodes.filter((item) => item.selectable);
     for (const node of selectable) {
       host.append(
-        makeButton(`${node.title} · ${node.nodeType}`, false, () => {
-          controls.handlers.onChooseNode(node.id);
+        makeButton(`${node.title} · ${node.nodeType}`, false, async () => {
+          // 选择即进入，避免手机端多一步操作
+          await controls.handlers.onChooseNode(node.id);
+          await controls.handlers.onEnterNode();
         }),
       );
     }
-    host.append(
-      makeButton(
-        "进入当前选择节点",
-        snapshot.debug.availableNextNodeIds.length === 0,
-        controls.handlers.onEnterNode,
-      ),
-    );
   } else {
     // 非 map 阶段：显示当前所在场景提示，提示切回「信息」页
     const title = document.createElement("div");

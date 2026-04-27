@@ -120,6 +120,7 @@ body {
 .hud-status,
 .ult-panel,
 .global-actions,
+.result-actions,
 .battle-log {
   background: rgba(9, 17, 30, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -158,16 +159,36 @@ body {
   order: 2;
 }
 
+.hud.battle-ended .result-actions {
+  display: grid;
+}
+
+.hud.battle-ended .ult-panel {
+  display: none;
+}
+
+.hud.battle-ended[data-screen="battle"] .result-actions {
+  order: 98;
+}
+
+.hud.battle-ended[data-screen="settings"] .result-actions,
+.hud.battle-ended[data-screen="log"] .result-actions {
+  order: 98;
+}
+
 .hud[data-screen="battle"] .setup-panel,
 .hud[data-screen="battle"] .global-actions,
+.hud[data-screen="battle"] .result-actions,
 .hud[data-screen="battle"] .battle-log,
 .hud[data-screen="battle"] .hud-status,
 .hud[data-screen="settings"] .hud-status,
 .hud[data-screen="settings"] .ult-panel,
+.hud[data-screen="settings"] .result-actions,
 .hud[data-screen="settings"] .battle-log,
 .hud[data-screen="log"] .hud-status,
 .hud[data-screen="log"] .setup-panel,
 .hud[data-screen="log"] .global-actions,
+.hud[data-screen="log"] .result-actions,
 .hud[data-screen="log"] .ult-panel {
   display: none;
 }
@@ -199,6 +220,15 @@ body {
 .global-actions {
   display: grid;
   gap: 10px;
+}
+
+.result-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.hud.battle-ended .result-actions {
+  display: grid;
 }
 
 .global-actions {
@@ -437,6 +467,12 @@ body {
     object-fit: contain;
   }
 
+  /* Roguelike map: allow vertical scrolling when the map canvas grows taller than the viewport */
+  .shell[data-screen="run-map"] .stage {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .shell > .hud > .hud {
     gap: 8px;
   }
@@ -479,6 +515,7 @@ body {
     gap: 6px;
     /* flex 布局下 order 仍生效，保证 tabs 始终在底部且可点击 */
     order: 99;
+    margin-top: auto;
     flex-shrink: 0;
   }
 
@@ -545,6 +582,21 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     flex-shrink: 0;
+  }
+
+  /* 设置页：setup-panel 作为主滚动区，tabs 固定贴底 */
+  .hud[data-screen="settings"] .setup-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  /* Roguelike 紧凑设置：没有 setup-panel 时，让 actions 撑满并滚动，tabs 仍贴底 */
+  .hud[data-screen="settings"] .global-actions.compact-settings {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    align-content: start;
   }
 
   .battle-log {

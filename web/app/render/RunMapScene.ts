@@ -1,6 +1,25 @@
 import type { RunSnapshot } from "../types/roguelike";
 
 export class RunMapScene {
+  /**
+   * Used by CanvasRenderer to decide whether we should grow the canvas and rely on native scrolling.
+   * Only meaningful for portrait/mobile layouts where vertical map may exceed the viewport.
+   */
+  getPreferredCanvasHeight(width: number, snapshot: RunSnapshot | null) {
+    if (!snapshot?.map) {
+      return null;
+    }
+    // Portrait/mobile: floors stacked vertically.
+    const isPortrait = width <= 720;
+    if (!isPortrait) {
+      return null;
+    }
+    const top = 110;
+    const bottom = 64;
+    const floorGap = 112;
+    return top + (snapshot.map.floorCount - 1) * floorGap + bottom;
+  }
+
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, snapshot: RunSnapshot | null) {
     ctx.clearRect(0, 0, width, height);
     this.drawBackground(ctx, width, height);
@@ -21,20 +40,42 @@ export class RunMapScene {
     }
 
     const nodePositions = new Map<number, { x: number; y: number }>();
-    const top = 96;
+    const isPortrait = width <= 720;
+    const top = 110;
     const left = 120;
+    const right = 120;
     const floorGap = 112;
 
-    for (let floor = 1; floor <= map.floorCount; floor += 1) {
-      const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
-      const laneGap = floorNodes.length <= 1 ? 0 : 160;
-      const startY = height / 2 - ((floorNodes.length - 1) * laneGap) / 2;
-      for (let index = 0; index < floorNodes.length; index += 1) {
-        const node = floorNodes[index];
-        nodePositions.set(node.id, {
-          x: left + (floor - 1) * floorGap,
-          y: startY + index * laneGap,
-        });
+    if (isPortrait) {
+      // Vertical map: floors stacked from top -> bottom, lanes spread on X.
+      for (let floor = 1; floor <= map.floorCount; floor += 1) {
+        const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
+        const usableWidth = Math.max(1, width - left - right);
+        const maxGap = 160;
+        const laneGap =
+          floorNodes.length <= 1 ? 0 : Math.min(maxGap, Math.floor(usableWidth / Math.max(1, floorNodes.length - 1)));
+        const startX = width / 2 - ((floorNodes.length - 1) * laneGap) / 2;
+        for (let index = 0; index < floorNodes.length; index += 1) {
+          const node = floorNodes[index];
+          nodePositions.set(node.id, {
+            x: startX + index * laneGap,
+            y: top + (floor - 1) * floorGap,
+          });
+        }
+      }
+    } else {
+      // Desktop map: keep the original left->right layout.
+      for (let floor = 1; floor <= map.floorCount; floor += 1) {
+        const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
+        const laneGap = floorNodes.length <= 1 ? 0 : 160;
+        const startY = height / 2 - ((floorNodes.length - 1) * laneGap) / 2;
+        for (let index = 0; index < floorNodes.length; index += 1) {
+          const node = floorNodes[index];
+          nodePositions.set(node.id, {
+            x: left + (floor - 1) * floorGap,
+            y: startY + index * laneGap,
+          });
+        }
       }
     }
 
@@ -54,8 +95,13 @@ export class RunMapScene {
         ctx.strokeStyle = "rgba(255,255,255,0.1)";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(from.x + 18, from.y);
-        ctx.lineTo(to.x - 18, to.y);
+        if (isPortrait) {
+          ctx.moveTo(from.x, from.y + 18);
+          ctx.lineTo(to.x, to.y - 18);
+        } else {
+          ctx.moveTo(from.x + 18, from.y);
+          ctx.lineTo(to.x - 18, to.y);
+        }
         ctx.stroke();
       }
     }
@@ -76,7 +122,8 @@ export class RunMapScene {
 
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.font = "13px sans-serif";
-    ctx.fillText("点击右侧按钮推进节点。地图高亮表示当前和可选路线。", 42, height - 26);
+    // Put the hint near the header so it stays visible even when the canvas becomes scrollable.
+    ctx.fillText("地图为竖向推进（手机可上下滑动查看）。", 42, 96);
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -153,4 +200,3 @@ export class RunMapScene {
     }
   }
 }
-
