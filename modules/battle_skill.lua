@@ -2,6 +2,38 @@
 --- Battle Skill Module
 --- 管理九流派技能、冷却和技能释放
 ---
+--- 文件职责分区（2026-04-27 规整；多个分区已拆到独立子模块）：
+---
+---   [1] 初始化 & 缓存         (行 ~55..75)      InitModule / skillConfigCache / skillLuaCache
+---   [2] 伤害/治疗结算         (行 ~170..440)    GetPhysicalDamageDice / GetSpellDamageDice
+---                                               ApplyUnifiedDamageScale / ResolveScaledDamage
+---                                               CalculateDamage / CalculateHeal / OnDamagedInterrupt
+---   [3] 专注状态（**本文件仅保留转发**，实现见）：
+---          → skills/battle_skill_concentration.lua
+---             IsConcentrationBuff / SetConcentration / ClearConcentration
+---   [4] 技能实例生命周期       (行 ~500..1050)   Init / CreateSkillInstance / MergeSkillConfig
+---                                               GetSkillCurCoolDown / ReduceCoolDown
+---                                               CastSmallSkill / StartSkillCastInSeq / CastSkillInSeq
+---   [5] 默认攻击 & 伤害倍率    (行 ~1050..1310)  ExecuteDefaultAttack* / CalculateDamageWithRate
+---   [6] Buff 挂载 & 条件       (行 ~1310..1710)  ApplyBuffFromSkill / LoadBuffConfig
+---                                               CheckSkillCondition / CheckSingleCondition
+---   [7] 目标选择               (行 ~1710..1990)  SelectTarget / ExpandAreaTargets / GetChainTargets
+---                                               SelectEnemyTargets / SelectAllyTargets / SelectAllTargets
+---   [8] 技能配置加载/查询       (行 ~1990..2140)  GetSkillConfig / LoadSkillConfigFromFile / LoadSkillLua
+---                                               TriggerSkillCastEvent / GetHeroSkills / GetSkillsByType
+---   [9] 额外效果（Combo/Pursuit）(行 ~2140..2270) ProcessComboEffect / GetPassiveAdjustedRate
+---                                                ApplyDamageKindBonus / ProcessPursuitEffect
+---   [10] 辅助选择 & 状态施加（**本文件仅保留转发**，实现见）：
+---          → skills/battle_skill_target_helper.lua
+---             SelectLowestHpEnemy / SelectLowestHpAlly
+---             SelectRandomAliveEnemies / SelectAllAliveTargets / IsAlly
+---          → skills/battle_skill_status.lua
+---             ApplyPoison / ProcessInfectEffect / ApplyBurn / ApplyFreeze
+---          SelectMultiTargets 仍在本文件（依赖 SelectTarget 上下文）。
+---   [11] 复活 & 回合起始钩子（**本文件仅保留转发**，实现见）：
+---          → skills/battle_skill_turn_hooks.lua
+---             ReviveLatestDeadAlly / ProcessTurnStartStatus
+---
 
 -- 确保枚举已加载
 if not E_CAST_TARGET then
@@ -19,6 +51,16 @@ local ClassWeaponConfig = require("config.class_weapon_config")
 
 ---@class BattleSkill
 local BattleSkill = {}
+
+-- 提前注册到 package.loaded，防止子模块 require("modules.battle_skill") 时拿到 nil。
+-- 子模块对 BattleSkill 仅懒调用其方法，此时加载完成即可获得完整表。
+package.loaded["modules.battle_skill"] = BattleSkill
+
+-- 拆分后的子模块（2026-04-27，位于 skills/ 目录）：状态施加 + 辅助目标选择 + 专注 + 回合钩子。
+local BattleSkillTargetHelper = require("skills.battle_skill_target_helper")
+local BattleSkillStatus = require("skills.battle_skill_status")
+local BattleSkillConcentration = require("skills.battle_skill_concentration")
+local BattleSkillTurnHooks = require("skills.battle_skill_turn_hooks")
 
 -- 技能配置缓存
 BattleSkill.skillConfigCache = {}
@@ -446,78 +488,18 @@ function BattleSkill.OnDamagedInterrupt(target, damage)
     end
 end
 
-local function GetConcentrationBuffIds(skillId)
-    local sid = tonumber(skillId) or 0
-    if sid == 80004003 then
-        return { 840002 }
-    end
-    if sid == 80004004 then
-        return { 840003 }
-    end
-    return nil
-end
-
+-- 专注 (Concentration) 状态委托 battle_skill_concentration.lua。
+-- 保留 BattleSkill.* 转发以保持 battle_buff.lua / skill_effect_registry.lua 的现有调用路径。
 function BattleSkill.IsConcentrationBuff(skillId, buffId)
-    local buffIds = GetConcentrationBuffIds(skillId)
-    if not buffIds then
-        return false
-    end
-    local targetBuffId = tonumber(buffId) or 0
-    for _, id in ipairs(buffIds) do
-        if tonumber(id) == targetBuffId then
-            return true
-        end
-    end
-    return false
+    return BattleSkillConcentration.IsConcentrationBuff(skillId, buffId)
 end
 
 function BattleSkill.ClearConcentration(hero, reason)
-    if not hero or not hero.__concentrationSkillId then
-        return false
-    end
-
-    local activeSkillId = hero.__concentrationSkillId
-    local buffIds = GetConcentrationBuffIds(activeSkillId)
-    if buffIds then
-        local BattleBuff = require("modules.battle_buff")
-        local BattleFormation = require("modules.battle_formation")
-        for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
-            if ally and not ally.isDead then
-                for _, buffId in ipairs(buffIds) do
-                    BattleBuff.DelBuffByBuffIdAndCaster(ally, buffId, hero)
-                end
-            end
-        end
-    end
-
-    Logger.Log(string.format("[CONC] %s 结束专注: %s (%s)",
-        hero.name or "Unknown",
-        tostring(hero.__concentrationSkillName or activeSkillId),
-        tostring(reason or "clear")))
-    hero.__concentrationSkillId = nil
-    hero.__concentrationSkillName = nil
-    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
-    return true
+    return BattleSkillConcentration.ClearConcentration(hero, reason)
 end
 
 function BattleSkill.SetConcentration(hero, skillId, skill)
-    if not hero then
-        return false
-    end
-
-    local sid = tonumber(skillId) or 0
-    if sid <= 0 then
-        return false
-    end
-
-    if hero.__concentrationSkillId and hero.__concentrationSkillId ~= sid then
-        BattleSkill.ClearConcentration(hero, "replace")
-    end
-    hero.__concentrationSkillId = sid
-    hero.__concentrationSkillName = skill and skill.name or tostring(skillId)
-    Logger.Log(string.format("[CONC] %s 进入专注: %s", hero.name or "Unknown", tostring(hero.__concentrationSkillName)))
-    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
-    return true
+    return BattleSkillConcentration.SetConcentration(hero, skillId, skill)
 end
 
 --- 初始化英雄技能
@@ -2294,31 +2276,7 @@ end
 ---@param hero table 英雄对象
 ---@return table|nil 目标
 function BattleSkill.SelectLowestHpEnemy(hero)
-    local BattleFormation = require("modules.battle_formation")
-    local enemies = nil
-    if BattleFormation.GetSelectableEnemyHeroes then
-        enemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
-    end
-    if not enemies or #enemies == 0 then
-        enemies = BattleFormation.GetEnemyTeam(hero)
-    end
-    
-    if not enemies or #enemies == 0 then return nil end
-    
-    local lowestHpTarget = nil
-    local lowestHpRatio = math.huge
-    
-    for _, enemy in ipairs(enemies) do
-        if enemy and not enemy.isDead and enemy.hp and enemy.maxHp and enemy.maxHp > 0 then
-            local hpRatio = enemy.hp / enemy.maxHp
-            if hpRatio < lowestHpRatio then
-                lowestHpRatio = hpRatio
-                lowestHpTarget = enemy
-            end
-        end
-    end
-    
-    return lowestHpTarget
+    return BattleSkillTargetHelper.SelectLowestHpEnemy(hero)
 end
 
 --- 选择随机存活敌人（用于连击风暴等）
@@ -2326,67 +2284,20 @@ end
 ---@param count number 数量
 ---@return table 目标列表
 function BattleSkill.SelectRandomAliveEnemies(hero, count)
-    local BattleFormation = require("modules.battle_formation")
-    local enemies = nil
-    if BattleFormation.GetSelectableEnemyHeroes then
-        enemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
-    end
-    if not enemies or #enemies == 0 then
-        enemies = BattleFormation.GetEnemyTeam(hero)
-    end
-    
-    if not enemies or #enemies == 0 then return {} end
-    
-    local aliveEnemies = {}
-    for _, enemy in ipairs(enemies) do
-        if enemy and not enemy.isDead then
-            table.insert(aliveEnemies, enemy)
-        end
-    end
-    
-    -- 随机打乱并选择指定数量
-    local selected = {}
-    local shuffled = ShuffleTargets(aliveEnemies)
-    
-    for i = 1, math.min(count, #shuffled) do
-        table.insert(selected, shuffled[i])
-    end
-    
-    return selected
+    return BattleSkillTargetHelper.SelectRandomAliveEnemies(hero, count)
 end
 
 --- 处理中毒效果（T1 毒爆流）
 ---@param target table 目标
 ---@param layers number 中毒层数
 function BattleSkill.ApplyPoison(target, layers, caster)
-    if not target or layers <= 0 then return end
-
-    local BattleBuff = require("modules.battle_buff")
-    local existingBuff = BattleBuff.GetBuff(target, 850001)
-    if existingBuff then
-        BattleBuff.ModifyBuffStack(target, 850001, layers)
-        Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)",
-            target.name or "Unknown", layers, existingBuff.stackCount))
-        return
-    end
-
-    BattleSkill.ApplyBuffFromSkill(caster or target, target, 850001, nil, {
-        initialStack = layers,
-    })
-    local totalStacks = BattleBuff.GetBuffStackNumBySubType(target, 850001)
-    Logger.Log(string.format("[ApplyPoison] %s 中毒层数: %d (总计: %d)",
-        target.name or "Unknown", layers, totalStacks))
+    return BattleSkillStatus.ApplyPoison(target, layers, caster)
 end
 
 --- 处理感染效果（中毒自动加深）
 ---@param target table 目标
 function BattleSkill.ProcessInfectEffect(target)
-    local BattleBuff = require("modules.battle_buff")
-    if not target or BattleBuff.GetBuffStackNumBySubType(target, 850001) <= 0 then return end
-
-    BattleSkill.ApplyPoison(target, 1, target)
-    Logger.Log(string.format("[ProcessInfectEffect] %s 中毒加深，当前层数: %d",
-        target.name or "Unknown", BattleBuff.GetBuffStackNumBySubType(target, 850001)))
+    return BattleSkillStatus.ProcessInfectEffect(target)
 end
 
 --- 判断是否为友方
@@ -2394,27 +2305,11 @@ end
 ---@param target table 目标
 ---@return boolean 是否为友方
 function BattleSkill.IsAlly(hero, target)
-    if not hero or not target then return false end
-    return hero.isLeft == target.isLeft
+    return BattleSkillTargetHelper.IsAlly(hero, target)
 end
 
 function BattleSkill.SelectLowestHpAlly(hero)
-    local BattleFormation = require("modules.battle_formation")
-    local allies = BattleFormation.GetFriendTeam(hero)
-    local lowestHpTarget = nil
-    local lowestHpRatio = 1.0
-
-    for _, ally in ipairs(allies) do
-        if ally and ally.isAlive and not ally.isDead and ally.maxHp and ally.maxHp > 0 and ally.hp < ally.maxHp then
-            local hpRatio = ally.hp / ally.maxHp
-            if hpRatio < lowestHpRatio then
-                lowestHpRatio = hpRatio
-                lowestHpTarget = ally
-            end
-        end
-    end
-
-    return lowestHpTarget
+    return BattleSkillTargetHelper.SelectLowestHpAlly(hero)
 end
 
 --- 处理多目标攻击（双连斩、毒雾、连锁闪电等）
@@ -2434,7 +2329,7 @@ function BattleSkill.SelectMultiTargets(hero, skill)
         return defaultTarget or {}
     end
     
-    -- 多目标：随机选择存活的敌人
+    -- 多目标：随机选择存活的敌人（走转发，monkey-patch 仍生效）
     return BattleSkill.SelectRandomAliveEnemies(hero, targetCount)
 end
 
@@ -2443,167 +2338,24 @@ end
 ---@param skill table 技能对象
 ---@return table 所有存活敌人
 function BattleSkill.SelectAllAliveTargets(hero)
-    local BattleFormation = require("modules.battle_formation")
-    local enemies = BattleFormation.GetEnemyTeam(hero)
-    
-    if not enemies then return {} end
-    
-    local aliveTargets = {}
-    for _, enemy in ipairs(enemies) do
-        if enemy and not enemy.isDead then
-            table.insert(aliveTargets, enemy)
-        end
-    end
-    
-    return aliveTargets
+    return BattleSkillTargetHelper.SelectAllAliveTargets(hero)
 end
 
 function BattleSkill.ApplyBurn(target, stacks, turns, caster)
-    if not target or stacks <= 0 then
-        return
-    end
-    local BattleBuff = require("modules.battle_buff")
-    local actualTurns = turns or 2
-    if caster and BattleBuff.GetBuff(caster, 870002) then
-        actualTurns = actualTurns + 1
-    end
-    local existingBuff = BattleBuff.GetBuff(target, 870001)
-    if existingBuff then
-        existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
-        BattleBuff.ModifyBuffStack(target, 870001, stacks)
-    else
-        BattleSkill.ApplyBuffFromSkill(caster or target, target, 870001, nil, {
-            initialStack = stacks,
-            duration = actualTurns,
-        })
-    end
-    Logger.Log(string.format("[ApplyBurn] %s 燃烧层数: %d (总计: %d, 回合: %d)",
-        target.name or "Unknown", stacks, BattleBuff.GetBuffStackNumBySubType(target, 870001), actualTurns))
+    return BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
 end
 
 function BattleSkill.ApplyFreeze(target, turns, slowPct, caster)
-    if not target then
-        return
-    end
-    if slowPct and slowPct > 0 then
-        BattleSkill.ApplyBuffFromSkill(caster or target, target, 880001, nil, {
-            value = slowPct,
-            maxValue = slowPct,
-            duration = math.max(turns or 0, 2),
-        })
-    end
-    if turns and turns > 0 then
-        BattleSkill.ApplyBuffFromSkill(caster or target, target, 880002, nil, {
-            duration = turns,
-        })
-    end
-    Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
-        target.name or "Unknown", turns or 0, slowPct or 0))
+    return BattleSkillStatus.ApplyFreeze(target, turns, slowPct, caster)
 end
 
+-- 复活 & 回合起始钩子委托 battle_skill_turn_hooks.lua。
 function BattleSkill.ReviveLatestDeadAlly(hero, optsOrPct)
-    local BattleFormation = require("modules.battle_formation")
-    local BattleEvent = require("core.battle_event")
-    local BattleVisualEvents = require("ui.battle_visual_events")
-    local BattleAttribute = require("modules.battle_attribute")
-    local allies = BattleFormation.GetFriendTeam(hero) or {}
-    local latestDead = nil
-    local bestOrder = -1
-    for _, ally in ipairs(allies) do
-        if ally and (ally.isDead or not ally.isAlive or (tonumber(ally.hp) or 0) <= 0) then
-            local ord = tonumber(ally.__deadOrder) or -1
-            if ord > bestOrder then
-                bestOrder = ord
-                latestDead = ally
-            elseif bestOrder < 0 then
-                -- Fallback: no dead order info; keep "last in array" behavior.
-                latestDead = ally
-            end
-        end
-    end
-    if not latestDead then
-        return nil
-    end
-
-    local opts = {}
-    if type(optsOrPct) == "table" then
-        opts = optsOrPct
-    else
-        opts.hpPct = optsOrPct
-    end
-
-    local maxHp = tonumber(latestDead.maxHp) or 1
-    local reviveHpPct = tonumber(opts.hpPct)
-    if reviveHpPct == nil then
-        reviveHpPct = 0.20
-    end
-    local reviveHp = math.max(1, math.floor(maxHp * reviveHpPct))
-    BattleAttribute.SetHpByVal(latestDead, reviveHp)
-    latestDead.isAlive = true
-    latestDead.isDead = false
-    latestDead.__deadOrder = nil
-
-    -- Revival sickness: apply as an attribute-layer multiplier so it stacks with other bonuses.
-    latestDead.__revivePenalty = {
-        atkMul = tonumber(opts.atkMul) or 0.75,
-        defMul = tonumber(opts.defMul) or 0.75,
-        speedMul = tonumber(opts.speedMul) or 0.80,
-        remainingTurns = tonumber(opts.turns) or 2,
-    }
-    latestDead.__skipNextAction = true
-    if latestDead.attributes
-        and latestDead.attributes.base
-        and latestDead.attributes.base[BattleAttribute.ATTR_ID.HP]
-    then
-        BattleAttribute.UpdateHeroAttribute(latestDead)
-    end
-
-    BattleEvent.Publish(BattleVisualEvents.HERO_REVIVED, {
-        eventType = BattleVisualEvents.HERO_REVIVED,
-        heroId = latestDead.id,
-        heroName = latestDead.name,
-        team = latestDead.isLeft and "left" or "right",
-        hp = latestDead.hp,
-        maxHp = latestDead.maxHp or maxHp,
-    })
-    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(latestDead))
-    return latestDead
+    return BattleSkillTurnHooks.ReviveLatestDeadAlly(hero, optsOrPct)
 end
 
 function BattleSkill.ProcessTurnStartStatus(hero)
-    if not hero or hero.isDead then
-        return false
-    end
-
-    local BattleBuff = require("modules.battle_buff")
-    BattleBuff.OnRoundBegin(hero)
-
-    if hero.__skipNextAction then
-        hero.__skipNextAction = false
-        Logger.Log(string.format("[ProcessTurnStartStatus] %s 因复活虚弱跳过行动", hero.name or "Unknown"))
-        return false
-    end
-
-    if hero.__revivePenalty and (hero.__revivePenalty.remainingTurns or 0) > 0 then
-        hero.__revivePenalty.remainingTurns = hero.__revivePenalty.remainingTurns - 1
-        if hero.__revivePenalty.remainingTurns <= 0 then
-            hero.__revivePenalty = nil
-            if hero.attributes
-                and hero.attributes.base
-                and hero.attributes.base[require("modules.battle_attribute").ATTR_ID.HP]
-            then
-                local BattleAttribute = require("modules.battle_attribute")
-                BattleAttribute.UpdateHeroAttribute(hero)
-            end
-        end
-    end
-
-    if BattleBuff.IsHeroUnderControl(hero) then
-        Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))
-        return false
-    end
-
-    return hero.isAlive and not hero.isDead
+    return BattleSkillTurnHooks.ProcessTurnStartStatus(hero)
 end
 
 return BattleSkill

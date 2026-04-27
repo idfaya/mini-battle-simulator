@@ -5,7 +5,11 @@
 
 os.execute("chcp 65001 >nul 2>&1")
 
-package.path = package.path .. ";../?.lua"
+local script_source = debug.getinfo(1, "S").source
+local script_path = script_source:sub(2)
+local script_dir = script_path:match("(.*[/\\])") or "./"
+local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local targetLevel = tonumber(arg[1]) or 20
 local heroCount = math.min(tonumber(arg[2]) or 3, 6)
@@ -14,8 +18,6 @@ local updateSpeed = tonumber(arg[4]) or 500
 
 print("=== Viewport 2D 战斗表现测试 ===")
 
-require("core.battle_enum")
-require("modules.BattleDefaultTypesOpt")
 local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")
 local ViewportRenderer = require("ui.viewport_renderer")

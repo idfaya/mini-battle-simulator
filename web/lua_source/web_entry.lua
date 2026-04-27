@@ -1,10 +1,9 @@
 package.path = package.path
     .. ";?.lua"
-    .. ";core/?.lua"
-    .. ";modules/?.lua"
-    .. ";config/?.lua"
-    .. ";utils/?.lua"
-    .. ";ui/?.lua"
+    .. ";?/init.lua"
+
+local LuaBootstrap = require("core.lua_bootstrap")
+LuaBootstrap.SetupFromSource(debug.getinfo(1, "S").source)
 
 io = io or {}
 os = os or {}
@@ -104,8 +103,8 @@ do
     end
 end
 
-local Runtime = require("modules.browser_battle_runtime")
-local RunRuntime = require("modules.roguelike_run")
+local Runtime = require("runtime.browser_battle_runtime")
+local RunRuntime = require("roguelike.roguelike_run")
 
 MiniBattleWebApi = {}
 

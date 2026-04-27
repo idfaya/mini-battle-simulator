@@ -26,10 +26,32 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
     await page.getByRole("button", { name: "进入当前选择节点" }).click();
   };
 
+  const leaveBattleResultIfNeeded = async () => {
+    const rewardButton = page.getByRole("button", { name: /查看\s*奖励/ }).first();
+    if (await rewardButton.isVisible().catch(() => false)) {
+      await rewardButton.dispatchEvent("pointerdown");
+    }
+  };
+
+  const chooseFirstReward = async () => {
+    await expect(page.locator(".hud-status")).toContainText("run: reward", { timeout: 15000 });
+    await expect(page.getByText("选择奖励后继续")).toBeVisible({ timeout: 15000 });
+    await page.locator(".ult-panel button").first().click();
+  };
+
   await clickNodeAndEnter("Frontier Scouts");
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toMatch(/battle|reward/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 60000 }).toContain("reward");
-  await page.locator(".ult-panel button").first().click();
+  await expect
+    .poll(
+      async () => ({
+        status: (await page.locator(".hud-status").textContent()) ?? "",
+        hasRewardButton: await page.getByRole("button", { name: /查看\s*奖励/ }).first().isVisible().catch(() => false),
+      }),
+      { timeout: 60000 },
+    )
+    .toEqual(expect.objectContaining({ hasRewardButton: true }));
+  await leaveBattleResultIfNeeded();
+  await chooseFirstReward();
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("run: map");
 
   await clickNodeAndEnter("Broken Caravan");
   await expect(page.getByRole("button", { name: "Salvage the crates" })).toBeVisible();
@@ -56,12 +78,21 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await page.getByRole("button", { name: "离开商店" }).click();
 
   await clickNodeAndEnter("Frozen Gate");
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 20000 }).toMatch(/battle|reward|chapter_result/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 80000 }).toMatch(/reward|chapter_result/);
-  const status = await page.locator(".hud-status").textContent();
-  if (status?.includes("reward")) {
-    await page.locator(".ult-panel button").first().click();
-  }
+  await expect
+    .poll(
+      async () => ({
+        status: (await page.locator(".hud-status").textContent()) ?? "",
+        hasRewardButton: await page.getByRole("button", { name: /查看\s*奖励/ }).first().isVisible().catch(() => false),
+      }),
+      { timeout: 80000 },
+    )
+    .toEqual(
+      expect.objectContaining({
+        hasRewardButton: true,
+      }),
+    );
+  await leaveBattleResultIfNeeded();
+  await chooseFirstReward();
   await expect(page.getByRole("button", { name: "重新开始第一章" })).toBeVisible({ timeout: 20000 });
 
   expect(pageErrors).toEqual([]);

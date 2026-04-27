@@ -1,4 +1,4 @@
-local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
+local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
 
 local skill_80004004 = {}
 
@@ -13,6 +13,7 @@ local DEF = {
             targetRef = "self",
             tags = {
                 { tag = "group_heal", phase = "pre", param = { count = 2 } },
+                { tag = "battle_intent_buff", phase = "post" },
             },
         },
         { frame = 66, op = "effect", effect = "skill_80004004_end", targetRef = "selected" },
@@ -24,6 +25,5 @@ function skill_80004004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80004004
-
 
 

@@ -1,4 +1,4 @@
-local SkillTimelineCompiler = require("modules.skill_timeline_compiler")
+local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
 
 local skill_80003001 = {}
 

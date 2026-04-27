@@ -3,6 +3,13 @@ local RunEncounterGroup = {}
 -- Encounter = one battle setup for roguelike node.
 -- Enemies are real IDs from config/res_enemy.json.
 -- MonsterType: 0 Normal, 1 Elite, 2 BOSS (see EnemyData).
+--
+-- 难度模型（2026-04-27 收敛）：
+--   * 压强由 `budget.difficulty` + `budget.pressureFactor` 主导（见 run_encounter_budget.lua），
+--     通过 BuildReport → gap 计算 hpMul/atkMul/defMul/hitDelta/spellDCDelta/saveDelta。
+--   * `enemyScale` 仅保留「语义化的轻微修正」（±10% 以内 / hitDelta ±1），
+--     不再用倍率堆砌压强（避免和 budget 双乘）。
+--   * `playerScale` 维持原结构，保留给职业/队伍容错的微调。
 RunEncounterGroup.ENCOUNTERS = {
     -- Normal battles (chapter 1 baseline)
     [101001] = {
@@ -16,9 +23,11 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 20, max = 30 },
+        -- 教学战：easy + 0.75 压强，由 budget 给出合适 hpMul/atkMul。
         budget = { difficulty = "easy", pressureFactor = 0.75 },
-        playerScale = { hp = 1.00, atk = 1.08, def = 1.00, energyBonus = 0 },
-        enemyScale = { hp = 0.45, atk = 1.10, def = 0.75, hitDelta = -1, spellDCDelta = 0 },
+        playerScale = { hp = 1.00, atk = 1.05, def = 1.00, energyBonus = 0 },
+        -- enemyScale 保持近乎中性，不再把 hp 打到 0.45 造成与 budget 的双重打折。
+        enemyScale = { hp = 0.95, atk = 1.00, def = 0.95, hitDelta = 0, spellDCDelta = 0 },
     },
     [101002] = {
         id = 101002,
@@ -31,9 +40,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 100,
         speed = 1.0,
         gold = { min = 24, max = 38 },
-        budget = { difficulty = "deadly", pressureFactor = 1.70 },
-        playerScale = { hp = 0.98, atk = 1.06, def = 0.98, energyBonus = 0 },
-        enemyScale = { hp = 0.68, atk = 2.85, def = 0.86, hitDelta = 6, spellDCDelta = 1 },
+        budget = { difficulty = "medium", pressureFactor = 1.00 },
+        playerScale = { hp = 1.00, atk = 1.05, def = 1.00, energyBonus = 0 },
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
     [101003] = {
         id = 101003,
@@ -46,9 +55,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "deadly", pressureFactor = 1.90 },
-        playerScale = { hp = 0.96, atk = 1.04, def = 0.98, energyBonus = 0 },
-        enemyScale = { hp = 0.74, atk = 3.10, def = 0.90, hitDelta = 6, spellDCDelta = 3 },
+        budget = { difficulty = "hard", pressureFactor = 1.00 },
+        playerScale = { hp = 1.00, atk = 1.03, def = 1.00, energyBonus = 0 },
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
 
     -- Elite battles
@@ -64,9 +73,10 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 1 },
-        budget = { difficulty = "deadly", pressureFactor = 2.00 },
-        playerScale = { hp = 0.96, atk = 1.04, def = 0.98, energyBonus = 0 },
-        enemyScale = { hp = 0.76, atk = 3.20, def = 0.92, hitDelta = 6, spellDCDelta = 3 },
+        budget = { difficulty = "deadly", pressureFactor = 1.00 },
+        playerScale = { hp = 1.00, atk = 1.03, def = 1.00, energyBonus = 0 },
+        -- 精英微调：hit +1 突出精英压制，不碰 atk/hp 倍率。
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 1, spellDCDelta = 1 },
     },
     [101102] = {
         id = 101102,
@@ -80,9 +90,9 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "deadly", pressureFactor = 2.20 },
-        playerScale = { hp = 0.94, atk = 1.02, def = 0.96, energyBonus = 4 },
-        enemyScale = { hp = 0.56, atk = 4.20, def = 0.84, hitDelta = 8, spellDCDelta = 6 },
+        budget = { difficulty = "deadly", pressureFactor = 1.15 },
+        playerScale = { hp = 1.00, atk = 1.02, def = 1.00, energyBonus = 4 },
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 1, spellDCDelta = 1 },
     },
 
     -- Event battles (optional branch, still useful for vertical slice)
@@ -97,8 +107,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 30, max = 46 },
-        playerScale = { hp = 0.98, atk = 1.06, def = 0.98, energyBonus = 10 },
-        enemyScale = { hp = 0.86, atk = 2.60, def = 0.96, hitDelta = 4, spellDCDelta = 2 },
+        budget = { difficulty = "medium", pressureFactor = 1.00 },
+        playerScale = { hp = 1.00, atk = 1.05, def = 1.00, energyBonus = 10 },
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
     [101104] = {
         id = 101104,
@@ -111,8 +122,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 46, max = 64 },
-        playerScale = { hp = 0.95, atk = 1.03, def = 0.97, energyBonus = 5 },
-        enemyScale = { hp = 0.96, atk = 3.10, def = 1.04, hitDelta = 5, spellDCDelta = 3 },
+        budget = { difficulty = "hard", pressureFactor = 1.05 },
+        playerScale = { hp = 1.00, atk = 1.02, def = 1.00, energyBonus = 5 },
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
 
     -- Boss battle
@@ -128,9 +140,10 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        budget = { difficulty = "deadly", pressureFactor = 2.60 },
-        playerScale = { hp = 0.95, atk = 1.04, def = 0.98, energyBonus = 0 },
-        enemyScale = { hp = 0.42, atk = 5.60, def = 0.76, hitDelta = 10, spellDCDelta = 8, saveDelta = 0 },
+        budget = { difficulty = "deadly", pressureFactor = 1.30 },
+        playerScale = { hp = 1.00, atk = 1.03, def = 1.00, energyBonus = 0 },
+        -- BOSS 语义修正：hit/DC +2 突出 BOSS 命中优势，但 atk/hp 倍率交给 budget。
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 2, spellDCDelta = 2, saveDelta = 0 },
     },
 }
 

@@ -11,27 +11,13 @@ end
 local script_path = debug.getinfo(1, "S").source:sub(2)
 local script_dir = script_path:match("(.*[/\\])") or "./"
 
--- 设置 Lua 包路径，包含所有模块目录
-package.path = package.path
-    .. ";" .. script_dir .. "?.lua"
-    .. ";" .. script_dir .. "core/?.lua"
-    .. ";" .. script_dir .. "modules/?.lua"
-    .. ";" .. script_dir .. "config/?.lua"
-    .. ";" .. script_dir .. "utils/?.lua"
-    .. ";" .. script_dir .. "ui/?.lua"
-    .. ";" .. script_dir .. "test/?.lua"
-    -- 添加原工程技能Lua脚本路径
-    .. ";" .. script_dir .. "Assets/Lua/Modules/Battle/SkillNewLua/?.lua"
-    .. ";" .. script_dir .. "Assets/Lua/Modules/?.lua"
-    .. ";" .. script_dir .. "Assets/Lua/?.lua"
-
--- 先加载枚举定义（必须在其他模块之前加载）
-require("core.battle_types")
-require("core.battle_enum")
-require("core.battle_default_types")
-
--- 加载 BattleDefaultTypesOpt（技能脚本依赖此模块）
-require("modules.BattleDefaultTypesOpt")
+local LuaBootstrap = dofile(script_dir .. "core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(debug.getinfo(1, "S").source, {
+    extraPatterns = {
+        script_dir .. "test/?.lua",
+    },
+    includeLegacyAssets = true,
+})
 
 -- 加载所需工具库
 local Logger = require("utils.logger")
@@ -69,11 +55,11 @@ function RunSimpleTest()
     print("")
 
     -- 加载测试模块
-    local SimpleBattleTest = require("test.test_simple_battle")
+    local SingleBattleTest = require("runtime.single_battle_test")
 
     -- 运行测试
     local success, result = pcall(function()
-        return SimpleBattleTest.Run()
+        return SingleBattleTest.Run({ autoUltimate = false, initialEnergy = 40 })
     end)
 
     if success then
@@ -127,7 +113,7 @@ function RunSingleBattleTest()
     print("========================================")
     print("")
 
-    local SingleBattleTest = require("modules.single_battle_test")
+    local SingleBattleTest = require("runtime.single_battle_test")
     local success, result = pcall(function()
         return SingleBattleTest.Run()
     end)

@@ -1,7 +1,8 @@
-package.path = package.path .. ";../?.lua"
-
-require("core.battle_enum")
-require("modules.BattleDefaultTypesOpt")
+local script_source = debug.getinfo(1, "S").source
+local script_path = script_source:sub(2)
+local script_dir = script_path:match("(.*[/\\])") or "./"
+local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local BattleHeroFactory = require("modules.battle_hero_factory")
 local BattleDriver = require("modules.battle_driver")

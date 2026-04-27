@@ -1,24 +1,11 @@
-package.path = package.path
-    .. ";./?.lua"
-    .. ";./core/?.lua"
-    .. ";./modules/?.lua"
-    .. ";./config/?.lua"
-    .. ";./utils/?.lua"
-    .. ";./ui/?.lua"
-    .. ";../?.lua"
-    .. ";../core/?.lua"
-    .. ";../modules/?.lua"
-    .. ";../config/?.lua"
-    .. ";../utils/?.lua"
-    .. ";../ui/?.lua"
-
-require("core.battle_types")
-require("core.battle_enum")
-require("core.battle_default_types")
-require("modules.BattleDefaultTypesOpt")
+local script_source = debug.getinfo(1, "S").source
+local script_path = script_source:sub(2)
+local script_dir = script_path:match("(.*[/\\])") or "./"
+local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local Logger = require("utils.logger")
-local Run = require("modules.roguelike_run")
+local Run = require("roguelike.roguelike_run")
 
 Logger.SetLogLevel(Logger.LOG_LEVELS.ERROR)
 

@@ -4,6 +4,9 @@ web/node_modules/
 # Web build outputs
 web/dist/
 
+# Generated Lua mirror (produced by tools/export_web_lua.mjs via npm run export:lua)
+web/public/lua/project/
+
 # Test artifacts
 web/test-results/
 

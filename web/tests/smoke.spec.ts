@@ -28,7 +28,9 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
     .toBeGreaterThan(0);
 
   await page.locator(".ult-button:not([disabled])").first().dispatchEvent("pointerdown");
-  await expect(page.locator(".battle-log li").first()).toContainText("已下达大招指令");
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 5000 })
+    .toContain("已下达大招指令");
 
   const canvasReady = await page.evaluate(() => {
     const canvas = document.querySelector("canvas");

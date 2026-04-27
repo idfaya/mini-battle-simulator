@@ -1,5 +1,9 @@
 -- Minimal timeline + passive assertions for config-driven skills
-package.path = package.path .. ';../?.lua;../?/init.lua'
+local script_source = debug.getinfo(1, "S").source
+local script_path = script_source:sub(2)
+local script_dir = script_path:match("(.*[/\\])") or "./"
+local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local function log(msg) print(msg) end
 local function assert_true(cond, name)
@@ -395,21 +399,26 @@ do
     assert_true(nextTarget.hp < nextTarget.maxHp, "Pursuit triggers follow-up attack")
 end
 
--- Test 10: Taunt forces target selection and Shield Wall reduces damage (80002001/80002004)
+-- Test 10: Taunt forces target selection and Fighter L4 cleaves multiple enemies (80002001/80002004)
 do
     local tank = new_unit(1801, "Tester_Tankwall", 12000, 200, 50)
     local attacker = new_unit(2801, "Taunted_Enemy", 12000, 200, 0)
+    local extraEnemy1 = new_unit(2802, "Whirlwind_Target_1", 12000, 150, 0)
+    local extraEnemy2 = new_unit(2803, "Whirlwind_Target_2", 12000, 150, 0)
     local otherAlly = new_unit(1802, "Other_Ally", 12000, 100, 0)
     tank.isLeft = true
     otherAlly.isLeft = true
     attacker.isLeft = false
+    extraEnemy1.isLeft = false
+    extraEnemy2.isLeft = false
     local BattleFormation = require("modules.battle_formation")
+    local oldSelectRandomAliveEnemies = BattleSkill.SelectRandomAliveEnemies
     local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
     BattleFormation.GetEnemyTeam = function(src)
         if src == attacker then
             return { tank, otherAlly }
         elseif src == tank then
-            return { attacker }
+            return { attacker, extraEnemy1, extraEnemy2 }
         end
         return oldGetEnemyTeam(src)
     end
@@ -420,15 +429,16 @@ do
     assert_true(BattleFormation.GetRandomEnemyInstanceId(attacker) == tank.instanceId, "Taunted enemy targets tank")
 
     local wallSkill = require("config.skill.skill_80002004")
+    BattleSkill.SelectRandomAliveEnemies = function(src, count)
+        return { attacker, extraEnemy1, extraEnemy2 }
+    end
     local okWall, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002004, name = "盾墙" }, wallSkill.BuildTimeline(tank, { attacker }, { skillId = 80002004, name = "盾墙" }))
-    assert_true(okWall, "ShieldWall timeline execute ok")
-    local war = PassiveHandlers.Create(8000200, { src = tank })
-    local extra = { damage = 2000, attacker = attacker }
-    local attackerHpBefore = attacker.hp
-    war:OnDefBeforeDmg({ data = { extraParam = extra } })
+    BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
-    assert_true(extra.damage == 1300, "ShieldWall reduces incoming damage to 65%")
-    assert_true(attacker.hp < attackerHpBefore, "ShieldWall counterattacks attacker")
+    assert_true(okWall, "Whirlwind timeline execute ok")
+    assert_true(attacker.hp < attacker.maxHp, "Whirlwind damages primary enemy")
+    assert_true(extraEnemy1.hp < extraEnemy1.maxHp, "Whirlwind damages extra enemy 1")
+    assert_true(extraEnemy2.hp < extraEnemy2.maxHp, "Whirlwind damages extra enemy 2")
 end
 
 -- Test 11: War Spirit stacks and Aura increases damage/heal (80004003/80004004)

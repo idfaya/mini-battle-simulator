@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 const outputRoot = path.join(repoRoot, "web", "public", "lua", "project");
-const sourceDirs = ["core", "modules", "config", "ui", "utils"];
+const sourceDirs = ["core", "modules", "config", "ui", "utils", "skills", "roguelike", "runtime"];
 const embeddedFiles = [
   "config/res_hero.json",
   "config/res_enemy.json",
