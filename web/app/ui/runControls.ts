@@ -14,35 +14,107 @@ type RunHandlers = {
   onRestart: () => void;
 };
 
+type RunScreen = "map" | "team" | "info" | "log";
+
 type RunControls = {
   root: HTMLDivElement;
   status: HTMLDivElement;
-  summary: HTMLDivElement;
-  panel: HTMLDivElement;
+  screenTabs: HTMLDivElement;
+  mapPanel: HTMLDivElement;
+  teamPanel: HTMLDivElement;
+  infoPanel: HTMLDivElement;
   logList: HTMLUListElement;
   handlers: RunHandlers;
   selectedBenchRosterId: number | null;
+  currentScreen: RunScreen;
+  setScreen: (screen: RunScreen) => void;
+  /** 阶段变化时，把用户强制跳到最适合操作的页 */
+  autoRouteByPhase: (phase: RunSnapshot["phase"] | null) => void;
 };
 
 export function createRunControls(handlers: RunHandlers): RunControls {
   const root = document.createElement("div");
   root.className = "hud";
+  root.dataset.screen = "map";
+
+  const screenTabs = document.createElement("div");
+  screenTabs.className = "hud-screen-tabs";
 
   const status = document.createElement("div");
   status.className = "hud-status";
 
-  const summary = document.createElement("div");
-  summary.className = "setup-panel";
+  const mapPanel = document.createElement("div");
+  mapPanel.className = "ult-panel run-map-panel";
 
-  const panel = document.createElement("div");
-  panel.className = "ult-panel";
+  const teamPanel = document.createElement("div");
+  teamPanel.className = "setup-panel run-team-panel";
+
+  const infoPanel = document.createElement("div");
+  infoPanel.className = "setup-panel run-info-panel";
 
   const logList = document.createElement("ul");
   logList.className = "battle-log";
 
-  root.append(status, summary, panel, logList);
+  const controls: RunControls = {
+    root,
+    status,
+    screenTabs,
+    mapPanel,
+    teamPanel,
+    infoPanel,
+    logList,
+    handlers,
+    selectedBenchRosterId: null,
+    currentScreen: "map",
+    setScreen: () => {},
+    autoRouteByPhase: () => {},
+  };
 
-  return { root, status, summary, panel, logList, handlers, selectedBenchRosterId: null };
+  const setScreen = (screen: RunScreen) => {
+    controls.currentScreen = screen;
+    root.dataset.screen = screen;
+    root.closest(".shell")?.setAttribute("data-screen", `run-${screen}`);
+    for (const button of screenTabs.querySelectorAll<HTMLButtonElement>("button[data-screen]")) {
+      button.classList.toggle("active", button.dataset.screen === screen);
+    }
+  };
+  controls.setScreen = setScreen;
+
+  const addScreenButton = (screen: RunScreen, label: string) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.screen = screen;
+    button.textContent = label;
+    button.onclick = () => setScreen(screen);
+    screenTabs.append(button);
+  };
+
+  addScreenButton("map", "地图");
+  addScreenButton("team", "队伍");
+  addScreenButton("info", "信息");
+  addScreenButton("log", "日志");
+
+  // 自动路由：根据 phase 把玩家推到最该看的 tab（但尊重用户主动切换）
+  let lastAutoPhase: string | null = null;
+  controls.autoRouteByPhase = (phase) => {
+    if (!phase || phase === lastAutoPhase) {
+      return;
+    }
+    lastAutoPhase = phase;
+    // phase 切换意味着新的操作场景，统一把玩家引导到 info（营地/商店/事件/奖励）或 map
+    if (phase === "event" || phase === "reward" || phase === "shop" || phase === "camp") {
+      setScreen("info");
+    } else if (phase === "map") {
+      setScreen("map");
+    } else if (phase === "chapter_result" || phase === "failed") {
+      setScreen("info");
+    }
+  };
+
+  root.append(screenTabs, status, mapPanel, teamPanel, infoPanel, logList);
+  setScreen("map");
+
+  return controls;
 }
 
 function makeButton(label: string, disabled: boolean, onClick: () => void) {
@@ -55,21 +127,13 @@ function makeButton(label: string, disabled: boolean, onClick: () => void) {
   return button;
 }
 
-function renderSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
-  const chapter = document.createElement("div");
-  chapter.className = "panel-title";
-  chapter.textContent = `第一章 · 节点 ${snapshot.currentNodeId ?? "-"}`;
+function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
+  host.replaceChildren();
 
-  const stats = document.createElement("div");
-  stats.className = "setup-grid";
-  stats.innerHTML = `
-    <div class="setup-field"><span>队伍等级</span><strong>Lv.${snapshot.partyLevel}</strong></div>
-    <div class="setup-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
-    <div class="setup-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
-    <div class="setup-field"><span>食物</span><strong>${snapshot.food}</strong></div>
-    <div class="setup-field"><span>遗物</span><strong>${snapshot.relics.length}</strong></div>
-    <div class="setup-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
-  `;
+  const title = document.createElement("div");
+  title.className = "panel-title";
+  title.textContent = "当前队伍";
+  host.append(title);
 
   const team = document.createElement("div");
   team.className = "run-team-summary";
@@ -77,30 +141,33 @@ function renderSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
     ...snapshot.team.map((member) => {
       const item = document.createElement("div");
       item.className = "run-team-card";
-      item.textContent = `${member.name} ${member.isDead ? "· 阵亡" : `· ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+      item.textContent = `${member.name} ${member.isDead ? "· 阵亡" : `· HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
       return item;
     }),
   );
+  host.append(team);
 
-  host.replaceChildren(chapter, stats, team);
-}
-
-function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs: string[]) {
+  // 候补编成（仅非战斗/非结算阶段显示）
   if (snapshot.phase === "battle" || snapshot.phase === "failed" || snapshot.phase === "chapter_result") {
+    controls.selectedBenchRosterId = null;
     return;
   }
   if ((snapshot.bench?.length ?? 0) === 0) {
     controls.selectedBenchRosterId = null;
+    const hint = document.createElement("div");
+    hint.className = "run-roster-meta";
+    hint.textContent = "（暂无候补英雄）";
+    host.append(hint);
     return;
   }
 
   const section = document.createElement("div");
   section.className = "run-roster-panel";
 
-  const title = document.createElement("div");
-  title.className = "panel-title";
-  title.textContent = "候补编成";
-  section.append(title);
+  const benchTitle = document.createElement("div");
+  benchTitle.className = "panel-title";
+  benchTitle.textContent = "候补编成";
+  section.append(benchTitle);
 
   const benchHost = document.createElement("div");
   benchHost.className = "run-roster-grid";
@@ -115,7 +182,7 @@ function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs:
 
     const info = document.createElement("div");
     info.className = "run-roster-meta";
-    info.textContent = `${member.name} · ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`;
+    info.textContent = `${member.name} · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`;
 
     const action = makeButton(
       selectedBench?.rosterId === member.rosterId ? "取消选择" : "选择候补",
@@ -123,11 +190,11 @@ function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs:
       () => {
         controls.selectedBenchRosterId =
           controls.selectedBenchRosterId === member.rosterId ? null : member.rosterId ?? null;
-        renderRunControls(controls, snapshot, logs);
+        renderRunControls(controls, snapshot, []);
       },
     );
 
-    wrapper.append(info, action)
+    wrapper.append(info, action);
     benchHost.append(wrapper);
   }
   section.append(benchHost);
@@ -154,7 +221,7 @@ function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs:
 
       const info = document.createElement("div");
       info.className = "run-roster-meta";
-      info.textContent = `${member.name}${member.isDead ? " · 阵亡" : ` · ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+      info.textContent = `${member.name}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
 
       const action = makeButton("替换上阵", false, () => {
         controls.handlers.onSwapBenchWithTeam(selectedBench.rosterId!, member.rosterId!);
@@ -166,81 +233,48 @@ function renderRosterSection(controls: RunControls, snapshot: RunSnapshot, logs:
     section.append(teamHost);
   }
 
-  controls.panel.append(section);
+  host.append(section);
 }
 
-export function renderRunControls(controls: RunControls, snapshot: RunSnapshot | null, logs: string[]) {
-  if (!snapshot) {
-    controls.status.textContent = "run: loading | Run 加载中";
-  } else if (snapshot.phase === "battle") {
-    const bs = snapshot.battleSnapshot;
-    const allUnits = [...(bs?.leftTeam ?? []), ...(bs?.rightTeam ?? [])];
-    const active =
-      bs?.activeHeroId != null ? allUnits.find((unit) => unit.id === bs.activeHeroId) : null;
-    const focus =
-      active ??
-      (bs?.leftTeam ?? []).find((unit) => unit.isAlive) ??
-      (bs?.rightTeam ?? []).find((unit) => unit.isAlive) ??
-      null;
-    const lines: string[] = [];
-    lines.push(`battle: ${bs?.phase ?? "running"} | 战斗状态: ${bs?.phase ?? "running"}`);
-    if (focus) {
-      const stateBits: string[] = [];
-      if (focus.isChanting) {
-        stateBits.push(`吟唱:${focus.pendingSkillName ?? "未知技能"}`);
-      }
-      if (focus.isConcentrating) {
-        stateBits.push(`专注:${focus.concentrationSkillName ?? focus.concentrationSkillId ?? "未知技能"}`);
-      }
-      lines.push(
-        `${active ? "当前行动" : "当前角色"}: ${focus.name} | HP ${focus.hp}/${focus.maxHp} | 先攻 ${focus.initiative ?? 0} (${focus.initiativeRoll ?? 0}${(focus.initiativeMod ?? 0) >= 0 ? "+" : ""}${focus.initiativeMod ?? 0}) | AC ${focus.ac ?? 0} | 命中 ${focus.hit ?? 0} | 法术命中 ${focus.spellDC ?? 0} | 豁免 F/R/W ${focus.saveFort ?? 0}/${focus.saveRef ?? 0}/${focus.saveWill ?? 0}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
-      );
-    }
-    controls.status.textContent = lines.join("\n");
-  } else {
-    controls.status.textContent = `run: ${snapshot.phase}${snapshot.lastActionMessage ? ` | ${snapshot.lastActionMessage}` : ""}`;
-  }
+function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
+  host.replaceChildren();
 
-  controls.panel.replaceChildren();
-  if (!snapshot) {
-    return;
-  }
+  // 资源概览
+  const chapter = document.createElement("div");
+  chapter.className = "panel-title";
+  chapter.textContent = `第一章 · 节点 ${snapshot.currentNodeId ?? "-"}`;
+  host.append(chapter);
 
-  renderSummary(controls.summary, snapshot);
+  const stats = document.createElement("div");
+  stats.className = "setup-grid";
+  stats.innerHTML = `
+    <div class="setup-field"><span>队伍等级</span><strong>Lv.${snapshot.partyLevel}</strong></div>
+    <div class="setup-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
+    <div class="setup-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
+    <div class="setup-field"><span>食物</span><strong>${snapshot.food}</strong></div>
+    <div class="setup-field"><span>遗物</span><strong>${snapshot.relics.length}</strong></div>
+    <div class="setup-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
+  `;
+  host.append(stats);
 
-  if (snapshot.phase === "map" && snapshot.map) {
+  // 阶段性交互
+  if (snapshot.phase === "event" && snapshot.eventState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = "地图推进";
-    controls.panel.append(title);
-
-    for (const node of snapshot.map.nodes.filter((item) => item.selectable)) {
-      controls.panel.append(
-        makeButton(`${node.title} · ${node.nodeType}`, false, async () => {
-          controls.handlers.onChooseNode(node.id);
-        }),
-      );
-    }
-    controls.panel.append(
-      makeButton("进入当前选择节点", snapshot.debug.availableNextNodeIds.length === 0, controls.handlers.onEnterNode),
-    );
-  } else if (snapshot.phase === "event" && snapshot.eventState) {
-    const title = document.createElement("div");
-    title.className = "panel-title";
-    title.textContent = snapshot.eventState.title;
-    controls.panel.append(title);
+    title.textContent = `事件 · ${snapshot.eventState.title}`;
+    host.append(title);
     for (const option of snapshot.eventState.options) {
-      controls.panel.append(
+      host.append(
         makeButton(option.label, false, () => controls.handlers.onChooseEventOption(option.id)),
       );
     }
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = "选择奖励后继续";
-    controls.panel.append(title);
+    title.textContent = "选择奖励";
+    host.append(title);
     snapshot.rewardState.options.forEach((option, index) => {
-      controls.panel.append(
+      host.append(
         makeButton(`${option.label}${option.description ? ` · ${option.description}` : ""}`, false, () =>
           controls.handlers.onChooseReward(index + 1),
         ),
@@ -249,10 +283,10 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
   } else if (snapshot.phase === "shop" && snapshot.shopState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = snapshot.shopState.name;
-    controls.panel.append(title);
+    title.textContent = `商店 · ${snapshot.shopState.name}`;
+    host.append(title);
     for (const goods of snapshot.shopState.goods) {
-      controls.panel.append(
+      host.append(
         makeButton(
           `${goods.goodsType} · ${goods.refId ?? goods.code ?? goods.goodsId} · ${goods.price}`,
           goods.sold,
@@ -260,15 +294,15 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
         ),
       );
     }
-    controls.panel.append(makeButton(`刷新商店 - ${snapshot.shopState.refreshCost}`, false, controls.handlers.onShopRefresh));
-    controls.panel.append(makeButton("离开商店", false, controls.handlers.onShopLeave));
+    host.append(makeButton(`刷新商店 - ${snapshot.shopState.refreshCost}`, false, controls.handlers.onShopRefresh));
+    host.append(makeButton("离开商店", false, controls.handlers.onShopLeave));
   } else if (snapshot.phase === "camp" && snapshot.campState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = snapshot.campState.name;
-    controls.panel.append(title);
+    title.textContent = `营地 · ${snapshot.campState.name}`;
+    host.append(title);
     for (const action of snapshot.campState.actions) {
-      controls.panel.append(
+      host.append(
         makeButton(action.label, !action.available, () => controls.handlers.onCampChoose(action.id)),
       );
     }
@@ -276,6 +310,7 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
     const title = document.createElement("div");
     title.className = "panel-title";
     title.textContent = snapshot.chapterResult?.success ? "章节通关" : "Run 失败";
+    host.append(title);
     const details = document.createElement("div");
     details.className = "setup-field";
     details.innerHTML = `
@@ -283,10 +318,91 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
       <strong>${snapshot.chapterResult?.reason ?? "-"}</strong>
       <span>金币 ${snapshot.chapterResult?.gold ?? snapshot.gold}</span>
     `;
-    controls.panel.append(title, details, makeButton("重新开始第一章", false, controls.handlers.onRestart));
+    host.append(details, makeButton("重新开始第一章", false, controls.handlers.onRestart));
+  } else if (snapshot.phase === "map") {
+    const hint = document.createElement("div");
+    hint.className = "run-roster-meta";
+    hint.textContent = "（地图推进中，请切到「地图」页选择下一个节点）";
+    host.append(hint);
+  }
+}
+
+function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
+  host.replaceChildren();
+
+  if (snapshot.phase === "map" && snapshot.map) {
+    const title = document.createElement("div");
+    title.className = "panel-title";
+    title.textContent = "选择下一个节点";
+    host.append(title);
+
+    const selectable = snapshot.map.nodes.filter((item) => item.selectable);
+    for (const node of selectable) {
+      host.append(
+        makeButton(`${node.title} · ${node.nodeType}`, false, () => {
+          controls.handlers.onChooseNode(node.id);
+        }),
+      );
+    }
+    host.append(
+      makeButton(
+        "进入当前选择节点",
+        snapshot.debug.availableNextNodeIds.length === 0,
+        controls.handlers.onEnterNode,
+      ),
+    );
+  } else {
+    // 非 map 阶段：显示当前所在场景提示，提示切回「信息」页
+    const title = document.createElement("div");
+    title.className = "panel-title";
+    const phaseLabel =
+      snapshot.phase === "event"
+        ? "事件进行中"
+        : snapshot.phase === "reward"
+          ? "选择奖励中"
+          : snapshot.phase === "shop"
+            ? "商店中"
+            : snapshot.phase === "camp"
+              ? "营地中"
+              : snapshot.phase === "battle"
+                ? "战斗中"
+                : snapshot.phase === "chapter_result"
+                  ? "章节结算"
+                  : snapshot.phase === "failed"
+                    ? "Run 已失败"
+                    : snapshot.phase;
+    title.textContent = `当前场景：${phaseLabel}`;
+    host.append(title);
+    const hint = document.createElement("div");
+    hint.className = "run-roster-meta";
+    hint.textContent = "请切到「信息」页处理当前场景";
+    host.append(hint);
+  }
+}
+
+export function renderRunControls(controls: RunControls, snapshot: RunSnapshot | null, logs: string[]) {
+  if (!snapshot) {
+    controls.status.textContent = "run: loading | Run 加载中";
+    controls.mapPanel.replaceChildren();
+    controls.teamPanel.replaceChildren();
+    controls.infoPanel.replaceChildren();
+    controls.logList.replaceChildren();
+    return;
   }
 
-  renderRosterSection(controls, snapshot, logs);
+  controls.autoRouteByPhase(snapshot.phase);
+
+  // 顶部状态条简要显示
+  if (snapshot.phase === "battle") {
+    controls.status.textContent = `战斗中 · 节点 ${snapshot.currentNodeId ?? "-"}`;
+  } else {
+    const msg = snapshot.lastActionMessage ? ` | ${snapshot.lastActionMessage}` : "";
+    controls.status.textContent = `阶段: ${snapshot.phase}${msg}`;
+  }
+
+  renderMapPanel(controls.mapPanel, controls, snapshot);
+  renderTeamPanel(controls.teamPanel, controls, snapshot);
+  renderInfoPanel(controls.infoPanel, controls, snapshot);
 
   controls.logList.replaceChildren(
     ...logs.map((entry) => {

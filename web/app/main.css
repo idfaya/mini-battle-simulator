@@ -81,6 +81,12 @@ body {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
+.hud[data-screen="map"],
+.hud[data-screen="team"],
+.hud[data-screen="info"] {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .hud[data-screen="settings"] .setup-panel,
 .hud[data-screen="log"] .battle-log {
   min-height: 0;
@@ -88,7 +94,8 @@ body {
 
 .hud-screen-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   order: 99;
 }
@@ -163,6 +170,29 @@ body {
 .hud[data-screen="log"] .global-actions,
 .hud[data-screen="log"] .ult-panel {
   display: none;
+}
+
+/* Roguelike 多页布局：按 screen 显示对应面板 */
+.hud[data-screen="map"] .run-team-panel,
+.hud[data-screen="map"] .run-info-panel,
+.hud[data-screen="map"] .battle-log,
+.hud[data-screen="team"] .run-map-panel,
+.hud[data-screen="team"] .run-info-panel,
+.hud[data-screen="team"] .battle-log,
+.hud[data-screen="info"] .run-map-panel,
+.hud[data-screen="info"] .run-team-panel,
+.hud[data-screen="info"] .battle-log,
+.hud[data-screen="log"] .run-map-panel,
+.hud[data-screen="log"] .run-team-panel,
+.hud[data-screen="log"] .run-info-panel {
+  display: none;
+}
+
+/* Roguelike 场景下活跃面板全部拉满可用空间并内部滚动 */
+.hud[data-screen="map"] .run-map-panel,
+.hud[data-screen="team"] .run-team-panel,
+.hud[data-screen="info"] .run-info-panel {
+  overflow: auto;
 }
 
 .ult-panel,
@@ -352,11 +382,18 @@ body {
 @media (max-width: 1320px) {
   .shell {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, auto) minmax(0, 1fr);
+  }
+
+  .stage {
+    max-height: 50vh;
+    overflow: hidden;
   }
 
   .stage canvas {
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: contain;
   }
 }
 
@@ -373,13 +410,23 @@ body {
   }
 
   .shell[data-screen="settings"],
-  .shell[data-screen="log"] {
+  .shell[data-screen="log"],
+  .shell[data-screen="run-team"],
+  .shell[data-screen="run-info"],
+  .shell[data-screen="run-log"] {
     grid-template-rows: minmax(0, 1fr);
   }
 
   .shell[data-screen="settings"] .stage,
-  .shell[data-screen="log"] .stage {
+  .shell[data-screen="log"] .stage,
+  .shell[data-screen="run-team"] .stage,
+  .shell[data-screen="run-info"] .stage,
+  .shell[data-screen="run-log"] .stage {
     display: none;
+  }
+
+  .stage {
+    max-height: none;
   }
 
   .stage canvas {
@@ -387,14 +434,34 @@ body {
     height: 100%;
     background: rgba(9, 17, 30, 0.68);
     box-shadow: none;
+    object-fit: contain;
   }
 
   .shell > .hud > .hud {
     gap: 8px;
   }
 
-  .hud[data-screen="battle"] {
-    display: block;
+  /* 手机下统一用 flex 纵向排布，order 才能把 tabs 固定贴底 */
+  .hud[data-screen="battle"],
+  .hud[data-screen="settings"],
+  .hud[data-screen="log"],
+  .hud[data-screen="map"],
+  .hud[data-screen="team"],
+  .hud[data-screen="info"] {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  /* 各页面里活跃主体面板自动占据剩余高度并内部滚动 */
+  .hud[data-screen="team"] .run-team-panel,
+  .hud[data-screen="info"] .run-info-panel,
+  .hud[data-screen="map"] .run-map-panel,
+  .hud[data-screen="log"] .battle-log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
 
   .shell[data-screen="battle"] > .hud,
@@ -402,22 +469,23 @@ body {
     overflow: visible;
   }
 
+  /* 手机下回到普通流，避免绝对定位覆盖底部 tabs */
   .hud[data-screen="battle"] .ult-panel {
-    position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 56px;
-    z-index: 2;
+    position: static;
     box-sizing: border-box;
   }
 
   .hud-screen-tabs {
     gap: 6px;
+    /* flex 布局下 order 仍生效，保证 tabs 始终在底部且可点击 */
+    order: 99;
+    flex-shrink: 0;
   }
 
   .hud-screen-tabs button {
-    padding: 8px 6px;
+    padding: 10px 6px;
     font-size: 13px;
+    min-height: 44px;
   }
 
   .hud-status,
@@ -432,12 +500,15 @@ body {
     max-height: 48px;
     font-size: 12px;
     line-height: 1.35;
+    flex-shrink: 0;
   }
 
   .ult-panel {
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-content: start;
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   .ult-button,
@@ -456,6 +527,8 @@ body {
   .setup-panel {
     align-content: start;
     overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .setup-grid {
@@ -469,7 +542,9 @@ body {
   }
 
   .global-actions {
+    display: grid;
     grid-template-columns: 1fr 1fr;
+    flex-shrink: 0;
   }
 
   .battle-log {
@@ -477,6 +552,7 @@ body {
     font-size: 12px;
     line-height: 1.35;
     overflow-y: auto;
+    flex: 1 1 auto;
   }
 
   .battle-log li {

@@ -311,7 +311,12 @@ async function bootstrapRunMode(
 
     const shouldRenderBattle = holdBattleResultScene || (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot);
     if (shouldRenderBattle && battleStore.getState().snapshot) {
-      panelHost.replaceChildren(battleControls.root);
+      if (panelHost.firstChild !== battleControls.root) {
+        panelHost.replaceChildren(battleControls.root);
+        // 切换到战斗 HUD 时，把当前 hud 的 screen 同步到 shell，避免 CSS 失配
+        const currentScreen = battleControls.root.dataset.screen ?? "battle";
+        panelHost.closest(".shell")?.setAttribute("data-screen", currentScreen);
+      }
       renderer.renderBattle(battleStore.getState(), now);
       renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate, {
         extraActions: holdBattleResultScene
@@ -327,6 +332,9 @@ async function bootstrapRunMode(
     } else {
       if (panelHost.firstChild !== runControls.root) {
         panelHost.replaceChildren(runControls.root);
+        // 切到 Roguelike HUD 时，把 runControls 当前 screen 同步到 shell，手机上 CSS 才会正确隐藏 stage
+        const runScreen = runControls.root.dataset.screen ?? "map";
+        panelHost.closest(".shell")?.setAttribute("data-screen", `run-${runScreen}`);
         runUiDirty = true;
       }
       renderer.renderMap(runSnapshot);

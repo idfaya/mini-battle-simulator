@@ -54,9 +54,7 @@ export function createControls(
   };
 
   addScreenButton("battle", "战斗");
-  if (options?.showSetupPanel !== false) {
-    addScreenButton("settings", "设置");
-  }
+  addScreenButton("settings", "设置");
   addScreenButton("log", "日志");
 
   const status = document.createElement("div");
@@ -194,8 +192,24 @@ export function createControls(
 
   actions.append(restartButton, autoUltLabel);
   if (options?.showSetupPanel === false) {
+    // Roguelike 模式无需重新配队伍，仍保留"速度/自动大招"便于战斗中调节
     setupPanel.style.display = "none";
-    actions.style.display = "none";
+    restartButton.style.display = "none";
+    const speedCopy = speedField.wrapper.cloneNode(true) as HTMLLabelElement;
+    const speedCopySelect = speedCopy.querySelector("select");
+    if (speedCopySelect instanceof HTMLSelectElement) {
+      speedCopySelect.id = "battle-speed-compact";
+      speedCopySelect.value = speedField.select.value;
+      speedCopySelect.onchange = () => {
+        speedField.select.value = speedCopySelect.value;
+        onSpeedChange(readSetup().speed);
+      };
+      speedField.select.addEventListener("change", () => {
+        speedCopySelect.value = speedField.select.value;
+      });
+    }
+    speedCopy.htmlFor = "battle-speed-compact";
+    actions.append(speedCopy);
   }
 
   root.append(screenTabs, status, setupPanel, buttonsHost, actions, logList);
