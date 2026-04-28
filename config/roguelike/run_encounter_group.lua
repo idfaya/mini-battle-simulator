@@ -131,10 +131,11 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 1 },
-        budget = { difficulty = "deadly", pressureFactor = 1.00 },
+        -- 单人升级改版后，第二战后队伍强度爬坡更慢；精英战降低到 hard 档，避免硬性断点。
+        budget = { difficulty = "hard", pressureFactor = 0.95 },
         playerScale = { hp = 1.00, atk = 1.03, def = 1.00, energyBonus = 0 },
-        -- 精英微调：hit +1 突出精英压制，不碰 atk/hp 倍率。
-        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 1, spellDCDelta = 1 },
+        -- 精英微调：先移除命中/DC 额外压制，后续再通过 budget 精确回收难度。
+        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
     [101102] = {
         id = 101102,

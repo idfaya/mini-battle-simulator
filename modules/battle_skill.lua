@@ -570,7 +570,8 @@ function BattleSkill.Init(hero, skillsConfig)
                     local skillCfg = skill.skillConfig or SkillConfig.GetSkillConfig(skillId)
                     local passiveSkillData = {
                         skillId = skillId,
-                        classId = skillCfg and skillCfg.ClassID or skillId,
+                        -- Register passives by the specific passive skillId (feature-level), not by classId.
+                        classId = skillId,
                         isPassiveActive = true,
                         name = skill.name,
                     }
@@ -821,7 +822,14 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
 
-    BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, { damageDealt = totalDamage or 0 })
+    if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
+        BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {
+            damageDealt = totalDamage or 0,
+            skillId = skill.skillId,
+            skillType = skill.skillType,
+            target = hero and hero.__lastNormalAttackTarget or nil,
+        })
+    end
 
     local energyStats = hero and hero.__energyCastStats or nil
     if energyStats and (
@@ -988,7 +996,10 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
 
     local BattlePassiveSkill = require("modules.battle_passive_skill")
-    BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = targets[1] })
+    if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
+        hero.__lastNormalAttackTarget = targets and targets[1] or nil
+        BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = targets[1], skillId = skillId })
+    end
 
     local skillLua = BattleSkill.LoadSkillLua(skillId)
     local timeline = nil
@@ -1645,8 +1656,10 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
 
     local name = (skillCfg and skillCfg.Name) or (mergedConfig and mergedConfig.name) or ""
     local skillParam = (skillCfg and skillCfg.SkillParam) or {}
+    local inferredSkillId = tonumber((skillCfg and skillCfg.ID) or (mergedConfig and mergedConfig.skillId) or 0) or 0
+    local inferredTag = InferSpecialEffectTag(inferredSkillId, skillCfg, mergedConfig)
 
-    if name == "斩杀" then
+    if inferredSkillId == 80001003 or name == "斩杀" or name == "Cunning Strike" then
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Enemy,
             preferLowestHp = true,
@@ -1666,23 +1679,28 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
             ignoreFrontProtection = true,
         })
     end
-    if (skill and skill.skillId) == 80006003 or name == "群疗" then
+    if inferredSkillId == 80006003 or name == "群疗" then
+        local extraAllies = tonumber(skillParam[2]) or 2
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Alias,
             measureType = E_MEASURE_TYPE.Muti,
-            count = skillParam[2] or 3,
+            count = extraAllies + 1, -- include self + lowest HP allies
             includeSelf = true,
             preferLowestHp = true,
         })
     end
-    if (skill and skill.skillId) == 80006001 or name == "圣光" then
+    if inferredSkillId == 80006001 or name == "圣光" or inferredTag == "holy_light" then
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Enemy,
             preferAllyIfInjured = true,
             includeSelf = true,
         })
     end
-    if (skill and skill.skillId) == 80006004 or name == "全军突击" or name == "战神降临" or name == "圣光普照" then
+    if inferredSkillId == 80006004
+        or name == "全军突击"
+        or name == "战神降临"
+        or name == "圣光普照"
+        or inferredTag == "battle_intent_buff" then
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Alias,
             measureType = E_MEASURE_TYPE.AOE,
@@ -2239,11 +2257,11 @@ end
 function BattleSkill.ProcessPursuitEffect(hero, target, skill)
     if not target or not target.isDead then return false end
     
-    -- 检查是否有"追击"被动
+    -- 检查是否有追击能力（兼容旧的“追击”命名与当前 Rogue 被动 skillId）
     local hasPursuit = false
     if hero.skills then
         for _, s in ipairs(hero.skills) do
-            if s.name == "追击" then
+            if (s.skillId == 80001002) or (s.name == "追击") then
                 hasPursuit = true
                 break
             end
@@ -2262,6 +2280,23 @@ function BattleSkill.ProcessPursuitEffect(hero, target, skill)
             
             -- 选择新目标进行追击攻击
             local newTarget = BattleSkill.SelectLowestHpEnemy(hero)
+            if not newTarget then
+                -- Fallback for tests / callers that do not set isLeft: scan all alive units.
+                local BattleActionOrder = require("modules.battle_action_order")
+                local best = nil
+                local bestHp = math.huge
+                for _, u in ipairs(BattleActionOrder.GetAliveHeroes() or {}) do
+                    if u and not u.isDead and u ~= hero and u ~= target
+                       and u.isLeft ~= hero.isLeft then
+                        local hp = tonumber(u.hp) or 0
+                        if hp > 0 and hp < bestHp then
+                            bestHp = hp
+                            best = u
+                        end
+                    end
+                end
+                newTarget = best
+            end
             if newTarget and not newTarget.isDead then
                 BattleSkill.CastSmallSkill(hero, newTarget)
                 return true

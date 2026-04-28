@@ -140,7 +140,7 @@ end
 do
     local Tank = new_unit(1201, "Tester_Tank", 12000, 150, 50)
     local Attacker = new_unit(2201, "Tester_Orc", 12000, 200, 0)
-    local war = PassiveHandlers.Create(8000200, { src = Tank })
+    local war = PassiveHandlers.Create(80002002, { src = Tank })
     -- Apply Counter Stance via skill API
     BattleSkill.ApplyBuffFromSkill(Tank, Tank, 820002, { skillId = 80002003 })
     -- Simulate being attacked
@@ -256,7 +256,7 @@ end
 do
     local hero = new_unit(1601, "Tester_Combo", 10000, 200, 0)
     local target = new_unit(2601, "Combo_Target", 10000, 0, 0)
-    local comboPassive = PassiveHandlers.Create(8000300, { src = hero })
+    local comboPassive = PassiveHandlers.Create(80003002, { src = hero })
     comboPassive:OnBattleBegin({})
     assert_true((hero.passiveRuntime or {}).comboMasterMinRate == 5000, "ComboMaster writes passive runtime state")
     local oldProcessComboEffect = BattleSkill.ProcessComboEffect
@@ -282,7 +282,7 @@ end
 -- Test 8b: Combo master raises combo rate through unified passive framework (80003002)
 do
     local hero = new_unit(1602, "Tester_ComboPassive", 10000, 200, 0)
-    local comboPassive = PassiveHandlers.Create(8000300, { src = hero })
+    local comboPassive = PassiveHandlers.Create(80003002, { src = hero })
     comboPassive:OnBattleBegin({})
     local oldRandom = math.random
     math.random = function(a, b)
@@ -297,7 +297,7 @@ end
 do
     local hero = new_unit(1603, "Tester_IcePassive", 10000, 200, 0)
     local target = new_unit(2603, "Ice_Target", 10000, 0, 0)
-    local icePassive = PassiveHandlers.Create(8000800, { src = hero })
+    local icePassive = PassiveHandlers.Create(80008002, { src = hero })
     icePassive:OnBattleBegin({})
     assert_true((hero.passiveRuntime or {}).iceDamageBonusPct == 1000, "IceAffinity writes damage bonus runtime state")
     assert_true((hero.passiveRuntime or {}).iceFreezeChanceBonus == 1000, "IceAffinity writes freeze chance runtime state")
@@ -335,7 +335,7 @@ end
 do
     local hero = new_unit(1604, "Tester_ThunderPassive", 10000, 200, 0)
     local target = new_unit(2604, "Thunder_Target", 10000, 0, 0)
-    local thunderPassive = PassiveHandlers.Create(8000900, { src = hero })
+    local thunderPassive = PassiveHandlers.Create(80009002, { src = hero })
     thunderPassive:OnBattleBegin({})
     assert_true((hero.passiveRuntime or {}).thunderChainChanceBonus == 2000, "ThunderAffinity writes chain chance runtime state")
     assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus") == 4000, "ThunderAffinity increases chain chance by 20%")
@@ -449,7 +449,7 @@ do
     hero.isLeft = true
     ally.isLeft = true
     enemy.isLeft = false
-    local war = PassiveHandlers.Create(8000400, { src = hero })
+    local war = PassiveHandlers.Create(80004002, { src = hero })
     war:OnDmgMakeKill({})
     assert_true(BattleBuff.GetBuffStackNumBySubType(hero, 840001) == 1, "WarSpirit gains one stack after kill")
 

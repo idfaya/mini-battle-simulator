@@ -65,14 +65,45 @@ end
 local function CreatePursuitPassive(context)
     local self = BuildContextState(context)
 
-    function self:OnDmgMakeKill(ctx)
+    function self:OnBattleBegin(ctx)
         local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam and extraParam.target or nil
-        if not hero or hero.isDead or not target then
+        if not hero or hero.isDead then
             return
         end
-        BattleSkill.ProcessPursuitEffect(hero, target, nil)
+        -- 5e 风味：Expertise（简化为战斗内 hit +1）。
+        if (tonumber(hero.level) or 1) >= 2 and not hero.__expertiseApplied then
+            hero.hit = (tonumber(hero.hit) or 0) + 1
+            hero.__expertiseApplied = true
+        end
+    end
+
+    function self:OnDmgMakeKill(ctx)
+        -- 追击逻辑由技能 tag `pursuit_on_kill` 触发（保持技能体系一致性）。
+        return
+    end
+
+    function self:OnDefBeforeDmg(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        -- Uncanny Dodge：Lv5 后每回合第一次被单体伤害时减半（简单化）。
+        if (tonumber(hero.level) or 1) < 5 then
+            return
+        end
+        local BattleLogic = require("modules.battle_logic")
+        local round = BattleLogic.GetCurRound()
+        local runtime = EnsurePassiveRuntime(hero)
+        if runtime.__uncannyRound == round then
+            return
+        end
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local damage = tonumber(extraParam.damage) or 0
+        if damage <= 0 then
+            return
+        end
+        runtime.__uncannyRound = round
+        extraParam.damage = math.max(0, math.floor(damage * 0.5))
     end
 
     return self
@@ -81,8 +112,72 @@ end
 local function CreateBlockCounterPassive(context)
     local self = BuildContextState(context)
 
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        -- Action Surge（简化）：战斗开场获得少量能量，体现战士节奏优势。
+        if (tonumber(hero.level) or 1) >= 2 and not hero.__actionSurgeApplied then
+            local BattleEnergy = require("modules.battle_energy")
+            BattleEnergy.AddEnergy(hero, 20, "action_surge", { silent = true })
+            hero.__actionSurgeApplied = true
+        end
+    end
+
     function self:OnSelfTurnBegin(ctx)
-        return
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        -- Second Wind（简化为自动触发一次）：当生命低于 50% 且未触发过时，自疗。
+        if (tonumber(hero.level) or 1) < 2 then
+            return
+        end
+        local runtime = EnsurePassiveRuntime(hero)
+        if runtime.__secondWindUsed then
+            return
+        end
+        local hp = tonumber(hero.hp) or 0
+        local maxHp = tonumber(hero.maxHp) or 1
+        if hp <= 0 or maxHp <= 0 then
+            return
+        end
+        if hp / maxHp >= 0.5 then
+            return
+        end
+        runtime.__secondWindUsed = true
+        local Dice = require("core.dice")
+        local heal = math.max(1, math.floor(Dice.Roll("1d10+2", { crit = false })))
+        BattleDmgHeal.ApplyHeal(hero, heal, hero)
+    end
+
+    function self:OnNormalAtkFinish(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        -- Extra Attack：Lv5 后每回合第一次普攻结束后追加一次普攻。
+        if (tonumber(hero.level) or 1) < 5 then
+            return
+        end
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local target = extraParam.target
+        if not target or target.isDead then
+            return
+        end
+        local BattleLogic = require("modules.battle_logic")
+        local round = BattleLogic.GetCurRound()
+        local runtime = EnsurePassiveRuntime(hero)
+        if runtime.__extraAttackRound == round or runtime.__inExtraAttack then
+            return
+        end
+        runtime.__extraAttackRound = round
+        -- NOTE: __inExtraAttack prevents recursive Extra Attack triggers.
+        -- CastSmallSkill may route back to OnNormalAtkFinish; do NOT remove this guard.
+        runtime.__inExtraAttack = true
+        BattleSkill.CastSmallSkill(hero, target)
+        runtime.__inExtraAttack = false
     end
 
     function self:OnDefBeforeDmg(ctx)
@@ -186,6 +281,20 @@ end
 local function CreateAffinityHealPassive(context)
     local self = BuildContextState(context)
 
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        -- 5e 风味 Bless（简化为：战斗开场给全队挂持续“亲和”增益）。
+        local friendTeam = BattleFormation.GetFriendTeam(hero) or {}
+        for _, ally in ipairs(friendTeam) do
+            if ally and not ally.isDead and not BattleBuff.GetBuff(ally, 860001) then
+                BattleSkill.ApplyBuffFromSkill(hero, ally, 860001, nil)
+            end
+        end
+    end
+
     function self:OnSelfTurnBegin(ctx)
         local hero = self.context and self.context.src or nil
         if not hero or hero.isDead then
@@ -249,15 +358,15 @@ end
 
 PassiveHandlers.factories = {
     [8000020] = CreateBlockPassive,
-    [8000100] = CreatePursuitPassive,
-    [8000200] = CreateBlockCounterPassive,
-    [8000300] = CreateComboMasterPassive,
-    [8000400] = CreateWarSpiritPassive,
-    [8000500] = CreateInfectPassive,
-    [8000600] = CreateAffinityHealPassive,
-    [8000700] = CreateFireAffinityPassive,
-    [8000800] = CreateIceAffinityPassive,
-    [8000900] = CreateThunderAffinityPassive,
+    [80001002] = CreatePursuitPassive,
+    [80002002] = CreateBlockCounterPassive,
+    [80003002] = CreateComboMasterPassive,
+    [80004002] = CreateWarSpiritPassive,
+    [80005002] = CreateInfectPassive,
+    [80006002] = CreateAffinityHealPassive,
+    [80007002] = CreateFireAffinityPassive,
+    [80008002] = CreateIceAffinityPassive,
+    [80009002] = CreateThunderAffinityPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

@@ -19,11 +19,10 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".panel-title").first()).toContainText("第一章");
+  await expect(page.locator(".panel-title").filter({ hasText: "选择下一个节点" }).first()).toBeVisible();
 
   const clickNodeAndEnter = async (nodeTitle: string) => {
     await page.getByRole("button", { name: new RegExp(nodeTitle) }).click();
-    await page.getByRole("button", { name: "进入当前选择节点" }).click();
   };
 
   const leaveBattleResultIfNeeded = async () => {
@@ -34,9 +33,17 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   };
 
   const chooseFirstReward = async () => {
-    await expect(page.locator(".hud-status")).toContainText("run: reward", { timeout: 15000 });
-    await expect(page.getByText("选择奖励后继续")).toBeVisible({ timeout: 15000 });
-    await page.locator(".ult-panel button").first().click();
+    await expect(page.locator(".hud-status")).toContainText("阶段: reward", { timeout: 15000 });
+    await page.getByRole("button", { name: "信息" }).click();
+    await expect(page.locator(".run-info-panel .panel-title").filter({ hasText: /选择升级|选择奖励/ })).toBeVisible({
+      timeout: 15000,
+    });
+    const rewardCard = page.locator(".run-info-panel .reward-card").first();
+    if (await rewardCard.isVisible().catch(() => false)) {
+      await rewardCard.click();
+      return;
+    }
+    await page.locator(".run-info-panel button").first().click();
   };
 
   await clickNodeAndEnter("Frontier Scouts");
@@ -51,7 +58,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
     .toEqual(expect.objectContaining({ hasRewardButton: true }));
   await leaveBattleResultIfNeeded();
   await chooseFirstReward();
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("run: map");
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Broken Caravan");
   await expect(page.getByRole("button", { name: "Salvage the crates" })).toBeVisible();
@@ -59,9 +66,11 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await clickNodeAndEnter("Ash Merchant");
   await page.getByRole("button", { name: /recruit .*900001/i }).click();
-  await expect(page.getByText("候补编成")).toBeVisible();
+  await page.getByRole("button", { name: "队伍" }).click();
+  await expect(page.locator(".run-team-panel .panel-title").filter({ hasText: "候补编成" })).toBeVisible();
   await page.getByRole("button", { name: "选择候补" }).first().click();
   await page.getByRole("button", { name: "替换上阵" }).first().click();
+  await page.getByRole("button", { name: "信息" }).click();
   await expect(page.getByRole("button", { name: "离开商店" })).toBeVisible();
   await page.getByRole("button", { name: "离开商店" }).click();
 

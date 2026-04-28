@@ -170,6 +170,11 @@ function SkillEffectRegistry.RegisterBuiltins()
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
         local skillParam = ctx and ctx.skill and ctx.skill.skillParam or {}
         local healCount = tonumber(skillParam[2]) or 2
+        -- Skill internal tiers: each tier increases the number of lowest-HP allies healed by +1.
+        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
+        if tier > 1 then
+            healCount = healCount + (tier - 1)
+        end
         local Skill5eMeta = require("config.skill_5e_meta")
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006003)
         local healDice = (meta and meta.healDice) or "1d8+2"
@@ -224,11 +229,17 @@ function SkillEffectRegistry.RegisterBuiltins()
         local isAlly = BattleSkill.IsAlly(ctx.hero, target)
         local damage = 0
         local healAmount = 0
+        local shouldSkipDefaultDamage = false
         if isAlly then
             local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
             local healDice = (meta and meta.healDice) or "1d8+1"
             healAmount = CalculateHealByDice(ctx.hero, target, healDice)
+            local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
+            if tier > 1 then
+                healAmount = healAmount + (tier - 1) * 2
+            end
             BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
+            shouldSkipDefaultDamage = true
         else
             local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
                 skill = ctx.skill,
@@ -261,6 +272,7 @@ function SkillEffectRegistry.RegisterBuiltins()
             end
         end
         return {
+            __skip = shouldSkipDefaultDamage,
             effectValue = isAlly and healAmount or damage,
             damage = damage,
             healAmount = healAmount,
@@ -274,8 +286,13 @@ function SkillEffectRegistry.RegisterBuiltins()
         local Skill5eMeta = require("config.skill_5e_meta")
         local skillId = (ctx.skill and ctx.skill.skillId) or 80006004
         local meta = Skill5eMeta.Get(skillId) or {}
+        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
+        local hpPct = tonumber(meta.revivePct) or 0.20
+        if tier > 1 then
+            hpPct = math.min(0.50, hpPct + 0.05 * (tier - 1))
+        end
         local revived = BattleSkill.ReviveLatestDeadAlly(ctx.hero, {
-            hpPct = tonumber(meta.revivePct) or 0.20,
+            hpPct = hpPct,
             turns = tonumber(meta.revivePenaltyTurns) or 2,
             atkMul = tonumber(meta.revivePenaltyAtkMul) or 0.75,
             defMul = tonumber(meta.revivePenaltyDefMul) or 0.75,

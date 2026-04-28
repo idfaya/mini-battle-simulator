@@ -393,6 +393,92 @@ body {
   font-size: 12px;
 }
 
+/* Roguelike reward cards (battle_levelup) */
+.reward-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.reward-card {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(23, 63, 95, 0.55);
+  color: #f8f9fa;
+  padding: 12px 12px;
+  font: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+}
+
+.reward-card:hover {
+  border-color: rgba(128, 237, 153, 0.45);
+  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.22) inset;
+}
+
+.reward-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reward-card__hero {
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reward-card__level {
+  font-size: 12px;
+  color: #d9e2ec;
+  flex: 0 0 auto;
+}
+
+.reward-card__feat {
+  font-weight: 800;
+}
+
+.reward-card__desc {
+  font-size: 12px;
+  color: #d9e2ec;
+  line-height: 1.35;
+}
+
+.reward-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reward-tag {
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #d9e2ec;
+  background: rgba(9, 17, 30, 0.35);
+}
+
+.reward-card--risk {
+  border-color: rgba(255, 92, 92, 0.45);
+  background: rgba(110, 22, 36, 0.55);
+}
+
+.reward-card--risk:hover {
+  border-color: rgba(255, 92, 92, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 92, 92, 0.25) inset;
+}
+
+.reward-tag--risk {
+  border-color: rgba(255, 92, 92, 0.55);
+  color: #ffd6d6;
+  background: rgba(255, 92, 92, 0.12);
+}
+
 .diagnostics,
 .fatal-error {
   min-height: 240px;

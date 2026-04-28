@@ -645,7 +645,11 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
     }
 end
 
-function HeroData.ConvertToHeroData(heroId, level, star)
+---@class HeroSkillOverride
+---@field ownedSkills integer[]|nil     -- 强制解锁的技能 ID（通常来自 feat / class grants）
+---@field skillLevels table<integer, integer>|nil -- 可选：skillId(或ClassID) -> SkillLevel，用于生成/替换实际 skillId
+
+function HeroData.ConvertToHeroData(heroId, level, star, override)
     Init()
     local hero = heroInfoMap[heroId]
     if not hero then
@@ -658,16 +662,49 @@ function HeroData.ConvertToHeroData(heroId, level, star)
     end
 
     local skillsConfig = {}
+    local forceUnlock = {}
+    local overrideLevels = (override and override.skillLevels) or nil
+    for _, sid in ipairs((override and override.ownedSkills) or {}) do
+        forceUnlock[tonumber(sid) or 0] = true
+    end
+
+    -- Normalize "skillLevels" into force unlock of actual skill ids:
+    -- 1) key = ClassID (ends with 0), value = SkillLevel => actual = ClassID*10 + SkillLevel
+    -- 2) key = actual skill id (ends with 1..9): treat as force unlock of itself (ignore value)
+    if type(overrideLevels) == "table" then
+        for k, v in pairs(overrideLevels) do
+            local key = tonumber(k) or 0
+            local lv = tonumber(v) or 0
+            if key > 0 then
+                if (key % 10) == 0 and lv > 0 then
+                    forceUnlock[key * 10 + lv] = true
+                else
+                    forceUnlock[key] = true
+                end
+            end
+        end
+    end
+
+    local allowedSkillIds = {}
     if hero.ParsedSkills and #hero.ParsedSkills > 0 then
         for _, skillInfo in ipairs(hero.ParsedSkills) do
             local classId = skillInfo.classId
             local skillLevel = skillInfo.level or 1
             local skillConfig, actualSkillId = ResolveSkillConfig(classId, skillLevel)
+            allowedSkillIds[actualSkillId] = true
 
             -- Skill unlock now follows level only (ignore UnlockStar in 5e growth mode).
             local canUnlock = true
             if skillConfig and skillConfig.UnlockLevel then
                 canUnlock = level >= (tonumber(skillConfig.UnlockLevel) or 1)
+            end
+            if forceUnlock[actualSkillId] then
+                canUnlock = true
+            end
+
+            local internalLevel = 1
+            if type(overrideLevels) == "table" and overrideLevels[actualSkillId] then
+                internalLevel = math.max(1, tonumber(overrideLevels[actualSkillId]) or 1)
             end
 
             if skillConfig and canUnlock then
@@ -684,6 +721,7 @@ function HeroData.ConvertToHeroData(heroId, level, star)
                     skillId = actualSkillId,
                     classId = classId,
                     skillType = skillType,
+                    level = internalLevel,
                     name = skillConfig.Name or ("Skill_" .. actualSkillId),
                     skillCost = skillConfig.Cost or 0,
                 })
@@ -692,9 +730,49 @@ function HeroData.ConvertToHeroData(heroId, level, star)
                     skillId = actualSkillId,
                     classId = classId,
                     skillType = E_SKILL_TYPE_NORMAL,
+                    level = internalLevel,
                     name = "Skill_" .. actualSkillId,
                     skillCost = 0,
                 })
+            end
+        end
+    end
+
+    -- Ensure forced skills that belong to the hero's 4-slot list are present even if normally locked.
+    -- This keeps the skill list stable (no extra slots), but allows feats to unlock early.
+    for skillId in pairs(forceUnlock) do
+        if allowedSkillIds[skillId] then
+            local already = false
+            for _, entry in ipairs(skillsConfig) do
+                if entry.skillId == skillId then
+                    already = true
+                    break
+                end
+            end
+            if not already then
+                local config = SkillConfig.GetSkillConfig(skillId)
+                if config then
+                    local skillType = E_SKILL_TYPE_PASSIVE
+                    if config.Type == 1 then
+                        skillType = E_SKILL_TYPE_NORMAL
+                    elseif config.Type == 2 then
+                        skillType = E_SKILL_TYPE_ACTIVE
+                    elseif config.Type == 3 then
+                        skillType = E_SKILL_TYPE_ULTIMATE
+                    end
+                    local internalLevel = 1
+                    if type(overrideLevels) == "table" and overrideLevels[skillId] then
+                        internalLevel = math.max(1, tonumber(overrideLevels[skillId]) or 1)
+                    end
+                    table.insert(skillsConfig, {
+                        skillId = skillId,
+                        classId = config.ClassID,
+                        skillType = skillType,
+                        level = internalLevel,
+                        name = config.Name or ("Skill_" .. skillId),
+                        skillCost = config.Cost or 0,
+                    })
+                end
             end
         end
     end
@@ -832,5 +910,141 @@ function HeroData.PrintHeroList()
 end
 
 Init()
+
+-- ==========================================================================
+-- Feat / Class Level Grant 聚合接口
+-- 升级流程：基底属性 = CalculateHeroAttributes（模板曲线）
+--           叠加顺序 = ClassLevelGrants（固有解锁）→ Feats（玩家选择）
+-- ApplyFeats 返回一个纯数据的 featMods 表，由 Roguelike 层调用 applyRosterLevel 时合并。
+-- ==========================================================================
+
+local FeatConfig = require("config.feat_config")
+local ClassLevelGrants = require("config.class_level_grants")
+
+local STAT_KEYS = {
+    "maxHp", "atk", "def", "ac", "hit", "spellDC",
+    "saveFort", "saveRef", "saveWill", "speed",
+    "critRate", "blockRate", "healBonus",
+}
+
+local function addStat(target, key, delta)
+    if not delta or delta == 0 then
+        return
+    end
+    target[key] = (target[key] or 0) + delta
+end
+
+---@param featIds integer[]|nil
+---@return table<string, integer> featMods
+---@return integer[] unlockSkills
+---@return table<integer, integer> upgradeSkills
+---@return table[] riskHooks
+function HeroData.ApplyFeats(featIds)
+    local mods = {}
+    local unlockSkills = {}
+    local upgradeSkills = {}
+    local riskHooks = {}
+
+    for _, featId in ipairs(featIds or {}) do
+        local def = FeatConfig.GetFeat(featId)
+        if def then
+            for _, eff in ipairs(def.effects or {}) do
+                if eff.type == "stat_add" then
+                    for _, key in ipairs(STAT_KEYS) do
+                        addStat(mods, key, tonumber(eff[key]))
+                    end
+                elseif eff.type == "stat_mult" then
+                    -- 用千分比制与现有 critRate/blockRate 对齐（直接相加）。
+                    for _, key in ipairs(STAT_KEYS) do
+                        addStat(mods, key, tonumber(eff[key]))
+                    end
+                elseif eff.type == "unlock_skill" then
+                    if eff.skillId then
+                        unlockSkills[#unlockSkills + 1] = eff.skillId
+                    end
+                elseif eff.type == "upgrade_skill" then
+                    if eff.skillId then
+                        local lv = tonumber(eff.skillLevel) or 2
+                        upgradeSkills[eff.skillId] = math.max(upgradeSkills[eff.skillId] or 0, lv)
+                    end
+                elseif eff.type == "passive" then
+                    if eff.passiveId then
+                        unlockSkills[#unlockSkills + 1] = eff.passiveId
+                    end
+                elseif eff.type == "risk_modifier" then
+                    riskHooks[#riskHooks + 1] = {
+                        featId = featId,
+                        onBattleStart = eff.onBattleStart,
+                        onTurnStart = eff.onTurnStart,
+                        grant = eff.grant or {},
+                    }
+                    -- 代价型 feat 的"换取"部分直接进入 mods，使战斗期间稳定生效。
+                    for key, val in pairs(eff.grant or {}) do
+                        addStat(mods, key, tonumber(val))
+                    end
+                end
+            end
+        end
+    end
+
+    return mods, unlockSkills, upgradeSkills, riskHooks
+end
+
+---@param classId integer
+---@param fromLevel integer  -- 不含
+---@param toLevel integer    -- 含
+---@return table<string, integer> grantMods
+---@return integer[] unlockSkills
+---@return table<integer, integer> upgradeSkills
+function HeroData.CollectClassLevelGrants(classId, fromLevel, toLevel)
+    local mods = {}
+    local unlockSkills = {}
+    local upgradeSkills = {}
+    local grants = ClassLevelGrants.GetGrantsInRange(classId, (tonumber(fromLevel) or 0) + 1, toLevel)
+    for _, entry in ipairs(grants) do
+        for key, val in pairs(entry.statBonus or {}) do
+            addStat(mods, key, tonumber(val))
+        end
+        for _, skillId in ipairs(entry.unlockSkills or {}) do
+            unlockSkills[#unlockSkills + 1] = skillId
+        end
+        for skillId, lv in pairs(entry.upgradeSkills or {}) do
+            upgradeSkills[skillId] = math.max(upgradeSkills[skillId] or 0, tonumber(lv) or 1)
+        end
+    end
+    return mods, unlockSkills, upgradeSkills
+end
+
+---合并 feat 与 class grant 的 mods 到基底属性上，返回最终属性。
+---@param baseAttrs table
+---@param featMods table<string, integer>
+---@param grantMods table<string, integer>
+---@return table finalAttrs
+function HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
+    local final = {}
+    for k, v in pairs(baseAttrs or {}) do
+        final[k] = v
+    end
+    local sources = { featMods or {}, grantMods or {} }
+    for _, src in ipairs(sources) do
+        for _, key in ipairs(STAT_KEYS) do
+            local delta = src[key]
+            if delta and delta ~= 0 then
+                if key == "maxHp" then
+                    local oldMax = final.maxHp or 1
+                    final.maxHp = math.max(1, oldMax + delta)
+                    if final.maxHp < oldMax then
+                        final.hp = math.max(1, math.min(final.maxHp, final.hp or final.maxHp))
+                    else
+                        final.hp = final.hp or final.maxHp
+                    end
+                else
+                    final[key] = (final[key] or 0) + delta
+                end
+            end
+        end
+    end
+    return final
+end
 
 return HeroData

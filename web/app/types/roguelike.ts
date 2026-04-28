@@ -58,11 +58,20 @@ export type BlessingState = {
 };
 
 export type RewardOption = {
-  rewardType: "gold" | "heal_pct" | "relic" | "blessing" | "recruit";
+  rewardType: "gold" | "heal_pct" | "relic" | "blessing" | "recruit" | "levelup";
   refId?: number;
   value?: number;
   label: string;
   description: string;
+  // Level-up composite card (battle_levelup)
+  rosterId?: number;
+  heroName?: string;
+  classId?: number;
+  nextLevel?: number;
+  featId?: number;
+  featName?: string;
+  featCode?: string;
+  featTags?: string[];
 };
 
 export type RewardState = {

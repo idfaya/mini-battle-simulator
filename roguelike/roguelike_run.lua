@@ -121,33 +121,34 @@ local function applyRosterLevel(hero, newLevel)
 end
 
 local function grantRunExp(amount, sourceLabel)
+    -- 5e 改版：取消全队自动升级。partyExp 仅作为"推荐等级"的历史足迹，
+    -- 升级完全交由战后 3 选 1 单人 feat 升级处理。
     local gain = math.max(0, math.floor(tonumber(amount) or 0))
     if gain <= 0 then
         return 0
     end
     state.partyExp = (state.partyExp or 0) + gain
-    local oldLevel = state.partyLevel or STARTER_LEVEL
-    local newLevel = oldLevel
-    local cap = state.levelCap or CHAPTER_LEVEL_CAP
-    while newLevel < cap and (state.partyExp or 0) >= getExpThreshold(newLevel + 1) do
-        newLevel = newLevel + 1
-    end
-    if newLevel > oldLevel then
-        state.partyLevel = newLevel
-        for _, hero in ipairs(state.teamRoster or {}) do
-            applyRosterLevel(hero, newLevel)
-        end
-        for _, hero in ipairs(state.benchRoster or {}) do
-            applyRosterLevel(hero, newLevel)
-        end
-        state.lastActionMessage = string.format("%s，队伍升到 Lv.%d", sourceLabel or "获得经验", newLevel)
-    else
-        state.lastActionMessage = string.format("%s，获得 %d 经验", sourceLabel or "获得经验", gain)
-    end
-    local currentThreshold = getExpThreshold(newLevel)
-    state.levelProgressExp = math.max(0, (state.partyExp or 0) - currentThreshold)
-    state.nextLevelExp = newLevel >= cap and 0 or getExpToNextLevel(newLevel)
+    state.lastActionMessage = string.format("%s，获得 %d 经验", sourceLabel or "获得经验", gain)
     return gain
+end
+
+local function recalcRecommendedLevel()
+    -- 推荐等级 = 存活成员等级的平均值，向下取整；用于敌人缩放与新兵接入基准。
+    local total, count = 0, 0
+    for _, hero in ipairs(state.teamRoster or {}) do
+        if not hero.isDead then
+            total = total + (tonumber(hero.level) or 1)
+            count = count + 1
+        end
+    end
+    if count == 0 then
+        state.partyLevel = STARTER_LEVEL
+    else
+        state.partyLevel = math.max(STARTER_LEVEL, math.floor(total / count))
+    end
+    local currentThreshold = getExpThreshold(state.partyLevel or STARTER_LEVEL)
+    state.levelProgressExp = math.max(0, (state.partyExp or 0) - currentThreshold)
+    state.nextLevelExp = 0
 end
 
 local function buildStarterRoster(runState, heroIds)
@@ -287,10 +288,11 @@ local function openReward(groupId)
     return true
 end
 
-local function openBattleRecruitReward()
-    local rewardState = RoguelikeReward.GenerateRecruitRewardState(state, 3)
-    if not rewardState then
-        return false, "battle_recruit_unavailable"
+local function openBattleLevelUpReward()
+    local rewardState = RoguelikeReward.GenerateLevelUpRewardState(state)
+    if not rewardState or #(rewardState.options or {}) == 0 then
+        -- 无可升级成员（全员已到等级上限），直接返回地图。
+        return false, "levelup_unavailable"
     end
     state.phase = "reward"
     state.rewardState = rewardState
@@ -440,12 +442,27 @@ function RoguelikeRun.Tick(deltaMs)
                 local clearRewards = chapter.chapterClearRewards or {}
                 state.gold = (state.gold or 0) + (clearRewards.gold or 0)
                 state.rewardReturnMode = "chapter_result"
-                openBattleRecruitReward()
+                local opened = openBattleLevelUpReward()
+                if not opened then
+                    -- 全员满级时，跳过 levelup，直接进入章节结算流程。
+                    state.phase = "chapter_result"
+                    state.chapterResult = {
+                        success = true,
+                        reason = "boss_defeated",
+                        gold = state.gold,
+                        relicCount = #(state.relicIds or {}),
+                        blessingCount = #(state.blessingIds or {}),
+                    }
+                end
                 return events or {}
             end
 
             state.rewardReturnMode = "map"
-            openBattleRecruitReward()
+            local opened = openBattleLevelUpReward()
+            if not opened then
+                -- 无可升级角色，直接回地图。
+                leaveNodeBackToMap()
+            end
         else
             state.phase = "failed"
             state.chapterResult = {
@@ -473,6 +490,7 @@ function RoguelikeRun.ChooseReward(index)
     if not ok then
         return false, reason
     end
+    recalcRecommendedLevel()
     if state.rewardReturnMode == "chapter_result" then
         local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
         local clearRewards = chapter.chapterClearRewards or {}

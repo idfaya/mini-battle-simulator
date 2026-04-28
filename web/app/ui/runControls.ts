@@ -276,15 +276,65 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = "选择奖励";
+    title.textContent = snapshot.rewardState.kind === "battle_levelup" ? "选择升级" : "选择奖励";
     host.append(title);
-    snapshot.rewardState.options.forEach((option, index) => {
-      host.append(
-        makeButton(`${option.label}${option.description ? ` · ${option.description}` : ""}`, false, () =>
-          controls.handlers.onChooseReward(index + 1),
-        ),
-      );
-    });
+    if (snapshot.rewardState.kind === "battle_levelup") {
+      const grid = document.createElement("div");
+      grid.className = "reward-card-grid";
+      snapshot.rewardState.options.forEach((option, index) => {
+        const tags = option.featTags ?? [];
+        const isRisk = tags.includes("risk");
+        const heroName = option.heroName ?? "未知";
+        const fromLevel = Math.max(1, (option.nextLevel ?? 2) - 1);
+        const toLevel = option.nextLevel ?? fromLevel + 1;
+        const featName = option.featName ?? option.label;
+        const featCode = option.featCode ?? option.description ?? "";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `reward-card${isRisk ? " reward-card--risk" : ""}`;
+        btn.addEventListener("click", () => controls.handlers.onChooseReward(index + 1));
+
+        const header = document.createElement("div");
+        header.className = "reward-card__header";
+        const hero = document.createElement("div");
+        hero.className = "reward-card__hero";
+        hero.textContent = heroName;
+        const lv = document.createElement("div");
+        lv.className = "reward-card__level";
+        lv.textContent = `Lv.${fromLevel} → Lv.${toLevel}`;
+        header.append(hero, lv);
+
+        const feat = document.createElement("div");
+        feat.className = "reward-card__feat";
+        feat.textContent = featName;
+
+        const desc = document.createElement("div");
+        desc.className = "reward-card__desc";
+        desc.textContent = featCode;
+
+        const tagRow = document.createElement("div");
+        tagRow.className = "reward-card__tags";
+        for (const tag of tags) {
+          const badge = document.createElement("span");
+          badge.className = `reward-tag${tag === "risk" ? " reward-tag--risk" : ""}`;
+          badge.textContent = tag;
+          tagRow.append(badge);
+        }
+
+        btn.append(header, feat, desc, tagRow);
+        grid.append(btn);
+      });
+      host.append(grid);
+    } else {
+      snapshot.rewardState.options.forEach((option, index) => {
+        host.append(
+          makeButton(`${option.label}${option.description ? ` · ${option.description}` : ""}`, false, () =>
+            controls.handlers.onChooseReward(index + 1),
+          ),
+        );
+      });
+    }
   } else if (snapshot.phase === "shop" && snapshot.shopState) {
     const title = document.createElement("div");
     title.className = "panel-title";

@@ -15,15 +15,23 @@ local PassiveDefs = {
             },
         },
     },
-    [8000100] = {
+    [80001002] = {
         triggers = {
             {
                 luaFuncName = "OnDmgMakeKill",
                 triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeKill,
             },
+            {
+                luaFuncName = "OnDefBeforeDmg",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg,
+            },
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
         },
     },
-    [8000200] = {
+    [80002002] = {
         triggers = {
             {
                 luaFuncName = "OnDefBeforeDmg",
@@ -33,9 +41,13 @@ local PassiveDefs = {
                 luaFuncName = "OnSelfTurnBegin",
                 triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
             },
+            {
+                luaFuncName = "OnNormalAtkFinish",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish,
+            },
         },
     },
-    [8000300] = {
+    [80003002] = {
         triggers = {
             {
                 luaFuncName = "OnBattleBegin",
@@ -43,7 +55,7 @@ local PassiveDefs = {
             },
         },
     },
-    [8000400] = {
+    [80004002] = {
         triggers = {
             {
                 luaFuncName = "OnDmgMakeKill",
@@ -51,7 +63,7 @@ local PassiveDefs = {
             },
         },
     },
-    [8000500] = {
+    [80005002] = {
         triggers = {
             {
                 luaFuncName = "OnSelfTurnBegin",
@@ -59,7 +71,19 @@ local PassiveDefs = {
             },
         },
     },
-    [8000600] = {
+    [80006002] = {
+        triggers = {
+            {
+                luaFuncName = "OnSelfTurnBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
+            },
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80007002] = {
         triggers = {
             {
                 luaFuncName = "OnSelfTurnBegin",
@@ -67,15 +91,7 @@ local PassiveDefs = {
             },
         },
     },
-    [8000700] = {
-        triggers = {
-            {
-                luaFuncName = "OnSelfTurnBegin",
-                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
-            },
-        },
-    },
-    [8000800] = {
+    [80008002] = {
         triggers = {
             {
                 luaFuncName = "OnBattleBegin",
@@ -83,7 +99,7 @@ local PassiveDefs = {
             },
         },
     },
-    [8000900] = {
+    [80009002] = {
         triggers = {
             {
                 luaFuncName = "OnBattleBegin",

@@ -139,9 +139,38 @@ local function buildBattleModifiers(runState, encounter)
 end
 
 local function buildHeroForBattle(rosterHero, modifiers, encounter)
-    local heroData = HeroData.ConvertToHeroData(rosterHero.heroId, rosterHero.level, rosterHero.star)
+    local heroData = HeroData.ConvertToHeroData(rosterHero.heroId, rosterHero.level, rosterHero.star, {
+        ownedSkills = rosterHero.ownedSkills,
+        skillLevels = rosterHero.skillLevels,
+    })
     if not heroData then
         return nil
+    end
+
+    -- Apply roguelike feats / class-level grants to the battle hero, before relic/blessing scaling.
+    -- ConvertToHeroData uses level only; without this step, feat stats would not affect combat.
+    if rosterHero.feats and #rosterHero.feats > 0 then
+        local baseAttrs = HeroData.CalculateHeroAttributes(rosterHero.heroId, rosterHero.level, 1)
+        if baseAttrs then
+            local grantMods = (HeroData.CollectClassLevelGrants(rosterHero.classId, 0, rosterHero.level))
+            local featMods = (HeroData.ApplyFeats(rosterHero.feats))
+            local merged = HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
+            heroData.maxHp = merged.maxHp or heroData.maxHp
+            heroData.hp = math.min(heroData.maxHp or 1, heroData.hp or heroData.maxHp or 1)
+            heroData.atk = merged.atk or heroData.atk
+            heroData.def = merged.def or heroData.def
+            heroData.speed = merged.speed or heroData.speed
+            heroData.spd = heroData.speed
+            heroData.ac = merged.ac or heroData.ac
+            heroData.hit = merged.hit or heroData.hit
+            heroData.spellDC = merged.spellDC or heroData.spellDC
+            heroData.saveFort = merged.saveFort or heroData.saveFort
+            heroData.saveRef = merged.saveRef or heroData.saveRef
+            heroData.saveWill = merged.saveWill or heroData.saveWill
+            heroData.critRate = merged.critRate or heroData.critRate
+            heroData.blockRate = merged.blockRate or heroData.blockRate
+            heroData.healBonus = merged.healBonus or heroData.healBonus
+        end
     end
 
     local playerScale = encounter.playerScale or DEFAULT_PLAYER_SCALE
@@ -151,7 +180,9 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     local oldMaxHp = heroData.maxHp or 1
 
     heroData.maxHp = math.max(1, math.floor(oldMaxHp * hpScale))
-    heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor((rosterHero.currentHp or oldMaxHp) * hpScale)))
+    local baseCurrentHp = tonumber(rosterHero.currentHp or oldMaxHp) or oldMaxHp
+    baseCurrentHp = math.max(1, math.min(oldMaxHp, baseCurrentHp))
+    heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp * hpScale)))
     heroData.atk = math.max(1, math.floor((heroData.atk or 0) * atkScale))
     heroData.def = math.max(0, math.floor((heroData.def or 0) * defScale))
     heroData.damageIncrease = math.max(0, math.floor((heroData.damageIncrease or 0) + ((modifiers.damageIncreaseByClass[rosterHero.classId] or 0) * 10000)))
@@ -267,9 +298,23 @@ local function buildBattleConfig(runState, encounter)
     local teamRight = {}
     local budgetAdjust = buildEncounterBudgetAdjust(runState, encounter, #teamLeft)
     runState.currentEncounterBudget = budgetAdjust.report
+
+    -- Keep enemy level close to the party's recommended level.
+    -- Encounter entries still define "intended" pacing (encounter.level), but we cap how far
+    -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
+    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(encounter.level) or 1
+    local baseLevel = tonumber(encounter.level) or partyLevel
+    local kindOffset = 0
+    if encounter.kind == "elite" then
+        kindOffset = 1
+    elseif encounter.kind == "boss" then
+        kindOffset = 2
+    end
+    local effectiveEnemyLevel = clamp(baseLevel, partyLevel - 1, partyLevel + 1 + kindOffset)
+
     for index, enemyId in ipairs(encounter.enemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, encounter.level, wpType, encounter, budgetAdjust)
+        local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, encounter, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end
