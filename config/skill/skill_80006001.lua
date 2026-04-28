@@ -13,7 +13,7 @@ local DEF = {
             targetRef = "selected",
             damageRate = 10500,
             tags = {
-                { tag = "holy_light", phase = "pre" },
+                { tag = "cleric_radiant_strike", phase = "post" },
             },
         },
         { frame = 36, op = "effect", effect = "skill_80006001_end", targetRef = "selected" },
@@ -25,5 +25,3 @@ function skill_80006001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80006001
-
-

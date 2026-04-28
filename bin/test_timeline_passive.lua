@@ -491,7 +491,7 @@ do
     assert_true(auraHeal > baseHeal, "WarGod increases heal through aura and war spirit")
 end
 
--- Test 12: Group Heal heals lowest two allies only (80006003)
+-- Test 12: Healing Word heals lowest ally only at tier 1 (80006003)
 do
     local hero = new_unit(2001, "Tester_GroupHeal", 10000, 200, 0)
     local a1 = new_unit(2002, "Heal_A1", 10000, 0, 0)
@@ -513,13 +513,47 @@ do
     local beforeA1, beforeA2, beforeA3, beforeA4 = a1.hp, a2.hp, a3.hp, a4.hp
     local skillLua = require("config.skill.skill_80006003")
     local SkillTimeline = require("core.skill_timeline")
-    local skill = { skillId = 80006003, name = "群疗", skillParam = { 1200, 2 } }
+    local skill = { skillId = 80006003, name = "Healing Word", level = 1 }
     local ok, _ = SkillTimeline.Execute(hero, { a1, a2, a3, a4 }, skill, skillLua.BuildTimeline(hero, { a1, a2, a3, a4 }, skill))
     BattleFormation.GetFriendTeam = oldGetFriendTeam
-    assert_true(ok, "GroupHeal timeline execute ok")
-    assert_true(a1.hp > beforeA1 and a2.hp > beforeA2, "GroupHeal heals lowest two allies")
-    assert_true(a3.hp == beforeA3, "GroupHeal does not heal the third-lowest ally")
-    assert_true(a4.hp == beforeA4, "GroupHeal does not heal healthiest ally")
+    assert_true(ok, "HealingWord timeline execute ok")
+    assert_true(a1.hp > beforeA1, "HealingWord heals the lowest ally")
+    assert_true(a2.hp == beforeA2, "HealingWord tier1 does not heal the second-lowest ally")
+    assert_true(a3.hp == beforeA3, "HealingWord tier1 does not heal the third-lowest ally")
+    assert_true(a4.hp == beforeA4, "HealingWord tier1 does not heal the healthiest ally")
+end
+
+-- Test 12b: Cleric passive empowers Healing Word and tier3 cleanses poison/burn (80006002 + 80006003)
+do
+    local hero = new_unit(2006, "Tester_Cleric", 10000, 200, 0)
+    local a1 = new_unit(2007, "Heal_C1", 10000, 0, 0)
+    local a2 = new_unit(2008, "Heal_C2", 10000, 0, 0)
+    a1.hp = 1000
+    a2.hp = 2000
+    local passive = PassiveHandlers.Create(80006002, { src = hero })
+    passive:OnBattleBegin({})
+    assert_true((hero.passiveRuntime or {}).clericChannelReady == true, "Cleric passive writes channel-ready state at battle begin")
+    BattleSkill.ApplyPoison(a1, 2, hero)
+    BattleSkill.ApplyBurn(a1, 1, 2, hero)
+    local BattleFormation = require("modules.battle_formation")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    BattleFormation.GetFriendTeam = function(src)
+        if src == hero then
+            return { hero, a1, a2 }
+        end
+        return oldGetFriendTeam(src)
+    end
+    local beforeA1, beforeA2 = a1.hp, a2.hp
+    local skillLua = require("config.skill.skill_80006003")
+    local SkillTimeline = require("core.skill_timeline")
+    local skill = { skillId = 80006003, name = "Healing Word", level = 3 }
+    local ok, _ = SkillTimeline.Execute(hero, { a1, a2 }, skill, skillLua.BuildTimeline(hero, { a1, a2 }, skill))
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    assert_true(ok, "HealingWord tier3 timeline execute ok")
+    assert_true(a1.hp > beforeA1 and a2.hp > beforeA2, "HealingWord tier3 heals two allies")
+    assert_true(BattleBuff.GetBuffStackNumBySubType(a1, 850001) == 0, "HealingWord tier3 cleanses poison")
+    assert_true(BattleBuff.GetBuffStackNumBySubType(a1, 870001) == 0, "HealingWord tier3 cleanses burn")
+    assert_true((hero.passiveRuntime or {}).clericChannelReady == false, "HealingWord consumes channel-ready state")
 end
 
 -- Test 13: Fire Affinity extends Meteor burn duration to 5 turns (80007004 + 870002)

@@ -278,31 +278,25 @@ local function CreateInfectPassive(context)
     return self
 end
 
-local function CreateAffinityHealPassive(context)
+local function CreateClericChannelPassive(context)
     local self = BuildContextState(context)
 
-    function self:OnBattleBegin(ctx)
-        local hero = self.context and self.context.src or nil
+    local function MarkChannelReady(hero)
         if not hero or hero.isDead then
             return
         end
-        -- 5e 风味 Bless（简化为：战斗开场给全队挂持续“亲和”增益）。
-        local friendTeam = BattleFormation.GetFriendTeam(hero) or {}
-        for _, ally in ipairs(friendTeam) do
-            if ally and not ally.isDead and not BattleBuff.GetBuff(ally, 860001) then
-                BattleSkill.ApplyBuffFromSkill(hero, ally, 860001, nil)
-            end
-        end
+        local runtime = EnsurePassiveRuntime(hero)
+        runtime.clericChannelReady = true
+    end
+
+    function self:OnBattleBegin(ctx)
+        local hero = self.context and self.context.src or nil
+        MarkChannelReady(hero)
     end
 
     function self:OnSelfTurnBegin(ctx)
         local hero = self.context and self.context.src or nil
-        if not hero or hero.isDead then
-            return
-        end
-        if not BattleBuff.GetBuff(hero, 860001) then
-            BattleSkill.ApplyBuffFromSkill(hero, hero, 860001, nil)
-        end
+        MarkChannelReady(hero)
     end
 
     return self
@@ -363,7 +357,7 @@ PassiveHandlers.factories = {
     [80003002] = CreateComboMasterPassive,
     [80004002] = CreateWarSpiritPassive,
     [80005002] = CreateInfectPassive,
-    [80006002] = CreateAffinityHealPassive,
+    [80006002] = CreateClericChannelPassive,
     [80007002] = CreateFireAffinityPassive,
     [80008002] = CreateIceAffinityPassive,
     [80009002] = CreateThunderAffinityPassive,

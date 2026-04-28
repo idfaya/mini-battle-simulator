@@ -130,8 +130,8 @@ BattleFormation.Init({
 local holyCaster = BattleFormation.FindHeroByCampAndPos(true, 2)
 local holyLightSkill = BattleSkill.CreateSkillInstance(80006001, {})
 local holyTargets = BattleSkill.SelectTarget(holyCaster, holyLightSkill)
-assert_eq(#holyTargets, 1, "holy light should choose one target")
-assert_eq(holyTargets[1].name, "InjuredAlly", "holy light should prefer injured ally when available")
+assert_eq(#holyTargets, 1, "cleric basic attack should choose one target")
+assert_eq(holyTargets[1].isLeft, false, "cleric basic attack should target an enemy")
 
 local areaTargets = BattleSkill.ExpandAreaTargets(BattleFormation.FindHeroByCampAndPos(false, 2), {
     includeRow = true,
@@ -150,8 +150,8 @@ assert_eq(chainTargets[1].wpType, 2, "chain lightning should start from selected
 local injuredAlly = BattleFormation.FindHeroByCampAndPos(true, 4)
 injuredAlly.hp = injuredAlly.maxHp
 local holyEnemyTargets = BattleSkill.SelectTarget(holyCaster, holyLightSkill)
-assert_eq(#holyEnemyTargets, 1, "holy light should still resolve one target when no ally is injured")
-assert_eq(holyEnemyTargets[1].isLeft, false, "holy light should fall back to enemy target when allies are healthy")
+assert_eq(#holyEnemyTargets, 1, "cleric basic attack should resolve one enemy target")
+assert_eq(holyEnemyTargets[1].isLeft, false, "cleric basic attack should always target enemies")
 
 BattleFormation.OnFinal()
 
@@ -170,10 +170,10 @@ local supportAlly = BattleFormation.FindHeroByCampAndPos(true, 4)
 local poisonEnemy = BattleFormation.FindHeroByCampAndPos(false, 2)
 
 local holySpecial = BattleSkill.CreateSkillInstance(80006001, {})
-assert_eq(holySpecial.specialEffectTag, "holy_light", "holy light should infer special effect tag")
-local holyTimeline = require("config.skill.skill_80006001").BuildTimeline(supportCaster, { supportAlly }, holySpecial)
-local _, holyResult = SkillTimeline.Execute(supportCaster, { supportAlly }, holySpecial, holyTimeline)
-assert_true((holyResult and holyResult.totalHeal or 0) > 0, "holy light timeline should resolve ally heal")
+assert_eq(holySpecial.specialEffectTag, nil, "cleric basic attack should not infer holy_light special effect tag")
+local holyTimeline = require("config.skill.skill_80006001").BuildTimeline(supportCaster, { poisonEnemy }, holySpecial)
+local _, holyResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, holySpecial, holyTimeline)
+assert_true((holyResult and holyResult.totalDamage or 0) > 0, "cleric basic attack timeline should resolve enemy damage")
 
 local buffSkill = BattleSkill.CreateSkillInstance(80004003, {})
 assert_eq(buffSkill.specialEffectTag, "battle_intent_buff", "battle intent skill should infer special effect tag")
@@ -206,9 +206,8 @@ BattleFormation.Init({
 local caster = BattleFormation.FindHeroByCampAndPos(true, 2)
 local healSkill = BattleSkill.CreateSkillInstance(80006003, {})
 local healTargets = BattleSkill.SelectTarget(caster, healSkill)
-assert_eq(#healTargets, 3, "group heal should include self and lowest hp allies by inferred config")
+assert_eq(#healTargets, 1, "healing word should pick one lowest hp ally by inferred config")
 assert_eq(healTargets[1].name, "LowHpAlly", "group heal should pick lowest hp ally first")
-assert_true(has_target_with_wp(healTargets, 2), "group heal inferred config should include self")
 
 local slashSkill = BattleSkill.CreateSkillInstance(80001003, {})
 assert_true(slashSkill.targetsSelections.preferLowestHp == true, "slash skill should infer lowest hp targeting")

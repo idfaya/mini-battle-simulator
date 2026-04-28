@@ -77,7 +77,6 @@ local SPECIAL_EFFECT_TAGS = {
     [80004003] = "battle_intent_buff",
     [80004004] = "battle_intent_buff",
     [80005004] = "poison_burst",
-    [80006001] = "holy_light",
     [80006003] = "group_heal",
     [80006004] = "revive_latest_ally",
 }
@@ -1680,20 +1679,14 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
         })
     end
     if inferredSkillId == 80006003 or name == "群疗" then
-        local extraAllies = tonumber(skillParam[2]) or 2
+        local tier = tonumber(skill and skill.level) or 1
+        local targetCount = (tier >= 2) and 2 or 1
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Alias,
             measureType = E_MEASURE_TYPE.Muti,
-            count = extraAllies + 1, -- include self + lowest HP allies
+            count = targetCount,
             includeSelf = true,
             preferLowestHp = true,
-        })
-    end
-    if inferredSkillId == 80006001 or name == "圣光" or inferredTag == "holy_light" then
-        return BuildTargetSelection({
-            castTarget = E_CAST_TARGET.Enemy,
-            preferAllyIfInjured = true,
-            includeSelf = true,
         })
     end
     if inferredSkillId == 80006004

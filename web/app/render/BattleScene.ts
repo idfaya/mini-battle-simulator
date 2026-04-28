@@ -911,6 +911,8 @@ export class BattleScene {
     const isMelee = this.isMeleeUnit(attacker.unit);
     const isProjectileFrame = event.op === "projectile" || this.looksLikeProjectileEffect(event.effect);
     const isDamageFrame = this.isDamageLikeOp(event.op);
+    const isMeleeExecuteFrame = isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
+    const isRangedExecuteFrame = !isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
 
     if (isProjectileFrame) {
       for (const target of hostileTargets) {
@@ -927,7 +929,30 @@ export class BattleScene {
       return;
     }
 
-    if (isMelee && isDamageFrame) {
+    const friendlyTargets = event.targetIds
+      .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
+      .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team === attacker.unit.team));
+
+    // Support skills often target allies (heal/aura/revive) and would otherwise show only numbers/bursts.
+    // Render a lightweight projectile to allies for better readability without touching combat logic.
+    if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
+      if (event.op !== "cast") {
+        for (const target of friendlyTargets) {
+          this.projectiles.push({
+            id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
+            attackerId: attacker.unit.id,
+            targetId: target.unit.id,
+            startedAt: now,
+            durationMs: 300,
+            style: this.resolveProjectileStyle(event.effect, attacker.unit.classId),
+          });
+        }
+        this.lastProjectileAtByCaster.set(attacker.unit.id, now);
+      }
+      return;
+    }
+
+    if ((isMelee && isDamageFrame) || isMeleeExecuteFrame) {
       const primaryTarget = hostileTargets[0];
       this.meleeClashes.push({
         attackerId: attacker.unit.id,
@@ -938,7 +963,7 @@ export class BattleScene {
       return;
     }
 
-    if (!isMelee && isDamageFrame) {
+    if (!isMelee && (isDamageFrame || isRangedExecuteFrame)) {
       const lastProjectileAt = this.lastProjectileAtByCaster.get(attacker.unit.id) ?? -Infinity;
       if (now - lastProjectileAt < 180) {
         return;
@@ -964,7 +989,9 @@ export class BattleScene {
   }
 
   private isMeleeUnit(unit: UnitState) {
-    return unit.classId >= 1 && unit.classId <= 5;
+    // Web-only heuristic: Ranger (class 5) looks/feels ranged in this prototype,
+    // while healer (class 6) still uses a melee weapon basic attack.
+    return (unit.classId >= 1 && unit.classId <= 4) || unit.classId === 6;
   }
 
   private isDamageLikeOp(op: string) {
@@ -974,6 +1001,13 @@ export class BattleScene {
   private looksLikeProjectileEffect(effect: string) {
     const normalized = String(effect ?? "").toLowerCase();
     return /projectile|fire|ball|ice|arrow|bolt|orb|arc|lightning|missile|shard/.test(normalized);
+  }
+
+  private looksLikeMeleeHitEffect(effect: string) {
+    const normalized = String(effect ?? "").toLowerCase();
+    // Many melee skills use op="effect" + "*_execute" handlers (e.g. random_hits_damage, poison_burst).
+    // This heuristic enables a clash animation without changing combat logic.
+    return /_execute\b|execute\b/.test(normalized);
   }
 
   private resolveProjectileStyle(effect: string, classId: number): ProjectileStyle {
@@ -990,6 +1024,17 @@ export class BattleScene {
       };
     }
 
+    if (normalized.includes("fire") || classId === 7) {
+      return {
+        kind: "orb",
+        core: "#ff9f1c",
+        glow: "rgba(255, 69, 0, 0.78)",
+        trail: "rgba(255, 140, 0, 0.58)",
+        radius: 9,
+        arcHeight: 26,
+      };
+    }
+
     if (normalized.includes("ice") || classId === 8) {
       return {
         kind: "shard",
@@ -1001,7 +1046,18 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("holy") || classId === 6) {
+    if (normalized.includes("poison") || classId === 5) {
+      return {
+        kind: "orb",
+        core: "#b7efc5",
+        glow: "rgba(46, 204, 113, 0.78)",
+        trail: "rgba(46, 204, 113, 0.52)",
+        radius: 8,
+        arcHeight: 22,
+      };
+    }
+
+    if (normalized.includes("holy") || classId === 6 || classId === 4) {
       return {
         kind: "orb",
         core: "#fff3b0",

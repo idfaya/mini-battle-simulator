@@ -82,6 +82,24 @@ local function CalculateHealByDice(caster, target, diceExpr)
     return BattleSkill.CalculateHealDice(caster, target, diceExpr)
 end
 
+local function EnsurePassiveRuntime(hero)
+    if not hero then
+        return {}
+    end
+    hero.passiveRuntime = hero.passiveRuntime or {}
+    return hero.passiveRuntime
+end
+
+local function IsClericChannelReady(hero)
+    local runtime = EnsurePassiveRuntime(hero)
+    return runtime.clericChannelReady == true
+end
+
+local function ConsumeClericChannel(hero)
+    local runtime = EnsurePassiveRuntime(hero)
+    runtime.clericChannelReady = false
+end
+
 local function GetClassId(unit)
     return tonumber(unit and (unit.class or unit.Class)) or 0
 end
@@ -167,28 +185,40 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("group_heal", function(ctx, frameCopy)
         local BattleDmgHeal = require("modules.battle_dmg_heal")
+        local BattleBuff = require("modules.battle_buff")
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
-        local skillParam = ctx and ctx.skill and ctx.skill.skillParam or {}
-        local healCount = tonumber(skillParam[2]) or 2
-        -- Skill internal tiers: each tier increases the number of lowest-HP allies healed by +1.
         local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
-        if tier > 1 then
-            healCount = healCount + (tier - 1)
-        end
+        local healCount = (tier >= 2) and 2 or 1
         local Skill5eMeta = require("config.skill_5e_meta")
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006003)
         local healDice = (meta and meta.healDice) or "1d8+2"
         local sortedAllies = SortByLowestHpRatio(allies)
         local selected = {}
         local healed = 0
+        local channelReady = IsClericChannelReady(ctx.hero)
+        local consumedChannel = false
         for i = 1, math.min(healCount, #sortedAllies) do
             local ally = sortedAllies[i]
             if ally then
                 local healAmount = CalculateHealByDice(ctx.hero, ally, healDice)
+                if tier >= 4 then
+                    healAmount = healAmount + math.max(2, math.floor(healAmount * 0.25))
+                end
+                if channelReady and not consumedChannel then
+                    healAmount = healAmount + math.max(2, math.floor(healAmount * 0.25))
+                    consumedChannel = true
+                end
                 BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
+                if tier >= 3 then
+                    BattleBuff.DelBuffBySubType(ally, 850001)
+                    BattleBuff.DelBuffBySubType(ally, 870001)
+                end
                 healed = healed + healAmount
                 table.insert(selected, ally)
             end
+        end
+        if consumedChannel then
+            ConsumeClericChannel(ctx.hero)
         end
         return {
             effectValue = healed,
@@ -197,87 +227,54 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
-    SkillEffectRegistry.Register("holy_light", function(ctx, frameCopy)
+    SkillEffectRegistry.Register("cleric_radiant_strike", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
-        local BattleFormation = require("modules.battle_formation")
-        local BattleFormula = require("core.battle_formula")
-        local Dice = require("core.dice")
-        local Skill5eMeta = require("config.skill_5e_meta")
-        local target = frameCopy.targets and frameCopy.targets[1] or nil
-        local allies = ResolveFriendTargets(ctx.hero, BattleFormation.GetFriendTeam(ctx.hero) or {})
-        local mostInjuredAlly = nil
-        local mostMissingHp = 0
-
-        for _, ally in ipairs(allies or {}) do
-            local missingHp = math.max(0, (ally.maxHp or 0) - (ally.hp or 0))
-            if missingHp > mostMissingHp then
-                mostMissingHp = missingHp
-                mostInjuredAlly = ally
-            end
+        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
+        if tier < 2 then
+            return nil
         end
 
-        -- Holy Light prioritizes healing allies; only attacks enemies when everyone is full HP.
-        if mostInjuredAlly and mostMissingHp > 0 then
-            target = mostInjuredAlly
-        end
+        local baseDice = (tier >= 3) and "1d6" or "1d4"
+        local channelReady = IsClericChannelReady(ctx.hero)
+        local bonusDice = channelReady and (baseDice .. "+1d4") or baseDice
+        local extraTotal = 0
+        local appliedTargets = {}
 
-        if not target then
-            return { damage = 0, healAmount = 0 }
-        end
-
-        local isAlly = BattleSkill.IsAlly(ctx.hero, target)
-        local damage = 0
-        local healAmount = 0
-        local shouldSkipDefaultDamage = false
-        if isAlly then
-            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006001)
-            local healDice = (meta and meta.healDice) or "1d8+1"
-            healAmount = CalculateHealByDice(ctx.hero, target, healDice)
-            local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
-            if tier > 1 then
-                healAmount = healAmount + (tier - 1) * 2
-            end
-            BattleDmgHeal.ApplyHeal(target, healAmount, ctx.hero)
-            shouldSkipDefaultDamage = true
-        else
-            local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
-                skill = ctx.skill,
-                damageKind = "direct",
-            })
-            damage = tonumber(damageResult and damageResult.damage) or 0
-            if damage > 0 then
-                BattleDmgHeal.ApplyDamage(target, damage, ctx.hero, {
-                    isCrit = damageResult and damageResult.isCrit or false,
-                    isDodged = damageResult and damageResult.isDodged or false,
-                    isBlocked = damageResult and damageResult.isBlock or false,
-                    skillId = ctx.skill and ctx.skill.skillId or nil,
-                    skillName = ctx.skill and ctx.skill.name or nil,
-                    damageKind = "direct",
-                    attackRoll = damageResult and damageResult.hit or nil,
-                    damageRoll = damageResult and damageResult.damageRoll or nil,
+        for _, target in ipairs(frameCopy.targets or {}) do
+            if target and not target.isDead and DidFrameAffectTarget(frameCopy, target) then
+                local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
+                    skipCheck = true,
+                    noClassScalar = true,
+                    kind = "spell",
+                    damageKind = "spell",
+                    damageDice = bonusDice,
                 })
-            elseif damageResult and damageResult.hit and damageResult.hit.hit == false then
-                local BattleEvent = require("core.battle_event")
-                local BattleVisualEvents = require("ui.battle_visual_events")
-                BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
-                    BattleVisualEvents.MISS,
-                    ctx.hero,
-                    target,
-                    {
+                local extra = tonumber(damageResult and damageResult.damage) or 0
+                if extra > 0 then
+                    BattleDmgHeal.ApplyDamage(target, extra, ctx.hero, {
                         skillId = ctx.skill and ctx.skill.skillId or nil,
                         skillName = ctx.skill and ctx.skill.name or nil,
-                        attackRoll = damageResult.hit,
-                    }))
+                        damageKind = "spell",
+                    })
+                    extraTotal = extraTotal + extra
+                    table.insert(appliedTargets, target)
+                end
             end
         end
+
+        if extraTotal > 0 and channelReady then
+            ConsumeClericChannel(ctx.hero)
+        end
+
+        if extraTotal <= 0 then
+            return nil
+        end
+
         return {
-            __skip = shouldSkipDefaultDamage,
-            effectValue = isAlly and healAmount or damage,
-            damage = damage,
-            healAmount = healAmount,
-            target = target,
-            targets = { target },
+            damage = (tonumber(frameCopy.damage) or 0) + extraTotal,
+            effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + extraTotal,
+            targets = (#appliedTargets > 0) and appliedTargets or frameCopy.targets,
         }
     end)
 
@@ -288,15 +285,30 @@ function SkillEffectRegistry.RegisterBuiltins()
         local meta = Skill5eMeta.Get(skillId) or {}
         local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
         local hpPct = tonumber(meta.revivePct) or 0.20
-        if tier > 1 then
-            hpPct = math.min(0.50, hpPct + 0.05 * (tier - 1))
+        local turns = tonumber(meta.revivePenaltyTurns) or 2
+        local atkMul = tonumber(meta.revivePenaltyAtkMul) or 0.75
+        local defMul = tonumber(meta.revivePenaltyDefMul) or 0.75
+        local speedMul = tonumber(meta.revivePenaltySpeedMul) or 0.80
+        if tier >= 2 then
+            hpPct = 0.25
+            turns = 1
+            atkMul = 0.85
+            defMul = 0.85
+            speedMul = 0.85
+        end
+        if tier >= 3 then
+            hpPct = 0.30
+            turns = 1
+            atkMul = 0.90
+            defMul = 0.90
+            speedMul = 0.90
         end
         local revived = BattleSkill.ReviveLatestDeadAlly(ctx.hero, {
             hpPct = hpPct,
-            turns = tonumber(meta.revivePenaltyTurns) or 2,
-            atkMul = tonumber(meta.revivePenaltyAtkMul) or 0.75,
-            defMul = tonumber(meta.revivePenaltyDefMul) or 0.75,
-            speedMul = tonumber(meta.revivePenaltySpeedMul) or 0.80,
+            turns = turns,
+            atkMul = atkMul,
+            defMul = defMul,
+            speedMul = speedMul,
         })
         if not revived then
             return { effectValue = 0, targets = {} }

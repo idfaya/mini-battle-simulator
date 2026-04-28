@@ -202,4 +202,54 @@ do
     assert_true(buff and buff.duration == 4, "Paladin aura duration == 2 + (tier-1) == 4 at tier3")
 end
 
+-- Test 9: Cleric strike gains radiant rider from tier2+ (80006001)
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local skillLua = require("config.skill.skill_80006001")
+    local hero = new_unit(4001, "Cleric")
+    local target = new_unit(4002, "Undead")
+    local oldApplyDamage = BattleDmgHeal.ApplyDamage
+    local spellHits = 0
+    BattleDmgHeal.ApplyDamage = function(dst, damage, src, opts)
+        if opts and opts.damageKind == "spell" then
+            spellHits = spellHits + 1
+        end
+        return oldApplyDamage(dst, damage, src, opts)
+    end
+    local skill = { skillId = 80006001, name = "Mace Strike", level = 2 }
+    local ok = SkillTimeline.Execute(hero, { target }, skill, skillLua.BuildTimeline(hero, { target }, skill))
+    BattleDmgHeal.ApplyDamage = oldApplyDamage
+    assert_true(ok, "Cleric strike execute ok")
+    assert_true(spellHits == 1, "Cleric strike tier2 adds one radiant rider hit")
+end
+
+-- Test 10: Revivify tiers reduce penalty and raise revive hp (80006004)
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local BattleAttribute = require("modules.battle_attribute")
+    local BattleFormation = require("modules.battle_formation")
+    local skillLua = require("config.skill.skill_80006004")
+    local hero = new_unit(4101, "ClericRevive")
+    hero.isLeft = true
+    local ally = new_unit(4102, "Fallen")
+    ally.isLeft = true
+    BattleAttribute.SetHpByVal(ally, 0)
+    ally.maxHp = 10000
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    BattleFormation.GetFriendTeam = function(src)
+        if src == hero then
+            return { hero, ally }
+        end
+        return oldGetFriendTeam(src)
+    end
+    local skill = { skillId = 80006004, name = "Revivify", level = 3 }
+    local ok = SkillTimeline.Execute(hero, { ally }, skill, skillLua.BuildTimeline(hero, { ally }, skill))
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    assert_true(ok, "Revivify tier3 execute ok")
+    assert_true(ally.hp == 3000, "Revivify tier3 restores 30% max hp")
+    assert_true(ally.__revivePenalty and ally.__revivePenalty.remainingTurns == 1, "Revivify tier3 penalty lasts 1 turn")
+    assert_true(math.abs((ally.__revivePenalty and ally.__revivePenalty.atkMul or 0) - 0.90) < 0.001, "Revivify tier3 atk penalty eased to 0.90")
+end
+
 log("All tier scaling assertions passed.")
