@@ -309,9 +309,11 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleFormation = require("modules.battle_formation")
         local targets = CollectAliveHeroes(BattleFormation.GetFriendTeam(ctx.hero) or frameCopy.targets or (ctx and ctx.targets) or {})
         local buffId, duration = ResolveBattleIntentBuff(ctx.skill)
+        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
         if not buffId then
             return { effectValue = 0, targets = targets }
         end
+        duration = (tonumber(duration) or 2) + math.max(0, tier - 1)
         local applied = 0
         for _, target in ipairs(targets) do
             BattleSkill.ApplyBuffFromSkill(ctx.hero, target, buffId, ctx.skill, { duration = duration })

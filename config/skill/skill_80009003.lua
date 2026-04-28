@@ -4,7 +4,8 @@ local skill_80009003 = {}
 
 function skill_80009003.BuildTimeline(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
-    local chainTargets = BattleSkill.GetChainTargets(hero, targets and targets[1] or nil, 4)
+    local tier = tonumber(skill and skill.level) or 1
+    local chainTargets = BattleSkill.GetChainTargets(hero, targets and targets[1] or nil, 4 + math.max(0, tier - 1))
     local frames = {}
     local frame = 12
 
@@ -23,7 +24,7 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
             op = "chain_damage",
             effect = "chain_lightning_arc",
             target = chainTarget,
-            damageRate = 7000,
+            damageRate = 7000 + math.max(0, tier - 1) * 500,
             chainIndex = hitIndex,
         })
         frame = frame + 8

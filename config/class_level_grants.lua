@@ -14,7 +14,11 @@ local ClassLevelGrants = {}
 
 ---@type table<integer, ClassLevelGrantTable>
 local GRANTS = {
-    -- Class 2 战士/Tank：Lv5 解锁主动进阶，Lv10 解锁大招。
+    [1] = {
+        [5] = {
+            statBonus = { hit = 1, saveRef = 1 },
+        },
+    },
     [2] = {
         [5] = {
             unlockSkills = { 80002003 },
@@ -25,7 +29,41 @@ local GRANTS = {
             statBonus = { maxHp = 10, ac = 1 },
         },
     },
-    -- 其他 Class 待填，先走默认（无固有解锁）。
+    [3] = {
+        [5] = {
+            statBonus = { speed = 2, saveRef = 1 },
+        },
+    },
+    [4] = {
+        [5] = {
+            statBonus = { saveWill = 1, ac = 1 },
+        },
+    },
+    [5] = {
+        [5] = {
+            statBonus = { hit = 1, spellDC = 1 },
+        },
+    },
+    [6] = {
+        [5] = {
+            statBonus = { healBonus = 400, saveWill = 1 },
+        },
+    },
+    [7] = {
+        [5] = {
+            statBonus = { spellDC = 1, hit = 1 },
+        },
+    },
+    [8] = {
+        [5] = {
+            statBonus = { spellDC = 1, saveFort = 1 },
+        },
+    },
+    [9] = {
+        [5] = {
+            statBonus = { spellDC = 1, critRate = 200 },
+        },
+    },
 }
 
 ---@param classId integer
