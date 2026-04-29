@@ -363,16 +363,12 @@ PassiveHandlers.factories = {
     [80008002] = CreateIceAffinityPassive,
     [80009002] = CreateThunderAffinityPassive,
     [80002101] = FighterBuildPassives.CreateSecondWindPassive,
-    [80002102] = FighterBuildPassives.CreatePressureStylePassive,
-    [80002103] = FighterBuildPassives.CreateSecondWindFollowupPassive,
+    [80002102] = FighterBuildPassives.CreatePreciseAttackPassive,
     [80002104] = FighterBuildPassives.CreateCounterBasicPassive,
     [80002105] = FighterBuildPassives.CreateGuardCounterPassive,
-    [80002106] = FighterBuildPassives.CreateWeaponMasteryPassive,
     [80002107] = FighterBuildPassives.CreateSecondWindMasteryPassive,
-    [80002108] = FighterBuildPassives.CreateSignatureMasteryPassive,
     [80002109] = FighterBuildPassives.CreateExtraAttackPassive,
-    [80002110] = FighterBuildPassives.CreateExtraAttackPressurePassive,
-    [80002111] = FighterBuildPassives.CreateExtraAttackGuardPassive,
+    [80002110] = FighterBuildPassives.CreateSweepingAttackPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

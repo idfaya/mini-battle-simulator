@@ -99,7 +99,8 @@
   cooldown = 3,
   execution = {
     type = "repeat_basic_attack",
-    count = 2,
+    count = 1,
+    retarget = "random_enemy",
   },
   tags = { "fighter", "burst" },
 }
@@ -147,16 +148,13 @@
 
 ```lua
 {
-  id = "fighter_lv2_pressure_style",
+  id = "fighter_lv4_precise_attack",
   classId = 2,
-  level = 2,
+  level = 4,
   effects = {
     {
-      type = "modify_skill",
-      skill = "fighter_basic_attack",
-      add = {
-        ignoreAc = 1,
-      }
+      type = "grant_skill",
+      skill = "fighter_precise_attack",
     }
   }
 }
@@ -164,7 +162,7 @@
 
 ```lua
 {
-  id = "fighter_lv3_champion",
+  id = "fighter_lv3_action_surge",
   classId = 2,
   level = 3,
   effects = {
@@ -232,72 +230,56 @@
   - 运行时：passive
   - 来源：`二次生命`
 
-- `fighter_pressure_style`
-  - 语义：passive
-  - 运行时：passive
-  - 来源：`压制战法`
-
-- `fighter_second_wind_followup`
-  - 语义：passive
-  - 运行时：passive
-  - 来源：`续战战法`
-
-- `fighter_counter_basic`
-  - 语义：reaction
-  - 运行时：passive
-  - 来源：`反击战法`
-  - 触发：每回合首次被近战攻击指定为目标时触发，不要求命中
-
 - `fighter_action_surge`
   - 语义：active
   - 运行时：active
-  - 来源：`冠军`
-
-- `fighter_pressure_strike`
-  - 语义：active
-  - 运行时：active
-  - 来源：`战斗大师`
+  - 来源：Lv3 `动作激增`
+  - 触发：主动使用后，立刻追加 `1` 次基础武器攻击，目标重新选择；不影响该回合原本的那次普通攻击
 
 - `fighter_guard_stance`
   - 语义：active
   - 运行时：active
-  - 来源：`护卫`
+  - 来源：Lv3 `护卫`
 
 - `fighter_guard_counter`
   - 语义：reaction
   - 运行时：passive
-  - 来源：`护卫架势`开启后的反应窗口
+  - 来源：Lv3 `护卫` 开启后的反应窗口
   - 触发：护卫架势持续期间，你和友军被攻击时先获得 `AC +2` 与熟练减伤；若攻击者为近战单位，则在该次攻击结算后登记并结算护卫反击，不要求命中
-
-- `fighter_weapon_mastery`
-  - 语义：passive
-  - 运行时：passive
-  - 来源：`武器专精`
-
-- `fighter_second_wind_mastery`
-  - 语义：passive
-  - 运行时：passive
-  - 来源：`续战专精`
-
-- `fighter_signature_mastery`
-  - 语义：passive
-  - 运行时：passive
-  - 来源：`战技专精`
 
 - `fighter_extra_attack`
   - 语义：feature
   - 运行时：passive
-  - 来源：`连斩者 / 压制者 / 钢铁护卫`
+  - 来源：Lv2 固定 `额外攻击`
+  - 触发：每回合第一次基础武器攻击后，追加 `1` 次基础武器攻击
 
-- `fighter_extra_attack_pressure`
+- `fighter_precise_attack`
   - 语义：feature
   - 运行时：passive
-  - 来源：`压制者`
+  - 来源：Lv4 `精准攻击`
+  - 触发：基础武器攻击忽略目标 `2` 点 AC
 
-- `fighter_extra_attack_guard`
+- `fighter_counter_basic`
+  - 语义：reaction
+  - 运行时：passive
+  - 来源：Lv4 `反击战法`
+  - 触发：每回合首次被近战攻击指定为目标时触发，不要求命中
+
+- `fighter_sweeping_attack`
   - 语义：feature
   - 运行时：passive
-  - 来源：`钢铁护卫`
+  - 来源：Lv5 `横扫攻击`
+  - 触发：基础武器攻击命中主目标后，对另一个敌人追加 `1` 次横扫伤害
+
+- `fighter_second_wind_mastery`
+  - 语义：passive
+  - 运行时：passive
+  - 来源：Lv5 `续战专精`
+  - 触发：二次生命额外再回复 `1d10` 生命
+
+- 迁移说明
+  - 原 `冠军线`、`压制线` 已从当前目标设计中移除
+  - 原 `fighter_pressure_style`、`fighter_pressure_strike`、`fighter_signature_mastery`、`fighter_extra_attack_pressure`、`fighter_extra_attack_guard` 不再作为目标战士树的一部分
 
 ### 战士 Feat 到 skill 的映射
 
@@ -307,43 +289,28 @@
 - `二次生命`
   - `grant_skill(fighter_second_wind)`
 
-- `压制战法`
-  - `grant_skill(fighter_pressure_style)`
+- `额外攻击`
+  - `grant_skill(fighter_extra_attack)`
 
-- `续战战法`
-  - `grant_skill(fighter_second_wind_followup)`
+- `动作激增`
+  - `grant_skill(fighter_action_surge)`
+
+- `护卫`
+  - `grant_skill(fighter_guard_stance)`
+  - `grant_skill(fighter_guard_counter)`
+  - 作为主动护卫路线节点，仅提供 `护卫架势` 与对应反击窗口
+
+- `精准攻击`
+  - `grant_skill(fighter_precise_attack)`
 
 - `反击战法`
   - `grant_skill(fighter_counter_basic)`
 
-- `冠军`
-  - `grant_skill(fighter_action_surge)`
-
-- `战斗大师`
-  - `grant_skill(fighter_pressure_strike)`
-
-- `护卫`
-  - `grant_skill(fighter_guard_stance)`
-
-- `武器专精`
-  - `grant_skill(fighter_weapon_mastery)`
+- `横扫攻击`
+  - `grant_skill(fighter_sweeping_attack)`
 
 - `续战专精`
   - `grant_skill(fighter_second_wind_mastery)`
-
-- `战技专精`
-  - `grant_skill(fighter_signature_mastery)`
-
-- `连斩者`
-  - `grant_skill(fighter_extra_attack)`
-
-- `压制者`
-  - `grant_skill(fighter_extra_attack)`
-  - `grant_skill(fighter_extra_attack_pressure)`
-
-- `钢铁护卫`
-  - `grant_skill(fighter_extra_attack)`
-  - `grant_skill(fighter_extra_attack_guard)`
 
 ## 模块划分建议
 
@@ -418,9 +385,10 @@
 - 实现二次生命
 - 实现反击战法
 - 实现动作激增
-- 实现压制打击
 - 实现护卫架势
 - 实现额外攻击
+- 实现精准攻击
+- 实现横扫攻击
 
 目标：
 
@@ -444,18 +412,18 @@
 - `fighterFeats`
   - 作用：给本场战斗里的所有战士注入同一组 Feat。
   - 格式：单组 ID，逗号分隔。
-  - 示例：`fighterFeats=2100201,2100301`
+-  - 示例：`fighterFeats=2100302,2100402,2100502`
 - `fighterFeatsByHero`
   - 作用：按英雄槽位分别注入 Feat，适合多战士混编验证。
   - 格式：每个英雄一组，组内用 `,` 分隔，组与组之间用 `|` 分隔。
-  - 示例：`fighterFeatsByHero=2100201,2100303|2100201,2100301|2100203,2100302`
+-  - 示例：`fighterFeatsByHero=2100302,2100402,2100502|2100301,2100401,2100501|2100301,2100401,2100501`
 - 优先级
   - 若某个槽位在 `fighterFeatsByHero` 中提供了 Feat，则该槽位优先使用这一组。
   - 若该槽位未提供，则回退到公共的 `fighterFeats`。
   - 只有战士会消费这两个参数，其他职业会忽略。
 - 典型用法
-  - 三个战士分别测试 `护卫 / 冠军 / 战斗大师`：
-    - `/?mode=single-battle&heroes=900005,900005,900005&enemies=910003,910003,910003&level=3&fighterFeatsByHero=2100201,2100303|2100201,2100301|2100203,2100302&seed=101001`
+-  - 三个战士分别测试 `护卫反打续战 / 动作激增爆发清线 / 动作激增爆发清线`：
+    - `/?mode=single-battle&heroes=900005,900005,900005&enemies=910003,910003,910003&level=5&fighterFeatsByHero=2100302,2100402,2100502|2100301,2100401,2100501|2100301,2100401,2100501&seed=101001`
 
 - 盗贼优先
 - 牧师其次
@@ -474,7 +442,7 @@
 - 战士的所有能力来源都能追溯到 Feat
 - 战士的运行时只依赖 active/passive skill 注册结果
 - 战士不再通过 `classId` 隐式获得 `Second Wind`、`Action Surge`、`Extra Attack`
-- `Lv2/Lv3/Lv4/Lv5` 的三选一对玩法有明确影响
+- `Lv3/Lv4/Lv5` 的二选一路线对玩法有明确影响
 - 其他职业在战士重构阶段保持可运行
 
 ## 最终定稿
@@ -497,7 +465,7 @@
 - 设计语义中的 `reaction`、`feature` 只保留在文档和配置表达层，进入运行时后统一编译为 `passive`。
 - `Lv2` 只给基础倾向，不抢 `Lv3` 子职身份。
 - `Lv4` 只做单点机制强化，不放纯属性成长。
-- `Lv5` 用一次三选一完成统一质变，不采用“固定给一个再额外三选一”的结构。
+- `Lv5` 作为终盘路线收束层，补足爆发线与守线的最终差异。
 - Feat 文案和设计表达尽量使用 5e 风格的离散规则，不优先使用百分比。
 
 ### 战士最终设计依据
@@ -507,8 +475,10 @@
 - 当前确定的战士主轴是：
   - `基础武器攻击`
   - `二次生命`
-  - `冠军 / 战斗大师 / 护卫`
-  - `额外攻击` 质变
+  - `额外攻击`
+  - `动作激增 / 护卫`
+  - `精准攻击 / 反击战法`
+  - `横扫攻击 / 续战专精`
 
 ### 相关设计文档
 

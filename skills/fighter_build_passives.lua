@@ -170,6 +170,38 @@ local function getGuardProtector(defender)
     return guard, runtime
 end
 
+local function getBasicAttackDamageDice()
+    local Skill5eMeta = require("config.skill_5e_meta")
+    local meta = Skill5eMeta.Get(IDS.fighter_basic_attack)
+    local damageDice = tostring(meta and meta.damageDice or "1d8")
+    if damageDice == "" then
+        return "1d8"
+    end
+    local firstPart = damageDice:match("([^;]+)")
+    return firstPart or "1d8"
+end
+
+local function pickAnotherAliveEnemy(hero, excludedTarget)
+    local BattleFormation = require("modules.battle_formation")
+    local excludedId = tonumber(excludedTarget and (excludedTarget.instanceId or excludedTarget.id)) or 0
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+        if isAlive(enemy) and enemyId ~= excludedId then
+            return enemy
+        end
+    end
+    return nil
+end
+
+local function pickBasicAttackTarget(hero, preferredTarget)
+    if isAlive(preferredTarget) then
+        return preferredTarget
+    end
+    local BattleSkill = require("modules.battle_skill")
+    local picked = BattleSkill.SelectRandomAliveEnemies(hero, 1) or {}
+    return picked[1] or nil
+end
+
 function FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)
     if not isAlive(defender) or not isAlive(attacker) then
         return 0
@@ -231,9 +263,6 @@ end
 function FighterBuildPassives.ApplyBasicAttackBonusDamage(hero, target)
     local runtime = ensureRuntime(hero)
     local bonusDice = ""
-    if runtime.fighterWeaponMastery then
-        bonusDice = joinDiceParts(bonusDice, "1d6")
-    end
     if runtime.pendingBasicAttackBonusDice then
         bonusDice = joinDiceParts(bonusDice, runtime.pendingBasicAttackBonusDice)
     end
@@ -279,9 +308,6 @@ function FighterBuildPassives.CastBasicAttackRepeated(hero, target, count)
             end
         end
     end
-    if hitAny and FighterBuildPassives.HasSignatureMastery(hero) and isAlive(target) then
-        total = total + FighterBuildPassives.ApplyDirectBonusDamage(hero, target, "1d6")
-    end
     return total
 end
 
@@ -302,6 +328,21 @@ function FighterBuildPassives.ApplyDirectBonusDamage(hero, target, diceExpr)
     local damage = math.max(0, math.floor(tonumber(result and result.damage) or 0))
     if damage > 0 then
         BattleDmgHeal.ApplyDamage(target, damage, hero, { damageKind = "direct" })
+    end
+    return damage
+end
+
+function FighterBuildPassives.TryTriggerSweepingAttack(hero, primaryTarget)
+    if not isAlive(hero) then
+        return 0
+    end
+    local secondaryTarget = pickAnotherAliveEnemy(hero, primaryTarget)
+    if not isAlive(secondaryTarget) then
+        return 0
+    end
+    local damage = FighterBuildPassives.ApplyDirectBonusDamage(hero, secondaryTarget, getBasicAttackDamageDice())
+    if damage > 0 then
+        publishPassiveTriggered(hero, "横扫攻击", "追加横扫", string.format("波及 %s 造成 %d 伤害", secondaryTarget.name or "目标", damage))
     end
     return damage
 end
@@ -367,9 +408,6 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     end
 
     runtime.guardCounterUsed = true
-    if runtime.fighterSignatureMastery then
-        runtime.pendingBasicAttackBonusDice = joinDiceParts(runtime.pendingBasicAttackBonusDice, "1d6")
-    end
     runtime.pendingGuardCounterTarget = attacker
     publishPassiveTriggered(guard, "护卫架势", "登记护卫反击", string.format("将对 %s 发动护卫反击", attacker.name or "目标"))
     -- #region debug-point B:queue-guard
@@ -469,29 +507,17 @@ function FighterBuildPassives.CreateSecondWindPassive(context)
         end
         applyHeal(hero, heal)
         publishPassiveTriggered(hero, "二次生命", "濒危回复", string.format("恢复%d生命", heal))
-        if runtime.fighterSecondWindFollowup then
-            runtime.pendingBasicAttackBonusDice = joinDiceParts(runtime.pendingBasicAttackBonusDice, "1d8")
-        end
     end
 
     return self
 end
 
-function FighterBuildPassives.CreatePressureStylePassive(context)
+function FighterBuildPassives.CreatePreciseAttackPassive(context)
     local self = buildContextState(context)
 
     function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).basicAttackIgnoreAc = 1
-    end
-
-    return self
-end
-
-function FighterBuildPassives.CreateSecondWindFollowupPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterSecondWindFollowup = true
+        local runtime = ensureRuntime(self.context and self.context.src)
+        runtime.basicAttackIgnoreAc = (tonumber(runtime.basicAttackIgnoreAc) or 0) + 2
     end
 
     return self
@@ -545,31 +571,11 @@ function FighterBuildPassives.CreateGuardCounterPassive(context)
     return self
 end
 
-function FighterBuildPassives.CreateWeaponMasteryPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterWeaponMastery = true
-    end
-
-    return self
-end
-
 function FighterBuildPassives.CreateSecondWindMasteryPassive(context)
     local self = buildContextState(context)
 
     function self:OnBattleBegin()
         ensureRuntime(self.context and self.context.src).fighterSecondWindMastery = true
-    end
-
-    return self
-end
-
-function FighterBuildPassives.CreateSignatureMasteryPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterSignatureMastery = true
     end
 
     return self
@@ -582,7 +588,7 @@ function FighterBuildPassives.CreateExtraAttackPassive(context)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
         local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
+        if not isAlive(hero) then
             return
         end
         if tonumber(extraParam.skillId) ~= IDS.fighter_basic_attack then
@@ -594,42 +600,42 @@ function FighterBuildPassives.CreateExtraAttackPassive(context)
             return
         end
         runtime.extraAttackRound = round
-        if runtime.fighterExtraAttackPressure and (tonumber(extraParam.damageDealt) or 0) > 0 then
-            runtime.pendingBasicAttackIgnoreAc = (tonumber(runtime.pendingBasicAttackIgnoreAc) or 0) + 1
-            runtime.pendingBasicAttackBonusDice = joinDiceParts(runtime.pendingBasicAttackBonusDice, "1d6")
-        end
-        if runtime.fighterExtraAttackGuard then
-            local targetRuntime = ensureRuntime(target)
-            local targetLastVictimId = tonumber(targetRuntime.lastAttackVictimId) or 0
-            local heroId = tonumber(hero.instanceId or hero.id) or 0
-            if targetRuntime.lastAttackRound == round and targetLastVictimId > 0 and targetLastVictimId ~= heroId then
-                runtime.pendingBasicAttackBonusDice = joinDiceParts(runtime.pendingBasicAttackBonusDice, "1d8")
-            end
+        local nextTarget = pickBasicAttackTarget(hero, target)
+        if not isAlive(nextTarget) then
+            return
         end
         runtime.__inExtraAttack = true
         local BattleSkill = require("modules.battle_skill")
-        BattleSkill.CastSmallSkill(hero, target)
+        BattleSkill.CastSmallSkill(hero, nextTarget)
         runtime.__inExtraAttack = false
     end
 
     return self
 end
 
-function FighterBuildPassives.CreateExtraAttackPressurePassive(context)
+function FighterBuildPassives.CreateSweepingAttackPassive(context)
     local self = buildContextState(context)
 
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterExtraAttackPressure = true
-    end
-
-    return self
-end
-
-function FighterBuildPassives.CreateExtraAttackGuardPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterExtraAttackGuard = true
+    function self:OnNormalAtkFinish(ctx)
+        local hero = self.context and self.context.src or nil
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local target = extraParam.target
+        if not isAlive(hero) or not target then
+            return
+        end
+        if tonumber(extraParam.skillId) ~= IDS.fighter_basic_attack then
+            return
+        end
+        if (tonumber(extraParam.damageDealt) or 0) <= 0 then
+            return
+        end
+        local runtime = ensureRuntime(hero)
+        if runtime.__inSweepingAttack then
+            return
+        end
+        runtime.__inSweepingAttack = true
+        FighterBuildPassives.TryTriggerSweepingAttack(hero, target)
+        runtime.__inSweepingAttack = false
     end
 
     return self

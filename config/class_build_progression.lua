@@ -16,13 +16,15 @@ local PROGRESSION = {
             },
         },
         [2] = {
-            choiceGroup = "fighter_lv2_style",
+            fixed = {
+                FeatBuildConfig.Ids.fighter_extra_attack,
+            },
         },
         [3] = {
-            choiceGroup = "fighter_lv3_subclass",
+            choiceGroup = "fighter_lv3_active",
         },
         [4] = {
-            choiceGroup = "fighter_lv4_mastery",
+            choiceGroup = "fighter_lv4_passive",
         },
         [5] = {
             choiceGroup = "fighter_lv5_capstone",

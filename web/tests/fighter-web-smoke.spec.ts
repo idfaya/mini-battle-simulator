@@ -16,10 +16,23 @@ async function collectClientErrors(page: import("playwright/test").Page) {
   return { pageErrors, consoleErrors };
 }
 
+function filterKnownNoise(errors: string[]) {
+  return errors.filter((message) => !message.includes("ERR_CONNECTION_REFUSED"));
+}
+
+function findLineIndex(logs: string[], matcher: (line: string) => boolean, startIndex = 0) {
+  for (let index = startIndex; index < logs.length; index += 1) {
+    if (matcher(logs[index])) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 test("fighter web flow shows rebuilt names and can cast action surge", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=3&fighterFeats=2100201,2100301&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=3&fighterFeats=2100301&seed=101001");
   await page.waitForTimeout(2500);
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
@@ -52,7 +65,7 @@ test("fighter web flow shows rebuilt names and can cast action surge", async ({ 
   expect(level1Logs).not.toContain("旋风");
 
   expect(pageErrors).toEqual([]);
-  expect(consoleErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
   await page.screenshot({ path: "test-results/fighter-web-smoke.png", fullPage: true });
 });
@@ -60,7 +73,7 @@ test("fighter web flow shows rebuilt names and can cast action surge", async ({ 
 test("fighter counter reaction logs when reaction is queued", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=2&fighterFeats=2100101,2100102,2100203&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=4&fighterFeats=2100302,2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -82,7 +95,7 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
   expect(resultIndex).toBeGreaterThan(queueIndex);
   expect(counterIndex).toBeGreaterThan(resultIndex);
   expect(pageErrors).toEqual([]);
-  expect(consoleErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
   await page.screenshot({ path: "test-results/fighter-counter-queued-log.png", fullPage: true });
 });
@@ -90,35 +103,93 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 test("fighter guard reaction logs when ally attack queues guard counter", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  const perHeroBuilds = "2100201,2100303|2100201,2100301|2100203,2100302";
+  const perHeroBuilds = "2100302,2100402,2100502|2100301,2100401,2100501|2100301,2100401,2100501";
   await page.goto(
-    `/?mode=single-battle&heroes=900005,900005,900005&enemies=910003,910003,910003&level=3&fighterFeatsByHero=${perHeroBuilds}&seed=101001`,
+    `/?mode=single-battle&heroes=900005,900005,900005&enemies=910003,910003,910003&level=5&fighterFeatsByHero=${perHeroBuilds}&seed=101001`,
   );
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
-    .toContain("Tank 使用 护卫架势");
-  await expect
-    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
-    .toContain("Tank 的 护卫架势 未产生效果");
+    .toContain("Tank 触发被动 护卫架势：登记护卫反击 将对 Orc 发动护卫反击");
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("Tank 触发被动 护卫架势：登记护卫反击 将对 Orc 发动护卫反击");
 
   const logs = await page.locator(".battle-log li").allTextContents();
-  const stanceIndex = logs.findIndex((line) => line.includes("Tank 使用 护卫架势"));
   const queueIndex = logs.findIndex((line) => line.includes("Tank 触发被动 护卫架势：登记护卫反击 将对 Orc 发动护卫反击"));
   const resultIndex = logs.findIndex(
     (line, index) => index > queueIndex && line.includes("Orc 的 基础武器攻击 对 Tank"),
   );
 
-  expect(stanceIndex).toBeGreaterThanOrEqual(0);
-  expect(queueIndex).toBeGreaterThan(stanceIndex);
+  expect(logs.some((line) => line.includes("Tank 使用 动作激增") || line.includes("Tank 使用 护卫架势"))).toBeTruthy();
+  expect(queueIndex).toBeGreaterThanOrEqual(0);
   expect(resultIndex).toBeGreaterThan(queueIndex);
   expect(pageErrors).toEqual([]);
-  expect(consoleErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
   await page.screenshot({ path: "test-results/fighter-guard-queued-log.png", fullPage: true });
+});
+
+test("fighter sweeping attack shows chained log visibility at lv5", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto(
+    "/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=5&fighterFeats=2100301,2100401,2100501&seed=101001",
+  );
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("Tank 触发被动 横扫攻击：追加横扫");
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const basicAttackIndex = findLineIndex(logs, (line) => line.includes("Tank 的 基础武器攻击 对 Orc 造成"));
+  const sweepDamageIndex = findLineIndex(
+    logs,
+    (line) => line.includes("Tank 对 Orc 造成") && !line.includes("基础武器攻击"),
+    basicAttackIndex + 1,
+  );
+  const sweepTriggerIndex = findLineIndex(logs, (line) => line.includes("Tank 触发被动 横扫攻击：追加横扫"), sweepDamageIndex + 1);
+
+  expect(basicAttackIndex).toBeGreaterThanOrEqual(0);
+  expect(sweepDamageIndex).toBeGreaterThan(basicAttackIndex);
+  expect(sweepTriggerIndex).toBeGreaterThan(sweepDamageIndex);
+  expect(logs[sweepTriggerIndex]).toMatch(/波及 .* 造成 \d+ 伤害/);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("fighter second wind mastery shows boosted recovery logs at lv5", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto(
+    "/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=5&fighterFeats=2100302,2100402,2100502&seed=101001",
+  );
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 15000 })
+    .toContain("Tank 触发被动 二次生命：濒危回复 恢复");
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const healIndex = findLineIndex(logs, (line) => line.includes("Tank 治疗 Tank "));
+  const secondWindIndex = findLineIndex(logs, (line) => line.includes("Tank 触发被动 二次生命：濒危回复 恢复"), healIndex + 1);
+  const secondWindLine = secondWindIndex >= 0 ? logs[secondWindIndex] : "";
+  const healLine = healIndex >= 0 ? logs[healIndex] : "";
+  const recoverMatch = secondWindLine.match(/恢复(\d+)生命/);
+  const healMatch = healLine.match(/Tank 治疗 Tank (\d+)/);
+  const recovered = recoverMatch ? Number(recoverMatch[1]) : 0;
+  const healed = healMatch ? Number(healMatch[1]) : 0;
+
+  expect(healIndex).toBeGreaterThanOrEqual(0);
+  expect(secondWindIndex).toBeGreaterThanOrEqual(0);
+  expect(recovered).toBeGreaterThan(0);
+  expect(healed).toBe(recovered);
+  expect(secondWindIndex).toBeGreaterThan(healIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

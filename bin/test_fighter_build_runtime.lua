@@ -56,8 +56,8 @@ local function new_unit(id, name)
 end
 
 do
-    local hero = new_unit(9101, "WeaponMasteryHero")
-    local target = new_unit(9102, "WeaponMasteryDummy")
+    local hero = new_unit(9101, "BonusDamageHero")
+    local target = new_unit(9102, "BonusDamageDummy")
     local oldResolveScaledDamage = BattleSkill.ResolveScaledDamage
     local oldApplyDamage = BattleDmgHeal.ApplyDamage
     local oldRunSkillOnDefBeforeDmg = BattlePassiveSkill.RunSkillOnDefBeforeDmg
@@ -66,10 +66,7 @@ do
     local oldTriggerDamageBuffs = BattleSkill.TriggerDamageBuffs
     local callCount = 0
 
-    hero.passiveRuntime = {
-        fighterWeaponMastery = true,
-        pendingBasicAttackBonusDice = "1d8",
-    }
+    hero.passiveRuntime = { pendingBasicAttackBonusDice = "1d8" }
 
     BattleSkill.ResolveScaledDamage = function()
         callCount = callCount + 1
@@ -88,7 +85,7 @@ do
         skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
         name = "基础武器攻击",
     })
-    assert_true(total == 14, "basic attack bonus damage is applied through ExecuteDefaultAttackWithPassive")
+    assert_true(total == 14, "basic attack pending bonus damage is applied through ExecuteDefaultAttackWithPassive")
     assert_true(hero.passiveRuntime.pendingBasicAttackBonusDice == nil, "pending bonus dice clears after basic attack resolve")
 
     BattleSkill.ResolveScaledDamage = oldResolveScaledDamage
@@ -97,6 +94,16 @@ do
     BattlePassiveSkill.RunSkillOnDefAfterDmg = oldRunSkillOnDefAfterDmg
     BattlePassiveSkill.RunSkillOnDmgMakeKill = oldRunSkillOnDmgMakeKill
     BattleSkill.TriggerDamageBuffs = oldTriggerDamageBuffs
+end
+
+do
+    local hero = new_unit(9151, "PreciseHero")
+    local passive = FighterBuildPassives.CreatePreciseAttackPassive({ src = hero })
+
+    hero.passiveRuntime = {}
+    passive:OnBattleBegin()
+
+    assert_true(hero.passiveRuntime.basicAttackIgnoreAc == 2, "precise attack grants 2 AC ignore to basic attack")
 end
 
 do
@@ -241,53 +248,6 @@ do
 end
 
 do
-    local hero = new_unit(9401, "PressureHero")
-    local target = new_unit(9402, "PressureDummy")
-    local oldResolveScaledDamage = BattleSkill.ResolveScaledDamage
-    local oldApplyDamage = BattleDmgHeal.ApplyDamage
-    local oldRunSkillOnDefBeforeDmg = BattlePassiveSkill.RunSkillOnDefBeforeDmg
-    local oldRunSkillOnDefAfterDmg = BattlePassiveSkill.RunSkillOnDefAfterDmg
-    local oldRunSkillOnDmgMakeKill = BattlePassiveSkill.RunSkillOnDmgMakeKill
-    local oldTriggerDamageBuffs = BattleSkill.TriggerDamageBuffs
-    local oldApplyDirectBonusDamage = FighterBuildPassives.ApplyDirectBonusDamage
-    local resolveDamage = 0
-    local bonusCalls = 0
-
-    hero.passiveRuntime = {
-        fighterSignatureMastery = true,
-    }
-
-    BattleSkill.ResolveScaledDamage = function()
-        return { damage = resolveDamage, hit = { hit = resolveDamage > 0 } }
-    end
-    BattleDmgHeal.ApplyDamage = function() end
-    BattlePassiveSkill.RunSkillOnDefBeforeDmg = function() end
-    BattlePassiveSkill.RunSkillOnDefAfterDmg = function() end
-    BattlePassiveSkill.RunSkillOnDmgMakeKill = function() end
-    BattleSkill.TriggerDamageBuffs = function() end
-    FighterBuildPassives.ApplyDirectBonusDamage = function()
-        bonusCalls = bonusCalls + 1
-        return 3
-    end
-
-    resolveDamage = 0
-    local missDamage = FighterBuildPassives.PerformPressureStrike(hero, target, { skillId = SkillRuntimeConfig.Ids.fighter_pressure_strike })
-    assert_true(missDamage == 0 and bonusCalls == 0, "pressure strike signature mastery does not proc on miss")
-
-    resolveDamage = 5
-    local hitDamage = FighterBuildPassives.PerformPressureStrike(hero, target, { skillId = SkillRuntimeConfig.Ids.fighter_pressure_strike })
-    assert_true(hitDamage == 8 and bonusCalls == 1, "pressure strike signature mastery only adds bonus on hit")
-
-    BattleSkill.ResolveScaledDamage = oldResolveScaledDamage
-    BattleDmgHeal.ApplyDamage = oldApplyDamage
-    BattlePassiveSkill.RunSkillOnDefBeforeDmg = oldRunSkillOnDefBeforeDmg
-    BattlePassiveSkill.RunSkillOnDefAfterDmg = oldRunSkillOnDefAfterDmg
-    BattlePassiveSkill.RunSkillOnDmgMakeKill = oldRunSkillOnDmgMakeKill
-    BattleSkill.TriggerDamageBuffs = oldTriggerDamageBuffs
-    FighterBuildPassives.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
-end
-
-do
     local hero = new_unit(9501, "ActionSurgeHero")
     local target = new_unit(9502, "ActionSurgeDummy")
     local oldCastSmallSkillWithResult = BattleSkill.CastSmallSkillWithResult
@@ -299,9 +259,79 @@ do
     end
 
     local total = FighterBuildPassives.CastBasicAttackRepeated(hero, target, 2)
-    assert_true(total == 14 and calls == 2, "repeat basic attack sums actual cast result damage instead of hp delta")
+    assert_true(total == 14 and calls == 2, "repeat basic attack helper sums actual cast result damage instead of hp delta")
 
     BattleSkill.CastSmallSkillWithResult = oldCastSmallSkillWithResult
+end
+
+do
+    local hero = new_unit(9551, "ExtraAttackHero")
+    local fallenTarget = new_unit(9552, "FallenDummy")
+    local retarget = new_unit(9553, "RetargetDummy")
+    local passive = FighterBuildPassives.CreateExtraAttackPassive({ src = hero })
+    local oldCastSmallSkill = BattleSkill.CastSmallSkill
+    local oldSelectRandomAliveEnemies = BattleSkill.SelectRandomAliveEnemies
+    local castTarget = nil
+
+    fallenTarget.isDead = true
+    fallenTarget.isAlive = false
+
+    BattleSkill.SelectRandomAliveEnemies = function()
+        return { retarget }
+    end
+    BattleSkill.CastSmallSkill = function(_, target)
+        castTarget = target
+        return true
+    end
+
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = fallenTarget,
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                damageDealt = 6,
+            },
+        },
+    })
+
+    assert_true(castTarget == retarget, "extra attack retargets when the original target is already dead")
+
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
+end
+
+do
+    local hero = new_unit(9581, "SweepingHero")
+    local primaryTarget = new_unit(9582, "PrimaryDummy")
+    local secondaryTarget = new_unit(9583, "SecondaryDummy")
+    local passive = FighterBuildPassives.CreateSweepingAttackPassive({ src = hero })
+    local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
+    local oldApplyDirectBonusDamage = FighterBuildPassives.ApplyDirectBonusDamage
+    local hitTarget = nil
+
+    BattleFormation.GetEnemyTeam = function()
+        return { primaryTarget, secondaryTarget }
+    end
+    FighterBuildPassives.ApplyDirectBonusDamage = function(_, target, diceExpr)
+        hitTarget = { target = target, diceExpr = diceExpr }
+        return 6
+    end
+
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = primaryTarget,
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                damageDealt = 8,
+            },
+        },
+    })
+
+    assert_true(hitTarget ~= nil and hitTarget.target == secondaryTarget, "sweeping attack hits another alive enemy instead of the primary target")
+    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d8", "sweeping attack uses fighter basic attack damage dice")
+
+    BattleFormation.GetEnemyTeam = oldGetEnemyTeam
+    FighterBuildPassives.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
 end
 
 do
@@ -333,6 +363,46 @@ do
     assert_true(healed > 0, "second wind applies healing when hp falls to half or lower")
     assert_true(passiveEvent ~= nil, "second wind publishes passive trigger event")
     assert_true(passiveEvent.skillName == "二次生命", "second wind passive trigger event exposes skill name")
+end
+
+do
+    local hero = new_unit(9611, "SecondWindMasterHero")
+    local passive = FighterBuildPassives.CreateSecondWindPassive({ src = hero })
+    local mastery = FighterBuildPassives.CreateSecondWindMasteryPassive({ src = hero })
+    local oldApplyHeal = BattleDmgHeal.ApplyHeal
+    local Dice = require("core.dice")
+    local oldDiceRoll = Dice.Roll
+    local healed = 0
+    local rolls = {}
+
+    hero.level = 5
+    hero.hp = 40
+    hero.maxHp = 100
+    hero.passiveRuntime = {}
+
+    mastery:OnBattleBegin()
+
+    Dice.Roll = function(expr)
+        rolls[#rolls + 1] = expr
+        if expr == "1d10+5" then
+            return 9
+        end
+        if expr == "1d10" then
+            return 4
+        end
+        return oldDiceRoll(expr)
+    end
+    BattleDmgHeal.ApplyHeal = function(_, amount)
+        healed = amount
+    end
+
+    passive:OnDefAfterDmg({ data = { extraParam = { attacker = new_unit(9612, "Enemy"), damage = 12 } } })
+
+    BattleDmgHeal.ApplyHeal = oldApplyHeal
+    Dice.Roll = oldDiceRoll
+
+    assert_true(healed == 13, "second wind mastery adds an extra 1d10 heal on top of second wind")
+    assert_true(#rolls == 2 and rolls[1] == "1d10+5" and rolls[2] == "1d10", "second wind mastery rolls base heal and bonus heal separately")
 end
 
 log("Fighter build runtime tests passed.")
