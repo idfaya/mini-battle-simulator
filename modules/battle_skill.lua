@@ -416,8 +416,23 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         return result
     end
 
+    local targetAC = opts.targetAC
+    local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+    if ok and FighterBuildPassives and FighterBuildPassives.GetGuardStanceAcBonus then
+        local guardAcBonus = tonumber(FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)) or 0
+        if guardAcBonus > 0 then
+            local baseTargetAC = tonumber(targetAC)
+            if baseTargetAC == nil then
+                baseTargetAC = tonumber(defender and defender.ac) or 0
+            end
+            targetAC = baseTargetAC + guardAcBonus
+        end
+    end
+
     local hitResult = BattleFormula.RollHit(attacker, defender, {
         mode = opts.mode or "normal",
+        attackBonus = opts.attackBonus,
+        targetAC = targetAC,
         ignoreNatRules = ignoreNatRules,
     })
     result.hit = hitResult
@@ -820,6 +835,21 @@ end
 local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
+    local FighterBuildPassives = require("skills.fighter_build_passives")
+    -- #region debug-point C:finalize-skill
+    BattleEvent.Publish("DebugCounterTiming", {
+        stage = "finalize_skill_cast",
+        source = "modules.battle_skill",
+        data = {
+            heroId = hero and (hero.instanceId or hero.id) or nil,
+            heroName = hero and hero.name or nil,
+            skillId = skill and skill.skillId or nil,
+            skillName = skill and skill.name or nil,
+            skillType = skill and skill.skillType or nil,
+            totalDamage = totalDamage or 0,
+        },
+    })
+    -- #endregion
 
     if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
         BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {
@@ -829,6 +859,8 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
             target = hero and hero.__lastNormalAttackTarget or nil,
         })
     end
+
+    FighterBuildPassives.ResolveQueuedReactions(hero)
 
     local energyStats = hero and hero.__energyCastStats or nil
     if energyStats and (
@@ -942,7 +974,30 @@ function BattleSkill.CastSmallSkill(hero, target)
         return false
     end
 
-    return BattleSkill.CastSkillInSeq(hero, target, normalSkill.skillId)
+    local succeeded = BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId)
+    return succeeded
+end
+
+function BattleSkill.CastSmallSkillWithResult(hero, target)
+    if not hero or not hero.skills then
+        Logger.LogError("[BattleSkill.CastSmallSkillWithResult] hero or hero.skills is nil")
+        return false, nil
+    end
+
+    local normalSkill = nil
+    for _, skill in ipairs(hero.skills) do
+        if skill.skillType == E_SKILL_TYPE_NORMAL then
+            normalSkill = skill
+            break
+        end
+    end
+
+    if not normalSkill then
+        Logger.LogWarning("[BattleSkill.CastSmallSkillWithResult] No normal skill found for hero: " .. tostring(hero.name))
+        return false, nil
+    end
+
+    return BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId)
 end
 
 function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts)
@@ -1044,6 +1099,11 @@ end
 ---@param skillId number 技能ID
 ---@return boolean 是否释放成功
 function BattleSkill.CastSkillInSeq(hero, target, skillId, opts)
+    local succeeded = BattleSkill.CastSkillInSeqWithResult(hero, target, skillId, opts)
+    return succeeded
+end
+
+function BattleSkill.CastSkillInSeqWithResult(hero, target, skillId, opts)
     local completed = nil
     local started = BattleSkill.StartSkillCastInSeq(hero, target, skillId, function(succeeded, result)
         completed = {
@@ -1060,7 +1120,7 @@ function BattleSkill.CastSkillInSeq(hero, target, skillId, opts)
         SkillTimeline.Update()
     end
 
-    return completed and completed.succeeded or false
+    return completed and completed.succeeded or false, completed and completed.result or nil
 end
 
 --- 执行默认普通攻击（带被动技能触发）
@@ -1104,10 +1164,8 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     target.name or "Unknown",
                     healAmount))
             else
-                local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
-                    skill = skill,
-                    damageKind = "direct",
-                })
+                local FighterBuildPassives = require("skills.fighter_build_passives")
+                local damageResult = BattleSkill.ResolveScaledDamage(hero, target, FighterBuildPassives.BuildBasicAttackResolveOpts(hero, target, skill))
                 local damage = tonumber(damageResult and damageResult.damage) or 0
                 local damageContext = {
                     attacker = hero,
@@ -1116,7 +1174,15 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 }
                 
                 BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
+                FighterBuildPassives.ApplyGuardStanceProtection(target, {
+                    attacker = hero,
+                    damageContext = damageContext,
+                    skill = skill,
+                })
                 damage = math.max(0, math.floor(damageContext.damage or damage))
+                if damage > 0 then
+                    damage = damage + FighterBuildPassives.ApplyBasicAttackBonusDamage(hero, target)
+                end
                 totalDamage = totalDamage + damage
                 
                 -- 使用 ApplyDamage 应用伤害（会触发事件）
@@ -1178,6 +1244,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     -- 触发击杀被动技能 (DmgMakeKill)
                     BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
                 end
+                FighterBuildPassives.AfterBasicAttackResolved(hero, target, damage)
             end
         end
     end
@@ -2037,6 +2104,11 @@ function BattleSkill.LoadSkillLua(skillId)
     end
 
     local luaPath = SkillConfig.GetSkillLuaPath(skillId)
+    if not luaPath or luaPath == "" then
+        local SkillRuntimeConfig = require("config.skill_runtime_config")
+        local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+        luaPath = runtimeEntry and runtimeEntry.luaFile or luaPath
+    end
     if not luaPath or luaPath == "" then
         -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
         if skillId ~= 1001 then

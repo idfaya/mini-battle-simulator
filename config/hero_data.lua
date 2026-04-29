@@ -1,6 +1,8 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
+local HeroBuild = require("modules.hero_build")
+local SkillRuntime = require("modules.skill_runtime")
 
 ---@class HeroAbilityScores
 ---@field str integer
@@ -661,7 +663,30 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         return nil
     end
 
+    local buildState = override and override.buildState or nil
+    if hero.Class == 2 and not buildState then
+        buildState = HeroBuild.TryCompileBuild(hero.Class, level, override and override.buildFeatIds or {})
+    end
+
+    if buildState and type(buildState.statMods) == "table" then
+        for key, delta in pairs(buildState.statMods) do
+            local numDelta = tonumber(delta) or 0
+            if numDelta ~= 0 then
+                if key == "maxHp" then
+                    attrs.maxHp = math.max(1, (attrs.maxHp or 1) + numDelta)
+                    attrs.hp = math.max(1, math.min(attrs.maxHp, (attrs.hp or attrs.maxHp) + numDelta))
+                else
+                    attrs[key] = (tonumber(attrs[key]) or 0) + numDelta
+                end
+            end
+        end
+    end
+
     local skillsConfig = {}
+    if buildState then
+        skillsConfig = SkillRuntime.BuildSkillsConfig(buildState)
+    end
+
     local forceUnlock = {}
     local overrideLevels = (override and override.skillLevels) or nil
     for _, sid in ipairs((override and override.ownedSkills) or {}) do
@@ -685,93 +710,95 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         end
     end
 
-    local allowedSkillIds = {}
-    if hero.ParsedSkills and #hero.ParsedSkills > 0 then
-        for _, skillInfo in ipairs(hero.ParsedSkills) do
-            local classId = skillInfo.classId
-            local skillLevel = skillInfo.level or 1
-            local skillConfig, actualSkillId = ResolveSkillConfig(classId, skillLevel)
-            allowedSkillIds[actualSkillId] = true
+    if not buildState then
+        local allowedSkillIds = {}
+        if hero.ParsedSkills and #hero.ParsedSkills > 0 then
+            for _, skillInfo in ipairs(hero.ParsedSkills) do
+                local classId = skillInfo.classId
+                local skillLevel = skillInfo.level or 1
+                local skillConfig, actualSkillId = ResolveSkillConfig(classId, skillLevel)
+                allowedSkillIds[actualSkillId] = true
 
-            -- Skill unlock now follows level only (ignore UnlockStar in 5e growth mode).
-            local canUnlock = true
-            if skillConfig and skillConfig.UnlockLevel then
-                canUnlock = level >= (tonumber(skillConfig.UnlockLevel) or 1)
-            end
-            if forceUnlock[actualSkillId] then
-                canUnlock = true
-            end
-
-            local internalLevel = 1
-            if type(overrideLevels) == "table" and overrideLevels[actualSkillId] then
-                internalLevel = math.max(1, tonumber(overrideLevels[actualSkillId]) or 1)
-            end
-
-            if skillConfig and canUnlock then
-                local skillType = E_SKILL_TYPE_PASSIVE
-                if skillConfig.Type == 1 then
-                    skillType = E_SKILL_TYPE_NORMAL
-                elseif skillConfig.Type == 2 then
-                    skillType = E_SKILL_TYPE_ACTIVE
-                elseif skillConfig.Type == 3 then
-                    skillType = E_SKILL_TYPE_ULTIMATE
+                -- Skill unlock now follows level only (ignore UnlockStar in 5e growth mode).
+                local canUnlock = true
+                if skillConfig and skillConfig.UnlockLevel then
+                    canUnlock = level >= (tonumber(skillConfig.UnlockLevel) or 1)
+                end
+                if forceUnlock[actualSkillId] then
+                    canUnlock = true
                 end
 
-                table.insert(skillsConfig, {
-                    skillId = actualSkillId,
-                    classId = classId,
-                    skillType = skillType,
-                    level = internalLevel,
-                    name = skillConfig.Name or ("Skill_" .. actualSkillId),
-                    skillCost = skillConfig.Cost or 0,
-                })
-            elseif canUnlock then
-                table.insert(skillsConfig, {
-                    skillId = actualSkillId,
-                    classId = classId,
-                    skillType = E_SKILL_TYPE_NORMAL,
-                    level = internalLevel,
-                    name = "Skill_" .. actualSkillId,
-                    skillCost = 0,
-                })
-            end
-        end
-    end
-
-    -- Ensure forced skills that belong to the hero's 4-slot list are present even if normally locked.
-    -- This keeps the skill list stable (no extra slots), but allows feats to unlock early.
-    for skillId in pairs(forceUnlock) do
-        if allowedSkillIds[skillId] then
-            local already = false
-            for _, entry in ipairs(skillsConfig) do
-                if entry.skillId == skillId then
-                    already = true
-                    break
+                local internalLevel = 1
+                if type(overrideLevels) == "table" and overrideLevels[actualSkillId] then
+                    internalLevel = math.max(1, tonumber(overrideLevels[actualSkillId]) or 1)
                 end
-            end
-            if not already then
-                local config = SkillConfig.GetSkillConfig(skillId)
-                if config then
+
+                if skillConfig and canUnlock then
                     local skillType = E_SKILL_TYPE_PASSIVE
-                    if config.Type == 1 then
+                    if skillConfig.Type == 1 then
                         skillType = E_SKILL_TYPE_NORMAL
-                    elseif config.Type == 2 then
+                    elseif skillConfig.Type == 2 then
                         skillType = E_SKILL_TYPE_ACTIVE
-                    elseif config.Type == 3 then
+                    elseif skillConfig.Type == 3 then
                         skillType = E_SKILL_TYPE_ULTIMATE
                     end
-                    local internalLevel = 1
-                    if type(overrideLevels) == "table" and overrideLevels[skillId] then
-                        internalLevel = math.max(1, tonumber(overrideLevels[skillId]) or 1)
-                    end
+
                     table.insert(skillsConfig, {
-                        skillId = skillId,
-                        classId = config.ClassID,
+                        skillId = actualSkillId,
+                        classId = classId,
                         skillType = skillType,
                         level = internalLevel,
-                        name = config.Name or ("Skill_" .. skillId),
-                        skillCost = config.Cost or 0,
+                        name = skillConfig.Name or ("Skill_" .. actualSkillId),
+                        skillCost = skillConfig.Cost or 0,
                     })
+                elseif canUnlock then
+                    table.insert(skillsConfig, {
+                        skillId = actualSkillId,
+                        classId = classId,
+                        skillType = E_SKILL_TYPE_NORMAL,
+                        level = internalLevel,
+                        name = "Skill_" .. actualSkillId,
+                        skillCost = 0,
+                    })
+                end
+            end
+        end
+
+        -- Ensure forced skills that belong to the hero's 4-slot list are present even if normally locked.
+        -- This keeps the skill list stable (no extra slots), but allows feats to unlock early.
+        for skillId in pairs(forceUnlock) do
+            if allowedSkillIds[skillId] then
+                local already = false
+                for _, entry in ipairs(skillsConfig) do
+                    if entry.skillId == skillId then
+                        already = true
+                        break
+                    end
+                end
+                if not already then
+                    local config = SkillConfig.GetSkillConfig(skillId)
+                    if config then
+                        local skillType = E_SKILL_TYPE_PASSIVE
+                        if config.Type == 1 then
+                            skillType = E_SKILL_TYPE_NORMAL
+                        elseif config.Type == 2 then
+                            skillType = E_SKILL_TYPE_ACTIVE
+                        elseif config.Type == 3 then
+                            skillType = E_SKILL_TYPE_ULTIMATE
+                        end
+                        local internalLevel = 1
+                        if type(overrideLevels) == "table" and overrideLevels[skillId] then
+                            internalLevel = math.max(1, tonumber(overrideLevels[skillId]) or 1)
+                        end
+                        table.insert(skillsConfig, {
+                            skillId = skillId,
+                            classId = config.ClassID,
+                            skillType = skillType,
+                            level = internalLevel,
+                            name = config.Name or ("Skill_" .. skillId),
+                            skillCost = config.Cost or 0,
+                        })
+                    end
                 end
             end
         end
@@ -816,6 +843,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         hitDie = attrs.hitDie,
         proficiencyBonus = attrs.proficiencyBonus,
         skillsConfig = skillsConfig,
+        buildState = buildState,
         config = hero,
     }
 end

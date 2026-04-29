@@ -126,8 +126,17 @@ local function ExecuteOp(ctx, frameCopy)
                         hitMetaByTarget[target.instanceId].damageRoll = damageRoll
                     end
                 else
+                    local guardTargetAC = nil
+                    local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+                    if ok and FighterBuildPassives and FighterBuildPassives.GetGuardStanceAcBonus then
+                        local guardAcBonus = tonumber(FighterBuildPassives.GetGuardStanceAcBonus(target, ctx.hero)) or 0
+                        if guardAcBonus > 0 then
+                            guardTargetAC = (tonumber(target and target.ac) or 0) + guardAcBonus
+                        end
+                    end
                     local hitResult = BattleFormula.RollHit(ctx.hero, target, {
                         mode = "normal",
+                        targetAC = guardTargetAC,
                         ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
                     })
                     hitMetaByTarget[target.instanceId] = { hit = hitResult }
@@ -170,6 +179,14 @@ local function ExecuteOp(ctx, frameCopy)
                     damage = dmg,
                 }
                 BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
+                local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+                if ok and FighterBuildPassives and FighterBuildPassives.ApplyGuardStanceProtection then
+                    FighterBuildPassives.ApplyGuardStanceProtection(target, {
+                        attacker = ctx.hero,
+                        damageContext = damageContext,
+                        skill = ctx.skill,
+                    })
+                end
                 dmg = math.max(0, math.floor(damageContext.damage or dmg))
 
                 if dmg > 0 then

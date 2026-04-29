@@ -107,6 +107,98 @@ local PassiveDefs = {
             },
         },
     },
+    [80002101] = {
+        triggers = {
+            {
+                luaFuncName = "OnDefAfterDmg",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterDmg,
+            },
+        },
+    },
+    [80002102] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002103] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002104] = {
+        triggers = {
+            {
+                luaFuncName = "OnDefBeforeDmg",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg,
+            },
+        },
+    },
+    [80002105] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+            {
+                luaFuncName = "OnSelfTurnBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
+            },
+        },
+    },
+    [80002106] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002107] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002108] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002109] = {
+        triggers = {
+            {
+                luaFuncName = "OnNormalAtkFinish",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish,
+            },
+        },
+    },
+    [80002110] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
+    [80002111] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+        },
+    },
 }
 
 return PassiveDefs

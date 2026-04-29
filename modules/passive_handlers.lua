@@ -4,6 +4,7 @@ local BattleEvent = require("core.battle_event")
 local BattleFormation = require("modules.battle_formation")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local Logger = require("utils.logger")
+local FighterBuildPassives = require("skills.fighter_build_passives")
 
 local PassiveHandlers = {}
 
@@ -361,6 +362,17 @@ PassiveHandlers.factories = {
     [80007002] = CreateFireAffinityPassive,
     [80008002] = CreateIceAffinityPassive,
     [80009002] = CreateThunderAffinityPassive,
+    [80002101] = FighterBuildPassives.CreateSecondWindPassive,
+    [80002102] = FighterBuildPassives.CreatePressureStylePassive,
+    [80002103] = FighterBuildPassives.CreateSecondWindFollowupPassive,
+    [80002104] = FighterBuildPassives.CreateCounterBasicPassive,
+    [80002105] = FighterBuildPassives.CreateGuardCounterPassive,
+    [80002106] = FighterBuildPassives.CreateWeaponMasteryPassive,
+    [80002107] = FighterBuildPassives.CreateSecondWindMasteryPassive,
+    [80002108] = FighterBuildPassives.CreateSignatureMasteryPassive,
+    [80002109] = FighterBuildPassives.CreateExtraAttackPassive,
+    [80002110] = FighterBuildPassives.CreateExtraAttackPressurePassive,
+    [80002111] = FighterBuildPassives.CreateExtraAttackGuardPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

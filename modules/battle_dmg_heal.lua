@@ -510,6 +510,12 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     if attacker and attacker.__scriptDamageAccumulator ~= nil then
         attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + damage
     end
+    if actualDamage > 0 and attacker then
+        local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+        if ok and FighterBuildPassives and FighterBuildPassives.RecordAttackVictim then
+            FighterBuildPassives.RecordAttackVictim(attacker, target, actualDamage)
+        end
+    end
     if attacker and attacker.__energyCastStats and actualDamage > 0 then
         attacker.__energyCastStats.successfulHits = (attacker.__energyCastStats.successfulHits or 0) + 1
         if params.isCrit then

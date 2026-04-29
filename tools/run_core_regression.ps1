@@ -16,6 +16,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
     $tests = @(
+        "bin/test_fighter_build_pipeline.lua",
+        "bin/test_fighter_build_runtime.lua",
         "bin/test_skill_targeting.lua",
         "bin/test_skill_tier_scaling.lua",
         "bin/test_timeline_passive.lua",

@@ -27,6 +27,7 @@ const TYPE_MAP: Record<string, string> = {
   Victory: "victory",
   Draw: "draw",
   Defeat: "defeat",
+  PassiveSkillTriggered: "passive_skill_triggered",
 };
 
 export function normalizeEvent(event: BattleEvent): BattleEvent {

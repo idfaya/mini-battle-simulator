@@ -4,6 +4,7 @@ local SkillConfig = require("config.skill_config")
 local BattleEnergy = require("modules.battle_energy")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
+local BattleEvent = require("core.battle_event")
 local ClassRoleConfig = require("config.class_role_config")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local RunRelicConfig = require("config.roguelike.run_relic_config")
@@ -142,14 +143,33 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     local heroData = HeroData.ConvertToHeroData(rosterHero.heroId, rosterHero.level, rosterHero.star, {
         ownedSkills = rosterHero.ownedSkills,
         skillLevels = rosterHero.skillLevels,
+        buildFeatIds = rosterHero.feats,
+        buildState = rosterHero.buildState,
     })
     if not heroData then
         return nil
     end
 
+    -- #region debug-point B:roguelike-build-battle-hero
+    if tonumber(rosterHero.classId) == 2 then
+        BattleEvent.Publish("DebugCounterTiming", {
+            stage = "roguelike_build_hero_for_battle",
+            source = "roguelike.roguelike_battle_bridge",
+            data = {
+                heroName = rosterHero.name,
+                heroId = rosterHero.heroId,
+                level = rosterHero.level,
+                feats = rosterHero.feats,
+                passiveSkills = rosterHero.buildState and rosterHero.buildState.passiveSkills or nil,
+                activeSkills = rosterHero.buildState and rosterHero.buildState.activeSkills or nil,
+            },
+        })
+    end
+    -- #endregion
+
     -- Apply roguelike feats / class-level grants to the battle hero, before relic/blessing scaling.
     -- ConvertToHeroData uses level only; without this step, feat stats would not affect combat.
-    if rosterHero.feats and #rosterHero.feats > 0 then
+    if tonumber(rosterHero.classId) ~= 2 and rosterHero.feats and #rosterHero.feats > 0 then
         local baseAttrs = HeroData.CalculateHeroAttributes(rosterHero.heroId, rosterHero.level, 1)
         if baseAttrs then
             local grantMods = (HeroData.CollectClassLevelGrants(rosterHero.classId, 0, rosterHero.level))

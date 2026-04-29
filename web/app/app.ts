@@ -64,9 +64,23 @@ async function bootstrapStandaloneBattle(
       .map((part) => Number(part.trim()))
       .filter((value) => Number.isFinite(value) && value > 0)
       .slice(0, 6);
+  const readNestedIdList = (value: string | null): number[][] =>
+    (value ?? "")
+      .split("|")
+      .map((group) =>
+        group
+          .split(/[,\s]+/)
+          .map((part) => Number(part.trim()))
+          .filter((entry) => Number.isFinite(entry) && entry > 0)
+          .slice(0, 12),
+      )
+      .filter((group) => group.length > 0)
+      .slice(0, 6);
 
   const queryHeroIds = readIdList(options?.params?.get("heroes") ?? null);
   const queryEnemyIds = readIdList(options?.params?.get("enemies") ?? null);
+  const fighterBuildFeatIds = readIdList(options?.params?.get("fighterFeats") ?? null);
+  const fighterBuildFeatIdsByHero = readNestedIdList(options?.params?.get("fighterFeatsByHero") ?? null);
   const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900007, 900002];
   const singleEnemyIds = queryEnemyIds.length > 0 ? queryEnemyIds : [910004, 910002, 910003];
   const setup: BattleSetup = {
@@ -77,6 +91,9 @@ async function bootstrapStandaloneBattle(
     speed: 1,
     heroIds: options?.singleBattleMode ? singleHeroIds : undefined,
     enemyIds: options?.singleBattleMode ? singleEnemyIds : undefined,
+    fighterBuildFeatIds: options?.singleBattleMode && fighterBuildFeatIds.length > 0 ? fighterBuildFeatIds : undefined,
+    fighterBuildFeatIdsByHero:
+      options?.singleBattleMode && fighterBuildFeatIdsByHero.length > 0 ? fighterBuildFeatIdsByHero : undefined,
     seed: options?.singleBattleMode ? Number(options?.params?.get("seed")) || 101001 : undefined,
   };
   let speed = setup.speed;
@@ -89,6 +106,8 @@ async function bootstrapStandaloneBattle(
     initialEnergy: nextSetup.initialEnergy,
     heroIds: nextSetup.heroIds,
     enemyIds: nextSetup.enemyIds,
+    fighterBuildFeatIds: nextSetup.fighterBuildFeatIds,
+    fighterBuildFeatIdsByHero: nextSetup.fighterBuildFeatIdsByHero,
     seed: nextSetup.seed,
     seedArray: nextSetup.seedArray,
   });

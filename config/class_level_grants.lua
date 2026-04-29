@@ -21,7 +21,6 @@ local GRANTS = {
     },
     [2] = {
         [5] = {
-            unlockSkills = { 80002003 },
             statBonus = { hit = 1 },
         },
         [10] = {

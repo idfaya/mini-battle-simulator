@@ -3,6 +3,10 @@ local RunRelicConfig = require("config.roguelike.run_relic_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local HeroData = require("config.hero_data")
 local FeatConfig = require("config.feat_config")
+local FeatBuildConfig = require("config.feat_build_config")
+local ClassBuildProgression = require("config.class_build_progression")
+local HeroBuild = require("modules.hero_build")
+local BattleEvent = require("core.battle_event")
 
 local RoguelikeReward = {}
 local RECRUIT_LEVEL = 1
@@ -109,6 +113,33 @@ local function addUnique(list, value)
     end
 end
 
+local function isFighterBuildHero(hero)
+    return tonumber(hero and hero.classId) == 2
+end
+
+local function getEligibleFeatPool(hero)
+    if not isFighterBuildHero(hero) then
+        return FeatConfig.GetEligibleFeats(hero.classId, (hero.level or 1) + 1, hero.feats)
+    end
+    local nextLevel = (hero.level or 1) + 1
+    local entry = ClassBuildProgression.GetLevelEntry(hero.classId, nextLevel)
+    if not entry or not entry.choiceGroup then
+        return {}
+    end
+    local featPool = FeatBuildConfig.GetFeatsByLevel(hero.classId, nextLevel, entry.choiceGroup)
+    local used = {}
+    for _, featId in ipairs(hero.feats or {}) do
+        used[tonumber(featId) or 0] = true
+    end
+    local result = {}
+    for _, def in ipairs(featPool) do
+        if not used[tonumber(def.id) or 0] then
+            result[#result + 1] = def
+        end
+    end
+    return result
+end
+
 local function createHeroRecord(runState, heroId)
     local recruitLevel = math.max(RECRUIT_LEVEL, tonumber(runState and runState.partyLevel) or RECRUIT_LEVEL)
     local attrs = HeroData.CalculateHeroAttributes(heroId, recruitLevel, RECRUIT_STAR)
@@ -127,6 +158,9 @@ local function createHeroRecord(runState, heroId)
         maxHp = attrs.maxHp,
         currentHp = attrs.maxHp,
         isDead = false,
+        feats = {},
+        ownedSkills = {},
+        skillLevels = {},
         source = "reward",
     }
 end
@@ -254,7 +288,7 @@ local function pickHeroWithWeight(eligible)
 end
 
 local function pickFeatForHero(hero, usedFeatIds, preferRisk, avoidTags)
-    local featPool = FeatConfig.GetEligibleFeats(hero.classId, (hero.level or 1) + 1, hero.feats)
+    local featPool = getEligibleFeatPool(hero)
     if #featPool == 0 then
         return nil
     end
@@ -321,9 +355,9 @@ local function buildLevelUpOption(hero, featDef)
         featId = featDef.id,
         label = string.format("%s Lv.%d → Lv.%d：%s",
             hero.name or "?", hero.level or 1, (hero.level or 1) + 1, featDef.name or "?"),
-        description = featDef.code or "",
+        description = featDef.code or featDef.description or "",
         featName = featDef.name,
-        featCode = featDef.code,
+        featCode = featDef.code or featDef.description or "",
         featTags = featDef.tags or {},
     }
 end
@@ -395,7 +429,7 @@ function RoguelikeReward.ApplyLevelUpReward(runState, option)
         return false, "hero_dead"
     end
 
-    local featDef = FeatConfig.GetFeat(option.featId)
+    local featDef = isFighterBuildHero(targetHero) and FeatBuildConfig.GetFeat(option.featId) or FeatConfig.GetFeat(option.featId)
     if not featDef then
         return false, "feat_not_found"
     end
@@ -406,6 +440,61 @@ function RoguelikeReward.ApplyLevelUpReward(runState, option)
     targetHero.feats = targetHero.feats or {}
     targetHero.feats[#targetHero.feats + 1] = featDef.id
     targetHero.level = newLevel
+
+    if isFighterBuildHero(targetHero) then
+        local buildState = HeroBuild.CompileBuild(targetHero.classId, newLevel, targetHero.feats)
+        local builtHero = HeroData.ConvertToHeroData(targetHero.heroId, newLevel, 1, {
+            buildState = buildState,
+            buildFeatIds = targetHero.feats,
+        })
+        if builtHero then
+            local oldMaxHp = tonumber(targetHero.maxHp) or 1
+            local oldCurrentHp = tonumber(targetHero.currentHp) or 0
+            targetHero.maxHp = builtHero.maxHp or oldMaxHp
+            local deltaHp = targetHero.maxHp - oldMaxHp
+            targetHero.currentHp = math.max(1, math.min(targetHero.maxHp, oldCurrentHp + deltaHp))
+            targetHero.atk = builtHero.atk
+            targetHero.def = builtHero.def
+            targetHero.ac = builtHero.ac
+            targetHero.hit = builtHero.hit
+            targetHero.spellDC = builtHero.spellDC
+            targetHero.saveFort = builtHero.saveFort
+            targetHero.saveRef = builtHero.saveRef
+            targetHero.saveWill = builtHero.saveWill
+            targetHero.speed = builtHero.speed
+            targetHero.critRate = builtHero.critRate
+            targetHero.blockRate = builtHero.blockRate
+            targetHero.healBonus = builtHero.healBonus
+            targetHero.featMods = buildState.statMods or {}
+            targetHero.buildState = buildState
+            targetHero.ownedSkills = {}
+            targetHero.skillLevels = {}
+            for _, skillCfg in ipairs(builtHero.skillsConfig or {}) do
+                targetHero.ownedSkills[#targetHero.ownedSkills + 1] = skillCfg.skillId
+                targetHero.skillLevels[skillCfg.skillId] = tonumber(skillCfg.level) or 1
+            end
+            -- #region debug-point A:roguelike-reward-fighter-build
+            BattleEvent.Publish("DebugCounterTiming", {
+                stage = "roguelike_reward_fighter_build",
+                source = "roguelike.roguelike_reward",
+                data = {
+                    heroName = targetHero.name,
+                    heroId = targetHero.heroId,
+                    level = targetHero.level,
+                    featId = featDef.id,
+                    featName = featDef.name,
+                    feats = targetHero.feats,
+                    passiveSkills = buildState.passiveSkills,
+                    activeSkills = buildState.activeSkills,
+                },
+            })
+            -- #endregion
+        end
+
+        runState.lastActionMessage = string.format("%s 升至 Lv.%d，获得「%s」",
+            targetHero.name or "?", targetHero.level or oldLevel, featDef.name or "?")
+        return true
+    end
 
     -- 重建属性：基底 + class grant(仅本次升级新增的等级段) + 全部 feats。
     local baseAttrs = HeroData.CalculateHeroAttributes(targetHero.heroId, newLevel, 1)

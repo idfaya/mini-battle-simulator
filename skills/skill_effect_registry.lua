@@ -644,6 +644,42 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
         return nil
     end)
+
+    SkillEffectRegistry.Register("repeat_basic_attack", function(ctx, frameCopy, _, spec)
+        local FighterBuildPassives = require("skills.fighter_build_passives")
+        local p = type(spec) == "table" and spec.param or {}
+        local count = tonumber(p and p.count) or 1
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = FighterBuildPassives.CastBasicAttackRepeated(ctx.hero, target, count)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("fighter_pressure_strike", function(ctx, frameCopy)
+        local FighterBuildPassives = require("skills.fighter_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = FighterBuildPassives.PerformPressureStrike(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("activate_guard_stance", function(ctx, frameCopy)
+        local FighterBuildPassives = require("skills.fighter_build_passives")
+        FighterBuildPassives.ActivateGuardStance(ctx.hero)
+        return {
+            targets = { ctx.hero },
+        }
+    end)
 end
 
 return SkillEffectRegistry

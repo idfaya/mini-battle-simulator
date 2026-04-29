@@ -399,7 +399,7 @@ do
     assert_true(nextTarget.hp < nextTarget.maxHp, "Pursuit triggers follow-up attack")
 end
 
--- Test 10: Taunt forces target selection and Fighter L4 cleaves multiple enemies (80002001/80002004)
+-- Test 10: Fighter rebuilt skills keep single-target semantics (80002001/80002004)
 do
     local tank = new_unit(1801, "Tester_Tankwall", 12000, 200, 50)
     local attacker = new_unit(2801, "Taunted_Enemy", 12000, 200, 0)
@@ -424,21 +424,22 @@ do
     end
     local tauntSkill = require("config.skill.skill_80002001")
     local SkillTimeline = require("core.skill_timeline")
-    local okTaunt, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002001, name = "盾击" }, tauntSkill.BuildTimeline(tank, { attacker }, { skillId = 80002001, name = "盾击" }))
-    assert_true(okTaunt, "Taunt timeline execute ok")
-    assert_true(BattleFormation.GetRandomEnemyInstanceId(attacker) == tank.instanceId, "Taunted enemy targets tank")
+    local okTaunt, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002001, name = "基础武器攻击" }, tauntSkill.BuildTimeline(tank, { attacker }, { skillId = 80002001, name = "基础武器攻击" }))
+    assert_true(okTaunt, "Basic attack timeline execute ok")
+    assert_true(attacker.hp < attacker.maxHp, "Basic attack damages selected enemy")
 
     local wallSkill = require("config.skill.skill_80002004")
     BattleSkill.SelectRandomAliveEnemies = function(src, count)
         return { attacker, extraEnemy1, extraEnemy2 }
     end
-    local okWall, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002004, name = "盾墙" }, wallSkill.BuildTimeline(tank, { attacker }, { skillId = 80002004, name = "盾墙" }))
+    local beforePrimary = attacker.hp
+    local okWall, _ = SkillTimeline.Execute(tank, { attacker }, { skillId = 80002004, name = "压制打击" }, wallSkill.BuildTimeline(tank, { attacker }, { skillId = 80002004, name = "压制打击" }))
     BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
-    assert_true(okWall, "Whirlwind timeline execute ok")
-    assert_true(attacker.hp < attacker.maxHp, "Whirlwind damages primary enemy")
-    assert_true(extraEnemy1.hp < extraEnemy1.maxHp, "Whirlwind damages extra enemy 1")
-    assert_true(extraEnemy2.hp < extraEnemy2.maxHp, "Whirlwind damages extra enemy 2")
+    assert_true(okWall, "Pressure strike timeline execute ok")
+    assert_true(attacker.hp < beforePrimary, "Pressure strike damages primary enemy")
+    assert_true(extraEnemy1.hp == extraEnemy1.maxHp, "Pressure strike does not splash extra enemy 1")
+    assert_true(extraEnemy2.hp == extraEnemy2.maxHp, "Pressure strike does not splash extra enemy 2")
 end
 
 -- Test 11: War Spirit stacks and Aura increases damage/heal (80004003/80004004)

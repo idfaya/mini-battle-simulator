@@ -74,6 +74,8 @@ local visualEvents = {
     BattleVisualEvents.MISS,
     BattleVisualEvents.BLOCK,
     BattleVisualEvents.CRIT,
+    "PassiveSkillTriggered",
+    "DebugCounterTiming",
 }
 
 local visualHandlers = {}
@@ -460,6 +462,23 @@ local function normalizeIdList(input, maxCount)
     return result
 end
 
+local function normalizeIdMatrix(input, maxGroups, maxPerGroup)
+    local result = {}
+    if type(input) ~= "table" then
+        return result
+    end
+    for i = 1, #input do
+        if maxGroups and #result >= maxGroups then
+            break
+        end
+        local ids = normalizeIdList(input[i], maxPerGroup)
+        if #ids > 0 then
+            result[#result + 1] = ids
+        end
+    end
+    return result
+end
+
 local function normalizeSeedArray(options)
     local provided = options and options.seedArray
     if type(provided) == "table" and #provided > 0 then
@@ -495,6 +514,8 @@ local function buildRuntimeTeamConfig(options)
     local seedArray = normalizeSeedArray(options)
     local fixedHeroIds = normalizeIdList(options and options.heroIds, 6)
     local fixedEnemyIds = normalizeIdList(options and options.enemyIds, 6)
+    local fighterBuildFeatIds = normalizeIdList(options and options.fighterBuildFeatIds, 12)
+    local fighterBuildFeatIdsByHero = normalizeIdMatrix(options and options.fighterBuildFeatIdsByHero, 6, 12)
     if #fixedHeroIds > 0 then
         heroCount = clamp(#fixedHeroIds, 1, 6)
     end
@@ -645,7 +666,15 @@ local function buildRuntimeTeamConfig(options)
 
     local leftTeam = {}
     for index, heroId in ipairs(selectedHeroIds) do
-        local heroData = HeroData.ConvertToHeroData(heroId, level, 5)
+        local heroInfo = HeroData.GetHeroInfo and HeroData.GetHeroInfo(heroId) or nil
+        local heroOverride = nil
+        local slotBuildFeatIds = fighterBuildFeatIdsByHero[index]
+        if heroInfo and tonumber(heroInfo.Class) == 2 and ((slotBuildFeatIds and #slotBuildFeatIds > 0) or #fighterBuildFeatIds > 0) then
+            heroOverride = {
+                buildFeatIds = (slotBuildFeatIds and #slotBuildFeatIds > 0) and slotBuildFeatIds or fighterBuildFeatIds,
+            }
+        end
+        local heroData = HeroData.ConvertToHeroData(heroId, level, 5, heroOverride)
         if heroData then
             assignDefaultWpType(heroData, index)
             table.insert(leftTeam, heroData)
@@ -836,6 +865,27 @@ function Runtime.init(config)
             teamLeft = state.currentConfig.teamLeft,
             teamRight = state.currentConfig.teamRight,
         })
+        -- #region debug-point D:battle-team-skills
+        local teamDebug = {}
+        for _, hero in ipairs(state.currentConfig.teamLeft or {}) do
+            local skillIds = {}
+            for _, skillCfg in ipairs(hero.skillsConfig or {}) do
+                skillIds[#skillIds + 1] = skillCfg.skillId
+            end
+            teamDebug[#teamDebug + 1] = {
+                heroId = hero.id,
+                heroName = hero.name,
+                skillIds = skillIds,
+            }
+        end
+        emitEvent("DebugCounterTiming", {
+            stage = "battle_started_team_skills",
+            source = "runtime.browser_battle_runtime",
+            data = {
+                teamLeft = teamDebug,
+            },
+        })
+        -- #endregion
     end)
     runStage("refresh_ultimate_readiness", function()
         refreshUltimateReadiness()

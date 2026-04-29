@@ -132,6 +132,26 @@ function makeButton(label: string, disabled: boolean, onClick: () => void | Prom
   return button;
 }
 
+function createRosterInfo(member: RunSnapshot["team"][number]) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "run-roster-info";
+
+  const primary = document.createElement("div");
+  primary.className = "run-roster-meta";
+  primary.textContent = `${member.name}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+  wrapper.append(primary);
+
+  const summary = member.buildSummary ?? [];
+  if (summary.length > 0) {
+    const summaryHost = document.createElement("div");
+    summaryHost.className = "run-build-summary";
+    summaryHost.textContent = `构筑: ${summary.join(" / ")}`;
+    wrapper.append(summaryHost);
+  }
+
+  return wrapper;
+}
+
 function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
@@ -146,7 +166,7 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     ...snapshot.team.map((member) => {
       const item = document.createElement("div");
       item.className = "run-team-card";
-      item.textContent = `${member.name} ${member.isDead ? "· 阵亡" : `· HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+      item.append(createRosterInfo(member));
       return item;
     }),
   );
@@ -185,10 +205,6 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     const wrapper = document.createElement("div");
     wrapper.className = `run-roster-card${selectedBench?.rosterId === member.rosterId ? " active" : ""}`;
 
-    const info = document.createElement("div");
-    info.className = "run-roster-meta";
-    info.textContent = `${member.name} · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`;
-
     const action = makeButton(
       selectedBench?.rosterId === member.rosterId ? "取消选择" : "选择候补",
       false,
@@ -199,7 +215,7 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       },
     );
 
-    wrapper.append(info, action);
+    wrapper.append(createRosterInfo(member), action);
     benchHost.append(wrapper);
   }
   section.append(benchHost);
@@ -224,15 +240,11 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       const wrapper = document.createElement("div");
       wrapper.className = "run-roster-card";
 
-      const info = document.createElement("div");
-      info.className = "run-roster-meta";
-      info.textContent = `${member.name}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
-
       const action = makeButton("替换上阵", false, () => {
         controls.handlers.onSwapBenchWithTeam(selectedBench.rosterId!, member.rosterId!);
       });
 
-      wrapper.append(info, action);
+      wrapper.append(createRosterInfo(member), action);
       teamHost.append(wrapper);
     }
     section.append(teamHost);

@@ -41,6 +41,7 @@ export type RunTeamMember = {
   hp: number;
   maxHp: number;
   isDead: boolean;
+  buildSummary?: string[];
 };
 
 export type RelicState = {

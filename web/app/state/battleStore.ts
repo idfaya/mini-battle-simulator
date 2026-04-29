@@ -80,6 +80,26 @@ function formatRollSuffix(payload: Record<string, unknown>, includeDamage: boole
   return parts.length > 0 ? `（${parts.join("；")}）` : "";
 }
 
+// #region debug-point E:report-runtime
+const DEBUG_COUNTER_URL = "http://127.0.0.1:7777/event";
+const DEBUG_COUNTER_SESSION = "fighter-counter-timing";
+function reportCounterDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
+  fetch(DEBUG_COUNTER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: DEBUG_COUNTER_SESSION,
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      msg,
+      data,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
 export class BattleStore {
   private state: BattleStoreState = {
     snapshot: null,
@@ -127,7 +147,26 @@ export class BattleStore {
     let banner = this.state.banner;
 
     for (const event of events) {
+      // #region debug-point E:bridge-events
+      if (event.type === "skill_cast_started") {
+        reportCounterDebug("E", "web/app/state/battleStore.ts:skill_cast_started", "[DEBUG] skill cast started", {
+          heroId: event.payload.heroId,
+          heroName: event.payload.heroName,
+          skillId: event.payload.skillId,
+          skillName: event.payload.skillName,
+        });
+      } else if (event.type === "DebugCounterTiming") {
+        reportCounterDebug("E", "web/app/state/battleStore.ts:DebugCounterTiming", "[DEBUG] debug counter timing", {
+          stage: event.payload.stage,
+          source: event.payload.source,
+          data: event.payload.data,
+        });
+      }
+      // #endregion
       switch (event.type) {
+        case "battle_started":
+          appendLog("战斗开始");
+          break;
         case "turn_started":
           appendLog(
             `回合 ${String(event.payload.round ?? "")} - ${String(event.payload.heroName ?? "")} 行动（先攻骰 d20 ${readNumber(event.payload.initiativeRoll)}${formatSigned(readNumber(event.payload.initiativeMod))}=${readNumber(event.payload.initiativeTotal)}）`,
@@ -233,6 +272,17 @@ export class BattleStore {
         case "ultimate_cast_queued":
           appendLog(`已下达大招指令: ${String(event.payload.heroId ?? "")}`);
           break;
+        case "passive_skill_triggered": {
+          const heroName = String(event.payload.heroName ?? "");
+          const skillName = String(event.payload.skillName ?? "");
+          const triggerType = String(event.payload.triggerType ?? "");
+          const extraInfo = String(event.payload.extraInfo ?? "");
+          const detail = [triggerType, extraInfo].filter((item) => item !== "").join(" ");
+          appendLog(`${heroName} 触发被动 ${skillName}${detail ? `：${detail}` : ""}`);
+          banner = `${heroName} · ${skillName}触发`;
+          flashUntil = performance.now() + 900;
+          break;
+        }
         case "command_rejected":
           appendLog(`指令失效: ${String(event.payload.reason ?? "unknown")}`);
           break;

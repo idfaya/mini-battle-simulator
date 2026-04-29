@@ -361,6 +361,11 @@ body {
   font-size: 13px;
 }
 
+.run-roster-info {
+  display: grid;
+  gap: 4px;
+}
+
 .run-roster-panel {
   display: grid;
   gap: 10px;
@@ -391,6 +396,12 @@ body {
 .run-roster-meta {
   color: #f8f9fa;
   font-size: 12px;
+}
+
+.run-build-summary {
+  color: #c7d7ea;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 /* Roguelike reward cards (battle_levelup) */

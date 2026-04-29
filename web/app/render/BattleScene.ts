@@ -904,10 +904,6 @@ export class BattleScene {
       .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
       .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team !== attacker.unit.team));
 
-    if (hostileTargets.length === 0) {
-      return;
-    }
-
     const isMelee = this.isMeleeUnit(attacker.unit);
     const isProjectileFrame = event.op === "projectile" || this.looksLikeProjectileEffect(event.effect);
     const isDamageFrame = this.isDamageLikeOp(event.op);
@@ -949,6 +945,10 @@ export class BattleScene {
         }
         this.lastProjectileAtByCaster.set(attacker.unit.id, now);
       }
+      return;
+    }
+
+    if (hostileTargets.length === 0) {
       return;
     }
 
@@ -995,7 +995,9 @@ export class BattleScene {
   }
 
   private isDamageLikeOp(op: string) {
-    return op === "damage" || op === "chain_damage";
+    // Some Lua skills emit an explicit "attack" timeline op before damage is resolved.
+    // Treat it as an attack frame so basics / counters / extra attacks also get motion.
+    return op === "damage" || op === "chain_damage" || op === "attack";
   }
 
   private looksLikeProjectileEffect(effect: string) {

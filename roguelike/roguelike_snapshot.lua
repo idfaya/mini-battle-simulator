@@ -1,6 +1,9 @@
 local RoguelikeMap = require("roguelike.roguelike_map")
 local RunRelicConfig = require("config.roguelike.run_relic_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
+local FeatConfig = require("config.feat_config")
+local FeatBuildConfig = require("config.feat_build_config")
+local ClassBuildProgression = require("config.class_build_progression")
 
 local RoguelikeSnapshot = {}
 
@@ -8,6 +11,41 @@ local function shallowCopyArray(input)
     local result = {}
     for i, v in ipairs(input or {}) do
         result[i] = v
+    end
+    return result
+end
+
+local function addUnique(list, value)
+    if not value or value == "" then
+        return
+    end
+    for _, existing in ipairs(list) do
+        if existing == value then
+            return
+        end
+    end
+    list[#list + 1] = value
+end
+
+local function buildFeatSummary(hero)
+    local result = {}
+    local classId = tonumber(hero and hero.classId) or 0
+    local level = tonumber(hero and hero.level) or 1
+    if classId == 2 then
+        for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
+            local feat = FeatBuildConfig.GetFeat(featId)
+            addUnique(result, feat and feat.name or nil)
+        end
+        for _, featId in ipairs(hero and hero.feats or {}) do
+            local feat = FeatBuildConfig.GetFeat(featId)
+            addUnique(result, feat and feat.name or nil)
+        end
+        return result
+    end
+
+    for _, featId in ipairs(hero and hero.feats or {}) do
+        local feat = FeatConfig.GetFeat(featId)
+        addUnique(result, feat and feat.name or nil)
     end
     return result
 end
@@ -27,6 +65,7 @@ local function serializeTeam(roster)
             isDead = hero.isDead == true,
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
+            buildSummary = buildFeatSummary(hero),
         }
     end
     return result
