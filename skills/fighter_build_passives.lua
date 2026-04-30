@@ -104,6 +104,21 @@ local function publishPassiveTriggered(hero, skillName, triggerType, extraInfo)
     })
 end
 
+local function publishCombatLog(message, extraPayload)
+    if type(message) ~= "string" or message == "" then
+        return
+    end
+    local payload = {
+        message = message,
+    }
+    if type(extraPayload) == "table" then
+        for key, value in pairs(extraPayload) do
+            payload[key] = value
+        end
+    end
+    BattleEvent.Publish("CombatLog", payload)
+end
+
 function FighterBuildPassives.HasSignatureMastery(hero)
     return ensureRuntime(hero).fighterSignatureMastery == true
 end
@@ -255,7 +270,16 @@ function FighterBuildPassives.BuildBasicAttackResolveOpts(hero, target, skill)
         damageKind = "direct",
     }
     if ignoreAc > 0 then
-        opts.targetAC = math.max(0, (tonumber(target and target.ac) or 0) - ignoreAc)
+        local originalAc = tonumber(target and target.ac) or 0
+        opts.targetAC = math.max(0, originalAc - ignoreAc)
+        publishCombatLog(string.format("%s 触发精准攻击：%s AC %d -> %d",
+            hero and hero.name or "Unknown",
+            target and target.name or "目标",
+            originalAc,
+            opts.targetAC), {
+            heroId = hero and (hero.instanceId or hero.id) or nil,
+            targetId = target and (target.instanceId or target.id) or nil,
+        })
     end
     return opts
 end
@@ -309,6 +333,10 @@ function FighterBuildPassives.CastBasicAttackRepeated(hero, target, count)
         end
     end
     return total
+end
+
+function FighterBuildPassives.PublishCombatLog(message)
+    publishCombatLog(message)
 end
 
 function FighterBuildPassives.ApplyDirectBonusDamage(hero, target, diceExpr)
@@ -594,19 +622,28 @@ function FighterBuildPassives.CreateExtraAttackPassive(context)
         if tonumber(extraParam.skillId) ~= IDS.fighter_basic_attack then
             return
         end
+        if extraParam.basicAttackIsFollowUp == true then
+            return
+        end
         local runtime = ensureRuntime(hero)
-        local round = getRound()
-        if runtime.extraAttackRound == round or runtime.__inExtraAttack then
+        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
+        if actionToken <= 0 or runtime.extraAttackActionToken == actionToken or runtime.__inExtraAttack then
             return
         end
-        runtime.extraAttackRound = round
-        local nextTarget = pickBasicAttackTarget(hero, target)
-        if not isAlive(nextTarget) then
+        runtime.extraAttackActionToken = actionToken
+        if not isAlive(target) then
             return
         end
+        publishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
+            hero.name or "Unknown",
+            target.name or "目标"))
         runtime.__inExtraAttack = true
         local BattleSkill = require("modules.battle_skill")
-        BattleSkill.CastSmallSkill(hero, nextTarget)
+        BattleSkill.CastSmallSkill(hero, target, {
+            basicAttackActionToken = actionToken,
+            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
+            basicAttackIsFollowUp = true,
+        })
         runtime.__inExtraAttack = false
     end
 

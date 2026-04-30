@@ -17,12 +17,26 @@ end
 local FeatBuildConfig = require("config.feat_build_config")
 local ClassBuildProgression = require("config.class_build_progression")
 local HeroBuild = require("modules.hero_build")
+local RoguelikeReward = require("roguelike.roguelike_reward")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
         if tonumber(entry.id or entry.skillId) == tonumber(skillId) then
+            return true
+        end
+    end
+    return false
+end
+
+local function hasRewardFeat(options, featIds)
+    local expected = {}
+    for _, featId in ipairs(featIds or {}) do
+        expected[tonumber(featId) or 0] = true
+    end
+    for _, option in ipairs(options or {}) do
+        if expected[tonumber(option.featId) or 0] then
             return true
         end
     end
@@ -84,6 +98,55 @@ do
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 defensive route keeps guard stance active")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv5 defensive route keeps counter basic passive")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind_mastery), "Fighter Lv5 defensive route grants second wind mastery")
+end
+
+do
+    local level2Entry = ClassBuildProgression.GetLevelEntry(2, 2)
+    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
+        levelCap = 20,
+        teamRoster = {
+            {
+                rosterId = 1,
+                heroId = 900005,
+                classId = 2,
+                name = "Tank",
+                level = 1,
+                currentHp = 100,
+                isDead = false,
+                feats = {},
+            },
+        },
+    })
+    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter fixed node")
+    assert_true(hasRewardFeat(rewardState.options, level2Entry and level2Entry.fixed or {}),
+        "Roguelike level-up includes fighter fixed feat cards")
+end
+
+do
+    local level3Entry = ClassBuildProgression.GetLevelEntry(2, 3)
+    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
+        levelCap = 20,
+        teamRoster = {
+            {
+                rosterId = 1,
+                heroId = 900005,
+                classId = 2,
+                name = "Tank",
+                level = 2,
+                currentHp = 100,
+                isDead = false,
+                feats = ClassBuildProgression.CollectFixedFeatIds(2, 2),
+            },
+        },
+    })
+    local expectedChoices = FeatBuildConfig.GetFeatsByLevel(2, 3, level3Entry and level3Entry.choiceGroup or nil)
+    local expectedChoiceIds = {}
+    for _, def in ipairs(expectedChoices) do
+        expectedChoiceIds[#expectedChoiceIds + 1] = def.id
+    end
+    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter choice node")
+    assert_true(hasRewardFeat(rewardState.options, expectedChoiceIds),
+        "Roguelike level-up includes fighter choice-group feat cards")
 end
 
 do

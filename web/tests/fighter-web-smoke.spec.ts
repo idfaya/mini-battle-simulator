@@ -29,10 +29,10 @@ function findLineIndex(logs: string[], matcher: (line: string) => boolean, start
   return -1;
 }
 
-test("fighter web flow shows rebuilt names and can cast action surge", async ({ page }) => {
+test("fighter web flow shows rebuilt names and action surge opens a fresh attack action", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=3&fighterFeats=2100301&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910006&level=3&fighterFeats=2100301&seed=101001");
   await page.waitForTimeout(2500);
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
@@ -44,12 +44,30 @@ test("fighter web flow shows rebuilt names and can cast action surge", async ({ 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
     .toContain("Tank 使用 动作激增");
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 8000 })
+    .toContain("Tank 发动动作激增：获得额外攻击行动");
 
-  const level3Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
+  const level3LogLines = await page.locator(".battle-log li").allTextContents();
+  const level3Logs = level3LogLines.join("\n");
   expect(level3Logs).toContain("动作激增");
   expect(level3Logs).not.toContain("盾击");
   expect(level3Logs).not.toContain("顺劈");
   expect(level3Logs).not.toContain("旋风");
+  const actionSurgeCastIndex = findLineIndex(level3LogLines, (line) => line.includes("Tank 使用 动作激增"));
+  const actionSurgeActionIndex = findLineIndex(
+    level3LogLines,
+    (line) => line.includes("Tank 发动动作激增：获得额外攻击行动"),
+    actionSurgeCastIndex + 1,
+  );
+  const actionSurgeExtraAttackIndex = findLineIndex(
+    level3LogLines,
+    (line) => line.includes("Tank 触发额外攻击：对同一目标"),
+    actionSurgeActionIndex + 1,
+  );
+  expect(actionSurgeCastIndex).toBeGreaterThanOrEqual(0);
+  expect(actionSurgeActionIndex).toBeGreaterThan(actionSurgeCastIndex);
+  expect(actionSurgeExtraAttackIndex).toBeGreaterThan(actionSurgeActionIndex);
 
   await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=1&seed=101001");
   await page.waitForTimeout(2500);
@@ -68,6 +86,68 @@ test("fighter web flow shows rebuilt names and can cast action surge", async ({ 
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
   await page.screenshot({ path: "test-results/fighter-web-smoke.png", fullPage: true });
+});
+
+test("fighter extra attack logs a same-target second hit at lv2", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=2&seed=101001");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
+    .toContain("Tank 触发额外攻击：对同一目标");
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const extraAttackIndex = findLineIndex(logs, (line) => line.includes("Tank 触发额外攻击：对同一目标"));
+  const extraAttackLine = extraAttackIndex >= 0 ? logs[extraAttackIndex] : "";
+  const targetMatch = extraAttackLine.match(/对同一目标 (.+) 追加第二击/);
+  const targetName = targetMatch?.[1] ?? "";
+  const nextDamageIndex = findLineIndex(
+    logs,
+    (line) => targetName !== "" && line.includes(`Tank 的 基础武器攻击 对 ${targetName} 造成`),
+    extraAttackIndex + 1,
+  );
+
+  expect(extraAttackIndex).toBeGreaterThanOrEqual(0);
+  expect(targetName).not.toBe("");
+  expect(nextDamageIndex).toBeGreaterThan(extraAttackIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("fighter precise attack logs AC-2 and the attack roll uses adjusted AC", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910006&level=4&fighterFeats=2100301,2100401&seed=101001");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("Tank 触发精准攻击：");
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const preciseIndex = findLineIndex(logs, (line) => line.includes("Tank 触发精准攻击："));
+  const preciseLine = preciseIndex >= 0 ? logs[preciseIndex] : "";
+  const preciseMatch = preciseLine.match(/AC (\d+) -> (\d+)/);
+  const adjustedAc = preciseMatch?.[2] ?? "";
+  const attackIndex = findLineIndex(
+    logs,
+    (line) =>
+      adjustedAc !== "" &&
+      line.includes("Tank 的 基础武器攻击 对") &&
+      line.includes(`vs AC ${adjustedAc}`),
+    preciseIndex + 1,
+  );
+
+  expect(preciseIndex).toBeGreaterThanOrEqual(0);
+  expect(preciseMatch).not.toBeNull();
+  expect(Number(preciseMatch?.[1] ?? 0) - Number(preciseMatch?.[2] ?? 0)).toBe(2);
+  expect(attackIndex).toBeGreaterThan(preciseIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
 
 test("fighter counter reaction logs when reaction is queued", async ({ page }) => {

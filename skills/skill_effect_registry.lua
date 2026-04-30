@@ -660,6 +660,28 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
+    SkillEffectRegistry.Register("basic_attack_action", function(ctx, frameCopy, _, spec)
+        local BattleSkill = require("modules.battle_skill")
+        local FighterBuildPassives = require("skills.fighter_build_passives")
+        local p = type(spec) == "table" and spec.param or {}
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        if p.actionSource == "action_surge" then
+            FighterBuildPassives.PublishCombatLog(string.format("%s 发动动作激增：获得额外攻击行动，重新锁定 %s",
+                ctx.hero and ctx.hero.name or "Unknown",
+                target.name or "目标"))
+        end
+        local ok, result = BattleSkill.CastBasicAttackAction(ctx.hero, target, {
+            basicAttackActionSource = p.actionSource or "extra_action",
+        })
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + (ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0),
+            targets = { target },
+        }
+    end)
+
     SkillEffectRegistry.Register("fighter_pressure_strike", function(ctx, frameCopy)
         local FighterBuildPassives = require("skills.fighter_build_passives")
         local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])

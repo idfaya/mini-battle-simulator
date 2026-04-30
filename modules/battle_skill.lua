@@ -832,7 +832,32 @@ local function BuildFallbackTimeline(hero, targets, skill)
     }
 end
 
-local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
+local function GenerateBasicAttackActionToken(hero)
+    if not hero then
+        return 0
+    end
+    hero.__basicAttackActionSeq = (tonumber(hero.__basicAttackActionSeq) or 0) + 1
+    return hero.__basicAttackActionSeq
+end
+
+local function ResolveBasicAttackCastMeta(hero, skillId, opts)
+    local SkillRuntimeConfig = require("config.skill_runtime_config")
+    if tonumber(skillId) ~= tonumber(SkillRuntimeConfig.Ids.fighter_basic_attack) then
+        return nil
+    end
+    opts = opts or {}
+    local actionToken = tonumber(opts.basicAttackActionToken) or 0
+    if actionToken <= 0 then
+        actionToken = GenerateBasicAttackActionToken(hero)
+    end
+    return {
+        basicAttackActionToken = actionToken,
+        basicAttackActionSource = opts.basicAttackActionSource or "normal_action",
+        basicAttackIsFollowUp = opts.basicAttackIsFollowUp == true,
+    }
+end
+
+local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
     local FighterBuildPassives = require("skills.fighter_build_passives")
@@ -857,6 +882,9 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete)
             skillId = skill.skillId,
             skillType = skill.skillType,
             target = hero and hero.__lastNormalAttackTarget or nil,
+            basicAttackActionToken = castMeta and castMeta.basicAttackActionToken or nil,
+            basicAttackActionSource = castMeta and castMeta.basicAttackActionSource or nil,
+            basicAttackIsFollowUp = castMeta and castMeta.basicAttackIsFollowUp == true or false,
         })
     end
 
@@ -954,7 +982,7 @@ end
 ---@param hero table 攻击者
 ---@param target table 目标
 ---@return boolean 是否释放成功
-function BattleSkill.CastSmallSkill(hero, target)
+function BattleSkill.CastSmallSkill(hero, target, opts)
     if not hero or not hero.skills then
         Logger.LogError("[BattleSkill.CastSmallSkill] hero or hero.skills is nil")
         return false
@@ -974,11 +1002,46 @@ function BattleSkill.CastSmallSkill(hero, target)
         return false
     end
 
-    local succeeded = BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId)
+    local succeeded = BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId, opts)
     return succeeded
 end
 
-function BattleSkill.CastSmallSkillWithResult(hero, target)
+local function ExecuteInlineBasicAttackCast(hero, target, normalSkill, opts)
+    local BattlePassiveSkill = require("modules.battle_passive_skill")
+    opts = opts or {}
+
+    if not hero or not normalSkill or not target or target.isDead then
+        return false, { totalDamage = 0, succeeded = false }
+    end
+
+    local targets = { target }
+    local castMeta = ResolveBasicAttackCastMeta(hero, normalSkill.skillId, opts)
+    hero.__energyCastStats = {
+        successfulHits = 0,
+        killCount = 0,
+        didCrit = false,
+    }
+
+    BattleSkill.TriggerSkillCastEvent(hero, normalSkill, targets)
+    hero.__lastNormalAttackTarget = target
+    BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = target, skillId = normalSkill.skillId })
+
+    local totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, normalSkill) or 0
+    local completed = nil
+    FinalizeSkillCast(hero, normalSkill, totalDamage, function(succeeded, result)
+        completed = {
+            succeeded = succeeded,
+            result = result,
+        }
+    end, castMeta)
+
+    return completed and completed.succeeded or false, completed and completed.result or {
+        totalDamage = totalDamage,
+        succeeded = true,
+    }
+end
+
+function BattleSkill.CastSmallSkillWithResult(hero, target, opts)
     if not hero or not hero.skills then
         Logger.LogError("[BattleSkill.CastSmallSkillWithResult] hero or hero.skills is nil")
         return false, nil
@@ -997,7 +1060,12 @@ function BattleSkill.CastSmallSkillWithResult(hero, target)
         return false, nil
     end
 
-    return BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId)
+    local SkillTimeline = require("core.skill_timeline")
+    if SkillTimeline.IsRunning and SkillTimeline.IsRunning() then
+        return ExecuteInlineBasicAttackCast(hero, target, normalSkill, opts)
+    end
+
+    return BattleSkill.CastSkillInSeqWithResult(hero, target, normalSkill.skillId, opts)
 end
 
 function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts)
@@ -1047,6 +1115,8 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         return false
     end
 
+    local castMeta = ResolveBasicAttackCastMeta(hero, skillId, opts)
+
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
 
     local BattlePassiveSkill = require("modules.battle_passive_skill")
@@ -1080,7 +1150,7 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         end
 
         local totalDamage = (result and result.totalDamage or 0)
-        FinalizeSkillCast(hero, skill, totalDamage, onComplete)
+        FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     end)
 
     if not started then
@@ -1121,6 +1191,19 @@ function BattleSkill.CastSkillInSeqWithResult(hero, target, skillId, opts)
     end
 
     return completed and completed.succeeded or false, completed and completed.result or nil
+end
+
+function BattleSkill.CastBasicAttackAction(hero, target, opts)
+    opts = opts or {}
+    local actionToken = tonumber(opts.basicAttackActionToken) or 0
+    if actionToken <= 0 then
+        actionToken = GenerateBasicAttackActionToken(hero)
+    end
+    return BattleSkill.CastSmallSkillWithResult(hero, target, {
+        basicAttackActionToken = actionToken,
+        basicAttackActionSource = opts.basicAttackActionSource or "normal_action",
+        basicAttackIsFollowUp = opts.basicAttackIsFollowUp == true,
+    })
 end
 
 --- 执行默认普通攻击（带被动技能触发）

@@ -27,6 +27,7 @@ const TYPE_MAP: Record<string, string> = {
   Victory: "victory",
   Draw: "draw",
   Defeat: "defeat",
+  CombatLog: "combat_log",
   PassiveSkillTriggered: "passive_skill_triggered",
 };
 

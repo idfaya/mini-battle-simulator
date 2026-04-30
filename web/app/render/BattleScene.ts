@@ -42,9 +42,12 @@ type TimelineOverlay = {
 
 type MeleeClash = {
   attackerId: string;
-  targetId: string;
+  anchorTargetId: string;
+  targetIds: string[];
   startedAt: number;
   durationMs: number;
+  hitMoments: number[];
+  precise: boolean;
 };
 
 type ProjectileStyle = {
@@ -69,6 +72,7 @@ type ImpactBurst = {
   unitId: string;
   startedAt: number;
   durationMs: number;
+  delayMs: number;
   color: string;
   ringColor: string;
   size: number;
@@ -102,6 +106,8 @@ export class BattleScene {
   private projectiles: ProjectileAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
   private lastProjectileAtByCaster = new Map<string, number>();
+  private pendingExtraAttackUntilByHero = new Map<string, number>();
+  private pendingPreciseTargetsByHero = new Map<string, { until: number; targetId: string }>();
   private actionOrderRound: number | null = null;
   private actionOrderRosterKey = "";
   private actionOrderIds: string[] = [];
@@ -294,8 +300,10 @@ export class BattleScene {
 
     for (const clash of this.meleeClashes) {
       const attacker = baseLayouts.find((candidate) => candidate.unit.id === clash.attackerId);
-      const target = baseLayouts.find((candidate) => candidate.unit.id === clash.targetId);
-      if (!attacker || !target) {
+      const targets = clash.targetIds
+        .map((targetId) => baseLayouts.find((candidate) => candidate.unit.id === targetId))
+        .filter((candidate): candidate is UnitLayout => Boolean(candidate));
+      if (!attacker || targets.length === 0) {
         continue;
       }
       const elapsed = now - clash.startedAt;
@@ -303,18 +311,18 @@ export class BattleScene {
         continue;
       }
       const progress = elapsed / clash.durationMs;
-      const vectorX = target.baseX - attacker.baseX;
-      const vectorY = target.baseY - attacker.baseY;
+      const anchorTarget = targets.find((candidate) => candidate.unit.id === clash.anchorTargetId) ?? targets[0];
+      const focus = this.getMeleeFocusPoint(attacker, targets, clash);
+      const vectorX = focus.x - (attacker.baseX + attacker.width / 2);
+      const vectorY = focus.y - (attacker.baseY + attacker.height / 2);
       const distance = Math.max(1, Math.hypot(vectorX, vectorY));
       const unitX = vectorX / distance;
       const unitY = vectorY / distance;
       const tangentX = -unitY;
       const tangentY = unitX;
-      const attackStart = this.getCardEdgePoint(attacker, target);
-      const attackEnd = this.getCardEdgePoint(target, attacker);
+      const attackStart = this.getCardEdgePoint(attacker, anchorTarget);
+      const attackEnd = this.getCardEdgePoint(anchorTarget, attacker);
       const heavyImpactInset = 5;
-      const contactPhaseStart = 0.46;
-      const contactPhaseEnd = 0.62;
       const contactDistance = Math.max(
         18,
         Math.hypot(attackEnd.x - attackStart.x, attackEnd.y - attackStart.y) + heavyImpactInset,
@@ -322,29 +330,18 @@ export class BattleScene {
 
       if (layout.unit.id === attacker.unit.id) {
         const maxPush = contactDistance;
-        let travel = 0;
-
-        if (progress < contactPhaseStart) {
-          const attackProgress = progress / contactPhaseStart;
-          travel = Math.sin(attackProgress * Math.PI * 0.5) * maxPush;
-        } else if (progress < contactPhaseEnd) {
-          travel = maxPush;
-        } else {
-          const reboundProgress = (progress - contactPhaseEnd) / (1 - contactPhaseEnd);
-          const forward = (1 - reboundProgress) * maxPush;
-          const recoil = Math.sin(reboundProgress * Math.PI) * Math.min(12, maxPush * 0.18);
-          travel = forward - recoil;
-        }
+        const travel = this.getMeleeTravelDistance(progress, maxPush, clash.hitMoments.length);
 
         dx += unitX * travel;
         dy += unitY * travel;
-      } else if (layout.unit.id === target.unit.id) {
-        const shakeStart = contactPhaseStart;
-        const shakeEnd = 0.82;
-        const hitProgress = Math.max(0, Math.min(1, (progress - shakeStart) / (shakeEnd - shakeStart)));
-        if (hitProgress > 0) {
+      } else if (targets.some((target) => target.unit.id === layout.unit.id)) {
+        for (const hitMoment of clash.hitMoments) {
+          const hitProgress = this.getHitEnvelope(progress, hitMoment, 0.18);
+          if (hitProgress <= 0) {
+            continue;
+          }
           const envelope = Math.sin(hitProgress * Math.PI);
-          const shakeAmplitude = Math.min(9, distance * 0.024) * envelope;
+          const shakeAmplitude = Math.min(11, distance * 0.026) * envelope;
           const shakeWaveA = Math.sin(hitProgress * Math.PI * 8);
           const shakeWaveB = Math.sin(hitProgress * Math.PI * 14);
           dx += tangentX * shakeWaveA * shakeAmplitude;
@@ -859,6 +856,23 @@ export class BattleScene {
         continue;
       }
 
+      if (event.type === "passive_triggered") {
+        if (event.skillName === "额外攻击") {
+          this.pendingExtraAttackUntilByHero.set(event.heroId, now + 900);
+        }
+        continue;
+      }
+
+      if (event.type === "combat_cue") {
+        if (event.cue === "precise_attack") {
+          this.pendingPreciseTargetsByHero.set(event.heroId, {
+            until: now + 900,
+            targetId: event.targetId,
+          });
+        }
+        continue;
+      }
+
       if (event.type === "damage" || event.type === "heal" || event.type === "miss") {
         const layout = layouts.find((item) => item.unit.id === event.heroId);
         const text = createFloatingText(event, layout?.unit, now);
@@ -876,10 +890,14 @@ export class BattleScene {
           unitId: layout.unit.id,
           startedAt: now,
           durationMs: event.type === "damage" ? 320 : 360,
+          delayMs: 0,
           color: event.type === "damage" ? "rgba(255, 120, 117, 0.22)" : "rgba(128, 237, 153, 0.2)",
           ringColor: event.type === "damage" ? "rgba(255, 209, 102, 0.72)" : "rgba(128, 237, 153, 0.72)",
           size: event.type === "damage" ? 58 : 48,
         });
+        if (event.type === "damage") {
+          this.maybeAugmentMeleeClashFromDamage(event, now);
+        }
       }
     }
   }
@@ -954,12 +972,49 @@ export class BattleScene {
 
     if ((isMelee && isDamageFrame) || isMeleeExecuteFrame) {
       const primaryTarget = hostileTargets[0];
-      this.meleeClashes.push({
-        attackerId: attacker.unit.id,
-        targetId: primaryTarget.unit.id,
-        startedAt: now,
-        durationMs: 360,
-      });
+      const pendingExtraAttackUntil = this.pendingExtraAttackUntilByHero.get(attacker.unit.id) ?? -Infinity;
+      const preciseCue = this.pendingPreciseTargetsByHero.get(attacker.unit.id);
+      const preciseTargetId = preciseCue && preciseCue.until >= now ? preciseCue.targetId : "";
+      const recentClash = this.findRecentMeleeClash(attacker.unit.id, primaryTarget.unit.id, now);
+
+      if (pendingExtraAttackUntil >= now && recentClash) {
+        recentClash.hitMoments = [0.34, 0.56];
+        recentClash.durationMs = Math.max(recentClash.durationMs, 460);
+        recentClash.precise = recentClash.precise || preciseTargetId === primaryTarget.unit.id;
+        if (recentClash.precise) {
+          this.queueImpactBurst(primaryTarget.unit.id, now, {
+            delayMs: 210,
+            durationMs: 260,
+            color: "rgba(255, 209, 102, 0.28)",
+            ringColor: "rgba(255, 244, 179, 0.9)",
+            size: 66,
+          });
+        }
+        this.pendingExtraAttackUntilByHero.delete(attacker.unit.id);
+      } else {
+        const clash: MeleeClash = {
+          attackerId: attacker.unit.id,
+          anchorTargetId: primaryTarget.unit.id,
+          targetIds: [primaryTarget.unit.id],
+          startedAt: now,
+          durationMs: 360,
+          hitMoments: [0.5],
+          precise: preciseTargetId === primaryTarget.unit.id,
+        };
+        this.meleeClashes.push(clash);
+        if (clash.precise) {
+          this.queueImpactBurst(primaryTarget.unit.id, now, {
+            delayMs: 150,
+            durationMs: 240,
+            color: "rgba(255, 209, 102, 0.24)",
+            ringColor: "rgba(255, 244, 179, 0.88)",
+            size: 62,
+          });
+        }
+      }
+      if (preciseTargetId === primaryTarget.unit.id) {
+        this.pendingPreciseTargetsByHero.delete(attacker.unit.id);
+      }
       return;
     }
 
@@ -985,7 +1040,137 @@ export class BattleScene {
   private pruneTransientAnimations(now: number) {
     this.meleeClashes = this.meleeClashes.filter((item) => now - item.startedAt <= item.durationMs);
     this.projectiles = this.projectiles.filter((item) => now - item.startedAt <= item.durationMs);
-    this.impactBursts = this.impactBursts.filter((item) => now - item.startedAt <= item.durationMs);
+    this.impactBursts = this.impactBursts.filter((item) => now - (item.startedAt + item.delayMs) <= item.durationMs);
+    for (const [heroId, until] of this.pendingExtraAttackUntilByHero.entries()) {
+      if (until < now) {
+        this.pendingExtraAttackUntilByHero.delete(heroId);
+      }
+    }
+    for (const [heroId, precise] of this.pendingPreciseTargetsByHero.entries()) {
+      if (precise.until < now) {
+        this.pendingPreciseTargetsByHero.delete(heroId);
+      }
+    }
+  }
+
+  private findRecentMeleeClash(attackerId: string, targetId: string, now: number) {
+    for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
+      const clash = this.meleeClashes[index];
+      if (clash.attackerId !== attackerId || clash.anchorTargetId !== targetId) {
+        continue;
+      }
+      if (now - clash.startedAt <= 520) {
+        return clash;
+      }
+      break;
+    }
+    return null;
+  }
+
+  private maybeAugmentMeleeClashFromDamage(event: Extract<AnimationEvent, { type: "damage" }>, now: number) {
+    if (event.attackerId === "" || event.skillName !== "") {
+      return;
+    }
+    for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
+      const clash = this.meleeClashes[index];
+      if (clash.attackerId !== event.attackerId || now - clash.startedAt > 520) {
+        continue;
+      }
+      if (clash.targetIds.includes(event.heroId)) {
+        return;
+      }
+      clash.targetIds = [...clash.targetIds, event.heroId];
+      clash.durationMs = Math.max(clash.durationMs, 400);
+      clash.hitMoments = [0.5];
+      this.queueImpactBurst(event.heroId, now, {
+        delayMs: 0,
+        durationMs: 280,
+        color: "rgba(255, 140, 102, 0.26)",
+        ringColor: "rgba(255, 209, 102, 0.78)",
+        size: 60,
+      });
+      return;
+    }
+  }
+
+  private queueImpactBurst(
+    unitId: string,
+    startedAt: number,
+    options: {
+      delayMs?: number;
+      durationMs: number;
+      color: string;
+      ringColor: string;
+      size: number;
+    },
+  ) {
+    this.impactBursts.push({
+      unitId,
+      startedAt,
+      durationMs: options.durationMs,
+      delayMs: options.delayMs ?? 0,
+      color: options.color,
+      ringColor: options.ringColor,
+      size: options.size,
+    });
+  }
+
+  private getMeleeFocusPoint(attacker: UnitLayout, targets: UnitLayout[], clash: MeleeClash) {
+    if (targets.length === 1) {
+      const target = targets[0];
+      return {
+        x: target.baseX + target.width / 2,
+        y: target.baseY + target.height / 2,
+      };
+    }
+    const averageX = targets.reduce((sum, target) => sum + target.baseX + target.width / 2, 0) / targets.length;
+    const averageY = targets.reduce((sum, target) => sum + target.baseY + target.height / 2, 0) / targets.length;
+    const anchor = targets.find((target) => target.unit.id === clash.anchorTargetId) ?? targets[0];
+    return {
+      x: averageX,
+      y: (averageY + anchor.baseY + anchor.height / 2) / 2,
+    };
+  }
+
+  private getMeleeTravelDistance(progress: number, maxPush: number, hitCount: number) {
+    const keyframes =
+      hitCount >= 2
+        ? [
+            { progress: 0, distance: 0 },
+            { progress: 0.28, distance: maxPush },
+            { progress: 0.40, distance: maxPush * 0.8 },
+            { progress: 0.56, distance: maxPush },
+            { progress: 0.7, distance: maxPush * 0.92 },
+            { progress: 1, distance: 0 },
+          ]
+        : [
+            { progress: 0, distance: 0 },
+            { progress: 0.46, distance: maxPush },
+            { progress: 0.62, distance: maxPush },
+            { progress: 1, distance: 0 },
+          ];
+
+    for (let index = 1; index < keyframes.length; index += 1) {
+      const previous = keyframes[index - 1];
+      const current = keyframes[index];
+      if (progress <= current.progress) {
+        const span = Math.max(0.0001, current.progress - previous.progress);
+        const t = Math.max(0, Math.min(1, (progress - previous.progress) / span));
+        const eased = Math.sin(t * Math.PI * 0.5);
+        return previous.distance + (current.distance - previous.distance) * eased;
+      }
+    }
+
+    return 0;
+  }
+
+  private getHitEnvelope(progress: number, hitMoment: number, halfWidth: number) {
+    const start = hitMoment - halfWidth;
+    const end = hitMoment + halfWidth;
+    if (progress <= start || progress >= end) {
+      return 0;
+    }
+    return (progress - start) / Math.max(0.0001, end - start);
   }
 
   private isMeleeUnit(unit: UnitState) {
@@ -1196,7 +1381,7 @@ export class BattleScene {
         continue;
       }
 
-      const elapsed = now - burst.startedAt;
+      const elapsed = now - (burst.startedAt + burst.delayMs);
       if (elapsed < 0 || elapsed > burst.durationMs) {
         continue;
       }

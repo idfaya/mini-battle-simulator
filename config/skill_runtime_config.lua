@@ -60,7 +60,7 @@ local SKILLS = {
         hidden = false,
         cooldown = 3,
         luaFile = "config.skill.skill_80002003",
-        execution = { type = "repeat_basic_attack", count = 1, retarget = "random_enemy" },
+        execution = { type = "basic_attack_action", retarget = "random_enemy" },
         tags = tags("fighter", "signature", "burst"),
         runtimeData = {
             skillType = 2,

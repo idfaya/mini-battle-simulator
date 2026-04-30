@@ -98,10 +98,31 @@ export type BattleSetup = {
 };
 
 export type AnimationEvent =
-  | { type: "damage"; heroId: string; value: number; critical: boolean }
+  | {
+      type: "damage";
+      heroId: string;
+      attackerId: string;
+      skillName: string;
+      value: number;
+      critical: boolean;
+    }
   | { type: "heal"; heroId: string; value: number }
   | { type: "miss"; heroId: string; text: string }
   | { type: "banner"; text: string; emphasis?: boolean }
+  | {
+      type: "passive_triggered";
+      heroId: string;
+      heroName: string;
+      skillName: string;
+      triggerType: string;
+      extraInfo: string;
+    }
+  | {
+      type: "combat_cue";
+      heroId: string;
+      targetId: string;
+      cue: "precise_attack";
+    }
   | {
       type: "timeline_started";
       heroId: string;

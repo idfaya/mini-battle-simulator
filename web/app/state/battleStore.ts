@@ -167,6 +167,24 @@ export class BattleStore {
         case "battle_started":
           appendLog("战斗开始");
           break;
+        case "combat_log":
+          if (typeof event.payload.message === "string" && event.payload.message !== "") {
+            appendLog(event.payload.message);
+          }
+          if (
+            typeof event.payload.message === "string" &&
+            event.payload.message.includes("触发精准攻击：") &&
+            typeof event.payload.heroId !== "undefined" &&
+            typeof event.payload.targetId !== "undefined"
+          ) {
+            animations.push({
+              type: "combat_cue",
+              heroId: String(event.payload.heroId ?? ""),
+              targetId: String(event.payload.targetId ?? ""),
+              cue: "precise_attack",
+            });
+          }
+          break;
         case "turn_started":
           appendLog(
             `回合 ${String(event.payload.round ?? "")} - ${String(event.payload.heroName ?? "")} 行动（先攻骰 d20 ${readNumber(event.payload.initiativeRoll)}${formatSigned(readNumber(event.payload.initiativeMod))}=${readNumber(event.payload.initiativeTotal)}）`,
@@ -180,6 +198,8 @@ export class BattleStore {
           animations.push({
             type: "damage",
             heroId: String(event.payload.targetId ?? ""),
+            attackerId: String(event.payload.attackerId ?? ""),
+            skillName: String(event.payload.skillName ?? ""),
             value: Number(event.payload.damage ?? 0),
             critical: Boolean(event.payload.isCrit),
           });
@@ -281,6 +301,14 @@ export class BattleStore {
           appendLog(`${heroName} 触发被动 ${skillName}${detail ? `：${detail}` : ""}`);
           banner = `${heroName} · ${skillName}触发`;
           flashUntil = performance.now() + 900;
+          animations.push({
+            type: "passive_triggered",
+            heroId: String(event.payload.heroId ?? ""),
+            heroName,
+            skillName,
+            triggerType,
+            extraInfo,
+          });
           break;
         }
         case "command_rejected":

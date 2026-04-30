@@ -123,18 +123,33 @@ local function getEligibleFeatPool(hero)
     end
     local nextLevel = (hero.level or 1) + 1
     local entry = ClassBuildProgression.GetLevelEntry(hero.classId, nextLevel)
-    if not entry or not entry.choiceGroup then
+    if not entry then
         return {}
     end
-    local featPool = FeatBuildConfig.GetFeatsByLevel(hero.classId, nextLevel, entry.choiceGroup)
     local used = {}
     for _, featId in ipairs(hero.feats or {}) do
         used[tonumber(featId) or 0] = true
     end
     local result = {}
-    for _, def in ipairs(featPool) do
-        if not used[tonumber(def.id) or 0] then
+    local added = {}
+
+    for _, featId in ipairs(entry.fixed or {}) do
+        local def = FeatBuildConfig.GetFeat(featId)
+        local id = tonumber(def and def.id) or 0
+        if id > 0 and not used[id] and not added[id] then
             result[#result + 1] = def
+            added[id] = true
+        end
+    end
+
+    if entry.choiceGroup then
+        local featPool = FeatBuildConfig.GetFeatsByLevel(hero.classId, nextLevel, entry.choiceGroup)
+        for _, def in ipairs(featPool) do
+            local id = tonumber(def and def.id) or 0
+            if id > 0 and not used[id] and not added[id] then
+                result[#result + 1] = def
+                added[id] = true
+            end
         end
     end
     return result

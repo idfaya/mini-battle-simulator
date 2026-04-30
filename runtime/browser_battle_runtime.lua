@@ -74,6 +74,7 @@ local visualEvents = {
     BattleVisualEvents.MISS,
     BattleVisualEvents.BLOCK,
     BattleVisualEvents.CRIT,
+    "CombatLog",
     "PassiveSkillTriggered",
     "DebugCounterTiming",
 }

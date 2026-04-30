@@ -266,38 +266,73 @@ end
 
 do
     local hero = new_unit(9551, "ExtraAttackHero")
-    local fallenTarget = new_unit(9552, "FallenDummy")
-    local retarget = new_unit(9553, "RetargetDummy")
+    local firstTarget = new_unit(9552, "FirstDummy")
+    local secondTarget = new_unit(9553, "SecondDummy")
+    local fallenTarget = new_unit(9554, "FallenDummy")
     local passive = FighterBuildPassives.CreateExtraAttackPassive({ src = hero })
     local oldCastSmallSkill = BattleSkill.CastSmallSkill
-    local oldSelectRandomAliveEnemies = BattleSkill.SelectRandomAliveEnemies
-    local castTarget = nil
+    local castCalls = {}
 
     fallenTarget.isDead = true
     fallenTarget.isAlive = false
 
-    BattleSkill.SelectRandomAliveEnemies = function()
-        return { retarget }
-    end
-    BattleSkill.CastSmallSkill = function(_, target)
-        castTarget = target
+    BattleSkill.CastSmallSkill = function(_, target, opts)
+        castCalls[#castCalls + 1] = { target = target, opts = opts }
         return true
     end
 
     passive:OnNormalAtkFinish({
         data = {
             extraParam = {
+                target = firstTarget,
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                damageDealt = 6,
+                basicAttackActionToken = 101,
+                basicAttackActionSource = "normal_action",
+            },
+        },
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = firstTarget,
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                damageDealt = 6,
+                basicAttackActionToken = 101,
+                basicAttackActionSource = "normal_action",
+            },
+        },
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = secondTarget,
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                damageDealt = 6,
+                basicAttackActionToken = 102,
+                basicAttackActionSource = "action_surge",
+            },
+        },
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
                 target = fallenTarget,
                 skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
                 damageDealt = 6,
+                basicAttackActionToken = 103,
+                basicAttackActionSource = "action_surge",
             },
         },
     })
 
-    assert_true(castTarget == retarget, "extra attack retargets when the original target is already dead")
+    assert_true(#castCalls == 2, "extra attack triggers once per basic attack action token, including action surge extra action")
+    assert_true(castCalls[1].target == firstTarget, "extra attack keeps the same target within the same action")
+    assert_true(castCalls[1].opts and castCalls[1].opts.basicAttackActionToken == 101, "extra attack follow-up keeps the original action token")
+    assert_true(castCalls[1].opts and castCalls[1].opts.basicAttackIsFollowUp == true, "extra attack follow-up is marked to avoid recursive triggers")
+    assert_true(castCalls[2].target == secondTarget, "action surge opened action can independently trigger extra attack on its chosen target")
 
     BattleSkill.CastSmallSkill = oldCastSmallSkill
-    BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
 end
 
 do

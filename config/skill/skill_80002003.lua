@@ -14,7 +14,7 @@ function skill_80002003.BuildTimeline(hero, targets, skill)
                 targetRef = "selected",
                 tags = {
                     { tag = "select_random_enemies", phase = "pre", param = { count = 1 } },
-                    { tag = "repeat_basic_attack", phase = "post", param = { count = 1 } },
+                    { tag = "basic_attack_action", phase = "post", param = { actionSource = "action_surge" } },
                 },
             },
             { frame = 36, op = "effect", effect = "fighter_action_surge_end", targetRef = "selected" },
