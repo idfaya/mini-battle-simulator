@@ -6,6 +6,8 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local Run = require("roguelike.roguelike_run")
 local BattleFormation = require("modules.battle_formation")
+local RunEncounterGroup = require("config.roguelike.run_encounter_group")
+local ClassRoleConfig = require("config.class_role_config")
 
 local function getUltimateSkillForUnit(unitId)
     local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
@@ -80,19 +82,63 @@ local function choosePathAndEnter(nodeId)
     assert(ok, "enter node failed: " .. tostring(reason))
 end
 
+local function assertEncounterScalesStay5eStyle()
+    for encounterId, encounter in pairs(RunEncounterGroup.ENCOUNTERS or {}) do
+        local scale = encounter.enemyScale or {}
+        for _, key in ipairs({ "hp", "atk", "def" }) do
+            local value = tonumber(scale[key]) or 1
+            assert(value >= 0.90 and value <= 1.10, string.format("encounter %s enemyScale.%s should stay within 5e-style bounds", tostring(encounterId), key))
+        end
+        local hitDelta = math.abs(tonumber(scale.hitDelta) or 0)
+        local spellDCDelta = math.abs(tonumber(scale.spellDCDelta) or 0)
+        assert(hitDelta <= 1, string.format("encounter %s hitDelta should be a light modifier", tostring(encounterId)))
+        assert(spellDCDelta <= 1, string.format("encounter %s spellDCDelta should be a light modifier", tostring(encounterId)))
+    end
+end
+
+local function acceptRewardIfPresent()
+    local current = Run.GetSnapshot()
+    local guard = 0
+    while current.phase == "reward" and guard < 4 do
+        assert(Run.ChooseReward(1) == true, "reward selection should succeed")
+        current = Run.GetSnapshot()
+        guard = guard + 1
+    end
+    assert(current.phase == "map", "reward chain should return to map")
+    return current
+end
+
+local function countRows(team)
+    local front = 0
+    local back = 0
+    for _, hero in ipairs(team or {}) do
+        if ClassRoleConfig.PreferFrontRow(hero.classId) then
+            front = front + 1
+        else
+            back = back + 1
+        end
+    end
+    return front, back
+end
+
+assertEncounterScalesStay5eStyle()
+
 local snapshot = Run.StartRun({
     chapterId = 101,
-    starterHeroIds = { 900005, 900007, 900002 },
+    starterHeroIds = { 900005, 900001, 900007, 900002 },
 })
 
 assert(snapshot.phase == "map", "run should start on map")
 assert(#(snapshot.debug.availableNextNodeIds or {}) == 1, "start map should expose one node")
+assert(#(snapshot.team or {}) == 4, "run should start with 4 heroes")
+local frontCount, backCount = countRows(snapshot.team)
+assert(frontCount == 2 and backCount == 2, "starter team should be 2 front and 2 back")
 
 choosePathAndEnter(101001)
 assert(Run.GetSnapshot().phase == "battle", "first node should be battle")
 snapshot = runBattleUntilResolved(600)
 assert(snapshot.phase == "reward", "first battle should open reward")
-assert(Run.ChooseReward(1) == true, "reward selection should succeed")
+snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101002)
 assert(Run.GetSnapshot().phase == "reward", "second path should open recruit reward")
@@ -100,32 +146,35 @@ assert(Run.ChooseReward(1) == true, "recruit selection should resolve")
 assert(Run.GetSnapshot().phase == "map", "recruit node should return to map")
 
 choosePathAndEnter(101004)
-assert(Run.GetSnapshot().phase == "shop", "shop node should open shop")
-local shopSnapshot = Run.GetSnapshot()
-assert(Run.ShopBuy(101001) == true, "shop equipment should succeed")
-shopSnapshot = Run.GetSnapshot()
-assert(#(shopSnapshot.equipments or {}) >= 1, "equipment should be added to run inventory")
-assert(Run.ShopLeave() == true, "should be able to leave shop")
+assert(Run.GetSnapshot().phase == "battle", "third path should be battle")
+snapshot = runBattleUntilResolved(700)
+assert(snapshot.phase == "reward" or snapshot.phase == "map", "third battle should resolve")
+snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101006)
 assert(Run.GetSnapshot().phase == "camp", "camp node should open camp")
 assert(Run.CampChoose(2) == true, "camp empower should work")
 
 choosePathAndEnter(101008)
-assert(Run.GetSnapshot().phase == "event", "ember shrine should open event")
-assert(Run.ChooseEventOption(1) == true, "healing event option should resolve")
+assert(Run.GetSnapshot().phase == "battle", "ember ambush should be battle")
+snapshot = runBattleUntilResolved(700)
+assert(snapshot.phase == "reward" or snapshot.phase == "map", "ember ambush should resolve")
+snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101010)
-assert(Run.GetSnapshot().phase == "shop", "last stop should open shop")
-assert(Run.ShopLeave() == true, "should leave final shop")
+assert(Run.GetSnapshot().phase == "reward", "last stop should open second recruit reward")
+assert(Run.ChooseReward(1) == true, "second recruit selection should resolve")
+assert(#(Run.GetSnapshot().team or {}) >= 5, "second recruit should add another hero")
 
 choosePathAndEnter(101011)
 assert(Run.GetSnapshot().phase == "battle", "boss node should be battle")
 snapshot = runBattleUntilResolved(900)
 assert(snapshot.phase == "reward" or snapshot.phase == "chapter_result", "boss should resolve to reward or chapter result")
-if snapshot.phase == "reward" then
+local bossRewardGuard = 0
+while snapshot.phase == "reward" and bossRewardGuard < 4 do
     assert(Run.ChooseReward(1) == true, "boss reward selection should succeed")
     snapshot = Run.GetSnapshot()
+    bossRewardGuard = bossRewardGuard + 1
 end
 
 assert(snapshot.phase == "chapter_result", "run should end at chapter result")

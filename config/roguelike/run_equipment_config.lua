@@ -3,35 +3,39 @@
 ---| "rare"
 ---| "boss"
 
----@alias RunEquipmentTrigger
----| "battle_start"
----| "battle_win"
----| "elite_win"
----| "ally_die"
----| "turn_start"
+---@alias RunEquipmentSlot
+---| "weapon"
+---| "armor"
+---| "shield"
+---| "focus"
+---| "accessory"
 
 ---@alias RunEquipmentEffectType
----| "team_energy_flat"
----| "bonus_gold_by_battle_kind"
----| "team_heal_pct"
----| "class_attack_pct"
----| "team_shield_pct_max_hp"
----| "team_attack_stack_pct"
+---| "martial_weapon"
+---| "ranged_weapon"
+---| "armor_ac"
+---| "shield_ac"
+---| "spell_focus"
+---| "holy_symbol"
+---| "saving_throw_charm"
 
 ---@class RunEquipmentParams
----@field amount integer|nil
----@field normal integer|nil
----@field elite integer|nil
 ---@field classIds integer[]|nil
----@field value number|nil
----@field maxStacks integer|nil
+---@field atkPct number|nil
+---@field defPct number|nil
+---@field hitDelta integer|nil
+---@field acDelta integer|nil
+---@field spellDCDelta integer|nil
+---@field healBonusPct number|nil
+---@field saveDelta integer|nil
+---@field blockRate integer|nil
 
 ---@class RunEquipmentEntry
 ---@field id integer
 ---@field code string
 ---@field name string
 ---@field rarity RunEquipmentRarity
----@field trigger RunEquipmentTrigger
+---@field slot RunEquipmentSlot
 ---@field effectType RunEquipmentEffectType
 ---@field params RunEquipmentParams
 
@@ -46,71 +50,92 @@ local RunEquipmentConfig = {}
 RunEquipmentConfig.EQUIPMENTS = {
     [101001] = {
         id = 101001,
-        code = "ember_tinder",
-        name = "灰烬火种",
+        code = "longsword_plus_1",
+        name = "+1 Longsword",
         rarity = "common",
-        trigger = "battle_start",
-        effectType = "team_energy_flat",
+        slot = "weapon",
+        effectType = "martial_weapon",
         params = {
-            amount = 20,
+            classIds = { 2, 4 },
+            atkPct = 0.08,
+            hitDelta = 1,
         },
     },
     [101002] = {
         id = 101002,
-        code = "caravan_tools",
-        name = "商旅工具",
+        code = "shortbow_plus_1",
+        name = "+1 Shortbow",
         rarity = "common",
-        trigger = "battle_win",
-        effectType = "bonus_gold_by_battle_kind",
+        slot = "weapon",
+        effectType = "ranged_weapon",
         params = {
-            normal = 15,
-            elite = 25,
+            classIds = { 1, 5 },
+            atkPct = 0.08,
+            hitDelta = 1,
         },
     },
     [101003] = {
         id = 101003,
-        code = "saint_bandage",
-        name = "圣者绷带",
+        code = "chain_mail",
+        name = "Chain Mail",
         rarity = "rare",
-        trigger = "elite_win",
-        effectType = "team_heal_pct",
+        slot = "armor",
+        effectType = "armor_ac",
         params = {
-            value = 0.12,
+            classIds = { 2, 4 },
+            acDelta = 1,
+            defPct = 0.08,
         },
     },
     [101004] = {
         id = 101004,
-        code = "warbanner_hook",
-        name = "战旗钩刃",
+        code = "shield_plus_1",
+        name = "+1 Shield",
         rarity = "rare",
-        trigger = "battle_start",
-        effectType = "class_attack_pct",
+        slot = "shield",
+        effectType = "shield_ac",
         params = {
-            classIds = { 1, 3, 4 },
-            value = 0.12,
+            classIds = { 2, 4, 6 },
+            acDelta = 1,
+            blockRate = 400,
         },
     },
     [101005] = {
         id = 101005,
-        code = "frostward_charm",
-        name = "霜卫符坠",
+        code = "arcane_focus_plus_1",
+        name = "+1 Arcane Focus",
         rarity = "boss",
-        trigger = "battle_start",
-        effectType = "team_shield_pct_max_hp",
+        slot = "focus",
+        effectType = "spell_focus",
         params = {
-            value = 0.10,
+            classIds = { 7, 8, 9 },
+            atkPct = 0.06,
+            spellDCDelta = 1,
         },
     },
     [101006] = {
         id = 101006,
-        code = "last_flame_censer",
-        name = "余烬香炉",
+        code = "holy_symbol_plus_1",
+        name = "+1 Holy Symbol",
         rarity = "boss",
-        trigger = "ally_die",
-        effectType = "team_attack_stack_pct",
+        slot = "focus",
+        effectType = "holy_symbol",
         params = {
-            value = 0.10,
-            maxStacks = 2,
+            classIds = { 6, 4 },
+            spellDCDelta = 1,
+            healBonusPct = 0.12,
+        },
+    },
+    [101007] = {
+        id = 101007,
+        code = "cloak_of_resistance",
+        name = "Cloak of Resistance",
+        rarity = "rare",
+        slot = "accessory",
+        effectType = "saving_throw_charm",
+        params = {
+            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+            saveDelta = 1,
         },
     },
 }

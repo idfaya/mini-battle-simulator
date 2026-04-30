@@ -67,7 +67,7 @@ RunChapterConfig.CHAPTERS = {
         startGold = 100,
         startFood = 1,
         targetMaxLevel = 10,
-        initialHeroCount = 3,
+        initialHeroCount = 4,
         maxHeroCount = 6,
         reviveLimit = 1,
         mapVision = "node_type_only",
@@ -98,7 +98,7 @@ RunChapterConfig.CHAPTERS = {
             healPct = 0.50,
             clearCooldowns = true,
             restoreUltimateCharges = true,
-            reviveDead = false,
+            reviveDead = true,
         },
         chapterClearRewards = {
             gold = 90,

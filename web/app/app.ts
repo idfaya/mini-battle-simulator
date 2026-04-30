@@ -81,7 +81,7 @@ async function bootstrapStandaloneBattle(
   const queryEnemyIds = readIdList(options?.params?.get("enemies") ?? null);
   const buildFeatIds = readIdList(options?.params?.get("buildFeats") ?? options?.params?.get("fighterFeats") ?? null);
   const buildFeatIdsByHero = readNestedIdList(options?.params?.get("buildFeatsByHero") ?? options?.params?.get("fighterFeatsByHero") ?? null);
-  const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900007, 900002];
+  const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900001, 900007, 900002];
   const singleEnemyIds = queryEnemyIds.length > 0 ? queryEnemyIds : [910004, 910002, 910003];
   const setup: BattleSetup = {
     level: Number(options?.params?.get("level")) || 1,
@@ -278,11 +278,11 @@ async function bootstrapRunMode(
       syncRunSnapshot(await host.getRunSnapshot());
     },
     onRestart: async () => {
-      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900007, 900002] }));
+      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002] }));
     },
   });
 
-  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900007, 900002] }));
+  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002] }));
 
   let lastFrame = performance.now();
   let inFlight = false;

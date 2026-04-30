@@ -83,6 +83,12 @@ local function applyClassPct(modMap, classIds, value)
     end
 end
 
+local function applyClassFlat(modMap, classIds, value)
+    for _, classId in ipairs(classIds or {}) do
+        modMap[classId] = (modMap[classId] or 0) + (tonumber(value) or 0)
+    end
+end
+
 local function buildBattleModifiers(runState, encounter)
     local playerScale = encounter.playerScale or DEFAULT_PLAYER_SCALE
     local result = {
@@ -90,6 +96,11 @@ local function buildBattleModifiers(runState, encounter)
         atkPctByClass = {},
         hpPctByClass = {},
         defPctByClass = {},
+        hitDeltaByClass = {},
+        acDeltaByClass = {},
+        spellDCDeltaByClass = {},
+        saveDeltaByClass = {},
+        blockRateByClass = {},
         damageIncreaseByClass = {},
         healBonusByClass = {},
         bonusGold = 0,
@@ -99,14 +110,25 @@ local function buildBattleModifiers(runState, encounter)
     for _, equipmentId in ipairs(runState.equipmentIds or {}) do
         local equipment = resolveEquipment(equipmentId)
         local params = equipment and equipment.params or nil
-        if equipment and equipment.effectType == "team_energy_flat" then
-            result.extraEnergy = result.extraEnergy + (params.amount or 0)
-        elseif equipment and equipment.effectType == "class_attack_pct" then
-            applyClassPct(result.atkPctByClass, params.classIds, params.value)
-        elseif equipment and equipment.effectType == "bonus_gold_by_battle_kind" then
-            result.bonusGold = result.bonusGold + (params[encounter.kind] or 0)
-        elseif equipment and equipment.effectType == "team_heal_pct" and encounter.kind == "elite" then
-            result.postBattleHealPct = result.postBattleHealPct + (params.value or 0)
+        if equipment and params then
+            if equipment.effectType == "martial_weapon" or equipment.effectType == "ranged_weapon" then
+                applyClassPct(result.atkPctByClass, params.classIds, params.atkPct)
+                applyClassFlat(result.hitDeltaByClass, params.classIds, params.hitDelta)
+            elseif equipment.effectType == "armor_ac" then
+                applyClassPct(result.defPctByClass, params.classIds, params.defPct)
+                applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
+            elseif equipment.effectType == "shield_ac" then
+                applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
+                applyClassFlat(result.blockRateByClass, params.classIds, params.blockRate)
+            elseif equipment.effectType == "spell_focus" then
+                applyClassPct(result.atkPctByClass, params.classIds, params.atkPct)
+                applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
+            elseif equipment.effectType == "holy_symbol" then
+                applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
+                applyClassPct(result.healBonusByClass, params.classIds, params.healBonusPct)
+            elseif equipment.effectType == "saving_throw_charm" then
+                applyClassFlat(result.saveDeltaByClass, params.classIds, params.saveDelta)
+            end
         end
     end
 
@@ -168,7 +190,7 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     end
     -- #endregion
 
-    -- Apply roguelike feats / class-level grants to the battle hero, before relic/blessing scaling.
+    -- Apply roguelike feats / class-level grants to the battle hero, before equipment/blessing scaling.
     -- ConvertToHeroData uses level only; without this step, feat stats would not affect combat.
     if rosterHero.feats and #rosterHero.feats > 0 then
         local baseAttrs = HeroData.CalculateHeroAttributes(rosterHero.heroId, rosterHero.level, 1)
@@ -206,6 +228,16 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp * hpScale)))
     heroData.atk = math.max(1, math.floor((heroData.atk or 0) * atkScale))
     heroData.def = math.max(0, math.floor((heroData.def or 0) * defScale))
+    heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
+    heroData.ac = math.max(0, math.floor((heroData.ac or 0) + (modifiers.acDeltaByClass[rosterHero.classId] or 0)))
+    heroData.spellDC = math.max(0, math.floor((heroData.spellDC or 0) + (modifiers.spellDCDeltaByClass[rosterHero.classId] or 0)))
+    local saveDelta = modifiers.saveDeltaByClass[rosterHero.classId] or 0
+    if saveDelta ~= 0 then
+        heroData.saveFort = math.max(0, math.floor((heroData.saveFort or 0) + saveDelta))
+        heroData.saveRef = math.max(0, math.floor((heroData.saveRef or 0) + saveDelta))
+        heroData.saveWill = math.max(0, math.floor((heroData.saveWill or 0) + saveDelta))
+    end
+    heroData.blockRate = math.max(0, math.floor((heroData.blockRate or 0) + (modifiers.blockRateByClass[rosterHero.classId] or 0)))
     heroData.damageIncrease = math.max(0, math.floor((heroData.damageIncrease or 0) + ((modifiers.damageIncreaseByClass[rosterHero.classId] or 0) * 10000)))
     heroData.healBonus = math.max(0, math.floor((heroData.healBonus or 0) + ((modifiers.healBonusByClass[rosterHero.classId] or 0) * 10000)))
     heroData.wpType = rosterHero.wpType or 1
@@ -249,12 +281,12 @@ local function buildEncounterBudgetAdjust(runState, encounter, aliveCount)
     )
     local gap = (report.targetAdjustedXp > 0) and (report.targetAdjustedXp / math.max(1, report.adjustedXp)) or 1.0
     return {
-        hpMul = clamp(1.00 + (gap - 1.0) * 0.10, 0.85, 2.00),
-        atkMul = clamp(1.00 + (gap - 1.0) * 0.35, 0.85, 4.00),
-        defMul = clamp(1.00 + (gap - 1.0) * 0.08, 0.90, 1.60),
-        hitDelta = roundInt(clamp((gap - 1.0) * 2.0, -2, 10)),
-        spellDCDelta = roundInt(clamp((gap - 1.0) * 1.5, -2, 8)),
-        saveDelta = roundInt(clamp((gap - 1.0) * 0.75, -1, 4)),
+        hpMul = clamp(1.00 + (gap - 1.0) * 0.06, 0.90, 1.25),
+        atkMul = clamp(1.00 + (gap - 1.0) * 0.08, 0.90, 1.25),
+        defMul = clamp(1.00 + (gap - 1.0) * 0.04, 0.95, 1.15),
+        hitDelta = roundInt(clamp((gap - 1.0) * 0.45, -1, 2)),
+        spellDCDelta = roundInt(clamp((gap - 1.0) * 0.35, -1, 2)),
+        saveDelta = roundInt(clamp((gap - 1.0) * 0.25, -1, 1)),
         report = report,
     }
 end
@@ -373,13 +405,17 @@ local function applyPostBattleRest(runState)
     local healPct = tonumber(rest.healPct) or 0
     local clearCooldowns = rest.clearCooldowns ~= false
     local restoreUltimateCharges = rest.restoreUltimateCharges == true
+    local reviveDead = rest.reviveDead == true
 
     for _, hero in ipairs(runState.teamRoster or {}) do
+        if hero.isDead and reviveDead then
+            hero.isDead = false
+            hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * healPct))
+        elseif not hero.isDead and healPct > 0 then
+            local heal = math.floor((hero.maxHp or 0) * healPct)
+            hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
+        end
         if not hero.isDead then
-            if healPct > 0 then
-                local heal = math.floor((hero.maxHp or 0) * healPct)
-                hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
-            end
             if clearCooldowns then
                 hero.skillCooldowns = hero.skillCooldowns or {}
                 for skillId, _ in pairs(hero.skillCooldowns) do

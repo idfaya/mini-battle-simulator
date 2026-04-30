@@ -23,7 +23,7 @@ local BattleFormation = require("modules.battle_formation")
 默认策略:
   - 路线: chapter101 的 safe + combat
   - 奖励: recruit > equipment > heal_pct > blessing > gold
-  - 商店: basic（优先买装备/治疗/祝福）
+    - 商店: basic（优先买装备/治疗/祝福）
   - 营地: 优先 blessing，其次复活
   - 事件: 选 optionId=1
   - 候补: 队伍未满时自动上阵
@@ -50,7 +50,7 @@ local DEFAULT_CONFIG = {
     verbose = false,
     shopPolicy = "basic",
     autoUltimate = true,
-    starterHeroIds = { 900005, 900007, 900002 },
+    starterHeroIds = { 900005, 900001, 900007, 900002 },
 }
 
 local REWARD_PRIORITY = {
@@ -344,7 +344,28 @@ local function buyFromShop(snapshot, policy)
     end
 end
 
-local function autoPromoteBench()
+local autoPromoteBench
+
+local function chooseRewardsUntilDone()
+    local snapshot = Run.GetSnapshot()
+    local guard = 0
+    while snapshot.phase == "reward" and guard < 4 do
+        local rewardIndex = chooseRewardIndex(snapshot)
+        if not rewardIndex then
+            break
+        end
+        local rewardOk, rewardReason = Run.ChooseReward(rewardIndex)
+        if not rewardOk then
+            return false, rewardReason
+        end
+        autoPromoteBench()
+        snapshot = Run.GetSnapshot()
+        guard = guard + 1
+    end
+    return true
+end
+
+function autoPromoteBench()
     local snapshot = Run.GetSnapshot()
     while #(snapshot.bench or {}) > 0 and #(snapshot.team or {}) < (snapshot.maxHeroCount or 5) do
         local benchHero = snapshot.bench[1]
@@ -506,16 +527,12 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 break
             end
 
-            local rewardIndex = chooseRewardIndex(resolved)
-            if rewardIndex then
-                local rewardOk, rewardReason = Run.ChooseReward(rewardIndex)
-                if not rewardOk then
-                    runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardReason)
-                    snapshot = Run.GetSnapshot()
-                    break
-                end
+            local rewardsOk, rewardsReason = chooseRewardsUntilDone()
+            if not rewardsOk then
+                runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardsReason)
+                snapshot = Run.GetSnapshot()
+                break
             end
-            autoPromoteBench()
             snapshot = Run.GetSnapshot()
         elseif snapshot.phase == "event" then
             local eventOk, eventReason = Run.ChooseEventOption(1)
@@ -527,16 +544,12 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             autoPromoteBench()
             snapshot = Run.GetSnapshot()
             if snapshot.phase == "reward" then
-                local rewardIndex = chooseRewardIndex(snapshot)
-                if rewardIndex then
-                    local rewardOk, rewardReason = Run.ChooseReward(rewardIndex)
-                    if not rewardOk then
-                        runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardReason)
-                        snapshot = Run.GetSnapshot()
-                        break
-                    end
+                local rewardsOk, rewardsReason = chooseRewardsUntilDone()
+                if not rewardsOk then
+                    runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardsReason)
+                    snapshot = Run.GetSnapshot()
+                    break
                 end
-                autoPromoteBench()
                 snapshot = Run.GetSnapshot()
             end
         elseif snapshot.phase == "shop" then

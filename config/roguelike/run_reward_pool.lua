@@ -46,12 +46,14 @@ local RunRewardPool = {}
 -- NOTE: This is a vertical-slice config. The runtime can evolve the schema later.
 ---@type table<integer, RunRewardGroup>
 RunRewardPool.GROUPS = {
-    -- Normal battle reward: 3 options, typically blessing / recruit / small heal.
+    -- Normal battle reward: 3 options, typically gear / blessing / small heal.
     [101001] = {
         id = 101001,
         kind = "normal",
         optionCount = 3,
         options = {
+            { rewardType = "equipment", refId = 101001, weight = 28 },
+            { rewardType = "equipment", refId = 101002, weight = 28 },
             { rewardType = "blessing", refId = 101001, weight = 42 },
             { rewardType = "blessing", refId = 101002, weight = 42 },
             { rewardType = "heal_pct", value = 0.15, weight = 32 },
@@ -60,7 +62,7 @@ RunRewardPool.GROUPS = {
         },
     },
 
-    -- Elite reward: 3 options with guaranteed relic appearance.
+    -- Elite reward: 3 options with guaranteed equipment appearance.
     [101101] = {
         id = 101101,
         kind = "elite",

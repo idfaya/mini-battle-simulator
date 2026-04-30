@@ -10,7 +10,7 @@ local Run = require("roguelike.roguelike_run")
 Logger.SetLogLevel(Logger.LOG_LEVELS.ERROR)
 
 local ROUTE = { 101001, 101003, 101005, 101007, 101009, 101010, 101011 }
-local STARTER = { 900005, 900007, 900002 }
+local STARTER = { 900005, 900001, 900007, 900002 }
 
 local function teamStats(snapshot)
     local totalHp, totalMaxHp, alive, dead = 0, 0, 0, 0
@@ -44,9 +44,13 @@ local function battleTeamStats(snapshot)
 end
 
 local function consumeNonBattle(snapshot)
-    if snapshot.phase == "reward" then
+    local guard = 0
+    while snapshot.phase == "reward" and guard < 4 do
         Run.ChooseReward(1)
-    elseif snapshot.phase == "shop" then
+        snapshot = Run.GetSnapshot()
+        guard = guard + 1
+    end
+    if snapshot.phase == "shop" then
         Run.ShopLeave()
     elseif snapshot.phase == "camp" then
         Run.CampChoose(1)
@@ -61,7 +65,7 @@ Run.StartRun({
 })
 
 print("Act1 Combat Route Simulation")
-print("starter=900005,900007,900002 route=101001,101003,101005,101007,101009,101010,101011")
+print("starter=900005,900001,900007,900002 route=101001,101003,101005,101007,101009,101010,101011")
 print(string.rep("=", 72))
 
 for _, nodeId in ipairs(ROUTE) do
