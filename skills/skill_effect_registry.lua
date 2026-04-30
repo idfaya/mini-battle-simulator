@@ -42,8 +42,23 @@ local function CollectAliveHeroes(list)
 end
 
 local function ResolveFriendTargets(hero, targets)
+    local function IsAlly(unit)
+        if not hero or not unit then
+            return false
+        end
+        return hero.isLeft == unit.isLeft
+    end
+
     if targets and #targets > 0 then
-        return CollectAliveHeroes(targets)
+        local allies = {}
+        for _, unit in ipairs(targets) do
+            if unit and not unit.isDead and IsAlly(unit) then
+                table.insert(allies, unit)
+            end
+        end
+        if #allies > 0 then
+            return allies
+        end
     end
     local BattleFormation = require("modules.battle_formation")
     return CollectAliveHeroes(BattleFormation.GetFriendTeam(hero) or {})
