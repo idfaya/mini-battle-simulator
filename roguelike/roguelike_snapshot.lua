@@ -1,5 +1,5 @@
 local RoguelikeMap = require("roguelike.roguelike_map")
-local RunRelicConfig = require("config.roguelike.run_relic_config")
+local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local FeatConfig = require("config.feat_config")
 local FeatBuildConfig = require("config.feat_build_config")
@@ -71,15 +71,15 @@ local function serializeTeam(roster)
     return result
 end
 
-local function serializeRelics(relicIds)
+local function serializeEquipments(equipmentIds)
     local result = {}
-    for _, relicId in ipairs(relicIds or {}) do
-        local relic = RunRelicConfig.GetRelic(relicId)
+    for _, equipmentId in ipairs(equipmentIds or {}) do
+        local equipment = RunEquipmentConfig.GetEquipment(equipmentId)
         result[#result + 1] = {
-            relicId = relicId,
-            name = relic and relic.name or ("Relic " .. tostring(relicId)),
-            rarity = relic and relic.rarity or "common",
-            code = relic and relic.code or "",
+            equipmentId = equipmentId,
+            name = equipment and equipment.name or ("Equipment " .. tostring(equipmentId)),
+            rarity = equipment and equipment.rarity or "common",
+            code = equipment and equipment.code or "",
         }
     end
     return result
@@ -150,7 +150,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         map = serializeMap(runState),
         team = serializeTeam(runState.teamRoster),
         bench = serializeTeam(runState.benchRoster),
-        relics = serializeRelics(runState.relicIds),
+        equipments = serializeEquipments(runState.equipmentIds),
         blessings = serializeBlessings(runState.blessingIds),
         eventState = runState.eventState,
         shopState = runState.shopState,

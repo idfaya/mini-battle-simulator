@@ -644,7 +644,7 @@ export class BattleScene {
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "#d9e2ec";
       ctx.fillText(
-        `${state.runContext.chapterLabel} · ${state.runContext.nodeTitle} · 金币 ${state.runContext.gold} · 遗物 ${state.runContext.relicCount} · 祝福 ${state.runContext.blessingCount}`,
+        `${state.runContext.chapterLabel} · ${state.runContext.nodeTitle} · 金币 ${state.runContext.gold} · 装备 ${state.runContext.equipmentCount} · 祝福 ${state.runContext.blessingCount}`,
         48,
         TOP_BAR_TEXT_Y + 14,
       );

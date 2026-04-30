@@ -269,7 +269,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     <div class="setup-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
     <div class="setup-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
     <div class="setup-field"><span>食物</span><strong>${snapshot.food}</strong></div>
-    <div class="setup-field"><span>遗物</span><strong>${snapshot.relics.length}</strong></div>
+    <div class="setup-field"><span>装备</span><strong>${snapshot.equipments.length}</strong></div>
     <div class="setup-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
   `;
   host.append(stats);
@@ -288,7 +288,12 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = snapshot.rewardState.kind === "battle_levelup" ? "选择升级" : "选择奖励";
+    title.textContent =
+      snapshot.rewardState.kind === "battle_levelup"
+        ? "选择升级"
+        : snapshot.rewardState.kind === "node_recruit"
+          ? "选择招募"
+          : "选择奖励";
     host.append(title);
     if (snapshot.rewardState.kind === "battle_levelup") {
       const grid = document.createElement("div");

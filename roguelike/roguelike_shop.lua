@@ -96,10 +96,10 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
     runState.gold = (runState.gold or 0) - price
     runState.shopSoldMap[goodsId] = true
 
-    if goods.goodsType == "relic" then
-        runState.relicIds = runState.relicIds or {}
-        addUnique(runState.relicIds, goods.refId)
-        runState.lastActionMessage = "购买遗物"
+    if goods.goodsType == "equipment" then
+        runState.equipmentIds = runState.equipmentIds or {}
+        addUnique(runState.equipmentIds, goods.refId)
+        runState.lastActionMessage = "购买装备"
         return true
     end
     if goods.goodsType == "blessing" then
@@ -107,13 +107,6 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
         addUnique(runState.blessingIds, goods.refId)
         runState.lastActionMessage = "购买祝福"
         return true
-    end
-    if goods.goodsType == "recruit" then
-        runState.lastActionMessage = "购买招募"
-        return true, {
-            kind = "recruit",
-            heroId = goods.refId,
-        }
     end
     if goods.goodsType == "service" then
         local payload = goods.payload or {}

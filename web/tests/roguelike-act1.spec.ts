@@ -69,22 +69,20 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Broken Caravan");
-  await expect(page.getByRole("button", { name: "Salvage the crates" })).toBeVisible();
-  await page.getByRole("button", { name: "Salvage the crates" }).click();
+  await page.getByRole("button", { name: "信息" }).click();
+  await expect(page.locator(".run-info-panel .panel-title").filter({ hasText: "选择招募" })).toBeVisible();
+  await page.locator(".run-info-panel button").first().click();
 
   await clickNodeAndEnter("Ash Merchant");
-  await page.getByRole("button", { name: /recruit .*900001/i }).click();
-  await page.getByRole("button", { name: "队伍" }).click();
-  await expect(page.locator(".run-team-panel .panel-title").filter({ hasText: "候补编成" })).toBeVisible();
-  await page.getByRole("button", { name: "选择候补" }).first().click();
-  await page.getByRole("button", { name: "替换上阵" }).first().click();
   await page.getByRole("button", { name: "信息" }).click();
+  await page.getByRole("button", { name: /equipment|blessing|service/i }).first().click();
+  await expect(page.locator(".run-info-panel")).toContainText("装备");
   await expect(page.getByRole("button", { name: "离开商店" })).toBeVisible();
   await page.getByRole("button", { name: "离开商店" }).click();
 
   await clickNodeAndEnter("Campfire Shrine");
-  await expect(page.getByRole("button", { name: "Rest" })).toBeVisible();
-  await page.getByRole("button", { name: "Rest" }).click();
+  await expect(page.getByRole("button", { name: "Sharpen" })).toBeVisible();
+  await page.getByRole("button", { name: "Sharpen" }).click();
 
   await clickNodeAndEnter("Ember Shrine");
   await expect(page.getByRole("button", { name: "Pray for recovery" })).toBeVisible();

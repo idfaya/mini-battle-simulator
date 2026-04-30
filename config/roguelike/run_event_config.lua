@@ -8,21 +8,18 @@
 
 ---@alias RunEventResultType
 ---| "grant_gold"
----| "grant_recruit"
 ---| "trigger_battle"
 ---| "team_heal_pct"
 ---| "grant_blessing"
----| "grant_relic"
----| "grant_reward_group"
+---| "grant_equipment"
 
 ---@class RunEventResult
 ---@field gold integer|nil
----@field heroId integer|nil
 ---@field encounterId integer|nil
 ---@field rewardGroupId integer|nil
 ---@field value number|nil
 ---@field blessingId integer|nil
----@field relicId integer|nil
+---@field equipmentId integer|nil
 
 ---@class RunEventOption
 ---@field id integer
@@ -69,9 +66,9 @@ RunEventConfig.EVENTS = {
                 label = "Escort the medic",
                 costType = "gold",
                 costValue = 25,
-                resultType = "grant_recruit",
+                resultType = "grant_blessing",
                 result = {
-                    heroId = 900007,
+                    blessingId = 101002,
                 },
             },
             {
@@ -133,9 +130,9 @@ RunEventConfig.EVENTS = {
                 label = "Pay the wardens",
                 costType = "gold",
                 costValue = 60,
-                resultType = "grant_relic",
+                resultType = "grant_equipment",
                 result = {
-                    relicId = 101004,
+                    equipmentId = 101004,
                 },
             },
             {
@@ -143,9 +140,9 @@ RunEventConfig.EVENTS = {
                 label = "Break the seals",
                 costType = "hp_pct",
                 costValue = 0.20,
-                resultType = "grant_reward_group",
+                resultType = "grant_equipment",
                 result = {
-                    rewardGroupId = 101301,
+                    equipmentId = 101003,
                 },
             },
         },

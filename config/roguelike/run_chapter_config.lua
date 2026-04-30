@@ -18,6 +18,12 @@
 ---@field healPct number
 ---@field rewardGroupId integer
 
+---@class RunChapterPostBattleRest
+---@field healPct number
+---@field clearCooldowns boolean
+---@field restoreUltimateCharges boolean
+---@field reviveDead boolean
+
 ---@class RunChapterEntry
 ---@field id integer
 ---@field code string
@@ -39,6 +45,7 @@
 ---@field shopId integer
 ---@field campId integer
 ---@field chapterClearRewards RunChapterClearRewards
+---@field postBattleRest RunChapterPostBattleRest
 
 ---@class RunChapterConfigModule
 ---@field CHAPTERS table<integer, RunChapterEntry>
@@ -87,6 +94,12 @@ RunChapterConfig.CHAPTERS = {
         },
         shopId = 101001,
         campId = 101001,
+        postBattleRest = {
+            healPct = 0.50,
+            clearCooldowns = true,
+            restoreUltimateCharges = true,
+            reviveDead = false,
+        },
         chapterClearRewards = {
             gold = 90,
             healPct = 0.30,

@@ -143,16 +143,16 @@ RunEncounterGroup.ENCOUNTERS = {
         kind = "elite",
         chapterId = 101,
         difficulty = 4,
-        level = 8,
-        enemyCount = 6,
-        enemyIds = { 910005, 910005, 910005, 910005, 910004, 910003 },
-        initialEnergy = 120,
+        level = 6,
+        enemyCount = 4,
+        enemyIds = { 910005, 910004, 910003, 910002 },
+        initialEnergy = 100,
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { relicRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "deadly", pressureFactor = 1.15 },
-        playerScale = { hp = 1.00, atk = 1.02, def = 1.00, energyBonus = 4 },
-        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 1, spellDCDelta = 1 },
+        budget = { difficulty = "medium", pressureFactor = 0.95 },
+        playerScale = { hp = 1.00, atk = 1.05, def = 1.00, energyBonus = 10 },
+        enemyScale = { hp = 0.90, atk = 0.90, def = 0.90, hitDelta = 0, spellDCDelta = 0 },
     },
 
     -- Event battles (optional branch, still useful for vertical slice)
@@ -200,10 +200,10 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        budget = { difficulty = "deadly", pressureFactor = 1.30 },
+        budget = { difficulty = "deadly", pressureFactor = 1.10 },
         playerScale = { hp = 1.00, atk = 1.03, def = 1.00, energyBonus = 0 },
         -- BOSS 语义修正：hit/DC +2 突出 BOSS 命中优势，但 atk/hp 倍率交给 budget。
-        enemyScale = { hp = 1.00, atk = 1.00, def = 1.00, hitDelta = 2, spellDCDelta = 2, saveDelta = 0 },
+        enemyScale = { hp = 0.95, atk = 0.95, def = 0.95, hitDelta = 1, spellDCDelta = 1, saveDelta = 0 },
     },
 }
 

@@ -7,7 +7,8 @@ local EnemyData = require("config.enemy_data")
 local BattleEvent = require("core.battle_event")
 local ClassRoleConfig = require("config.class_role_config")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
-local RunRelicConfig = require("config.roguelike.run_relic_config")
+local RunChapterConfig = require("config.roguelike.run_chapter_config")
+local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 
 local RoguelikeBattleBridge = {}
@@ -52,8 +53,8 @@ local function contains(list, value)
     return false
 end
 
-local function resolveRelic(relicId)
-    return RunRelicConfig.GetRelic(relicId)
+local function resolveEquipment(equipmentId)
+    return RunEquipmentConfig.GetEquipment(equipmentId)
 end
 
 local function resolveBlessing(blessingId)
@@ -95,16 +96,16 @@ local function buildBattleModifiers(runState, encounter)
         postBattleHealPct = 0,
     }
 
-    for _, relicId in ipairs(runState.relicIds or {}) do
-        local relic = resolveRelic(relicId)
-        local params = relic and relic.params or nil
-        if relic and relic.effectType == "team_energy_flat" then
+    for _, equipmentId in ipairs(runState.equipmentIds or {}) do
+        local equipment = resolveEquipment(equipmentId)
+        local params = equipment and equipment.params or nil
+        if equipment and equipment.effectType == "team_energy_flat" then
             result.extraEnergy = result.extraEnergy + (params.amount or 0)
-        elseif relic and relic.effectType == "class_attack_pct" then
+        elseif equipment and equipment.effectType == "class_attack_pct" then
             applyClassPct(result.atkPctByClass, params.classIds, params.value)
-        elseif relic and relic.effectType == "bonus_gold_by_battle_kind" then
+        elseif equipment and equipment.effectType == "bonus_gold_by_battle_kind" then
             result.bonusGold = result.bonusGold + (params[encounter.kind] or 0)
-        elseif relic and relic.effectType == "team_heal_pct" and encounter.kind == "elite" then
+        elseif equipment and equipment.effectType == "team_heal_pct" and encounter.kind == "elite" then
             result.postBattleHealPct = result.postBattleHealPct + (params.value or 0)
         end
     end
@@ -169,7 +170,7 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
 
     -- Apply roguelike feats / class-level grants to the battle hero, before relic/blessing scaling.
     -- ConvertToHeroData uses level only; without this step, feat stats would not affect combat.
-    if tonumber(rosterHero.classId) ~= 2 and rosterHero.feats and #rosterHero.feats > 0 then
+    if rosterHero.feats and #rosterHero.feats > 0 then
         local baseAttrs = HeroData.CalculateHeroAttributes(rosterHero.heroId, rosterHero.level, 1)
         if baseAttrs then
             local grantMods = (HeroData.CollectClassLevelGrants(rosterHero.classId, 0, rosterHero.level))
@@ -366,6 +367,33 @@ local function applyLeftEnergyBonus(extraEnergy)
     end
 end
 
+local function applyPostBattleRest(runState)
+    local chapter = RunChapterConfig.GetChapter(runState.chapterId) or {}
+    local rest = chapter.postBattleRest or {}
+    local healPct = tonumber(rest.healPct) or 0
+    local clearCooldowns = rest.clearCooldowns ~= false
+    local restoreUltimateCharges = rest.restoreUltimateCharges == true
+
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        if not hero.isDead then
+            if healPct > 0 then
+                local heal = math.floor((hero.maxHp or 0) * healPct)
+                hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
+            end
+            if clearCooldowns then
+                hero.skillCooldowns = hero.skillCooldowns or {}
+                for skillId, _ in pairs(hero.skillCooldowns) do
+                    hero.skillCooldowns[skillId] = 0
+                end
+            end
+            if restoreUltimateCharges then
+                hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+                hero.ultimateCharges = hero.ultimateChargesMax
+            end
+        end
+    end
+end
+
 function RoguelikeBattleBridge.StartBattle(runState, encounter)
     local config, modifiers, reason = buildBattleConfig(runState, encounter)
     if not config then
@@ -441,15 +469,10 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
                 end
             end
 
-            -- Post-battle short rest (auto):
-            -- - clear non-ultimate cooldowns
-            -- - do NOT heal
-            -- - do NOT clear ultimate cooldowns
-            -- - do NOT restore ultimate charges
             for skillId, cd in pairs(rosterHero.skillCooldowns) do
                 local sid = tonumber(skillId)
                 if sid and (tonumber(SkillConfig.GetSkillType(sid)) or 0) ~= 3 then
-                    rosterHero.skillCooldowns[sid] = 0
+                    rosterHero.skillCooldowns[sid] = math.max(0, math.floor(tonumber(cd) or 0))
                 end
             end
         else
@@ -474,6 +497,7 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
                 end
             end
         end
+        applyPostBattleRest(runState)
     end
 
     runState.lastBattleSummary = {

@@ -10,7 +10,7 @@ export type BattleStoreState = {
     chapterLabel: string;
     nodeTitle: string;
     gold: number;
-    relicCount: number;
+    equipmentCount: number;
     blessingCount: number;
   } | null;
 };

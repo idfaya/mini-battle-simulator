@@ -10,7 +10,7 @@ export type RunPhase =
   | "chapter_result"
   | "failed";
 
-export type RunNodeType = "battle_normal" | "battle_elite" | "event" | "shop" | "camp" | "boss";
+export type RunNodeType = "battle_normal" | "battle_elite" | "event" | "shop" | "camp" | "boss" | "recruit";
 
 export type RunMapNodeState = {
   id: number;
@@ -44,8 +44,8 @@ export type RunTeamMember = {
   buildSummary?: string[];
 };
 
-export type RelicState = {
-  relicId: number;
+export type EquipmentState = {
+  equipmentId: number;
   name: string;
   rarity: string;
   code: string;
@@ -59,7 +59,7 @@ export type BlessingState = {
 };
 
 export type RewardOption = {
-  rewardType: "gold" | "heal_pct" | "relic" | "blessing" | "recruit" | "levelup";
+  rewardType: "gold" | "heal_pct" | "equipment" | "blessing" | "recruit" | "levelup";
   refId?: number;
   value?: number;
   label: string;
@@ -132,7 +132,7 @@ export type ChapterResult = {
   success: boolean;
   reason: string;
   gold?: number;
-  relicCount?: number;
+  equipmentCount?: number;
   blessingCount?: number;
 };
 
@@ -151,7 +151,7 @@ export type RunSnapshot = {
   map: RunMapState | null;
   team: RunTeamMember[];
   bench: RunTeamMember[];
-  relics: RelicState[];
+  equipments: EquipmentState[];
   blessings: BlessingState[];
   eventState: EventState | null;
   shopState: ShopState | null;

@@ -118,7 +118,7 @@ export class RunMapScene {
     ctx.font = "bold 28px sans-serif";
     ctx.fillText(`Act 1 · Chapter ${snapshot.chapterId}`, 42, 50);
     ctx.font = "14px sans-serif";
-    ctx.fillText(`金币 ${snapshot.gold} · 遗物 ${snapshot.relics.length} · 祝福 ${snapshot.blessings.length}`, 42, 74);
+    ctx.fillText(`金币 ${snapshot.gold} · 装备 ${snapshot.equipments.length} · 祝福 ${snapshot.blessings.length}`, 42, 74);
 
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.font = "13px sans-serif";
@@ -174,6 +174,8 @@ export class RunMapScene {
         return "商";
       case "camp":
         return "营";
+      case "recruit":
+        return "募";
       case "boss":
         return "B";
       default:
@@ -193,6 +195,8 @@ export class RunMapScene {
         return { fill: "#06d6a0", stroke: "#93f5d8" };
       case "camp":
         return { fill: "#118ab2", stroke: "#8ecae6" };
+      case "recruit":
+        return { fill: "#ff9f1c", stroke: "#ffd6a5" };
       case "boss":
         return { fill: "#8338ec", stroke: "#d0b3ff" };
       default:

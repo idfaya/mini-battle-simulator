@@ -86,20 +86,14 @@ function RoguelikeEvent.ResolveOption(runState, eventId, optionId)
         runState.lastActionMessage = "事件治疗"
         return true, { kind = "done" }
     end
-    if resultType == "grant_recruit" then
-        return true, { kind = "recruit", heroId = result.heroId }
-    end
     if resultType == "grant_blessing" then
         return true, { kind = "blessing", blessingId = result.blessingId }
     end
-    if resultType == "grant_relic" then
-        return true, { kind = "relic", relicId = result.relicId }
-    end
-    if resultType == "grant_reward_group" then
-        return true, { kind = "reward_group", rewardGroupId = result.rewardGroupId }
+    if resultType == "grant_equipment" then
+        return true, { kind = "equipment", equipmentId = result.equipmentId }
     end
     if resultType == "trigger_battle" then
-        return true, { kind = "battle", encounterId = result.encounterId, rewardGroupId = result.rewardGroupId }
+        return true, { kind = "battle", encounterId = result.encounterId }
     end
 
     return false, "unsupported_result"

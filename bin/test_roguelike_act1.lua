@@ -95,27 +95,21 @@ assert(snapshot.phase == "reward", "first battle should open reward")
 assert(Run.ChooseReward(1) == true, "reward selection should succeed")
 
 choosePathAndEnter(101002)
-assert(Run.GetSnapshot().phase == "event", "second path should open event")
-assert(Run.ChooseEventOption(1) == true, "event option should resolve")
-assert(Run.GetSnapshot().phase == "map", "event should return to map")
+assert(Run.GetSnapshot().phase == "reward", "second path should open recruit reward")
+assert(Run.ChooseReward(1) == true, "recruit selection should resolve")
+assert(Run.GetSnapshot().phase == "map", "recruit node should return to map")
 
 choosePathAndEnter(101004)
 assert(Run.GetSnapshot().phase == "shop", "shop node should open shop")
 local shopSnapshot = Run.GetSnapshot()
-local originalFrontRosterId = shopSnapshot.team[1].rosterId
-assert(Run.ShopBuy(101004) == true, "shop recruit should succeed")
+assert(Run.ShopBuy(101001) == true, "shop equipment should succeed")
 shopSnapshot = Run.GetSnapshot()
-assert(#(shopSnapshot.bench or {}) >= 1, "recruit should enter bench")
-local benchRosterId = shopSnapshot.bench[1].rosterId
-assert(Run.SwapBenchWithTeam(benchRosterId, originalFrontRosterId) == true, "bench swap should succeed")
-shopSnapshot = Run.GetSnapshot()
-assert(shopSnapshot.team[1].rosterId == benchRosterId, "bench recruit should replace target team member")
-assert(#(shopSnapshot.bench or {}) >= 1, "replaced member should move to bench")
+assert(#(shopSnapshot.equipments or {}) >= 1, "equipment should be added to run inventory")
 assert(Run.ShopLeave() == true, "should be able to leave shop")
 
 choosePathAndEnter(101006)
 assert(Run.GetSnapshot().phase == "camp", "camp node should open camp")
-assert(Run.CampChoose(1) == true, "camp rest should work")
+assert(Run.CampChoose(2) == true, "camp empower should work")
 
 choosePathAndEnter(101008)
 assert(Run.GetSnapshot().phase == "event", "ember shrine should open event")

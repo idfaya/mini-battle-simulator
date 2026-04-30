@@ -22,6 +22,16 @@ local function restoreUltimateCharges(runState)
     end
 end
 
+local function clearAllStatuses(hero)
+    if not hero then
+        return
+    end
+    hero.buffs = {}
+    hero.debuffs = {}
+    hero.statuses = {}
+    hero.riskHooks = nil
+end
+
 local function reviveOne(runState, healPct)
     for _, hero in ipairs(runState.teamRoster or {}) do
         if hero.isDead then
@@ -31,6 +41,23 @@ local function reviveOne(runState, healPct)
         end
     end
     return false
+end
+
+local function reviveFullRestOne(runState)
+    local revived = false
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        if hero.isDead then
+            hero.isDead = false
+            hero.currentHp = hero.maxHp or 1
+            hero.skillCooldowns = {}
+            hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+            hero.ultimateCharges = hero.ultimateChargesMax
+            clearAllStatuses(hero)
+            revived = true
+            break
+        end
+    end
+    return revived
 end
 
 local function clearAllSkillCooldowns(runState)
@@ -67,7 +94,7 @@ function RoguelikeCamp.BuildCampState(campId, runState)
     local actions = {}
     for _, action in ipairs(camp.actions or {}) do
         local available = true
-        if (action.requirements or {}).hasDeadHero then
+        if action.effectType == "revive_full_rest" or (action.requirements or {}).hasDeadHero then
             available = false
             for _, hero in ipairs(runState.teamRoster or {}) do
                 if hero.isDead then
@@ -107,16 +134,25 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
     if not selected then
         return false, "action_not_found"
     end
+    if selected.effectType == "revive_full_rest" then
+        local hasDeadHero = false
+        for _, hero in ipairs(runState.teamRoster or {}) do
+            if hero.isDead then
+                hasDeadHero = true
+                break
+            end
+        end
+        if not hasDeadHero then
+            return false, "no_dead_hero"
+        end
+    end
 
-    if selected.effectType == "team_heal_pct" then
-        -- Camp is treated as long rest:
-        -- - clear all cooldowns
-        -- - restore ultimate charges
-        -- - HP heals by +50% max HP (capped to full)
-        healTeamAddPctOfMax(runState, 0.50)
-        clearAllSkillCooldowns(runState)
-        restoreUltimateCharges(runState)
-        runState.lastActionMessage = "篝火长休：清CD与次数，血量+50%上限"
+    if selected.effectType == "revive_full_rest" then
+        local revived = reviveFullRestOne(runState)
+        if not revived then
+            return false, "no_dead_hero"
+        end
+        runState.lastActionMessage = "营地救援：复活一名英雄并回满血、次数、状态"
         return true
     end
     if selected.effectType == "grant_blessing" then

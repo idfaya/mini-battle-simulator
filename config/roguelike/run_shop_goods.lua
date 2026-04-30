@@ -1,7 +1,6 @@
 ---@alias RunShopGoodsType
----| "relic"
+---| "equipment"
 ---| "blessing"
----| "recruit"
 ---| "service"
 
 ---@alias RunShopRarity
@@ -72,14 +71,14 @@ RunShopGoods.SHOPS = {
 RunShopGoods.GOODS = {
     [101001] = {
         id = 101001,
-        goodsType = "relic",
+        goodsType = "equipment",
         refId = 101001,
         price = 68,
         rarity = "common",
     },
     [101002] = {
         id = 101002,
-        goodsType = "relic",
+        goodsType = "equipment",
         refId = 101002,
         price = 76,
         rarity = "common",
@@ -93,15 +92,15 @@ RunShopGoods.GOODS = {
     },
     [101004] = {
         id = 101004,
-        goodsType = "recruit",
-        refId = 900001,
-        price = 78,
-        rarity = "common",
+        goodsType = "equipment",
+        refId = 101003,
+        price = 88,
+        rarity = "rare",
     },
     [101005] = {
         id = 101005,
-        goodsType = "recruit",
-        refId = 900007,
+        goodsType = "equipment",
+        refId = 101004,
         price = 92,
         rarity = "rare",
     },

@@ -8,7 +8,6 @@ local Run = require("roguelike.roguelike_run")
 local RunNodePool = require("config.roguelike.run_node_pool")
 local RunShopGoods = require("config.roguelike.run_shop_goods")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
-local RunRelicConfig = require("config.roguelike.run_relic_config")
 local BattleFormation = require("modules.battle_formation")
 
 --[[
@@ -23,9 +22,9 @@ local BattleFormation = require("modules.battle_formation")
 
 默认策略:
   - 路线: chapter101 的 safe + combat
-  - 奖励: recruit > relic > heal_pct > blessing > gold
-  - 商店: basic（优先买招募/治疗/遗物/祝福）
-  - 营地: 选 actionId=1
+  - 奖励: recruit > equipment > heal_pct > blessing > gold
+  - 商店: basic（优先买装备/治疗/祝福）
+  - 营地: 优先 blessing，其次复活
   - 事件: 选 optionId=1
   - 候补: 队伍未满时自动上阵
 ]]
@@ -56,16 +55,15 @@ local DEFAULT_CONFIG = {
 
 local REWARD_PRIORITY = {
     recruit = 1,
-    relic = 2,
+    equipment = 2,
     heal_pct = 3,
     blessing = 4,
     gold = 5,
 }
 
 local SHOP_PRIORITY = {
-    recruit = 1,
+    equipment = 1,
     service_heal = 2,
-    relic = 3,
     blessing = 4,
     service_other = 5,
 }
@@ -528,6 +526,19 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             end
             autoPromoteBench()
             snapshot = Run.GetSnapshot()
+            if snapshot.phase == "reward" then
+                local rewardIndex = chooseRewardIndex(snapshot)
+                if rewardIndex then
+                    local rewardOk, rewardReason = Run.ChooseReward(rewardIndex)
+                    if not rewardOk then
+                        runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardReason)
+                        snapshot = Run.GetSnapshot()
+                        break
+                    end
+                end
+                autoPromoteBench()
+                snapshot = Run.GetSnapshot()
+            end
         elseif snapshot.phase == "shop" then
             buyFromShop(snapshot, config.shopPolicy)
             autoPromoteBench()
@@ -539,12 +550,36 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             end
             snapshot = Run.GetSnapshot()
         elseif snapshot.phase == "camp" then
-            local campOk, campReason = Run.CampChoose(1)
+            local campActionId = 2
+            local campState = snapshot.campState or {}
+            local hasBlessingAction = false
+            for _, action in ipairs(campState.actions or {}) do
+                if tonumber(action.id) == 2 and action.available ~= false then
+                    hasBlessingAction = true
+                    break
+                end
+            end
+            if not hasBlessingAction then
+                campActionId = 1
+            end
+            local campOk, campReason = Run.CampChoose(campActionId)
             if not campOk then
                 runReport.terminalReason = "camp_failed:" .. tostring(campReason)
                 snapshot = Run.GetSnapshot()
                 break
             end
+            snapshot = Run.GetSnapshot()
+        elseif snapshot.phase == "reward" then
+            local rewardIndex = chooseRewardIndex(snapshot)
+            if rewardIndex then
+                local rewardOk, rewardReason = Run.ChooseReward(rewardIndex)
+                if not rewardOk then
+                    runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardReason)
+                    snapshot = Run.GetSnapshot()
+                    break
+                end
+            end
+            autoPromoteBench()
             snapshot = Run.GetSnapshot()
         end
 

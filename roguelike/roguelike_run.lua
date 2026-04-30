@@ -23,6 +23,7 @@ local EXP_BY_NODE_TYPE = {
     event = 1,
     shop = 1,
     camp = 1,
+    recruit = 1,
 }
 local LEVEL_EXP_THRESHOLDS = {
     [1] = 0,
@@ -190,7 +191,7 @@ local function resetRunState()
         food = 0,
         teamRoster = {},
         benchRoster = {},
-        relicIds = {},
+        equipmentIds = {},
         blessingIds = {},
         rewardState = nil,
         eventState = nil,
@@ -207,7 +208,6 @@ local function resetRunState()
         pendingRecruitHeroId = nil,
         maxHeroCount = 5,
         battleEncounterId = nil,
-        battleRewardGroupId = nil,
         rewardReturnMode = "map",
         nextRosterId = 1,
     }
@@ -249,7 +249,6 @@ local function enterNode(nodeId)
         cachedBattleSnapshot = snapshotOrReason
         state.phase = "battle"
         state.battleEncounterId = node.encounterId
-        state.battleRewardGroupId = node.rewardGroupId
         return true
     end
 
@@ -272,6 +271,16 @@ local function enterNode(nodeId)
     if node.nodeType == "camp" then
         state.phase = "camp"
         state.campState = RoguelikeCamp.BuildCampState(node.campId, state)
+        return true
+    end
+
+    if node.nodeType == "recruit" then
+        local rewardState = RoguelikeReward.GenerateRecruitRewardState(state, node.recruitPoolId)
+        if not rewardState or #(rewardState.options or {}) == 0 then
+            return false, "recruit_unavailable"
+        end
+        state.phase = "reward"
+        state.rewardState = rewardState
         return true
     end
 
@@ -307,7 +316,6 @@ local function leaveNodeBackToMap()
     cachedBattleSnapshot = nil
     state.phase = "map"
     state.battleEncounterId = nil
-    state.battleRewardGroupId = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end
@@ -450,7 +458,7 @@ function RoguelikeRun.Tick(deltaMs)
                         success = true,
                         reason = "boss_defeated",
                         gold = state.gold,
-                        relicCount = #(state.relicIds or {}),
+                        equipmentCount = #(state.equipmentIds or {}),
                         blessingCount = #(state.blessingIds or {}),
                     }
                 end
@@ -508,7 +516,7 @@ function RoguelikeRun.ChooseReward(index)
             success = true,
             reason = "boss_defeated",
             gold = state.gold,
-            relicCount = #(state.relicIds or {}),
+            equipmentCount = #(state.equipmentIds or {}),
             blessingCount = #(state.blessingIds or {}),
         }
         return true
@@ -557,9 +565,9 @@ function RoguelikeRun.ChooseEventOption(optionId)
         leaveNodeBackToMap()
         return true
     end
-    if result.kind == "relic" then
-        state.relicIds = state.relicIds or {}
-        addUnique(state.relicIds, result.relicId)
+    if result.kind == "equipment" then
+        state.equipmentIds = state.equipmentIds or {}
+        addUnique(state.equipmentIds, result.equipmentId)
         if node then
             grantRunExp(getNodeExp(node.nodeType), "完成事件")
         end
@@ -578,10 +586,8 @@ function RoguelikeRun.ChooseEventOption(optionId)
         return true
     end
     if result.kind == "battle" then
-        -- Start event battle as a battle phase; after victory, open specified reward group.
         state.phase = "battle"
         state.battleEncounterId = result.encounterId
-        state.battleRewardGroupId = result.rewardGroupId
         local encounter = RunEncounterGroup.GetEncounter(result.encounterId)
         local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, encounter)
         if not ok2 then

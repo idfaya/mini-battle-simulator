@@ -1,6 +1,7 @@
 local RunRewardPool = require("config.roguelike.run_reward_pool")
-local RunRelicConfig = require("config.roguelike.run_relic_config")
+local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
+local RunRecruitPool = require("config.roguelike.run_recruit_pool")
 local HeroData = require("config.hero_data")
 local FeatConfig = require("config.feat_config")
 local FeatBuildConfig = require("config.feat_build_config")
@@ -69,9 +70,9 @@ local function buildLabel(entry)
     if entry.rewardType == "heal_pct" then
         return string.format("全队治疗 %.0f%%", (tonumber(entry.value) or 0) * 100)
     end
-    if entry.rewardType == "relic" then
-        local relic = RunRelicConfig.GetRelic(entry.refId)
-        return relic and relic.name or ("Relic " .. tostring(entry.refId))
+    if entry.rewardType == "equipment" then
+        local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
+        return equipment and equipment.name or ("Equipment " .. tostring(entry.refId))
     end
     if entry.rewardType == "blessing" then
         local blessing = RunBlessingConfig.GetBlessing(entry.refId)
@@ -84,9 +85,9 @@ local function buildLabel(entry)
 end
 
 local function buildDescription(entry)
-    if entry.rewardType == "relic" then
-        local relic = RunRelicConfig.GetRelic(entry.refId)
-        return relic and relic.code or ""
+    if entry.rewardType == "equipment" then
+        local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
+        return equipment and equipment.code or ""
     end
     if entry.rewardType == "blessing" then
         local blessing = RunBlessingConfig.GetBlessing(entry.refId)
@@ -214,9 +215,13 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
     return true, heroRecord
 end
 
-function RoguelikeReward.GenerateRecruitRewardState(runState, optionCount)
+function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, optionCount)
     local count = math.max(1, tonumber(optionCount) or 3)
-    local pool = HeroData.GetAllHeroIds() or {}
+    local poolConfig = recruitPoolId and RunRecruitPool.GetPool(recruitPoolId) or nil
+    if poolConfig then
+        count = math.max(1, tonumber(optionCount) or tonumber(poolConfig.optionCount) or 3)
+    end
+    local pool = (poolConfig and poolConfig.heroIds) or HeroData.GetAllHeroIds() or {}
     local candidates = {}
     for _, heroId in ipairs(pool) do
         if not containsHeroId(runState.teamRoster, heroId) and not containsHeroId(runState.benchRoster, heroId) then
@@ -247,8 +252,8 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, optionCount)
     end
 
     return {
-        groupId = 0,
-        kind = "battle_recruit",
+        groupId = tonumber(recruitPoolId) or 0,
+        kind = "node_recruit",
         options = options,
     }
 end
@@ -632,8 +637,8 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
     elseif option.rewardType == "heal_pct" then
         applyTeamHeal(runState, option.value)
         runState.lastActionMessage = option.label
-    elseif option.rewardType == "relic" then
-        addUnique(runState.relicIds, option.refId)
+    elseif option.rewardType == "equipment" then
+        addUnique(runState.equipmentIds, option.refId)
         runState.lastActionMessage = option.label
     elseif option.rewardType == "blessing" then
         addUnique(runState.blessingIds, option.refId)

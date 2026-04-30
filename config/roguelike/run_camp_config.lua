@@ -1,5 +1,5 @@
 ---@alias RunCampActionEffectType
----| "team_heal_pct"
+---| "revive_full_rest"
 ---| "grant_blessing"
 ---| "revive_one"
 
@@ -42,11 +42,8 @@ RunCampConfig.CAMPS = {
         actions = {
             {
                 id = 1,
-                label = "Rest",
-                effectType = "team_heal_pct",
-                params = {
-                    value = 0.16,
-                },
+                label = "Rescue",
+                effectType = "revive_full_rest",
             },
             {
                 id = 2,

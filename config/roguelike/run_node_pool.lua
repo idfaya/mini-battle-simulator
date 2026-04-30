@@ -5,6 +5,7 @@
 ---| "event"
 ---| "shop"
 ---| "camp"
+---| "recruit"
 
 ---@class RunNodeEntry
 ---@field id integer
@@ -19,6 +20,7 @@
 ---@field eventId integer|nil
 ---@field shopId integer|nil
 ---@field campId integer|nil
+---@field recruitPoolId integer|nil
 ---@field bossPhaseGroupId integer|nil
 ---@field nextNodeIds integer[]
 
@@ -49,9 +51,9 @@ RunNodePool.NODES = {
         floor = 2,
         lane = 1,
         code = "broken_caravan",
-        nodeType = "event",
+        nodeType = "recruit",
         title = "Broken Caravan",
-        eventId = 101001,
+        recruitPoolId = 101001,
         nextNodeIds = { 101004, 101005 },
     },
     [101003] = {

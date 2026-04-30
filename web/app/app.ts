@@ -194,7 +194,7 @@ async function bootstrapRunMode(
         nodeTitle:
           snapshot.map?.nodes.find((node) => node.id === snapshot.currentNodeId)?.title ?? `Node ${snapshot.currentNodeId ?? "-"}`,
         gold: snapshot.gold,
-        relicCount: snapshot.relics.length,
+          equipmentCount: snapshot.equipments.length,
         blessingCount: snapshot.blessings.length,
       });
     } else {
