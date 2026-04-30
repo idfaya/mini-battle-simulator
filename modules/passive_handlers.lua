@@ -5,6 +5,9 @@ local BattleFormation = require("modules.battle_formation")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local Logger = require("utils.logger")
 local FighterBuildPassives = require("skills.fighter_build_passives")
+local MonkBuildPassives = require("skills.monk_build_passives")
+local PaladinBuildPassives = require("skills.paladin_build_passives")
+local RangerBuildPassives = require("skills.ranger_build_passives")
 
 local PassiveHandlers = {}
 
@@ -369,6 +372,18 @@ PassiveHandlers.factories = {
     [80002107] = FighterBuildPassives.CreateSecondWindMasteryPassive,
     [80002109] = FighterBuildPassives.CreateExtraAttackPassive,
     [80002110] = FighterBuildPassives.CreateSweepingAttackPassive,
+    [80003101] = MonkBuildPassives.CreateMartialArtsPassive,
+    [80003103] = MonkBuildPassives.CreateIronMindPassive,
+    [80003104] = MonkBuildPassives.CreateSwiftStepPassive,
+    [80003105] = MonkBuildPassives.CreateBodyMasteryPassive,
+    [80003107] = MonkBuildPassives.CreateBodyGuardPassive,
+    [80003108] = MonkBuildPassives.CreateExtraAttackPassive,
+    [80004101] = PaladinBuildPassives.CreateDivineSmitePassive,
+    [80004103] = PaladinBuildPassives.CreateHeavyArmorPrayerPassive,
+    [80004108] = PaladinBuildPassives.CreateExtraAttackPassive,
+    [80005101] = RangerBuildPassives.CreateHunterMarkPassive,
+    [80005104] = RangerBuildPassives.CreateWildEndurancePassive,
+    [80005108] = RangerBuildPassives.CreateExtraAttackPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

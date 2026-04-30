@@ -91,8 +91,8 @@ export type BattleSetup = {
   speed: number;
   heroIds?: number[];
   enemyIds?: number[];
-  fighterBuildFeatIds?: number[];
-  fighterBuildFeatIdsByHero?: number[][];
+  buildFeatIds?: number[];
+  buildFeatIdsByHero?: number[][];
   seed?: number;
   seedArray?: number[];
 };

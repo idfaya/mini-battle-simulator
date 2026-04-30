@@ -702,6 +702,102 @@ function SkillEffectRegistry.RegisterBuiltins()
             targets = { ctx.hero },
         }
     end)
+
+    SkillEffectRegistry.Register("monk_open_hand_strike", function(ctx, frameCopy)
+        local MonkBuildPassives = require("skills.monk_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = MonkBuildPassives.PerformOpenHandStrike(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("monk_shadow_combo", function(ctx, frameCopy)
+        local MonkBuildPassives = require("skills.monk_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = MonkBuildPassives.PerformShadowCombo(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("paladin_lay_on_hands", function(ctx, frameCopy)
+        local PaladinBuildPassives = require("skills.paladin_build_passives")
+        local effectValue = PaladinBuildPassives.PerformLayOnHands(ctx.hero, frameCopy.target, ctx.skill)
+        return {
+            effectValue = effectValue,
+            healAmount = effectValue,
+            targets = { ctx.hero },
+        }
+    end)
+
+    SkillEffectRegistry.Register("paladin_vengeance_smite", function(ctx, frameCopy)
+        local PaladinBuildPassives = require("skills.paladin_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = PaladinBuildPassives.PerformVengeanceSmite(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("activate_guardian_aura", function(ctx, frameCopy)
+        local PaladinBuildPassives = require("skills.paladin_build_passives")
+        PaladinBuildPassives.ActivateGuardianAura(ctx.hero)
+        return {
+            targets = { ctx.hero },
+        }
+    end)
+
+    SkillEffectRegistry.Register("ranger_hunter_shot", function(ctx, frameCopy)
+        local RangerBuildPassives = require("skills.ranger_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RangerBuildPassives.PerformHunterShot(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("ranger_shadow_shot", function(ctx, frameCopy)
+        local RangerBuildPassives = require("skills.ranger_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RangerBuildPassives.PerformShadowShot(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("ranger_snare_shot", function(ctx, frameCopy)
+        local RangerBuildPassives = require("skills.ranger_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RangerBuildPassives.PerformSnareShot(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
 end
 
 return SkillEffectRegistry

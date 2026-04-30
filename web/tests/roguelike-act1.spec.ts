@@ -25,7 +25,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".panel-title").filter({ hasText: "选择下一个节点" }).first()).toBeVisible();
   await page.getByRole("button", { name: "队伍" }).click();
-  await expect(page.locator(".run-team-card").first()).toContainText("Tank");
+  await expect(page.locator(".run-team-card").first()).toContainText("Fighter");
   await expect(page.locator(".run-team-card").first()).toContainText("构筑: 战士训练 / 二次生命");
   await page.getByRole("button", { name: "地图" }).click();
 

@@ -60,7 +60,7 @@ local DEFAULT_DICE_SCALE = 1
 
 ---@type table<integer, Skill5eMetaEntry>
 local OVERRIDES = {
-    -- Rogue / Assassin
+    -- Rogue
     [80001001] = {
         kind = "physical",
         damageDice = "1d4",
@@ -193,6 +193,30 @@ local OVERRIDES = {
             [1] = "被动：将连击触发底线提高到 50%。",
         },
     },
+    [80003011] = {
+        kind = "physical",
+        damageDice = "1d4",
+        role = "武僧基础徒手攻击",
+        notes = "新 Build 管线的武僧母技能。所有武艺、额外攻击和 Lv3 主动都围绕该徒手攻击展开。",
+    },
+    [80003013] = {
+        kind = "physical",
+        damageDice = "1d4",
+        role = "震劲掌",
+        notes = "对当前目标执行 1 次徒手打击；命中后再检定强韧豁免，失败则 STUN 1 回合。",
+    },
+    [80003014] = {
+        kind = "physical",
+        damageDice = "1d4",
+        role = "影步连打",
+        notes = "对任意目标执行 1 次徒手打击；若目标位于后排，追加 1d8 伤害。",
+    },
+    [80003015] = {
+        kind = "auto",
+        healDice = "2d8+4",
+        role = "调息自愈",
+        notes = "回复自身生命并清除关键控制，作为武僧的续战按钮。",
+    },
 
     -- Paladin (frontline support / smite / aura)
     [80004001] = {
@@ -237,6 +261,29 @@ local OVERRIDES = {
             [1] = "被动：击杀叠战意（上限5），战意影响多项战斗结算。",
         },
     },
+    [80004011] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "圣武士基础武器攻击",
+        notes = "新 Build 管线的圣武士母技能。用于触发神圣惩击、额外攻击和各类誓约强化。",
+    },
+    [80004013] = {
+        kind = "auto",
+        healDice = "2d8+4",
+        role = "圣疗之手",
+        notes = "为生命最低的友军回复生命并清除关键负面状态。",
+    },
+    [80004014] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "复仇裁击",
+        notes = "先执行 1 次基础武器攻击；若命中，再追加 2d8 光耀伤害。",
+    },
+    [80004015] = {
+        kind = "auto",
+        role = "守护灵光",
+        notes = "直到你下回合开始前，为我方全体提供 AC 加成与首次受击减伤。",
+    },
 
     -- Ranger / Venom hunter (damage-over-time / burst conversion)
     [80005001] = {
@@ -279,6 +326,30 @@ local OVERRIDES = {
         tierNotes = {
             [1] = "被动：回合开始时让所有已中毒敌人额外+1层毒。",
         },
+    },
+    [80005011] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "游侠基础远程攻击",
+        notes = "新 Build 管线的游侠母技能。围绕猎人印记、额外攻击和子职射击展开。",
+    },
+    [80005013] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "猎杀箭",
+        notes = "先执行 1 次远程基础攻击；若目标带有猎人印记，再追加 2d6 伤害。",
+    },
+    [80005014] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "暮影射击",
+        notes = "对任意敌人执行 1 次远程基础攻击；若目标位于后排，再追加 1d8 伤害。",
+    },
+    [80005015] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "缠绕箭",
+        notes = "对任意敌人执行 1 次远程基础攻击；命中后若目标反射豁免失败，则冻结 1 回合近似表达 Restrained。",
     },
 
     -- Cleric / Holy

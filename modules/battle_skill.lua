@@ -417,16 +417,14 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     end
 
     local targetAC = opts.targetAC
-    local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
-    if ok and FighterBuildPassives and FighterBuildPassives.GetGuardStanceAcBonus then
-        local guardAcBonus = tonumber(FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)) or 0
-        if guardAcBonus > 0 then
-            local baseTargetAC = tonumber(targetAC)
-            if baseTargetAC == nil then
-                baseTargetAC = tonumber(defender and defender.ac) or 0
-            end
-            targetAC = baseTargetAC + guardAcBonus
+    local BuildPassiveCommon = require("skills.build_passive_common")
+    local defenderAcBonus = tonumber(BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)) or 0
+    if defenderAcBonus > 0 then
+        local baseTargetAC = tonumber(targetAC)
+        if baseTargetAC == nil then
+            baseTargetAC = tonumber(defender and defender.ac) or 0
         end
+        targetAC = baseTargetAC + defenderAcBonus
     end
 
     local hitResult = BattleFormula.RollHit(attacker, defender, {
@@ -842,7 +840,7 @@ end
 
 local function ResolveBasicAttackCastMeta(hero, skillId, opts)
     local SkillRuntimeConfig = require("config.skill_runtime_config")
-    if tonumber(skillId) ~= tonumber(SkillRuntimeConfig.Ids.fighter_basic_attack) then
+    if not SkillRuntimeConfig.IsBasicAttackSkill or not SkillRuntimeConfig.IsBasicAttackSkill(skillId) then
         return nil
     end
     opts = opts or {}
@@ -860,7 +858,7 @@ end
 local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
-    local FighterBuildPassives = require("skills.fighter_build_passives")
+    local BuildPassiveCommon = require("skills.build_passive_common")
     -- #region debug-point C:finalize-skill
     BattleEvent.Publish("DebugCounterTiming", {
         stage = "finalize_skill_cast",
@@ -888,7 +886,7 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
         })
     end
 
-    FighterBuildPassives.ResolveQueuedReactions(hero)
+    BuildPassiveCommon.ResolveQueuedReactions(hero)
 
     local energyStats = hero and hero.__energyCastStats or nil
     if energyStats and (
@@ -1247,8 +1245,8 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     target.name or "Unknown",
                     healAmount))
             else
-                local FighterBuildPassives = require("skills.fighter_build_passives")
-                local damageResult = BattleSkill.ResolveScaledDamage(hero, target, FighterBuildPassives.BuildBasicAttackResolveOpts(hero, target, skill))
+                local BuildPassiveCommon = require("skills.build_passive_common")
+                local damageResult = BattleSkill.ResolveScaledDamage(hero, target, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill))
                 local damage = tonumber(damageResult and damageResult.damage) or 0
                 local damageContext = {
                     attacker = hero,
@@ -1257,14 +1255,14 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 }
                 
                 BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
-                FighterBuildPassives.ApplyGuardStanceProtection(target, {
+                BuildPassiveCommon.ApplyTeamProtections(target, {
                     attacker = hero,
                     damageContext = damageContext,
                     skill = skill,
                 })
                 damage = math.max(0, math.floor(damageContext.damage or damage))
                 if damage > 0 then
-                    damage = damage + FighterBuildPassives.ApplyBasicAttackBonusDamage(hero, target)
+                    damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
                 end
                 totalDamage = totalDamage + damage
                 
@@ -1327,7 +1325,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     -- 触发击杀被动技能 (DmgMakeKill)
                     BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
                 end
-                FighterBuildPassives.AfterBasicAttackResolved(hero, target, damage)
+                BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
             end
         end
     end

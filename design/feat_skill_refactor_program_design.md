@@ -99,9 +99,9 @@
   hidden = false,
   cooldown = 3,
   execution = {
-    type = "repeat_basic_attack",
-    count = 1,
+    type = "basic_attack_action",
     retarget = "random_enemy",
+    actionSource = "action_surge",
   },
   tags = { "fighter", "burst" },
 }
@@ -113,14 +113,20 @@
   runtimeKind = "passive",
   classId = 2,
   hidden = true,
-  trigger = "after_first_basic_attack_each_turn",
+  trigger = "on_normal_attack_finish",
   execution = {
-    type = "repeat_basic_attack",
-    count = 1,
+    type = "repeat_basic_attack_same_target",
+    sameActionOnly = true,
+    preserveActionToken = true,
   },
   tags = { "fighter", "extra_attack" },
 }
 ```
+
+上面两个示例有两个强约束，后续职业必须沿用：
+
+- `额外攻击` 表示“同一次基础攻击行动中的第二击”，不是额外行动，也不负责重选目标。
+- `动作激增`、`战吼冲锋`、`迅捷施法` 这类能力若语义是“再获得一次完整攻击/施法行动”，必须显式建模为新的 action，而不是伪装成一次普通追击。
 
 ## Feat 数据模型
 
@@ -410,6 +416,23 @@
 
 ### 阶段 5：向其他职业扩展
 
+- 以战士样板为基准，逐个职业把“职业主轴 / 分支主动 / 终盘质变”拆回 `Feat -> skill`。
+- 优先迁移目前最依赖旧硬编码、且已经有独立设计文档的职业：
+  - `Ranger`
+  - `Paladin`
+  - `Monk`
+- 扩展时禁止直接复制旧战士实现的临时写法；必须先回答：
+  - 这是同一行动内的第二击，还是一次新的完整行动
+  - 这是命中前修正，还是命中后追加
+  - 这是立即结算，还是先登记后执行
+  - 它的 Web 可观测性需要日志、Banner 还是专属特效
+
+目标：
+
+- 其他职业沿用同一套能力语义边界
+- 不再出现“额外攻击”和“额外行动”混写的设计漂移
+- 新职业一开始就自带 Roguelike、Web 和日志上的可验证性
+
 ## Web 单战调试参数
 
 - `single-battle` 入口支持通过 URL 参数给战士注入 Build Feat。
@@ -449,6 +472,28 @@
 - `Lv3/Lv4/Lv5` 的二选一路线对玩法有明确影响
 - 其他职业在战士重构阶段保持可运行
 
+## 战士样板抽象出的通用优化准则
+
+- 先定“母技能”，再做职业强化。
+  - 战士的母技能是 `基础武器攻击`；其他职业也应先确定自己的统一母技能，例如游侠远程普攻、武僧徒手打击、圣武士基础武器攻击。
+- `额外攻击` 一律解释为“同一攻击行动中的第二击”。
+  - 该第二击默认沿用同一目标，独立重做命中与伤害结算。
+  - 若某职业希望重选目标，必须另起一个新 skill 或新 action 语义，不能继续叫 `额外攻击`。
+- `额外行动` 必须显式建模。
+  - 类似战士 `动作激增` 的能力，语义是“新开一条完整攻击链”，因此要允许重新选目标，并重新触发挂在基础攻击行动上的被动。
+- 反应技优先采用“先登记、后结算”。
+  - 这样可以覆盖未命中场景，也能保证动画顺序和日志顺序稳定。
+- 守线技能必须同时提供防护收益与反打收益。
+  - 只做反击、不做防护的技能，不应包装成守线 archetype。
+- Feat 文案必须直接表达离散规则。
+  - 优先写 `AC +2`、`忽略 2 点 AC`、`每回合 1 次`、`追加 1 次攻击`，不要写抽象修饰语。
+- Web 表现要和规则语义一一对应。
+  - 同一行动第二击：表现为一次前冲中的二次碰撞。
+  - 波及副目标：表现为单次动作中的双目标命中特效。
+  - 命中修正：表现为短促特效或日志，不要伪装成完整位移。
+- Roguelike 升级候选必须兼容 `fixed` 与 `choiceGroup`。
+  - 否则职业会在成长节点上漏掉关键固定 Feat。
+
 ## 最终定稿
 
 - 只保留一层能力对象：`skill`
@@ -486,6 +531,7 @@
 
 ### 相关设计文档
 
+- [class_build_optimization_reference.md](file:///c:/work/MiniBattleSimulator/design/class_build_optimization_reference.md)
 - [fighter_build_design.md](file:///c:/work/MiniBattleSimulator/design/fighter_build_design.md)
 - [rogue_build_design.md](file:///c:/work/MiniBattleSimulator/design/rogue_build_design.md)
 - [monk_build_design.md](file:///c:/work/MiniBattleSimulator/design/monk_build_design.md)

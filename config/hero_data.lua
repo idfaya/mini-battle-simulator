@@ -1,6 +1,7 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
+local ClassBuildProgression = require("config.class_build_progression")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
 
@@ -65,7 +66,7 @@ local HERO_ROLE_TEMPLATES = {
         saveWill = { 2, 3, 4, 5, 6 },
         critRate = 1000, blockRate = 500,
     },
-    [2] = { -- D1 格挡流
+    [2] = { -- Fighter 前线战士
         hp = { 64, 82, 100, 118, 136 },
         atk = { 7, 8, 9, 10, 11 },
         def = { 4, 5, 6, 7, 8 },
@@ -188,15 +189,15 @@ local HERO_ROLE_TEMPLATES = {
 -- These are used for true 5e HP (hit die + CON mod per level).
 ---@type table<integer, HeroAbilityScores>
 local HERO_ABILITY_SCORES = {
-    [900001] = { str = 16, dex = 12, con = 14, int = 8,  wis = 10, cha = 10 }, -- ComboWarrior (S1)
-    [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- FireMage (M1)
-    [900003] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- IceMage (M2)
-    [900004] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- ThunderMage (M3)
-    [900005] = { str = 16, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Tank (D1)
-    [900006] = { str = 10, dex = 16, con = 14, int = 10, wis = 10, cha = 12 }, -- Assassin (A1)
-    [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Healer (H1)
-    [900008] = { str = 10, dex = 14, con = 13, int = 12, wis = 10, cha = 10 }, -- PoisonMage (T1)
-    [900009] = { str = 16, dex = 12, con = 16, int = 8,  wis = 10, cha = 10 }, -- BattleRage (B1)
+    [900001] = { str = 10, dex = 16, con = 14, int = 8,  wis = 14, cha = 10 }, -- Monk
+    [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Sorcerer
+    [900003] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Wizard
+    [900004] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Warlock
+    [900005] = { str = 16, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Fighter
+    [900006] = { str = 10, dex = 16, con = 14, int = 10, wis = 10, cha = 12 }, -- Rogue
+    [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Cleric
+    [900008] = { str = 10, dex = 16, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
+    [900009] = { str = 16, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
 }
 
 local function clampAbility(score)
@@ -224,11 +225,9 @@ end
 
 local function getClassHitDie(classId)
     local id = tonumber(classId) or 0
-    -- Heuristic mapping to 5e:
-    -- B1: d12; D1/S1: d10; A1/T1/H1: d8; M1..M3: d6.
-    if id == 4 then return 12 end
-    if id == 2 or id == 3 then return 10 end
-    if id == 1 or id == 5 or id == 6 then return 8 end
+    -- 5e base-class hit dice.
+    if id == 2 or id == 4 or id == 5 then return 10 end -- Fighter / Paladin / Ranger
+    if id == 1 or id == 3 or id == 6 then return 8 end -- Rogue / Monk / Cleric
     if id == 7 or id == 8 or id == 9 then return 6 end
     return 8
 end
@@ -267,33 +266,36 @@ end
 
 local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
     local id = tonumber(classId) or 0
-    if id == 1 then return dexMod end -- Assassin
+    if id == 1 then return dexMod end -- Rogue
+    if id == 3 then return dexMod end -- Monk unarmed attacks
     if id == 5 then return dexMod end -- Poison / finesse-ish melee
-    if id == 6 then return strMod end -- Healer mace basic attack
+    if id == 6 then return strMod end -- Cleric mace basic attack
     if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
     return strMod
 end
 
 local function getSpellAbilityMod(classId, intMod, wisMod, chaMod)
     local id = tonumber(classId) or 0
+    if id == 3 then return wisMod end -- Monk techniques / save DC
+    if id == 5 then return wisMod end -- Ranger tracking / control tools
     if id == 6 then return wisMod end -- Holy caster
     if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
-    if id == 4 then return chaMod end -- BattleRage shout/battle intent fallback
+    if id == 4 then return chaMod end -- Paladin
     return math.max(intMod, wisMod)
 end
 
 local function isSaveProficient(classId, saveType)
     local id = tonumber(classId) or 0
     local map = {
-        [1] = { fort = false, ref = true,  will = false }, -- Assassin
-        [2] = { fort = true,  ref = false, will = true  }, -- Tank
-        [3] = { fort = true,  ref = true,  will = false }, -- ComboWarrior
-        [4] = { fort = true,  ref = false, will = false }, -- BattleRage
+        [1] = { fort = false, ref = true,  will = false }, -- Rogue
+        [2] = { fort = true,  ref = false, will = true  }, -- Fighter
+        [3] = { fort = true,  ref = true,  will = false }, -- Monk
+        [4] = { fort = true,  ref = false, will = false }, -- Paladin
         [5] = { fort = false, ref = true,  will = true  }, -- Poison
-        [6] = { fort = false, ref = false, will = true  }, -- Healer
-        [7] = { fort = false, ref = false, will = true  }, -- FireMage
-        [8] = { fort = true,  ref = false, will = true  }, -- IceMage
-        [9] = { fort = false, ref = true,  will = true  }, -- ThunderMage
+        [6] = { fort = false, ref = false, will = true  }, -- Cleric
+        [7] = { fort = false, ref = false, will = true  }, -- Sorcerer
+        [8] = { fort = true,  ref = false, will = true  }, -- Wizard
+        [9] = { fort = false, ref = true,  will = true  }, -- Warlock
     }
     return map[id] and map[id][saveType] == true or false
 end
@@ -302,14 +304,14 @@ local function calculateArmorClass(classId, dexMod, conMod, wisMod, level)
     local id = tonumber(classId) or 0
     if id == 2 then
         return 17 -- heavy armor + shield tank fantasy
-    elseif id == 4 then
-        return 10 + dexMod + conMod -- barbarian-like
     elseif id == 3 then
-        return 15 + math.min(2, dexMod) -- medium armor duelist
+        return 10 + dexMod + wisMod -- Monk unarmored defense
+    elseif id == 4 then
+        return 18 -- heavy armor holy knight
     elseif id == 1 then
         return 11 + dexMod -- light armor assassin
     elseif id == 5 then
-        return 12 + dexMod -- skirmisher / poison style
+        return 12 + dexMod -- light/medium armor ranger baseline
     elseif id == 6 then
         return 13 + math.min(2, dexMod) -- medium armor priest
     elseif id == 7 or id == 8 or id == 9 then
@@ -664,7 +666,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
     end
 
     local buildState = override and override.buildState or nil
-    if hero.Class == 2 and not buildState then
+    if ClassBuildProgression.GetProgression(hero.Class) and not buildState then
         buildState = HeroBuild.TryCompileBuild(hero.Class, level, override and override.buildFeatIds or {})
     end
 

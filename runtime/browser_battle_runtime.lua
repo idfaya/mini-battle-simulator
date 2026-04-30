@@ -515,8 +515,8 @@ local function buildRuntimeTeamConfig(options)
     local seedArray = normalizeSeedArray(options)
     local fixedHeroIds = normalizeIdList(options and options.heroIds, 6)
     local fixedEnemyIds = normalizeIdList(options and options.enemyIds, 6)
-    local fighterBuildFeatIds = normalizeIdList(options and options.fighterBuildFeatIds, 12)
-    local fighterBuildFeatIdsByHero = normalizeIdMatrix(options and options.fighterBuildFeatIdsByHero, 6, 12)
+    local buildFeatIds = normalizeIdList((options and options.buildFeatIds) or (options and options.fighterBuildFeatIds), 12)
+    local buildFeatIdsByHero = normalizeIdMatrix((options and options.buildFeatIdsByHero) or (options and options.fighterBuildFeatIdsByHero), 6, 12)
     if #fixedHeroIds > 0 then
         heroCount = clamp(#fixedHeroIds, 1, 6)
     end
@@ -669,10 +669,10 @@ local function buildRuntimeTeamConfig(options)
     for index, heroId in ipairs(selectedHeroIds) do
         local heroInfo = HeroData.GetHeroInfo and HeroData.GetHeroInfo(heroId) or nil
         local heroOverride = nil
-        local slotBuildFeatIds = fighterBuildFeatIdsByHero[index]
-        if heroInfo and tonumber(heroInfo.Class) == 2 and ((slotBuildFeatIds and #slotBuildFeatIds > 0) or #fighterBuildFeatIds > 0) then
+        local slotBuildFeatIds = buildFeatIdsByHero[index]
+        if heroInfo and ((slotBuildFeatIds and #slotBuildFeatIds > 0) or #buildFeatIds > 0) then
             heroOverride = {
-                buildFeatIds = (slotBuildFeatIds and #slotBuildFeatIds > 0) and slotBuildFeatIds or fighterBuildFeatIds,
+                buildFeatIds = (slotBuildFeatIds and #slotBuildFeatIds > 0) and slotBuildFeatIds or buildFeatIds,
             }
         end
         local heroData = HeroData.ConvertToHeroData(heroId, level, 5, heroOverride)

@@ -17,7 +17,7 @@ local ClassWeaponConfig = {}
 ---@type table<integer, string>
 ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
     [1] = "1d10", -- A1 pursuit: sharper burst to keep short fights lethal
-    [2] = "1d10", -- D1 defender: slower class still needs meaningful swings
+    [2] = "1d10", -- Fighter frontline: sturdy martial baseline
     [3] = "1d10", -- S1 combo: baseline longsword up one step
     [4] = "1d12", -- B1 war spirit: heaviest martial baseline
     [5] = "1d8",  -- T1 poison: finesse damage should not drag fights

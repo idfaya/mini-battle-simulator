@@ -25,7 +25,7 @@ ClassRoleConfig.ROLES = {
     [2] = { streamId = "Fighter", name = "战士", icon = "🛡️", isMelee = true, preferRow = "front" },
     [3] = { streamId = "Monk", name = "武僧", icon = "⚡", isMelee = true, preferRow = "front" },
     [4] = { streamId = "Paladin", name = "圣武士", icon = "✨", isMelee = true, preferRow = "front" },
-    [5] = { streamId = "Ranger", name = "游侠", icon = "🏹", isMelee = true, preferRow = "front" },
+    [5] = { streamId = "Ranger", name = "游侠", icon = "🏹", isMelee = false, preferRow = "back" },
     [6] = { streamId = "Cleric", name = "牧师", icon = "💚", isMelee = false, preferRow = "back" },
     [7] = { streamId = "Sorcerer", name = "术士(火)", icon = "🔥", isMelee = false, preferRow = "back" },
     [8] = { streamId = "Wizard", name = "法师(冰)", icon = "❄️", isMelee = false, preferRow = "back" },

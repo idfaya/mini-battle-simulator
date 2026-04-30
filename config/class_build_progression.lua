@@ -30,6 +30,66 @@ local PROGRESSION = {
             choiceGroup = "fighter_lv5_capstone",
         },
     },
+    [3] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.monk_training,
+                FeatBuildConfig.Ids.monk_martial_arts,
+            },
+        },
+        [2] = {
+            choiceGroup = "monk_lv2_basic",
+        },
+        [3] = {
+            choiceGroup = "monk_lv3_subclass",
+        },
+        [4] = {
+            choiceGroup = "monk_lv4_mastery",
+        },
+        [5] = {
+            choiceGroup = "monk_lv5_capstone",
+        },
+    },
+    [4] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.paladin_training,
+                FeatBuildConfig.Ids.paladin_divine_smite,
+            },
+        },
+        [2] = {
+            choiceGroup = "paladin_lv2_prayer",
+        },
+        [3] = {
+            choiceGroup = "paladin_lv3_oath",
+        },
+        [4] = {
+            choiceGroup = "paladin_lv4_mastery",
+        },
+        [5] = {
+            choiceGroup = "paladin_lv5_capstone",
+        },
+    },
+    [5] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.ranger_training,
+                FeatBuildConfig.Ids.ranger_hunter_mark,
+            },
+        },
+        [2] = {
+            choiceGroup = "ranger_lv2_basic",
+        },
+        [3] = {
+            choiceGroup = "ranger_lv3_subclass",
+        },
+        [4] = {
+            choiceGroup = "ranger_lv4_mastery",
+        },
+        [5] = {
+            choiceGroup = "ranger_lv5_capstone",
+        },
+    },
 }
 
 ---@param classId integer
