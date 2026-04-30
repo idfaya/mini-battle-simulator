@@ -77,6 +77,7 @@ local SPECIAL_EFFECT_TAGS = {
     [80004003] = "battle_intent_buff",
     [80004004] = "battle_intent_buff",
     [80005004] = "poison_burst",
+    [80002005] = "activate_guard_stance",
     [80006003] = "group_heal",
     [80006004] = "revive_latest_ally",
 }
