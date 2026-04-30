@@ -28,6 +28,29 @@ local _battleFinished = false
 local _battleResult = nil
 local _config = {}
 
+local _startCounter = 0
+
+--- 生成战斗随机种子，确保每次开局（包括重开）都不同
+---@return table
+local function GenerateSeedArray()
+    _startCounter = _startCounter + 1
+
+    local now = os.time()
+    local clockMicros = math.floor((os.clock() * 1000000) % 2147483647)
+
+    local seed1 = (now + _startCounter * 10007) % 2147483647
+    local seed2 = (clockMicros + _startCounter * 30011 + now) % 2147483647
+    local seed3 = (seed1 ~ seed2) % 2147483647
+    local seed4 = (seed1 * 1103515245 + seed2 * 12345 + _startCounter) % 2147483647
+
+    if seed1 == 0 then seed1 = 123456789 end
+    if seed2 == 0 then seed2 = 362436069 end
+    if seed3 == 0 then seed3 = 521288629 end
+    if seed4 == 0 then seed4 = 88675123 end
+
+    return {seed1, seed2, seed3, seed4}
+end
+
 --- 简单的睡眠函数（毫秒）
 local function Sleep(ms)
     if ms <= 0 then return end
@@ -78,6 +101,9 @@ function BattleDriver.Start(battleConfig, onBattleEnd)
         ConsoleRenderer.Refresh()
     end
     
+    -- 每次开局都刷新随机种子，避免重开关卡时复用同一套随机序列
+    battleConfig.seedArray = GenerateSeedArray()
+
     -- 启动战斗
     BattleMain.Start(battleConfig, function(result)
         _battleResult = result
