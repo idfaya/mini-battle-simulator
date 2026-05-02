@@ -1,4 +1,4 @@
-import type { BattleSetup, BattleSnapshot } from "../types/battle";
+import type { BattleSetup, BattleSnapshot, UnitState } from "../types/battle";
 
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 20;
@@ -18,6 +18,15 @@ type Controls = {
 };
 
 type HudScreen = "battle" | "settings" | "log";
+
+function getFormationSlot(unit: UnitState, fallbackIndex: number) {
+  const position = Number.isFinite(unit.position) ? Math.floor(unit.position) : 0;
+  const slot = position >= 1 && position <= 6 ? position - 1 : fallbackIndex;
+  return {
+    row: Math.floor(slot / 3) + 1,
+    column: (slot % 3) + 1,
+  };
+}
 
 export function createControls(
   onUltCast: (heroId: string) => void,
@@ -280,21 +289,21 @@ export function renderControls(
   controls.status.textContent = lines.join("\n");
 
   controls.buttonsHost.replaceChildren();
-  for (const unit of snapshot?.leftTeam ?? []) {
+  for (const [index, unit] of (snapshot?.leftTeam ?? []).entries()) {
     const button = document.createElement("button");
     button.className = "ult-button";
     button.type = "button";
     button.disabled = !unit.ultimateReady || !unit.isAlive;
+    const slot = getFormationSlot(unit, index);
+    button.style.gridRow = String(slot.row);
+    button.style.gridColumn = String(slot.column);
     const name = document.createElement("span");
     name.className = "ult-button-name";
     name.textContent = unit.name;
     const skill = document.createElement("span");
     skill.className = "ult-button-skill";
-    skill.textContent = unit.ultimateSkillName;
-    const charges = document.createElement("span");
-    charges.className = "ult-button-charges";
-    charges.textContent = `次数 ${unit.ultimateCharges}/${unit.ultimateChargesMax}`;
-    button.replaceChildren(name, skill, charges);
+    skill.textContent = `${unit.ultimateSkillName} · ${unit.ultimateCharges}/${unit.ultimateChargesMax}`;
+    button.replaceChildren(name, skill);
     if (unit.ultimateReady) {
       button.classList.add("ready");
     }

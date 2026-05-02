@@ -302,7 +302,7 @@ body {
 .ult-button {
   display: grid;
   align-content: center;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
@@ -647,14 +647,13 @@ body {
 
   .ult-button,
   .global-actions button {
-    min-height: 50px;
-    padding: 8px 6px;
+    min-height: 42px;
+    padding: 5px 6px;
     font-size: 12px;
     line-height: 1.2;
   }
 
-  .ult-button-skill,
-  .ult-button-charges {
+  .ult-button-skill {
     font-size: 11px;
   }
 

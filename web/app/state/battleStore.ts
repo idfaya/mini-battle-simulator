@@ -251,6 +251,9 @@ export class BattleStore {
           });
           break;
         case "skill_timeline_frame":
+          if (event.payload.buffId !== undefined && event.payload.buffId !== null) {
+            this.markCastResult(event.payload.heroId);
+          }
           animations.push({
             type: "timeline_frame",
             heroId: String(event.payload.heroId ?? ""),

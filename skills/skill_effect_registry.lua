@@ -398,7 +398,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local p = type(spec) == "table" and spec.param or {}
         local layers = tonumber(p and p.layers) or 1
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead then
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
                 BattleSkill.ApplyPoison(t, layers, ctx.hero)
             end
         end
