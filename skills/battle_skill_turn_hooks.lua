@@ -15,6 +15,11 @@ local BattleVisualEvents = require("ui.battle_visual_events")
 
 local BattleSkillTurnHooks = {}
 
+local function PublishTurnSkipped(hero, reason, detail)
+    BattleEvent.Publish(BattleVisualEvents.TURN_SKIPPED,
+        BattleVisualEvents.BuildTurnSkippedEvent(hero, reason, detail))
+end
+
 --- 复活最近阵亡的友军（依据 __deadOrder 判断「最近」）。
 --- @param hero table 触发复活的单位（用于定位友方队伍）
 --- @param optsOrPct table|number|nil
@@ -104,9 +109,16 @@ function BattleSkillTurnHooks.ProcessTurnStartStatus(hero)
     local BattleBuff = require("modules.battle_buff")
     BattleBuff.OnRoundBegin(hero)
 
+    if hero.isDead or not hero.isAlive or (tonumber(hero.hp) or 0) <= 0 then
+        Logger.Log(string.format("[ProcessTurnStartStatus] %s 因回合开始效果倒下，跳过行动", hero.name or "Unknown"))
+        PublishTurnSkipped(hero, "回合开始效果", "已倒下")
+        return false
+    end
+
     if hero.__skipNextAction then
         hero.__skipNextAction = false
         Logger.Log(string.format("[ProcessTurnStartStatus] %s 因复活虚弱跳过行动", hero.name or "Unknown"))
+        PublishTurnSkipped(hero, "复活虚弱", "跳过本次行动")
         return false
     end
 
@@ -126,6 +138,11 @@ function BattleSkillTurnHooks.ProcessTurnStartStatus(hero)
 
     if BattleBuff.IsHeroUnderControl(hero) then
         Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))
+        local names = {}
+        for _, buff in ipairs(BattleBuff.GetControlBuffs(hero) or {}) do
+            table.insert(names, buff.name or buff.buffName or tostring(buff.subType or buff.id or "控制"))
+        end
+        PublishTurnSkipped(hero, "控制状态", table.concat(names, "、"))
         return false
     end
 

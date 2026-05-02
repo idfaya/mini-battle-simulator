@@ -251,7 +251,11 @@ export class BattleStore {
           });
           break;
         case "skill_timeline_frame":
-          if (event.payload.buffId !== undefined && event.payload.buffId !== null) {
+          if (
+            event.payload.buffId !== undefined ||
+            event.payload.effectValue !== undefined ||
+            event.payload.statusEffect !== undefined
+          ) {
             this.markCastResult(event.payload.heroId);
           }
           animations.push({
@@ -295,6 +299,11 @@ export class BattleStore {
         case "ultimate_cast_queued":
           appendLog(`已下达大招指令: ${String(event.payload.heroId ?? "")}`);
           break;
+        case "turn_skipped": {
+          const detail = String(event.payload.detail ?? "");
+          appendLog(`${String(event.payload.heroName ?? "")} 因${String(event.payload.reason ?? "状态")}跳过行动${detail ? `（${detail}）` : ""}`);
+          break;
+        }
         case "passive_skill_triggered": {
           const heroName = String(event.payload.heroName ?? "");
           const skillName = String(event.payload.skillName ?? "");

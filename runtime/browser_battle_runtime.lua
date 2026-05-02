@@ -61,6 +61,7 @@ local visualEvents = {
     BattleVisualEvents.SKILL_TIMELINE_COMPLETED,
     BattleVisualEvents.TURN_STARTED,
     BattleVisualEvents.TURN_ENDED,
+    BattleVisualEvents.TURN_SKIPPED,
     BattleVisualEvents.ACTION_ORDER_CHANGED,
     BattleVisualEvents.BATTLE_STARTED,
     BattleVisualEvents.BATTLE_ENDED,

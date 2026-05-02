@@ -5,6 +5,7 @@ const TYPE_MAP: Record<string, string> = {
   BattleEnded: "battle_ended",
   TurnStarted: "turn_started",
   TurnEnded: "turn_ended",
+  TurnSkipped: "turn_skipped",
   SkillCastStarted: "skill_cast_started",
   SkillCastCompleted: "skill_cast_completed",
   SkillTimelineStarted: "skill_timeline_started",

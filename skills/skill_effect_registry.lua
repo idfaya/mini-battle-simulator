@@ -714,6 +714,8 @@ function SkillEffectRegistry.RegisterBuiltins()
         local FighterBuildPassives = require("skills.fighter_build_passives")
         FighterBuildPassives.ActivateGuardStance(ctx.hero)
         return {
+            effectValue = 1,
+            statusEffect = "guard_stance",
             targets = { ctx.hero },
         }
     end)

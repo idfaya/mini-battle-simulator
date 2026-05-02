@@ -95,8 +95,8 @@ const TOP_BAR_TEXT_Y = 36;
 const ACTION_ORDER_BAR_Y = 50;
 const ACTION_ORDER_BAR_HEIGHT = 56;
 const BATTLEFIELD_TOP_SAFE_Y = ACTION_ORDER_BAR_Y + ACTION_ORDER_BAR_HEIGHT + 22;
-const BATTLEFIELD_BOTTOM_SAFE_Y = 150;
-const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 24;
+const BATTLEFIELD_BOTTOM_SAFE_Y = 0;
+const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 0;
 const TEAM_ROW_GAP = 26;
 const TEAM_CENTER_GAP = 44;
 
@@ -231,7 +231,7 @@ export class BattleScene {
     const startX = Math.round((width - totalWidth) / 2);
 
     const battlefieldTop = BATTLEFIELD_TOP_SAFE_Y + 8;
-    const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - 8;
+    const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - 4;
     const availableY = Math.max(0, battlefieldBottom - battlefieldTop);
     const desiredTotalY = 2 * (2 * desiredCardHeight + desiredRowGap) + desiredCenterGap;
     const scaleY = desiredTotalY > 0 ? Math.min(1, availableY / desiredTotalY) : 1;
@@ -245,6 +245,25 @@ export class BattleScene {
       cardHeight = Math.max(54, Math.floor(minCardHeight * tightScale));
       rowGap = Math.max(4, Math.floor(minRowGap * tightScale));
       centerGap = Math.max(16, Math.floor(minCenterGap * tightScale));
+    }
+
+    const totalFormationHeight = () => 4 * cardHeight + 2 * rowGap + centerGap;
+    if (availableY > 0 && totalFormationHeight() > availableY) {
+      const hardMinCardHeight = compactViewport ? 54 : 80;
+      const hardMinRowGap = compactViewport ? 4 : 8;
+      const hardMinCenterGap = compactViewport ? 16 : 20;
+      const targetRowGap = Math.max(hardMinRowGap, Math.min(rowGap, Math.floor(availableY * 0.025)));
+      const targetCenterGap = Math.max(hardMinCenterGap, Math.min(centerGap, Math.floor(availableY * 0.075)));
+
+      rowGap = targetRowGap;
+      centerGap = targetCenterGap;
+      cardHeight = Math.max(hardMinCardHeight, Math.floor((availableY - 2 * rowGap - centerGap) / 4));
+
+      if (totalFormationHeight() > availableY) {
+        rowGap = hardMinRowGap;
+        centerGap = hardMinCenterGap;
+        cardHeight = Math.max(40, Math.floor((availableY - 2 * rowGap - centerGap) / 4));
+      }
     }
 
     // Stack from top to bottom:

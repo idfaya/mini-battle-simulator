@@ -52,6 +52,9 @@ BattleVisualEvents.TURN_STARTED = "TurnStarted"
 --- 回合结束
 BattleVisualEvents.TURN_ENDED = "TurnEnded"
 
+--- 回合跳过
+BattleVisualEvents.TURN_SKIPPED = "TurnSkipped"
+
 --- 行动顺序变化
 BattleVisualEvents.ACTION_ORDER_CHANGED = "ActionOrderChanged"
 
@@ -272,6 +275,8 @@ function BattleVisualEvents.BuildSkillTimelineFrame(hero, skill, frameData, inde
         damage = frameData and frameData.damage,
         healAmount = frameData and frameData.healAmount,
         buffId = frameData and frameData.buffId,
+        effectValue = frameData and frameData.effectValue,
+        statusEffect = frameData and frameData.statusEffect,
         -- 5e-style roll meta (optional). Intended for UI/log readability.
         rollMeta = frameData and frameData.__hitMetaByTarget,
         savedTargets = frameData and frameData.__savedTargets,
@@ -296,6 +301,17 @@ function BattleVisualEvents.BuildSkillTimelineCompleted(hero, skill, timeline, r
         totalFrames = timeline and #timeline or 0,
         totalDamage = result.totalDamage or 0,
         succeeded = result.succeeded ~= false,
+    }
+end
+
+function BattleVisualEvents.BuildTurnSkippedEvent(hero, reason, detail)
+    return {
+        eventType = BattleVisualEvents.TURN_SKIPPED,
+        heroId = hero and (hero.instanceId or hero.id),
+        heroName = hero and hero.name,
+        team = hero and (hero.isLeft and "left" or "right"),
+        reason = reason,
+        detail = detail,
     }
 end
 
