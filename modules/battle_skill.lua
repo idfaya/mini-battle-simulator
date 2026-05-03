@@ -145,6 +145,17 @@ local function ApplyClassDamageRateScalar(hero, damageRate)
     return math.max(0, math.floor(value * scalar))
 end
 
+local function ResolveSkillCooldown(...)
+    for i = 1, select("#", ...) do
+        local rawValue = select(i, ...)
+        local value = tonumber(rawValue) or 0
+        if value > 0 then
+            return value
+        end
+    end
+    return 0
+end
+
 local function ApplyClassHealScalar(healer, rawHeal)
     local classId = GetClassId(healer)
     local scalar = tonumber(ClassRhythmConfig.healScalarByClass and ClassRhythmConfig.healScalarByClass[classId]) or 1
@@ -681,7 +692,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
 
         -- 冷却相关
         coolDown = 0,
-        maxCoolDown = skillCooldown or mergedConfig.coolDown or mergedConfig.cd or 0,
+        maxCoolDown = ResolveSkillCooldown(skillCooldown, mergedConfig.coolDown, mergedConfig.cooldown, mergedConfig.cd),
 
         -- 配置数据
         config = mergedConfig,
