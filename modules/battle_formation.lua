@@ -166,6 +166,18 @@ local function CreateHero(heroData, wpType, isLeft)
         saveFort = heroData.saveFort or 0,
         saveRef = heroData.saveRef or 0,
         saveWill = heroData.saveWill or 0,
+        str = heroData.str or 10,
+        dex = heroData.dex or 10,
+        con = heroData.con or 10,
+        int = heroData.int or 10,
+        wis = heroData.wis or 10,
+        cha = heroData.cha or 10,
+        strMod = heroData.strMod or 0,
+        dexMod = heroData.dexMod or 0,
+        conMod = heroData.conMod or 0,
+        intMod = heroData.intMod or 0,
+        wisMod = heroData.wisMod or 0,
+        chaMod = heroData.chaMod or 0,
         
         -- 技能相关
         skills = heroData.skills or {},
@@ -185,6 +197,9 @@ local function CreateHero(heroData, wpType, isLeft)
         
         -- 额外数据
         extraData = heroData.extraData or {},
+        _monsterType = heroData._monsterType,
+        _monsterTypeName = heroData._monsterTypeName,
+        _level = heroData._level,
     }
     
     -- 确保HP不超过最大值

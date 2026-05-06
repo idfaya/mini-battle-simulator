@@ -27,7 +27,6 @@ end
 require("core.battle_types")
 require("core.battle_enum")
 require("core.battle_default_types")
-require("modules.BattleDefaultTypesOpt")
 
 local JSON = require("utils.json")
 local Logger = require("utils.logger")

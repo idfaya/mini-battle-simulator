@@ -56,7 +56,6 @@ function LuaBootstrap.PreloadCore()
     require("core.battle_types")
     require("core.battle_enum")
     require("core.battle_default_types")
-    require("modules.BattleDefaultTypesOpt")
 end
 
 function LuaBootstrap.SetupFromSource(scriptSource, opts)

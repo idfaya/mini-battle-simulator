@@ -73,24 +73,42 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator(".run-info-panel .panel-title").filter({ hasText: "选择招募" })).toBeVisible();
   await page.locator(".run-info-panel button").first().click();
 
-  await clickNodeAndEnter("Ash Merchant");
-  await page.getByRole("button", { name: "信息" }).click();
-  await page.getByRole("button", { name: /equipment|blessing|service/i }).first().click();
-  await expect(page.locator(".run-info-panel")).toContainText("装备");
-  await expect(page.getByRole("button", { name: "离开商店" })).toBeVisible();
-  await page.getByRole("button", { name: "离开商店" }).click();
+  await clickNodeAndEnter("Frostbite Raid");
+  await expect
+    .poll(
+      async () => ({
+        status: (await page.locator(".hud-status").textContent()) ?? "",
+        hasRewardButton: await page.getByRole("button", { name: /查看\s*奖励/ }).first().isVisible().catch(() => false),
+      }),
+      { timeout: 60000 },
+    )
+    .toEqual(expect.objectContaining({ hasRewardButton: true }));
+  await leaveBattleResultIfNeeded();
+  await chooseFirstReward();
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Campfire Shrine");
   await expect(page.getByRole("button", { name: "Sharpen" })).toBeVisible();
   await page.getByRole("button", { name: "Sharpen" }).click();
 
-  await clickNodeAndEnter("Ember Shrine");
-  await expect(page.getByRole("button", { name: "Pray for recovery" })).toBeVisible();
-  await page.getByRole("button", { name: "Pray for recovery" }).click();
+  await clickNodeAndEnter("Ember Ambush");
+  await expect
+    .poll(
+      async () => ({
+        status: (await page.locator(".hud-status").textContent()) ?? "",
+        hasRewardButton: await page.getByRole("button", { name: /查看\s*奖励/ }).first().isVisible().catch(() => false),
+      }),
+      { timeout: 60000 },
+    )
+    .toEqual(expect.objectContaining({ hasRewardButton: true }));
+  await leaveBattleResultIfNeeded();
+  await chooseFirstReward();
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Quartermaster Halt");
-  await expect(page.getByRole("button", { name: "离开商店" })).toBeVisible();
-  await page.getByRole("button", { name: "离开商店" }).click();
+  await clickNodeAndEnter("Stranded Allies");
+  await page.getByRole("button", { name: "信息" }).click();
+  await expect(page.locator(".run-info-panel .panel-title").filter({ hasText: "选择招募" })).toBeVisible();
+  await page.locator(".run-info-panel button").first().click();
 
   await clickNodeAndEnter("Frozen Gate");
   await expect

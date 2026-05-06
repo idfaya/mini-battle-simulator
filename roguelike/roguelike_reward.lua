@@ -67,9 +67,6 @@ local function buildLabel(entry)
     if entry.rewardType == "gold" then
         return string.format("金币 +%d", entry.value or 0)
     end
-    if entry.rewardType == "heal_pct" then
-        return string.format("全队治疗 %.0f%%", (tonumber(entry.value) or 0) * 100)
-    end
     if entry.rewardType == "equipment" then
         local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
         return equipment and equipment.name or ("Equipment " .. tostring(entry.refId))
@@ -97,15 +94,6 @@ local function buildDescription(entry)
         return HeroData.GetClassName((HeroData.GetHeroInfo(entry.refId) or {}).Class or 0)
     end
     return ""
-end
-
-local function applyTeamHeal(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        if not hero.isDead then
-            local heal = math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0))
-            hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
-        end
-    end
 end
 
 local function addUnique(list, value)
@@ -633,9 +621,6 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
 
     if option.rewardType == "gold" then
         runState.gold = (runState.gold or 0) + (option.value or 0)
-        runState.lastActionMessage = option.label
-    elseif option.rewardType == "heal_pct" then
-        applyTeamHeal(runState, option.value)
         runState.lastActionMessage = option.label
     elseif option.rewardType == "equipment" then
         addUnique(runState.equipmentIds, option.refId)

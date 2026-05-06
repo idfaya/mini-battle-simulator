@@ -189,15 +189,15 @@ local HERO_ROLE_TEMPLATES = {
 -- These are used for true 5e HP (hit die + CON mod per level).
 ---@type table<integer, HeroAbilityScores>
 local HERO_ABILITY_SCORES = {
-    [900001] = { str = 10, dex = 16, con = 14, int = 8,  wis = 14, cha = 10 }, -- Monk
+    [900001] = { str = 10, dex = 20, con = 14, int = 8,  wis = 14, cha = 10 }, -- Monk
     [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Sorcerer
     [900003] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Wizard
     [900004] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Warlock
-    [900005] = { str = 16, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Fighter
-    [900006] = { str = 10, dex = 16, con = 14, int = 10, wis = 10, cha = 12 }, -- Rogue
+    [900005] = { str = 20, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Fighter
+    [900006] = { str = 10, dex = 20, con = 14, int = 10, wis = 10, cha = 12 }, -- Rogue
     [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Cleric
-    [900008] = { str = 10, dex = 16, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
-    [900009] = { str = 16, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
+    [900008] = { str = 10, dex = 20, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
+    [900009] = { str = 20, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
 }
 
 local function clampAbility(score)

@@ -16,7 +16,6 @@
 ---@field nodeType RunNodeType
 ---@field title string
 ---@field encounterId integer|nil
----@field rewardGroupId integer|nil
 ---@field eventId integer|nil
 ---@field shopId integer|nil
 ---@field campId integer|nil
@@ -42,7 +41,6 @@ RunNodePool.NODES = {
         nodeType = "battle_normal",
         title = "Frontier Scouts",
         encounterId = 101001,
-        rewardGroupId = 101001,
         nextNodeIds = { 101002, 101003 },
     },
     [101002] = {
@@ -65,7 +63,6 @@ RunNodePool.NODES = {
         nodeType = "battle_normal",
         title = "Snowfield Ambush",
         encounterId = 101002,
-        rewardGroupId = 101001,
         nextNodeIds = { 101004, 101005 },
     },
     [101004] = {
@@ -77,7 +74,6 @@ RunNodePool.NODES = {
         nodeType = "battle_normal",
         title = "Frostbite Raid",
         encounterId = 101103,
-        rewardGroupId = 101001,
         nextNodeIds = { 101006, 101007 },
     },
     [101005] = {
@@ -89,7 +85,6 @@ RunNodePool.NODES = {
         nodeType = "battle_elite",
         title = "Bone Patrol",
         encounterId = 101101,
-        rewardGroupId = 101101,
         nextNodeIds = { 101006, 101007 },
     },
     [101006] = {
@@ -112,7 +107,6 @@ RunNodePool.NODES = {
         nodeType = "battle_normal",
         title = "Collapsed Bridge",
         encounterId = 101003,
-        rewardGroupId = 101001,
         nextNodeIds = { 101008, 101009 },
     },
     [101008] = {
@@ -124,7 +118,6 @@ RunNodePool.NODES = {
         nodeType = "battle_normal",
         title = "Ember Ambush",
         encounterId = 101104,
-        rewardGroupId = 101001,
         nextNodeIds = { 101010 },
     },
     [101009] = {
@@ -136,7 +129,6 @@ RunNodePool.NODES = {
         nodeType = "battle_elite",
         title = "Dark Cabal",
         encounterId = 101102,
-        rewardGroupId = 101101,
         nextNodeIds = { 101010 },
     },
     [101010] = {
@@ -159,7 +151,6 @@ RunNodePool.NODES = {
         nodeType = "boss",
         title = "Frozen Gate",
         encounterId = 101201,
-        rewardGroupId = 101201,
         bossPhaseGroupId = 101201,
         nextNodeIds = {},
     },

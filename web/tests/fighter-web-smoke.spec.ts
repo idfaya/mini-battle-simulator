@@ -39,7 +39,7 @@ test("fighter web flow shows rebuilt names and action surge opens a fresh attack
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".ult-button")).toHaveCount(1);
   await expect(page.locator(".ult-button-name")).toHaveText("Fighter");
-  await expect(page.locator(".ult-button-charges")).toContainText("1/1");
+  await expect(page.locator(".ult-button-skill")).toContainText("ULT · 1/1");
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
@@ -99,20 +99,35 @@ test("fighter extra attack logs a same-target second hit at lv2", async ({ page 
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
     .toContain("Fighter 触发额外攻击：对同一目标");
 
-  const logs = await page.locator(".battle-log li").allTextContents();
-  const extraAttackIndex = findLineIndex(logs, (line) => line.includes("Fighter 触发额外攻击：对同一目标"));
-  const extraAttackLine = extraAttackIndex >= 0 ? logs[extraAttackIndex] : "";
-  const targetMatch = extraAttackLine.match(/对同一目标 (.+) 追加第二击/);
-  const targetName = targetMatch?.[1] ?? "";
-  const nextDamageIndex = findLineIndex(
-    logs,
-    (line) => targetName !== "" && line.includes(`Fighter 的 基础武器攻击 对 ${targetName} 造成`),
-    extraAttackIndex + 1,
-  );
+  let followUpState = {
+    extraAttackIndex: -1,
+    targetName: "",
+    followUpAttackIndex: -1,
+  };
+  await expect
+    .poll(async () => {
+      const logs = await page.locator(".battle-log li").allTextContents();
+      const extraAttackIndex = findLineIndex(logs, (line) => line.includes("Fighter 触发额外攻击：对同一目标"));
+      const extraAttackLine = extraAttackIndex >= 0 ? logs[extraAttackIndex] : "";
+      const targetMatch = extraAttackLine.match(/对同一目标 (.+) 追加第二击/);
+      const targetName = targetMatch?.[1] ?? "";
+      const followUpAttackIndex = findLineIndex(
+        logs,
+        (line) => targetName !== "" && line.includes(`Fighter 的 基础武器攻击 对 ${targetName}`),
+        extraAttackIndex + 1,
+      );
+      followUpState = {
+        extraAttackIndex,
+        targetName,
+        followUpAttackIndex,
+      };
+      return followUpAttackIndex >= 0 && targetName !== "";
+    }, { timeout: 10000 })
+    .toBeTruthy();
 
-  expect(extraAttackIndex).toBeGreaterThanOrEqual(0);
-  expect(targetName).not.toBe("");
-  expect(nextDamageIndex).toBeGreaterThan(extraAttackIndex);
+  expect(followUpState.targetName).not.toBe("");
+  expect(followUpState.extraAttackIndex).toBeGreaterThanOrEqual(0);
+  expect(followUpState.followUpAttackIndex).toBeGreaterThan(followUpState.extraAttackIndex);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

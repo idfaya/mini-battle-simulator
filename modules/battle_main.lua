@@ -16,7 +16,6 @@ local BattleBuff = require("modules.battle_buff")
 local BattleEnergy = require("modules.battle_energy")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattlePassiveSkill = require("modules.battle_passive_skill")
-local BattleSkillSeq = require("modules.battle_skill_seq")
 local SkillTimeline = require("core.skill_timeline")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ConsoleRenderer = require("ui.console_renderer")
@@ -314,11 +313,7 @@ local function InitSubsystems(beginState)
     -- 被动技能已经在英雄创建时通过 AddPassiveSkill2TriggerTime 注册
     Logger.Debug("  Roguelike被动技能注册完成")
 
-    -- 12. 初始化技能序列模块
-    BattleSkillSeq.Init()
-    Logger.Debug("  BattleSkillSeq 初始化完成")
-
-    -- 13. 初始化渲染器
+    -- 12. 初始化渲染器
     if beginState.renderer then
         beginState.renderer.Init()
         Logger.Debug("  自定义渲染器初始化完成")
@@ -342,9 +337,6 @@ local function FinalizeSubsystems()
     BattleSkill.OnFinal()
     BattleAttribute.OnFinal()
     BattleActionOrder.OnFinal()
-    BattleFormation.OnFinal()
-    BattleTimer.OnFinal()
-    BattleSkillSeq.OnFinal()
     SkillTimeline.Reset()
     BattleEvent.OnFinal()
 

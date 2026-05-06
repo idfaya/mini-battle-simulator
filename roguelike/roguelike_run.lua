@@ -208,9 +208,6 @@ local function resetRunState()
         pendingRecruitHeroId = nil,
         maxHeroCount = 5,
         battleEncounterId = nil,
-        battleRewardGroupId = nil,
-        pendingBattleRewardGroupId = nil,
-        pendingChapterResultAfterReward = false,
         rewardReturnMode = "map",
         nextRosterId = 1,
     }
@@ -252,7 +249,6 @@ local function enterNode(nodeId)
         cachedBattleSnapshot = snapshotOrReason
         state.phase = "battle"
         state.battleEncounterId = node.encounterId
-        state.battleRewardGroupId = node.rewardGroupId
         return true
     end
 
@@ -312,20 +308,6 @@ local function openBattleLevelUpReward()
     return true
 end
 
-local function openBattleLootReward(groupId, returnMode)
-    if not groupId then
-        return false, "reward_group_not_found"
-    end
-    local rewardState = RoguelikeReward.GenerateRewardState(groupId)
-    if not rewardState then
-        return false, "reward_group_not_found"
-    end
-    state.phase = "reward"
-    state.rewardState = rewardState
-    state.rewardReturnMode = returnMode or "map"
-    return true
-end
-
 local function leaveNodeBackToMap()
     state.rewardState = nil
     state.eventState = nil
@@ -334,11 +316,30 @@ local function leaveNodeBackToMap()
     cachedBattleSnapshot = nil
     state.phase = "map"
     state.battleEncounterId = nil
-    state.battleRewardGroupId = nil
-    state.pendingBattleRewardGroupId = nil
-    state.pendingChapterResultAfterReward = false
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
+end
+
+local function enterChapterResult()
+    local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+    local clearRewards = chapter.chapterClearRewards or {}
+    if (clearRewards.healPct or 0) > 0 then
+        for _, hero in ipairs(state.teamRoster or {}) do
+            if not hero.isDead then
+                local heal = math.floor((hero.maxHp or 0) * clearRewards.healPct)
+                hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
+            end
+        end
+    end
+    state.phase = "chapter_result"
+    state.rewardState = nil
+    state.chapterResult = {
+        success = true,
+        reason = "boss_defeated",
+        gold = state.gold,
+        equipmentCount = #(state.equipmentIds or {}),
+        blessingCount = #(state.blessingIds or {}),
+    }
 end
 
 local function evaluateFailureIfNoAlive()
@@ -470,21 +471,18 @@ function RoguelikeRun.Tick(deltaMs)
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}
                 state.gold = (state.gold or 0) + (clearRewards.gold or 0)
-                state.rewardReturnMode = "battle_levelup"
-                state.pendingBattleRewardGroupId = node.rewardGroupId or clearRewards.rewardGroupId
-                state.pendingChapterResultAfterReward = true
+                state.rewardReturnMode = "chapter_result"
                 local opened = openBattleLevelUpReward()
                 if not opened then
-                    openBattleLootReward(state.pendingBattleRewardGroupId, "chapter_result")
+                    enterChapterResult()
                 end
                 return events or {}
             end
 
-            state.rewardReturnMode = "battle_levelup"
-            state.pendingBattleRewardGroupId = node and node.rewardGroupId or state.battleRewardGroupId
+            state.rewardReturnMode = "map"
             local opened = openBattleLevelUpReward()
             if not opened then
-                openBattleLootReward(state.pendingBattleRewardGroupId, "map")
+                leaveNodeBackToMap()
             end
         else
             state.phase = "failed"
@@ -514,41 +512,8 @@ function RoguelikeRun.ChooseReward(index)
         return false, reason
     end
     recalcRecommendedLevel()
-    if state.rewardReturnMode == "battle_levelup" then
-        local groupId = state.pendingBattleRewardGroupId
-        state.pendingBattleRewardGroupId = nil
-        local opened = openBattleLootReward(groupId, state.pendingChapterResultAfterReward and "chapter_result" or "map")
-        if opened then
-            return true
-        end
-        if state.pendingChapterResultAfterReward then
-            state.rewardReturnMode = "chapter_result"
-        else
-            leaveNodeBackToMap()
-            return true
-        end
-    end
     if state.rewardReturnMode == "chapter_result" then
-        local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
-        local clearRewards = chapter.chapterClearRewards or {}
-        if (clearRewards.healPct or 0) > 0 then
-            for _, hero in ipairs(state.teamRoster or {}) do
-                if not hero.isDead then
-                    local heal = math.floor((hero.maxHp or 0) * clearRewards.healPct)
-                    hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
-                end
-            end
-        end
-        state.phase = "chapter_result"
-        state.rewardState = nil
-        state.pendingChapterResultAfterReward = false
-        state.chapterResult = {
-            success = true,
-            reason = "boss_defeated",
-            gold = state.gold,
-            equipmentCount = #(state.equipmentIds or {}),
-            blessingCount = #(state.blessingIds or {}),
-        }
+        enterChapterResult()
         return true
     end
     if state.rewardReturnMode == "shop" then

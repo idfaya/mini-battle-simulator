@@ -63,7 +63,7 @@ local OVERRIDES = {
     -- Rogue
     [80001001] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "8",
         role = "高爆发单体起手",
         notes = "盗贼基础背刺。按武器命中结算，附带额外暴击率；高阶会引入毒压制，形成收割窗口。",
         tierNotes = {
@@ -74,7 +74,7 @@ local OVERRIDES = {
     },
     [80001003] = {
         kind = "physical",
-        damageDice = "2d6",
+        damageDice = "8",
         role = "锁定残血并触发追击",
         notes = "主动收割技。优先攻击最低血敌人，击杀后触发追击；高阶增加减速与中毒控制层。",
         tierNotes = {
@@ -85,7 +85,7 @@ local OVERRIDES = {
     },
     [80001004] = {
         kind = "physical",
-        damageDice = "1d6",
+        damageDice = "5",
         role = "多段随机收割",
         notes = "终结型多段攻击。通过 random_hits_damage 对敌方进行多次随机命中，每次击杀都可衔接追击。",
         tierNotes = {
@@ -106,7 +106,7 @@ local OVERRIDES = {
     -- Fighter / Defender
     [80002001] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "7",
         role = "战士基础武器攻击",
         notes = "战士主轴动作。单体近战物理攻击，所有反击、连击、额外攻击都复用这一母技能完成结算。",
         tierNotes = {
@@ -115,7 +115,7 @@ local OVERRIDES = {
     },
     [80002003] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "7",
         role = "动作激增",
         notes = "战士共享主动爆发。CD3，立刻追加 1 次基础武器攻击，目标重新选择；不影响该回合原本的普通攻击。",
         tierNotes = {
@@ -124,7 +124,7 @@ local OVERRIDES = {
     },
     [80002004] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "7",
         role = "旧战士保留技能",
         notes = "旧战士链路保留条目。新战士 Build 管线不再使用该技能承载任何路线能力。",
         tierNotes = {
@@ -151,7 +151,7 @@ local OVERRIDES = {
     -- Monk (Melee skirmisher / control)
     [80003001] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "8",
         role = "单体连击起手，触发额外追打",
         notes = "武僧基础武艺攻击。命中后会通过 combo 框架尝试追加一段小型追击；仍按近战武器攻击处理。",
         tierNotes = {
@@ -195,19 +195,19 @@ local OVERRIDES = {
     },
     [80003011] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "8",
         role = "武僧基础徒手攻击",
         notes = "新 Build 管线的武僧母技能。所有武艺、额外攻击和 Lv3 主动都围绕该徒手攻击展开。",
     },
     [80003013] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "8",
         role = "震劲掌",
         notes = "对当前目标执行 1 次徒手打击；命中后再检定强韧豁免，失败则 STUN 1 回合。",
     },
     [80003014] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "6",
         role = "影步连打",
         notes = "对任意目标执行 1 次徒手打击；若目标位于后排，追加 1d8 伤害。",
     },
@@ -221,7 +221,7 @@ local OVERRIDES = {
     -- Paladin (frontline support / smite / aura)
     [80004001] = {
         kind = "physical",
-        damageDice = "2d6+4",
+        damageDice = "8",
         role = "前线单体惩击",
         notes = "圣武士的近战基础打击。按武器攻击结算，代表 Divine Smite 风格的稳定单体输出。",
         tierNotes = {
@@ -233,7 +233,7 @@ local OVERRIDES = {
     [80004003] = {
         kind = "physical",
         concentration = true,
-        damageDice = "1d4",
+        damageDice = "2",
         role = "团队战意灵光",
         notes = "属于持续型团队增益动作。开启后进入专注，给友军施加 battle intent buff；skill.level 主要延长持续回合。",
         tierNotes = {
@@ -263,7 +263,7 @@ local OVERRIDES = {
     },
     [80004011] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "7",
         role = "圣武士基础武器攻击",
         notes = "新 Build 管线的圣武士母技能。用于触发神圣惩击、额外攻击和各类誓约强化。",
     },
@@ -275,7 +275,7 @@ local OVERRIDES = {
     },
     [80004014] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "7",
         role = "复仇裁击",
         notes = "先执行 1 次基础武器攻击；若命中，再追加 2d8 光耀伤害。",
     },
@@ -288,7 +288,7 @@ local OVERRIDES = {
     -- Ranger / Venom hunter (damage-over-time / burst conversion)
     [80005001] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "6",
         role = "单体挂毒起手",
         notes = "游侠/毒猎人的基础攻击。按武器攻击结算，并在命中后追加中毒层数，服务于后续引爆。",
         tierNotes = {
@@ -299,7 +299,7 @@ local OVERRIDES = {
     },
     [80005003] = {
         kind = "physical",
-        damageDice = "1d4",
+        damageDice = "6",
         role = "随机多目标挂毒",
         notes = "中距离扩散技。随机命中多个敌人并叠加毒层，为毒爆路线铺垫全场引爆条件。",
         tierNotes = {
@@ -310,7 +310,7 @@ local OVERRIDES = {
     },
     [80005004] = {
         kind = "physical",
-        damageDice = "1d6",
+        damageDice = "7",
         role = "中毒引爆终结",
         notes = "将目标身上的中毒层数转化为即时伤害并清空毒层。高阶后可转为对全体存活敌人执行引爆检查。",
         tierNotes = {
@@ -329,25 +329,25 @@ local OVERRIDES = {
     },
     [80005011] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "6",
         role = "游侠基础远程攻击",
         notes = "新 Build 管线的游侠母技能。围绕猎人印记、额外攻击和子职射击展开。",
     },
     [80005013] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "6",
         role = "猎杀箭",
         notes = "先执行 1 次远程基础攻击；若目标带有猎人印记，再追加 2d6 伤害。",
     },
     [80005014] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "6",
         role = "暮影射击",
         notes = "对任意敌人执行 1 次远程基础攻击；若目标位于后排，再追加 1d8 伤害。",
     },
     [80005015] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "6",
         role = "缠绕箭",
         notes = "对任意敌人执行 1 次远程基础攻击；命中后若目标反射豁免失败，则冻结 1 回合近似表达 Restrained。",
     },

@@ -82,7 +82,7 @@ local ENEMY_ROLE_TEMPLATES = {
 
 ---@type table<integer, MonsterTypeTemplate>
 local MONSTER_TYPE_TEMPLATES = {
-    [0] = { hpMul = 0.58, atkMul = 1.00, defMul = 0.95, acDelta = -3, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
+    [0] = { hpMul = 0.58, atkMul = 1.00, defMul = 0.95, acDelta = -4, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
     [1] = { hpMul = 0.80, atkMul = 1.10, defMul = 1.00, acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
     [2] = { hpMul = 1.08, atkMul = 1.22, defMul = 1.10, acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
 }

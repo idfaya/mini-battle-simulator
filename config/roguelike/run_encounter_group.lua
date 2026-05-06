@@ -94,15 +94,15 @@ RunEncounterGroup.ENCOUNTERS = {
         chapterId = 101,
         difficulty = 1,
         level = 2,
-        enemyCount = 4,
-        enemyIds = { 910004, 910002, 910002, 910001 },
+        enemyCount = 3,
+        enemyIds = { 910003, 910002, 910001 },
         initialEnergy = 100,
         speed = 1.0,
         gold = { min = 24, max = 38 },
-        -- 第二战不再从 2 怪直接跳到 6 怪，保持中压但收敛到 4 怪。
-        budget = { difficulty = "easy", pressureFactor = 0.78 },
-        playerScale = { hp = 1.12, atk = 1.04, def = 1.10, energyBonus = 5 },
-        enemyScale = { hp = 0.95, atk = 0.90, def = 0.95, hitDelta = -1, spellDCDelta = 0 },
+        -- 去掉战后 loot 后，纯战斗路线第二战改成 2 怪缓坡，保证能进入中盘。
+        budget = { difficulty = "easy", pressureFactor = 0.55 },
+        playerScale = { hp = 1.36, atk = 1.18, def = 1.24, energyBonus = 20 },
+        enemyScale = { hp = 0.78, atk = 0.78, def = 0.82, hitDelta = -4, spellDCDelta = -1 },
     },
     [101003] = {
         id = 101003,
@@ -115,9 +115,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "medium", pressureFactor = 0.82 },
-        playerScale = { hp = 1.10, atk = 1.03, def = 1.08, energyBonus = 5 },
-        enemyScale = { hp = 1.00, atk = 0.92, def = 0.98, hitDelta = -1, spellDCDelta = 0 },
+        budget = { difficulty = "easy", pressureFactor = 0.76 },
+        playerScale = { hp = 1.24, atk = 1.12, def = 1.18, energyBonus = 15 },
+        enemyScale = { hp = 0.88, atk = 0.84, def = 0.88, hitDelta = -2, spellDCDelta = -1 },
     },
 
     -- Elite battles
@@ -127,17 +127,17 @@ RunEncounterGroup.ENCOUNTERS = {
         chapterId = 101,
         difficulty = 3,
         level = 4,
-        enemyCount = 4,
-        enemyIds = { 910005, 910004, 910003, 910001 },
+        enemyCount = 2,
+        enemyIds = { 910002, 910001 },
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 1 },
         -- 单人升级改版后，第二战后队伍强度爬坡更慢；首个精英收缩到 4 怪。
-        budget = { difficulty = "easy", pressureFactor = 0.85 },
-        playerScale = { hp = 1.12, atk = 1.03, def = 1.10, energyBonus = 5 },
+        budget = { difficulty = "easy", pressureFactor = 0.55 },
+        playerScale = { hp = 1.36, atk = 1.18, def = 1.24, energyBonus = 20 },
         -- 精英微调：先移除命中/DC 额外压制，后续再通过 budget 精确回收难度。
-        enemyScale = { hp = 0.98, atk = 0.92, def = 0.98, hitDelta = -1, spellDCDelta = 0 },
+        enemyScale = { hp = 0.76, atk = 0.76, def = 0.80, hitDelta = -4, spellDCDelta = -2 },
     },
     [101102] = {
         id = 101102,
@@ -145,15 +145,15 @@ RunEncounterGroup.ENCOUNTERS = {
         chapterId = 101,
         difficulty = 4,
         level = 4,
-        enemyCount = 5,
-        enemyIds = { 910005, 910003, 910002, 910002, 910001 },
+        enemyCount = 1,
+        enemyIds = { 910003 },
         initialEnergy = 120,
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "easy", pressureFactor = 0.65 },
-        playerScale = { hp = 1.18, atk = 1.04, def = 1.14, energyBonus = 25 },
-        enemyScale = { hp = 0.92, atk = 0.90, def = 0.92, hitDelta = -1, spellDCDelta = -1 },
+        budget = { difficulty = "easy", pressureFactor = 0.40 },
+        playerScale = { hp = 1.46, atk = 1.24, def = 1.32, energyBonus = 60 },
+        enemyScale = { hp = 0.70, atk = 0.72, def = 0.78, hitDelta = -5, spellDCDelta = -3 },
     },
 
     -- Light route battles: used to stop low-risk routes from skipping straight to boss.
@@ -169,8 +169,8 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 30, max = 46 },
         budget = { difficulty = "easy", pressureFactor = 0.90 },
-        playerScale = { hp = 1.05, atk = 1.04, def = 1.04, energyBonus = 10 },
-        enemyScale = { hp = 0.92, atk = 0.90, def = 0.92, hitDelta = -1, spellDCDelta = 0 },
+        playerScale = { hp = 1.16, atk = 1.10, def = 1.12, energyBonus = 15 },
+        enemyScale = { hp = 0.88, atk = 0.86, def = 0.88, hitDelta = -2, spellDCDelta = -1 },
     },
     [101104] = {
         id = 101104,
@@ -184,8 +184,8 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 46, max = 64 },
         budget = { difficulty = "easy", pressureFactor = 0.75 },
-        playerScale = { hp = 1.10, atk = 1.03, def = 1.08, energyBonus = 10 },
-        enemyScale = { hp = 0.90, atk = 0.90, def = 0.90, hitDelta = -1, spellDCDelta = -1 },
+        playerScale = { hp = 1.24, atk = 1.12, def = 1.18, energyBonus = 15 },
+        enemyScale = { hp = 0.84, atk = 0.84, def = 0.86, hitDelta = -2, spellDCDelta = -2 },
     },
 
     -- Boss battle
@@ -202,9 +202,9 @@ RunEncounterGroup.ENCOUNTERS = {
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
         budget = { difficulty = "hard", pressureFactor = 1.00 },
-        playerScale = { hp = 1.10, atk = 1.03, def = 1.08, energyBonus = 0 },
+        playerScale = { hp = 1.24, atk = 1.12, def = 1.18, energyBonus = 10 },
         -- BOSS 保留体量感，但不再额外拉高命中/DC，避免连续点杀前排。
-        enemyScale = { hp = 0.90, atk = 0.90, def = 0.92, hitDelta = 0, spellDCDelta = 0, saveDelta = 0 },
+        enemyScale = { hp = 0.82, atk = 0.84, def = 0.86, hitDelta = -2, spellDCDelta = -2, saveDelta = -1 },
     },
 }
 

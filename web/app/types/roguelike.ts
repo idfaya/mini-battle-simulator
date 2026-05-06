@@ -59,7 +59,7 @@ export type BlessingState = {
 };
 
 export type RewardOption = {
-  rewardType: "gold" | "heal_pct" | "equipment" | "blessing" | "recruit" | "levelup";
+  rewardType: "gold" | "equipment" | "blessing" | "recruit" | "levelup";
   refId?: number;
   value?: number;
   label: string;

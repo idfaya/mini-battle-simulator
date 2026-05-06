@@ -6,7 +6,7 @@
 local ClassWeaponConfig = {}
 
 -- Dice-first model:
--- - Physical damage = weaponDice (by class) + skill bonus dice (by skill meta)
+-- - Physical damage = weaponDice (by class) + skill bonus dice/flat (by skill meta)
 -- - Spell damage uses skill dice only (no weaponDice here)
 --
 -- Notes:
@@ -16,12 +16,12 @@ local ClassWeaponConfig = {}
 
 ---@type table<integer, string>
 ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
-    [1] = "1d10", -- A1 pursuit: sharper burst to keep short fights lethal
-    [2] = "1d10", -- Fighter frontline: sturdy martial baseline
-    [3] = "1d10", -- S1 combo: baseline longsword up one step
-    [4] = "1d12", -- B1 war spirit: heaviest martial baseline
-    [5] = "1d8",  -- T1 poison: finesse damage should not drag fights
-    [6] = "1d6",  -- H1 healer: modest mace basic attack
+    [1] = "1d6", -- A1 pursuit: keep weapon random but reduce swing
+    [2] = "1d6", -- Fighter frontline: stable martial baseline
+    [3] = "1d4", -- S1 combo: lighter weapon roll, more damage from skill flat
+    [4] = "1d6", -- B1 war spirit: avoid large spike from heavy die alone
+    [5] = "1d6", -- T1 poison: finesse baseline stays stable
+    [6] = "1d4", -- H1 healer: modest mace basic attack
 }
 
 function ClassWeaponConfig.GetWeaponDice(classId)

@@ -479,8 +479,8 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         parts = diceDetail and diceDetail.parts or {},
         crit = hitResult.crit == true,
     }
-        rolled = ApplyClassDiceScalar(attacker, rolled, false)
-        rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
+    rolled = ApplyClassDiceScalar(attacker, rolled, false)
+    rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
     if useRate and damageRate > 0 then
         rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
     end

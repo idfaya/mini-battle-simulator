@@ -22,7 +22,7 @@ local BattleFormation = require("modules.battle_formation")
 
 默认策略:
   - 路线: chapter101 的 safe + combat
-  - 奖励: recruit > equipment > heal_pct > blessing > gold
+  - 奖励: recruit > equipment > blessing > gold
     - 商店: basic（优先买装备/治疗/祝福）
   - 营地: 优先 blessing，其次复活
   - 事件: 选 optionId=1
@@ -56,9 +56,8 @@ local DEFAULT_CONFIG = {
 local REWARD_PRIORITY = {
     recruit = 1,
     equipment = 2,
-    heal_pct = 3,
-    blessing = 4,
-    gold = 5,
+    blessing = 3,
+    gold = 4,
 }
 
 local SHOP_PRIORITY = {

@@ -7,16 +7,9 @@
 ---@field boss integer[]
 ---@field eventBattle integer[]
 
----@class RunChapterRewardPools
----@field normal integer
----@field elite integer
----@field event integer
----@field boss integer
-
 ---@class RunChapterClearRewards
 ---@field gold integer
 ---@field healPct number
----@field rewardGroupId integer
 
 ---@class RunChapterPostBattleRest
 ---@field healPct number
@@ -41,7 +34,6 @@
 ---@field mapVision RunChapterMapVision
 ---@field routeBlueprint table<integer, integer[]>
 ---@field encounterPools RunChapterEncounterPools
----@field rewardPools RunChapterRewardPools
 ---@field shopId integer
 ---@field campId integer
 ---@field chapterClearRewards RunChapterClearRewards
@@ -86,24 +78,17 @@ RunChapterConfig.CHAPTERS = {
             boss = { 101201 },
             eventBattle = { 101103, 101104 },
         },
-        rewardPools = {
-            normal = 101001,
-            elite = 101101,
-            event = 101301,
-            boss = 101201,
-        },
         shopId = 101001,
         campId = 101001,
         postBattleRest = {
             healPct = 0.50,
             clearCooldowns = true,
             restoreUltimateCharges = true,
-            reviveDead = true,
+            reviveDead = false,
         },
         chapterClearRewards = {
             gold = 90,
             healPct = 0.30,
-            rewardGroupId = 101201,
         },
     },
 }

@@ -90,7 +90,10 @@ local function ExecuteOp(ctx, frameCopy)
                         savedTargets[target.instanceId] = true
                     end
 
-                    local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(ctx.hero, ctx.skill, meta and meta.isAOE, resolvedKind)) or "1d6+3"
+                    local diceExpr = frameCopy.damageDice
+                        or (meta and meta.damageDice)
+                        or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(ctx.hero, ctx.skill, meta and meta.isAOE, resolvedKind))
+                        or "1d6+3"
                     local rolled = 0
                     local damageRoll = nil
                     if not saveResult.success then
@@ -104,7 +107,9 @@ local function ExecuteOp(ctx, frameCopy)
                             crit = false,
                         }
                     else
-                        local successMode = (meta and meta.onSaveSuccess) or "half"
+                        local successMode = (type(frameCopy.onSaveSuccess) == "string" and frameCopy.onSaveSuccess ~= "" and frameCopy.onSaveSuccess)
+                            or (meta and meta.onSaveSuccess)
+                            or "half"
                         local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
                         local full = diceTotal * diceScale
                         damageRoll = {
@@ -134,25 +139,23 @@ local function ExecuteOp(ctx, frameCopy)
                             guardTargetAC = (tonumber(target and target.ac) or 0) + guardAcBonus
                         end
                     end
-                    local hitResult = BattleFormula.RollHit(ctx.hero, target, {
-                        mode = "normal",
+                    local attackBonus = tonumber(ctx.hero and ctx.hero.hit) or 0
+                    local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
+                        skill = ctx.skill,
+                        meta = meta,
+                        damageKind = resolvedKind,
+                        damageDice = frameCopy.damageDice,
+                        attackBonus = attackBonus,
                         targetAC = guardTargetAC,
-                        ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
                     })
-                    hitMetaByTarget[target.instanceId] = { hit = hitResult }
-                    if hitResult.hit then
-                        isCrit = hitResult.crit == true
-                        local diceExpr = (meta and meta.damageDice) or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(ctx.hero, ctx.skill, resolvedKind)) or "1d6+2"
-                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = isCrit })
-                        local rolled = diceTotal * diceScale
-                        hitMetaByTarget[target.instanceId].damageRoll = {
-                            expr = diceExpr,
-                            total = diceTotal,
-                            scaledTotal = rolled,
-                            parts = diceDetail and diceDetail.parts or {},
-                            crit = isCrit,
-                        }
-                        dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
+                    local hitResult = damageResult and damageResult.hit or nil
+                    hitMetaByTarget[target.instanceId] = {
+                        hit = hitResult,
+                        damageRoll = damageResult and damageResult.damageRoll or nil,
+                    }
+                    if hitResult and hitResult.hit then
+                        isCrit = damageResult and damageResult.isCrit == true or false
+                        dmg = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0))
                     else
                         local BattleEvent = require("core.battle_event")
                         local BattleVisualEvents = require("ui.battle_visual_events")
