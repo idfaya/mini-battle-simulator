@@ -162,6 +162,7 @@ end
 
 local function augmentBasicAttackResolveOpts(hero, target, opts, runtime)
     local modules = {
+        "skills.cleric_build_passives",
         "skills.paladin_build_passives",
         "skills.ranger_build_passives",
     }
@@ -404,6 +405,10 @@ end
 
 function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     local total = 0
+    local okCleric, ClericBuildPassives = pcall(require, "skills.cleric_build_passives")
+    if okCleric and ClericBuildPassives and ClericBuildPassives.GetAuraAcBonus then
+        total = total + (tonumber(ClericBuildPassives.GetAuraAcBonus(defender, attacker)) or 0)
+    end
     local okFighter, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
     if okFighter and FighterBuildPassives and FighterBuildPassives.GetGuardStanceAcBonus then
         total = total + (tonumber(FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)) or 0)
@@ -424,6 +429,10 @@ function BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, skill)
 end
 
 function BuildPassiveCommon.ApplyTeamProtections(defender, extraParam)
+    local okCleric, ClericBuildPassives = pcall(require, "skills.cleric_build_passives")
+    if okCleric and ClericBuildPassives and ClericBuildPassives.ApplyClericProtections then
+        ClericBuildPassives.ApplyClericProtections(defender, extraParam)
+    end
     local okFighter, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
     if okFighter and FighterBuildPassives and FighterBuildPassives.ApplyGuardStanceProtection then
         FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)

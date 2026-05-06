@@ -408,6 +408,50 @@ local OVERRIDES = {
     -- Cleric / Holy
     -- Note: holy skills use custom handlers for ally heal / enemy damage.
     -- We still define heal dice here so runtime can stay free of MaxHP% healing.
+    [80006011] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "牧师基础神术",
+        notes = "新 Build 管线的牧师母技能。使用 spellDC 派生的法术攻击加值进行单体远程神术攻击；后续裁断祷文、神术专精与 Blessed Strikes 都围绕它触发。",
+    },
+    [80006012] = {
+        kind = "auto",
+        healDice = "1d8",
+        role = "治愈之言",
+        notes = "每场战斗 1 次，自动治疗生命最低友军。基础值为 1d8 + 等级，后续可被复苏祷文、治疗专精与慈恩主教继续增强。",
+    },
+    [80006013] = {
+        kind = "auto",
+        healDice = "1d8+4",
+        role = "群愈祷言",
+        notes = "生命领域主动。为生命最低的两名友军各回复 1d8 + 4 生命；可继续叠加治疗专精与慈恩主教。",
+    },
+    [80006014] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "圣焰裁决",
+        notes = "光明领域主动。先发动 1 次基础神术；若命中，再追加 2d6 光耀伤害。",
+    },
+    [80006015] = {
+        kind = "auto",
+        role = "圣域祷言",
+        notes = "守护领域主动。持续到施法者下回合开始；期间我方全体 AC +1，且各自第一次受到的伤害减少 1d6。圣域专精可再提高 AC。",
+    },
+    [80006109] = {
+        kind = "auto",
+        role = "圣焰主教",
+        notes = "每回合第一次基础神术命中后，额外造成 1d8 光耀伤害。",
+    },
+    [80006110] = {
+        kind = "auto",
+        role = "慈恩主教",
+        notes = "每回合第一次回复友军生命时，额外再回复 1d6 生命。",
+    },
+    [80006111] = {
+        kind = "auto",
+        role = "守望主教",
+        notes = "每回合第一次基础神术命中后，直到你下回合开始，我方前排 AC +1。",
+    },
     [80006001] = {
         kind = "physical",
         role = "牧师近战武器打击",

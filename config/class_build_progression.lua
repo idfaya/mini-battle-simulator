@@ -28,6 +28,26 @@ local PROGRESSION = {
             choiceGroup = "rogue_lv5_capstone",
         },
     },
+    [6] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.cleric_training,
+                FeatBuildConfig.Ids.cleric_healing_word,
+            },
+        },
+        [2] = {
+            choiceGroup = "cleric_lv2_prayer",
+        },
+        [3] = {
+            choiceGroup = "cleric_lv3_domain",
+        },
+        [4] = {
+            choiceGroup = "cleric_lv4_mastery",
+        },
+        [5] = {
+            choiceGroup = "cleric_lv5_capstone",
+        },
+    },
     [2] = {
         [1] = {
             fixed = {
