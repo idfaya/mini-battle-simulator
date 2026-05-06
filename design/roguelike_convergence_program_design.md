@@ -142,3 +142,4 @@ The chapter loop becomes:
 - Priority tuning nodes:
   - `101102` (`Dark Cabal`): reduce enemy count / pressure first
   - `101201` (`Frozen Gate`): lightly reduce boss pressure after combat route is unblocked
+  - `101104` (`Ember Ambush`): demote from pseudo-elite pressure back to a true safe-route teaching battle by reducing enemy count and opening tempo

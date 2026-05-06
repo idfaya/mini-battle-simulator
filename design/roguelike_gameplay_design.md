@@ -333,6 +333,7 @@ Act 1 当前规则：
 
 当前重点节点：
 
+- `101104 / Ember Ambush`
 - `101102 / Dark Cabal`
 - `101201 / Frozen Gate`
 

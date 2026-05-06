@@ -409,10 +409,10 @@ local OVERRIDES = {
     -- Note: holy skills use custom handlers for ally heal / enemy damage.
     -- We still define heal dice here so runtime can stay free of MaxHP% healing.
     [80006011] = {
-        kind = "physical",
+        kind = "spell",
         damageDice = "1d8",
         role = "牧师基础神术",
-        notes = "新 Build 管线的牧师母技能。使用 spellDC 派生的法术攻击加值进行单体远程神术攻击；后续裁断祷文、神术专精与 Blessed Strikes 都围绕它触发。",
+        notes = "新 Build 管线的牧师母技能。单体远程神术，按 spellDC 进行豁免对抗；后续裁断祷文、神术专精与 Blessed Strikes 都围绕它触发。",
     },
     [80006012] = {
         kind = "auto",
@@ -427,10 +427,10 @@ local OVERRIDES = {
         notes = "生命领域主动。为生命最低的两名友军各回复 1d8 + 4 生命；可继续叠加治疗专精与慈恩主教。",
     },
     [80006014] = {
-        kind = "physical",
+        kind = "auto",
         damageDice = "1d8",
         role = "圣焰裁决",
-        notes = "光明领域主动。先发动 1 次基础神术；若命中，再追加 2d6 光耀伤害。",
+        notes = "光明领域主动。先发动 1 次基础神术；若目标未通过该次豁免，再追加 2d6 光耀伤害。",
     },
     [80006015] = {
         kind = "auto",
@@ -440,7 +440,7 @@ local OVERRIDES = {
     [80006109] = {
         kind = "auto",
         role = "圣焰主教",
-        notes = "每回合第一次基础神术命中后，额外造成 1d8 光耀伤害。",
+        notes = "每回合第一次基础神术使目标未通过豁免后，额外造成 1d8 光耀伤害。",
     },
     [80006110] = {
         kind = "auto",
@@ -450,7 +450,7 @@ local OVERRIDES = {
     [80006111] = {
         kind = "auto",
         role = "守望主教",
-        notes = "每回合第一次基础神术命中后，直到你下回合开始，我方前排 AC +1。",
+        notes = "每回合第一次基础神术使目标未通过豁免后，直到你下回合开始，我方前排 AC +1。",
     },
     [80006001] = {
         kind = "physical",
@@ -500,10 +500,10 @@ local OVERRIDES = {
 
     -- Sorcerer (Fire)
     [80007001] = {
-        kind = "auto",
+        kind = "spell",
         damageDice = "2d8+2",
         role = "稳定点燃的基础火焰箭",
-        notes = "基础远程火系法术。命中后附加燃烧；高阶提升燃烧层数与持续回合，适合作为 DoT 铺垫。",
+        notes = "基础远程火系法术。按 spellDC 进行豁免对抗；未通过豁免时附加燃烧。高阶提升燃烧层数与持续回合，适合作为 DoT 铺垫。",
         tierNotes = {
             [1] = "基础版：单体火焰伤害并附加 1 层燃烧，持续 2 回合。",
             [2] = "进阶版：伤害提高，燃烧层数提高到 2。",

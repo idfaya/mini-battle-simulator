@@ -134,6 +134,45 @@ do
     end
 end
 
+-- Test 5b: Sorcerer fire bolt resolves by spell save instead of AC
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local BattleFormula = require("core.battle_formula")
+    local skillLua = require("config.skill.skill_80007001")
+    local hero = new_unit(3651, "SaveFire")
+    local target = new_unit(3652, "SaveDummy")
+    local oldRollSave = BattleFormula.RollSave
+    local oldRollHit = BattleFormula.RollHit
+    local saveCalls = 0
+    local hitCalls = 0
+
+    BattleFormula.RollSave = function(_, dc, bonus)
+        saveCalls = saveCalls + 1
+        return {
+            success = false,
+            total = 5,
+            roll = 5,
+            bonus = bonus or 0,
+            dc = dc or 10,
+            nat20 = false,
+            nat1 = false,
+        }
+    end
+    BattleFormula.RollHit = function(...)
+        hitCalls = hitCalls + 1
+        return oldRollHit(...)
+    end
+
+    local skill = { skillId = 80007001, name = "Fire Bolt", level = 1 }
+    local ok = SkillTimeline.Execute(hero, { target }, skill, skillLua.BuildTimeline(hero, { target }, skill))
+    assert_true(ok, "Fire Bolt save-based execute ok")
+    assert_true(saveCalls == 1, "Fire Bolt resolves via save check")
+    assert_true(hitCalls == 0, "Fire Bolt no longer rolls against AC")
+
+    BattleFormula.RollSave = oldRollSave
+    BattleFormula.RollHit = oldRollHit
+end
+
 -- Test 6: Wizard blizzard (80008004) freeze chance baseChance scales by tier
 do
     local skillLua = require("config.skill.skill_80008004")

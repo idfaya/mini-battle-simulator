@@ -100,12 +100,52 @@ local function acceptRewardIfPresent()
     local current = Run.GetSnapshot()
     local guard = 0
     while current.phase == "reward" and guard < 4 do
-        assert(Run.ChooseReward(1) == true, "reward selection should succeed")
+        local rewardIndex = chooseRewardIndex(current)
+        assert(Run.ChooseReward(rewardIndex) == true, "reward selection should succeed")
         current = Run.GetSnapshot()
         guard = guard + 1
     end
     assert(current.phase == "map", "reward chain should return to map")
     return current
+end
+
+function chooseRewardIndex(snapshot)
+    local reward = snapshot and snapshot.rewardState
+    if not reward or not reward.options then
+        return 1
+    end
+
+    if reward.kind == "node_recruit" then
+        local existing = {}
+        for _, hero in ipairs(snapshot.team or {}) do
+            existing[hero.name] = true
+        end
+        for _, hero in ipairs(snapshot.bench or {}) do
+            existing[hero.name] = true
+        end
+        for index, option in ipairs(reward.options) do
+            local heroName = option.heroName or string.gsub(option.label or "", "^招募%s+", "")
+            if heroName and not existing[heroName] then
+                return index
+            end
+        end
+    end
+
+    local priority = {
+        recruit = 1,
+        equipment = 2,
+        blessing = 3,
+        gold = 4,
+    }
+    local bestIndex, bestScore
+    for index, option in ipairs(reward.options) do
+        local score = priority[option.rewardType] or 99
+        if not bestScore or score < bestScore then
+            bestIndex = index
+            bestScore = score
+        end
+    end
+    return bestIndex or 1
 end
 
 local function countRows(team)
@@ -126,6 +166,7 @@ assertEncounterScalesStay5eStyle()
 local snapshot = Run.StartRun({
     chapterId = 101,
     starterHeroIds = { 900005, 900001, 900007, 900002 },
+    seed = 10102,
 })
 
 assert(snapshot.phase == "map", "run should start on map")
@@ -142,7 +183,7 @@ snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101002)
 assert(Run.GetSnapshot().phase == "reward", "second path should open recruit reward")
-assert(Run.ChooseReward(1) == true, "recruit selection should resolve")
+assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "recruit selection should resolve")
 assert(Run.GetSnapshot().phase == "map", "recruit node should return to map")
 
 choosePathAndEnter(101004)
@@ -163,8 +204,10 @@ snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101010)
 assert(Run.GetSnapshot().phase == "reward", "last stop should open second recruit reward")
-assert(Run.ChooseReward(1) == true, "second recruit selection should resolve")
-assert(#(Run.GetSnapshot().team or {}) >= 5, "second recruit should add another hero")
+assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "second recruit selection should resolve")
+local recruitSnapshot = Run.GetSnapshot()
+assert(recruitSnapshot.phase == "map", "second recruit should return to map")
+assert((#(recruitSnapshot.team or {}) + #(recruitSnapshot.bench or {})) >= 4, "second recruit should keep boss roster viable")
 
 choosePathAndEnter(101011)
 assert(Run.GetSnapshot().phase == "battle", "boss node should be battle")

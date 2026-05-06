@@ -21,8 +21,17 @@ local function getRound()
     return BuildPassiveCommon.GetRound()
 end
 
-local function spellAttackBonus(hero)
-    return math.max(0, (tonumber(hero and hero.spellDC) or 10) - 8)
+local function didSpellConnect(damageResult)
+    if not damageResult then
+        return false
+    end
+    if damageResult.save then
+        return damageResult.save.success ~= true
+    end
+    if damageResult.hit then
+        return damageResult.hit.hit == true
+    end
+    return (tonumber(damageResult.damage) or 0) > 0
 end
 
 local function pickLowestHpAllies(hero, count)
@@ -134,16 +143,17 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattleVisualEvents = require("ui.battle_visual_events")
     local BattleEvent = require("core.battle_event")
+    local runtime = ensureRuntime(hero)
     local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
         meta = {
-            kind = "physical",
+            kind = "spell",
             damageDice = "1d8",
         },
-        attackBonus = spellAttackBonus(hero),
         damageKind = "spell",
         noWeapon = true,
         noAbilityMod = true,
     })
+    runtime.clericBasicSpellLastConnected = didSpellConnect(damageResult)
     local damage = tonumber(damageResult and damageResult.damage) or 0
     local damageContext = {
         attacker = hero,
@@ -158,7 +168,9 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     })
     damage = math.max(0, math.floor(tonumber(damageContext.damage) or damage))
     if damage > 0 then
-        damage = damage + applyBasicSpellPostHit(hero, target)
+        if runtime.clericBasicSpellLastConnected then
+            damage = damage + applyBasicSpellPostHit(hero, target)
+        end
         BattleDmgHeal.ApplyDamage(target, damage, hero, {
             isCrit = damageResult and damageResult.isCrit or false,
             isDodged = damageResult and damageResult.isDodged or false,
@@ -167,6 +179,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             skillName = skill and skill.name or "基础神术",
             damageKind = "spell",
             attackRoll = damageResult and damageResult.hit or nil,
+            saveRoll = damageResult and damageResult.save or nil,
             damageRoll = damageResult and damageResult.damageRoll or nil,
         })
         BuildPassiveCommon.PublishCombatLog(string.format("%s 使用基础神术：对 %s 造成 %d 点伤害",
@@ -228,9 +241,11 @@ function ClericBuildPassives.PerformHolyVerdict(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local runtime = ensureRuntime(hero)
+    runtime.clericBasicSpellLastConnected = false
     local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
     local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if damage > 0 then
+    if damage > 0 and runtime.clericBasicSpellLastConnected == true then
         damage = damage + applyRadiantBonus(hero, target, "2d6", skill and skill.skillId or IDS.cleric_holy_verdict, skill and skill.name or "圣焰裁决", "光明领域")
     end
     return damage

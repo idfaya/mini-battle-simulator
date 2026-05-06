@@ -282,6 +282,22 @@ local function chooseRewardIndex(snapshot)
         return nil
     end
 
+    if reward.kind == "node_recruit" then
+        local existing = {}
+        for _, hero in ipairs(snapshot.team or {}) do
+            existing[hero.name] = true
+        end
+        for _, hero in ipairs(snapshot.bench or {}) do
+            existing[hero.name] = true
+        end
+        for index, option in ipairs(reward.options) do
+            local heroName = option.heroName or string.gsub(option.label or "", "^招募%s+", "")
+            if heroName and not existing[heroName] then
+                return index
+            end
+        end
+    end
+
     local bestIndex, bestScore
     for index, option in ipairs(reward.options) do
         local score = REWARD_PRIORITY[option.rewardType] or 99

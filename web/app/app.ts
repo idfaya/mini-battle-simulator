@@ -26,6 +26,9 @@ export async function bootstrapApp(container: HTMLElement) {
   container.replaceChildren(shell);
 
   const host = await LuaBattleHost.create();
+  if (typeof window !== "undefined") {
+    (window as typeof window & { __miniBattleHost?: LuaBattleHost }).__miniBattleHost = host;
+  }
   const renderer = new CanvasRenderer();
   const battleStore = new BattleStore();
   const runStore = new RunStore();
@@ -45,7 +48,7 @@ export async function bootstrapApp(container: HTMLElement) {
     return;
   }
 
-  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore);
+  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore, params);
 }
 
 async function bootstrapStandaloneBattle(
@@ -174,7 +177,9 @@ async function bootstrapRunMode(
   panelHost: HTMLDivElement,
   battleStore: BattleStore,
   runStore: RunStore,
+  params: URLSearchParams,
 ) {
+  const runSeed = Number(params.get("seed")) || 10102;
   // Disable auto-ultimate by default in roguelike mode to keep early battles stable and reproducible.
   let autoUltimate = false;
   let battleSpeed = 4;
@@ -278,11 +283,11 @@ async function bootstrapRunMode(
       syncRunSnapshot(await host.getRunSnapshot());
     },
     onRestart: async () => {
-      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002] }));
+      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002], seed: runSeed }));
     },
   });
 
-  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002] }));
+  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002], seed: runSeed }));
 
   let lastFrame = performance.now();
   let inFlight = false;

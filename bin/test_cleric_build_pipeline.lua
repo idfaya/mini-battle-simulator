@@ -192,4 +192,71 @@ do
     BuildPassiveCommon.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
 end
 
+do
+    local hero = new_unit(7401, "SaveCleric")
+    local target = new_unit(7402, "TargetDummy")
+    local BattleFormula = require("core.battle_formula")
+    local oldRollSave = BattleFormula.RollSave
+    local oldRollHit = BattleFormula.RollHit
+    local saveCalls = 0
+    local hitCalls = 0
+
+    BattleFormula.RollSave = function(_, dc, bonus)
+        saveCalls = saveCalls + 1
+        return {
+            success = false,
+            total = 5,
+            roll = 5,
+            bonus = bonus or 0,
+            dc = dc or 10,
+            nat20 = false,
+            nat1 = false,
+        }
+    end
+    BattleFormula.RollHit = function(...)
+        hitCalls = hitCalls + 1
+        return oldRollHit(...)
+    end
+
+    ClericBuildPassives.PerformBasicSpellAttack(hero, target, {
+        skillId = SkillRuntimeConfig.Ids.cleric_basic_spell,
+        name = "基础神术",
+    })
+
+    assert_true(saveCalls == 1, "cleric basic spell resolves via save check")
+    assert_true(hitCalls == 0, "cleric basic spell no longer rolls against AC")
+
+    BattleFormula.RollSave = oldRollSave
+    BattleFormula.RollHit = oldRollHit
+end
+
+do
+    local hero = new_unit(7501, "JudgementCleric")
+    local target = new_unit(7502, "Dummy")
+    hero.passiveRuntime = {}
+    local BattleSkill = require("modules.battle_skill")
+    local oldCastSmallSkill = BattleSkill.CastSmallSkillWithResult
+    local oldApplyDirectBonusDamage = BuildPassiveCommon.ApplyDirectBonusDamage
+    local bonusCalls = 0
+
+    BattleSkill.CastSmallSkillWithResult = function(srcHero)
+        srcHero.passiveRuntime.clericBasicSpellLastConnected = false
+        return true, { totalDamage = 5 }
+    end
+    BuildPassiveCommon.ApplyDirectBonusDamage = function()
+        bonusCalls = bonusCalls + 1
+        return 8
+    end
+
+    local total = ClericBuildPassives.PerformHolyVerdict(hero, target, {
+        skillId = SkillRuntimeConfig.Ids.cleric_holy_verdict,
+        name = "圣焰裁决",
+    })
+    assert_true(total == 5, "holy verdict radiant rider requires failed save")
+    assert_true(bonusCalls == 0, "holy verdict does not add radiant rider on successful save")
+
+    BattleSkill.CastSmallSkillWithResult = oldCastSmallSkill
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
+end
+
 log("Cleric build pipeline tests passed.")

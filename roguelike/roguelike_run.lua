@@ -387,6 +387,10 @@ end
 function RoguelikeRun.StartRun(config)
     state = resetRunState()
     cachedBattleSnapshot = nil
+    local seed = tonumber((config or {}).seed)
+    if seed then
+        math.randomseed(seed)
+    end
 
     local chapterId = tonumber((config or {}).chapterId) or 101
     local chapter = RoguelikeMap.GetChapter(chapterId)

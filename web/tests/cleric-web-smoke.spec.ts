@@ -40,11 +40,15 @@ test("cleric light route shows holy verdict and blessed strikes", async ({ page 
     .toContain("基础神术");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("光明领域");
+    .toContain("圣焰裁决");
+  await expect
+    .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
+    .toContain("Blessed Strikes");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("基础神术"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("光明领域"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("圣焰裁决"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("Blessed Strikes"))).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
