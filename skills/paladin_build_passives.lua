@@ -4,6 +4,8 @@ local BuildPassiveCommon = require("skills.build_passive_common")
 local PaladinBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
+local POISON_BUFF_SUBTYPE = 850001
+local BURN_BUFF_SUBTYPE = 870001
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -139,8 +141,8 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.STUN)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.SILENT)
-    BattleBuff.DelBuffBySubType(ally, 850001)
-    BattleBuff.DelBuffBySubType(ally, 870001)
+    BattleBuff.DelBuffBySubType(ally, POISON_BUFF_SUBTYPE)
+    BattleBuff.DelBuffBySubType(ally, BURN_BUFF_SUBTYPE)
     BuildPassiveCommon.PublishCombatLog(string.format("%s 发动圣疗之手：为 %s 回复 %d 生命并净化负面状态",
         hero and hero.name or "Unknown",
         ally.name or "目标",
@@ -246,28 +248,10 @@ function PaladinBuildPassives.CreateHeavyArmorPrayerPassive(context)
 end
 
 function PaladinBuildPassives.CreateExtraAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.paladin_basic_attack then
-            return
-        end
-        if extraParam.basicAttackIsFollowUp == true then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
-        if actionToken <= 0 or runtime.paladinExtraAttackToken == actionToken or runtime.__inExtraAttack then
-            return
-        end
-        runtime.paladinExtraAttackToken = actionToken
-        if (tonumber(extraParam.damageDealt) or 0) > 0 then
+    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
+        basicAttackSkillId = IDS.paladin_basic_attack,
+        tokenKey = "paladinExtraAttackToken",
+        onPrimaryHit = function(hero, target, runtime)
             if hasSkill(hero, IDS.paladin_execution_knight) then
                 runtime.pendingBasicAttackBonusDice = BuildPassiveCommon.JoinDiceParts(runtime.pendingBasicAttackBonusDice, "1d8")
             end
@@ -285,21 +269,8 @@ function PaladinBuildPassives.CreateExtraAttackPassive(context)
                 BuildPassiveCommon.PublishCombatLog(string.format("%s 触发圣域圣骑：我方前排直到下回合开始 AC +1",
                     hero.name or "Unknown"))
             end
-        end
-        local BattleSkill = require("modules.battle_skill")
-        runtime.__inExtraAttack = true
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
-            hero.name or "Unknown",
-            target.name or "目标"))
-        BattleSkill.CastSmallSkill(hero, target, {
-            basicAttackActionToken = actionToken,
-            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
-            basicAttackIsFollowUp = true,
-        })
-        runtime.__inExtraAttack = false
-    end
-
-    return self
+        end,
+    })
 end
 
 return PaladinBuildPassives

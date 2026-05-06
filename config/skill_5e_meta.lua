@@ -106,7 +106,7 @@ local OVERRIDES = {
     -- Fighter / Defender
     [80002001] = {
         kind = "physical",
-        damageDice = "7",
+        damageDice = "1d8",
         role = "战士基础武器攻击",
         notes = "战士主轴动作。单体近战物理攻击，所有反击、连击、额外攻击都复用这一母技能完成结算。",
         tierNotes = {

@@ -31,6 +31,8 @@ local function buildContextState(context)
     }
 end
 
+local STUN_BUFF_ID = 880003
+
 local function tryApplyStun(hero, target, label)
     if not isAlive(hero) or not isAlive(target) then
         return false
@@ -49,7 +51,7 @@ local function tryApplyStun(hero, target, label)
             saveResult.dc or dc))
         return false
     end
-    BattleSkill.ApplyBuffFromSkill(hero, target, 880002, nil, { duration = 1 })
+    BattleSkill.ApplyBuffFromSkill(hero, target, STUN_BUFF_ID, nil, { duration = 1 })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 强韧豁免失败，STUN 1 回合",
         hero.name or "Unknown",
         label or "截脉",
@@ -57,16 +59,19 @@ local function tryApplyStun(hero, target, label)
     return true
 end
 
-local function triggerMartialArts(hero, target)
+local function triggerMartialArts(hero, target, opts)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end
+    opts = opts or {}
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    if runtime.monkMartialArtsRound == round then
+    if runtime.monkMartialArtsRound == round and opts.force ~= true then
         return 0
     end
-    runtime.monkMartialArtsRound = round
+    if opts.force ~= true then
+        runtime.monkMartialArtsRound = round
+    end
     local diceExpr = "1d4"
     if hasSkill(hero, IDS.monk_flurry_training) then
         diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
@@ -234,60 +239,23 @@ function MonkBuildPassives.CreateBodyGuardPassive(context)
 end
 
 function MonkBuildPassives.CreateExtraAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.monk_basic_attack then
-            return
-        end
-        if extraParam.basicAttackIsFollowUp == true then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
-        if actionToken <= 0 or runtime.monkExtraAttackToken == actionToken or runtime.__inExtraAttack then
-            return
-        end
-        runtime.monkExtraAttackToken = actionToken
-        if (tonumber(extraParam.damageDealt) or 0) > 0 then
+    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
+        basicAttackSkillId = IDS.monk_basic_attack,
+        tokenKey = "monkExtraAttackToken",
+        onPrimaryHit = function(hero, target)
             if hasSkill(hero, IDS.monk_combo_mastery_capstone) then
-                local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d4", {
-                    kind = "physical",
-                    damageKind = "direct",
-                    skillId = IDS.monk_combo_mastery_capstone,
-                    skillName = "连拳宗师",
-                })
+                local bonus = triggerMartialArts(hero, target, { force = true })
                 if bonus > 0 then
-                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发连拳宗师：对 %s 追加 %d 点打击伤害",
+                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发连拳宗师：对 %s 追加 1 次武艺打击",
                         hero.name or "Unknown",
-                        target.name or "目标",
-                        bonus))
+                        target.name or "目标"))
                 end
             end
             if hasSkill(hero, IDS.monk_disruption_mastery) then
                 tryApplyStun(hero, target, "截脉宗师")
             end
-        end
-        local BattleSkill = require("modules.battle_skill")
-        runtime.__inExtraAttack = true
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
-            hero.name or "Unknown",
-            target.name or "目标"))
-        BattleSkill.CastSmallSkill(hero, target, {
-            basicAttackActionToken = actionToken,
-            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
-            basicAttackIsFollowUp = true,
-        })
-        runtime.__inExtraAttack = false
-    end
-
-    return self
+        end,
+    })
 end
 
 return MonkBuildPassives

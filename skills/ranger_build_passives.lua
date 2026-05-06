@@ -4,6 +4,7 @@ local BuildPassiveCommon = require("skills.build_passive_common")
 local RangerBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
+local RESTRAINED_PROXY_BUFF_ID = 880002
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -127,7 +128,7 @@ local function tryApplySnare(hero, target, label)
             saveResult.dc or dc))
         return false
     end
-    BattleSkill.ApplyBuffFromSkill(hero, target, 880002, nil, { duration = 1 })
+    BattleSkill.ApplyBuffFromSkill(hero, target, RESTRAINED_PROXY_BUFF_ID, nil, { duration = 1 })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 反射豁免失败，冻结 1 回合（近似 Restrained）",
         hero.name or "Unknown",
         label or "缠绕",
@@ -163,6 +164,12 @@ local function applySubclassMasteryDamage(hero, target, skill)
     if not hasSkill(hero, IDS.ranger_subclass_mastery) then
         return 0
     end
+    local runtime = ensureRuntime(hero)
+    local round = getRound()
+    if runtime.rangerSubclassMasteryRound == round then
+        return 0
+    end
+    runtime.rangerSubclassMasteryRound = round
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d6", {
         kind = "physical",
         damageKind = "direct",
@@ -290,28 +297,10 @@ function RangerBuildPassives.CreateWildEndurancePassive(context)
 end
 
 function RangerBuildPassives.CreateExtraAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.ranger_basic_attack then
-            return
-        end
-        if extraParam.basicAttackIsFollowUp == true then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
-        if actionToken <= 0 or runtime.rangerExtraAttackToken == actionToken or runtime.__inExtraAttack then
-            return
-        end
-        runtime.rangerExtraAttackToken = actionToken
-        if (tonumber(extraParam.damageDealt) or 0) > 0 then
+    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
+        basicAttackSkillId = IDS.ranger_basic_attack,
+        tokenKey = "rangerExtraAttackToken",
+        onPrimaryHit = function(hero, target, runtime)
             local marked = RangerBuildPassives.IsTargetMarkedBy(hero, target)
             if hasSkill(hero, IDS.ranger_hunter_mastery) and marked then
                 local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d6", {
@@ -333,21 +322,8 @@ function RangerBuildPassives.CreateExtraAttackPassive(context)
             if hasSkill(hero, IDS.ranger_snare_mastery) and marked then
                 tryApplySnare(hero, target, "缚林宗师")
             end
-        end
-        local BattleSkill = require("modules.battle_skill")
-        runtime.__inExtraAttack = true
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
-            hero.name or "Unknown",
-            target.name or "目标"))
-        BattleSkill.CastSmallSkill(hero, target, {
-            basicAttackActionToken = actionToken,
-            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
-            basicAttackIsFollowUp = true,
-        })
-        runtime.__inExtraAttack = false
-    end
-
-    return self
+        end,
+    })
 end
 
 return RangerBuildPassives

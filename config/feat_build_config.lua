@@ -226,7 +226,7 @@ local FEATS = {
         classId = 3,
         level = 2,
         name = "疾风技",
-        description = "你所有攻击都无视前排保护。",
+        description = "你的徒手打击、震劲掌和影步连打都可无视前排保护。",
         choiceGroup = "monk_lv2_basic",
         effects = {
             { type = "grant_skill", skill = 80003104 },
@@ -362,7 +362,7 @@ local FEATS = {
         classId = 4,
         level = 2,
         name = "裁决祷法",
-        description = "神圣惩击额外忽略目标 1 点 AC。",
+        description = "你本回合第一次基础武器攻击命中判定时，目标 AC -1；若该击命中，后续神圣惩击照常结算。",
         choiceGroup = "paladin_lv2_prayer",
         effects = {
             { type = "grant_skill", skill = 80004104 },
@@ -595,7 +595,7 @@ local FEATS = {
         classId = 5,
         level = 4,
         name = "子职专精",
-        description = "Lv3 子职技能额外造成 1d6 伤害。",
+        description = "每回合第一次 Lv3 子职技能额外造成 1d6 伤害。",
         choiceGroup = "ranger_lv4_mastery",
         effects = {
             { type = "grant_skill", skill = 80005106 },

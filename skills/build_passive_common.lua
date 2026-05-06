@@ -229,6 +229,61 @@ function BuildPassiveCommon.PickLowestHpAlly(hero, includeSelf)
     return pickLowestHpAlly(hero, includeSelf)
 end
 
+function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
+    local options = opts or {}
+    local self = {
+        context = context,
+    }
+
+    function self:OnNormalAtkFinish(ctx)
+        local hero = self.context and self.context.src or nil
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local target = extraParam.target
+        if not isAlive(hero) or not isAlive(target) then
+            return
+        end
+        if tonumber(extraParam.skillId) ~= tonumber(options.basicAttackSkillId) then
+            return
+        end
+        if extraParam.basicAttackIsFollowUp == true then
+            return
+        end
+        local runtime = ensureRuntime(hero)
+        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
+        local tokenKey = options.tokenKey or "extraAttackActionToken"
+        local inProgressKey = options.inProgressKey or "__inExtraAttack"
+        if actionToken <= 0 or runtime[tokenKey] == actionToken or runtime[inProgressKey] then
+            return
+        end
+        runtime[tokenKey] = actionToken
+        if (tonumber(extraParam.damageDealt) or 0) > 0 and type(options.onPrimaryHit) == "function" then
+            options.onPrimaryHit(hero, target, runtime, extraParam)
+        end
+        publishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
+            hero.name or "Unknown",
+            target.name or "目标"))
+        local castExtra = {
+            basicAttackActionToken = actionToken,
+            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
+            basicAttackIsFollowUp = true,
+        }
+        if type(options.buildCastExtra) == "function" then
+            local custom = options.buildCastExtra(hero, target, runtime, extraParam)
+            if type(custom) == "table" then
+                for key, value in pairs(custom) do
+                    castExtra[key] = value
+                end
+            end
+        end
+        local BattleSkill = require("modules.battle_skill")
+        runtime[inProgressKey] = true
+        BattleSkill.CastSmallSkill(hero, target, castExtra)
+        runtime[inProgressKey] = false
+    end
+
+    return self
+end
+
 function BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, diceExpr)
     if type(diceExpr) ~= "string" or diceExpr == "" then
         return

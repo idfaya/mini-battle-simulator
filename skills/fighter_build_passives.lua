@@ -610,44 +610,11 @@ function FighterBuildPassives.CreateSecondWindMasteryPassive(context)
 end
 
 function FighterBuildPassives.CreateExtraAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.fighter_basic_attack then
-            return
-        end
-        if extraParam.basicAttackIsFollowUp == true then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local actionToken = tonumber(extraParam.basicAttackActionToken) or 0
-        if actionToken <= 0 or runtime.extraAttackActionToken == actionToken or runtime.__inExtraAttack then
-            return
-        end
-        runtime.extraAttackActionToken = actionToken
-        if not isAlive(target) then
-            return
-        end
-        publishCombatLog(string.format("%s 触发额外攻击：对同一目标 %s 追加第二击",
-            hero.name or "Unknown",
-            target.name or "目标"))
-        runtime.__inExtraAttack = true
-        local BattleSkill = require("modules.battle_skill")
-        BattleSkill.CastSmallSkill(hero, target, {
-            basicAttackActionToken = actionToken,
-            basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
-            basicAttackIsFollowUp = true,
-        })
-        runtime.__inExtraAttack = false
-    end
-
-    return self
+    local BuildPassiveCommon = require("skills.build_passive_common")
+    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
+        basicAttackSkillId = IDS.fighter_basic_attack,
+        tokenKey = "extraAttackActionToken",
+    })
 end
 
 function FighterBuildPassives.CreateSweepingAttackPassive(context)
