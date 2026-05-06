@@ -60,6 +60,59 @@ local DEFAULT_DICE_SCALE = 1
 
 ---@type table<integer, Skill5eMetaEntry>
 local OVERRIDES = {
+    -- Rogue Build
+    [80001011] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "盗贼基础武器攻击",
+        notes = "盗贼 Build 主轴动作。单体近战武器攻击，偷袭、穿行突刺和处决打击都围绕这一母技能结算。",
+        tierNotes = {
+            [1] = "标准版：单体近战武器攻击。",
+        },
+    },
+    [80001013] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "处决打击",
+        notes = "刺客子职主动。对当前目标发动一次基础武器攻击；若目标生命不高于一半，再追加 2d6 处决伤害。",
+        tierNotes = {
+            [1] = "基础版：当前目标基础武器攻击，半血目标额外吃 2d6。",
+        },
+    },
+    [80001014] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "扰乱飞刃",
+        notes = "诡术师子职主动。对后排目标发动一次基础武器攻击；若命中，目标 AC -1 直到下回合开始前。",
+        tierNotes = {
+            [1] = "基础版：后排定点压制并制造 AC 破绽。",
+        },
+    },
+    [80001015] = {
+        kind = "physical",
+        damageDice = "1d8",
+        role = "穿行突刺",
+        notes = "游斗者子职主动。可指定任意敌人发动一次基础武器攻击；该次攻击视为满足偷袭条件。",
+        tierNotes = {
+            [1] = "基础版：稳定兑现一次强制偷袭窗口。",
+        },
+    },
+    [80001101] = {
+        kind = "auto",
+        role = "盗贼被动：偷袭",
+        notes = "每回合一次的职业主轴爆发。目标被控制，或前排夹击成立时，基础武器攻击命中后追加偷袭伤害。",
+        tierNotes = {
+            [1] = "基础版：追加 1d6；后续通过专精与 capstone 继续加骰。",
+        },
+    },
+    [80001108] = {
+        kind = "auto",
+        role = "盗贼被动：Uncanny Dodge",
+        notes = "Lv5 共用保命被动。每回合第一次被攻击命中时，受到伤害减半；不同 capstone 再追加各自后续收益。",
+        tierNotes = {
+            [1] = "基础版：首次受击减半。",
+        },
+    },
     -- Rogue
     [80001001] = {
         kind = "physical",

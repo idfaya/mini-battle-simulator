@@ -720,6 +720,45 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
+    SkillEffectRegistry.Register("rogue_execute_strike", function(ctx, frameCopy)
+        local RogueBuildPassives = require("skills.rogue_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RogueBuildPassives.PerformExecuteStrike(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("rogue_trickster_blade", function(ctx, frameCopy)
+        local RogueBuildPassives = require("skills.rogue_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RogueBuildPassives.PerformTricksterBlade(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
+    SkillEffectRegistry.Register("rogue_swashbuckler_thrust", function(ctx, frameCopy)
+        local RogueBuildPassives = require("skills.rogue_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = RogueBuildPassives.PerformSwashbucklerThrust(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
+
     SkillEffectRegistry.Register("monk_open_hand_strike", function(ctx, frameCopy)
         local MonkBuildPassives = require("skills.monk_build_passives")
         local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])

@@ -173,6 +173,21 @@ local function augmentBasicAttackResolveOpts(hero, target, opts, runtime)
     end
 end
 
+local function shouldIgnoreFrontProtection(hero, skill)
+    local modules = {
+        "skills.rogue_build_passives",
+    }
+    for _, moduleName in ipairs(modules) do
+        local ok, mod = pcall(require, moduleName)
+        if ok and mod and mod.ShouldIgnoreFrontProtection then
+            if mod.ShouldIgnoreFrontProtection(hero, skill) == true then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function BuildPassiveCommon.EnsureRuntime(hero)
     return ensureRuntime(hero)
 end
@@ -397,7 +412,15 @@ function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraAcBonus then
         total = total + (tonumber(PaladinBuildPassives.GetAuraAcBonus(defender, attacker)) or 0)
     end
+    local okBattleBuff, BattleBuff = pcall(require, "modules.battle_buff")
+    if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
+        total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 880004)) or 0)
+    end
     return total
+end
+
+function BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, skill)
+    return shouldIgnoreFrontProtection(hero, skill)
 end
 
 function BuildPassiveCommon.ApplyTeamProtections(defender, extraParam)

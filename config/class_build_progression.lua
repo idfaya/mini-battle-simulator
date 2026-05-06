@@ -8,6 +8,26 @@ local ClassBuildProgression = {}
 
 ---@type table<integer, table<integer, ClassBuildProgressionEntry>>
 local PROGRESSION = {
+    [1] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.rogue_training,
+                FeatBuildConfig.Ids.rogue_sneak_attack,
+            },
+        },
+        [2] = {
+            choiceGroup = "rogue_lv2_basic",
+        },
+        [3] = {
+            choiceGroup = "rogue_lv3_subclass",
+        },
+        [4] = {
+            choiceGroup = "rogue_lv4_mastery",
+        },
+        [5] = {
+            choiceGroup = "rogue_lv5_capstone",
+        },
+    },
     [2] = {
         [1] = {
             fixed = {

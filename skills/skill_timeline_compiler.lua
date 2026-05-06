@@ -132,10 +132,10 @@ local function ExecuteOp(ctx, frameCopy)
                     end
                 else
                     local guardTargetAC = nil
-                    local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
-                    if ok and FighterBuildPassives and FighterBuildPassives.GetGuardStanceAcBonus then
-                        local guardAcBonus = tonumber(FighterBuildPassives.GetGuardStanceAcBonus(target, ctx.hero)) or 0
-                        if guardAcBonus > 0 then
+                    local ok, BuildPassiveCommon = pcall(require, "skills.build_passive_common")
+                    if ok and BuildPassiveCommon and BuildPassiveCommon.GetDefenderAcBonus then
+                        local guardAcBonus = tonumber(BuildPassiveCommon.GetDefenderAcBonus(target, ctx.hero)) or 0
+                        if guardAcBonus ~= 0 then
                             guardTargetAC = (tonumber(target and target.ac) or 0) + guardAcBonus
                         end
                     end

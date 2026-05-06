@@ -31,6 +31,46 @@ local PassiveDefs = {
             },
         },
     },
+    [80001101] = {
+        triggers = {
+            {
+                luaFuncName = "OnNormalAtkFinish",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish,
+            },
+        },
+    },
+    [80001102] = {
+        triggers = {
+            {
+                luaFuncName = "OnBattleBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+            },
+            {
+                luaFuncName = "OnSelfTurnBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
+            },
+            {
+                luaFuncName = "OnNormalAtkFinish",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.NormalAtkFinish,
+            },
+        },
+    },
+    [80001104] = {
+        triggers = {
+            {
+                luaFuncName = "OnDefBeforeDmg",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg,
+            },
+        },
+    },
+    [80001108] = {
+        triggers = {
+            {
+                luaFuncName = "OnDefBeforeDmg",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmg,
+            },
+        },
+    },
     [80002002] = {
         triggers = {
             {

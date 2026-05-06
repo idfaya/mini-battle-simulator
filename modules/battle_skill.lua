@@ -2054,7 +2054,9 @@ end
 ---@return table 目标列表
 function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
     local BattleFormation = require("modules.battle_formation")
+    local BuildPassiveCommon = require("skills.build_passive_common")
     local ignoreFrontProtection = ShouldIgnoreFrontProtection(targetsSelections)
+        or BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, skill)
     local measureType = ReadMeasureType(targetsSelections)
     local requestedCount = ReadTargetCount(targetsSelections)
     local candidates = CollectAliveTargets(
