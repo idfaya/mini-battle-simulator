@@ -307,8 +307,7 @@ body {
 }
 
 .ult-button-name,
-.ult-button-skill,
-.ult-button-charges {
+.ult-button-skill {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -319,8 +318,7 @@ body {
   font-weight: 800;
 }
 
-.ult-button-skill,
-.ult-button-charges {
+.ult-button-skill {
   color: #d9e2ec;
   font-size: 12px;
 }

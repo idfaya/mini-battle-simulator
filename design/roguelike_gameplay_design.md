@@ -345,6 +345,8 @@ Act 1 当前规则：
 - 招募只在招募节点
 - relic 对外统一改名为 equipment
 - 营地主功能为“复活一名英雄并回满血、CD、状态”
+- `rewardGroup` 不再作为 battle / elite / boss 的正式掉落主链，仅保留给 event 等非战斗奖励入口使用
+- `team_heal_pct` 不再作为战后奖励类型，仅允许在 event / shop 等独立系统中出现
 
 ## 12. 暂不进入本轮范围
 

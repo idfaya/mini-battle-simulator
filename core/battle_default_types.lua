@@ -1,6 +1,7 @@
 ---
---- BattleDefaultTypesOpt - 默认值设置工具
---- 用于兼容需要 BattleDefaultTypesOpt.SetDefault 的配置文件
+--- LEGACY SHIM: BattleDefaultTypesOpt 默认值设置工具
+--- 仅用于兼容仍调用 BattleDefaultTypesOpt.SetDefault 的旧配置文件。
+--- 新配置不要继续依赖全局注入，待旧配置迁移完成后可删除。
 ---
 
 -- 深拷贝函数

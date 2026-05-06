@@ -1,6 +1,7 @@
 ---
 --- Battle Logic Compatibility Shim
---- 旧回合驱动已并入 BattleMain，此模块仅保留最小兼容接口。
+--- LEGACY SHIM: 旧回合驱动已并入 BattleMain，此模块仅保留最小兼容接口。
+--- 新逻辑不要继续依赖这里；仅为仍读取 BattleLogic 状态的旧代码提供转发。
 ---
 
 local BattleLogic = {}
