@@ -871,21 +871,6 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
     local BuildPassiveCommon = require("skills.build_passive_common")
-    -- #region debug-point C:finalize-skill
-    BattleEvent.Publish("DebugCounterTiming", {
-        stage = "finalize_skill_cast",
-        source = "modules.battle_skill",
-        data = {
-            heroId = hero and (hero.instanceId or hero.id) or nil,
-            heroName = hero and hero.name or nil,
-            skillId = skill and skill.skillId or nil,
-            skillName = skill and skill.name or nil,
-            skillType = skill and skill.skillType or nil,
-            totalDamage = totalDamage or 0,
-        },
-    })
-    -- #endregion
-
     if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
         BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {
             damageDealt = totalDamage or 0,
