@@ -871,6 +871,10 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleEnergy = require("modules.battle_energy")
     local BuildPassiveCommon = require("skills.build_passive_common")
+    local releaseCommittedChant = hero
+        and hero.__releasingPendingCastSkillId
+        and skill
+        and tonumber(hero.__releasingPendingCastSkillId) == tonumber(skill.skillId)
     if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
         BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {
             damageDealt = totalDamage or 0,
@@ -900,9 +904,11 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
         hero.__energyCastStats = nil
     end
 
-    BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
+    if not releaseCommittedChant then
+        BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
+    end
 
-    if skill.skillType == E_SKILL_TYPE_LIMITED then
+    if skill.skillType == E_SKILL_TYPE_LIMITED and not releaseCommittedChant then
         -- Limited-use skills are gated by per-rest charges (legacy fields: ultimateCharges/ultimateChargesMax).
         hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
         hero.ultimateCharges = tonumber(hero.ultimateCharges)
@@ -912,6 +918,10 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
         hero.ultimateCharges = math.max(0, hero.ultimateCharges - 1)
         Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗次数: %d/%d",
             hero.name or "Unknown", hero.ultimateCharges, hero.ultimateChargesMax))
+    end
+
+    if hero and releaseCommittedChant then
+        hero.__releasingPendingCastSkillId = nil
     end
 
     Logger.Log("[BattleSkill.CastSkillInSeq] Skill cast success: " .. tostring(skill.skillId) .. ", hero: " .. tostring(hero.name))
@@ -1084,12 +1094,24 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
     local Skill5eMeta = require("config.skill_5e_meta")
     local meta = Skill5eMeta.Get(skillId)
     if not opts.ignoreChant and meta and tonumber(meta.chantTurns) and tonumber(meta.chantTurns) > 0 then
+        BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
+        if skill.skillType == E_SKILL_TYPE_LIMITED then
+            hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+            hero.ultimateCharges = tonumber(hero.ultimateCharges)
+            if hero.ultimateCharges == nil then
+                hero.ultimateCharges = hero.ultimateChargesMax
+            end
+            hero.ultimateCharges = math.max(0, hero.ultimateCharges - 1)
+            Logger.Log(string.format("[CHANT] %s 开始吟唱时预扣次数: %d/%d",
+                hero.name or "Unknown", hero.ultimateCharges, hero.ultimateChargesMax))
+        end
         -- Do not start timeline now. The battle loop will count down and release later.
         hero.__pendingCast = {
             skillId = skillId,
             skillName = skill and skill.name,
             targetId = targets and targets[1] and (targets[1].instanceId or targets[1].id) or nil,
             remainTurns = tonumber(meta.chantTurns),
+            committed = true,
         }
         Logger.Log(string.format("[CHANT] %s 开始吟唱 %s (%d)",
             hero.name or "Unknown",

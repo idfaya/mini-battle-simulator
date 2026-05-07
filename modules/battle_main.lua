@@ -715,6 +715,7 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
         end
 
         hero.__pendingCast = nil
+        hero.__releasingPendingCastSkillId = pendingCast.skillId
         BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
         PublishEnemyActionTrace("enemy_release_pending_cast", hero, {
             skillId = pendingCast.skillId,
@@ -724,6 +725,7 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
         })
 
         local started = BattleSkill.StartSkillCastInSeq(hero, target, pendingCast.skillId, function(success, result)
+            hero.__releasingPendingCastSkillId = nil
             if actionState then
                 actionState.timelineSucceeded = success
                 actionState.timelineResult = result
@@ -746,6 +748,16 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
         PublishEnemyActionTrace("enemy_release_pending_cast_failed", hero, {
             skillId = pendingCast.skillId,
             skillName = pendingCast.skillName,
+        })
+        hero.__releasingPendingCastSkillId = nil
+        return false
+    end
+
+    if pendingCast then
+        PublishEnemyActionTrace("enemy_skip_due_to_pending_cast", hero, {
+            skillId = pendingCast.skillId,
+            skillName = pendingCast.skillName,
+            remainTurns = pendingCast.remainTurns,
         })
         return false
     end
