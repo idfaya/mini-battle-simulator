@@ -524,7 +524,11 @@ body {
 
 @media (max-width: 720px) and (orientation: portrait) {
   #app {
-    padding: 8px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 8px)
+      calc(env(safe-area-inset-right, 0px) + 8px)
+      calc(env(safe-area-inset-bottom, 0px) + 8px)
+      calc(env(safe-area-inset-left, 0px) + 8px);
   }
 
   .shell {
@@ -625,13 +629,13 @@ body {
   .global-actions,
   .setup-panel,
   .battle-log {
-    padding: 10px;
+    padding: 8px;
   }
 
   .hud-status {
-    max-height: 48px;
-    font-size: 12px;
-    line-height: 1.35;
+    max-height: 42px;
+    font-size: 11px;
+    line-height: 1.25;
     flex-shrink: 0;
   }
 
@@ -645,14 +649,14 @@ body {
 
   .ult-button,
   .global-actions button {
-    min-height: 42px;
-    padding: 5px 6px;
-    font-size: 12px;
+    min-height: 40px;
+    padding: 4px 6px;
+    font-size: 11px;
     line-height: 1.2;
   }
 
   .ult-button-skill {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .setup-panel {

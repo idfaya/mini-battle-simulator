@@ -92,9 +92,13 @@ type FormationMetrics = {
 };
 
 const TOP_BAR_TEXT_Y = 36;
+const COMPACT_TOP_BAR_TEXT_Y = 28;
 const ACTION_ORDER_BAR_Y = 50;
+const COMPACT_ACTION_ORDER_BAR_Y = 40;
 const ACTION_ORDER_BAR_HEIGHT = 56;
-const BATTLEFIELD_TOP_SAFE_Y = ACTION_ORDER_BAR_Y + ACTION_ORDER_BAR_HEIGHT + 22;
+const COMPACT_ACTION_ORDER_BAR_HEIGHT = 44;
+const BATTLEFIELD_TOP_SAFE_GAP = 22;
+const COMPACT_BATTLEFIELD_TOP_SAFE_GAP = 12;
 const BATTLEFIELD_BOTTOM_SAFE_Y = 0;
 const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 0;
 const TEAM_ROW_GAP = 26;
@@ -147,6 +151,7 @@ export class BattleScene {
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    const battlefieldTopSafeY = this.getBattlefieldTopSafeY(width);
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, "#12263a");
     gradient.addColorStop(0.55, "#0c1829");
@@ -154,13 +159,13 @@ export class BattleScene {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    const topGlow = ctx.createRadialGradient(width / 2, BATTLEFIELD_TOP_SAFE_Y + 72, 12, width / 2, BATTLEFIELD_TOP_SAFE_Y + 72, 360);
+    const topGlow = ctx.createRadialGradient(width / 2, battlefieldTopSafeY + 56, 12, width / 2, battlefieldTopSafeY + 56, 360);
     topGlow.addColorStop(0, "rgba(255, 118, 117, 0.16)");
     topGlow.addColorStop(1, "rgba(255, 118, 117, 0)");
     ctx.fillStyle = topGlow;
     ctx.fillRect(0, 0, width, height);
 
-    const centerY = Math.round((BATTLEFIELD_TOP_SAFE_Y + (height - this.getBattlefieldBottomSafeY(width))) / 2);
+    const centerY = Math.round((battlefieldTopSafeY + (height - this.getBattlefieldBottomSafeY(width))) / 2);
     const centerGlow = ctx.createLinearGradient(0, centerY - 60, 0, centerY + 60);
     centerGlow.addColorStop(0, "rgba(255,255,255,0)");
     centerGlow.addColorStop(0.5, "rgba(255, 209, 102, 0.16)");
@@ -170,7 +175,7 @@ export class BattleScene {
   }
 
   private drawBoardFrame(ctx: CanvasRenderingContext2D, width: number, height: number, layouts: UnitLayout[]) {
-    const boardTop = BATTLEFIELD_TOP_SAFE_Y - 12;
+    const boardTop = this.getBattlefieldTopSafeY(width) - 12;
     const boardBottom = height - this.getBattlefieldBottomSafeY(width) + 12;
     const centerY = Math.round((boardTop + boardBottom) / 2);
     const playerFront = layouts.filter((layout) => layout.formationSide === "player" && layout.row === "front");
@@ -230,7 +235,7 @@ export class BattleScene {
     const totalWidth = cardWidth * 3 + gapX * 2;
     const startX = Math.round((width - totalWidth) / 2);
 
-    const battlefieldTop = BATTLEFIELD_TOP_SAFE_Y + 8;
+    const battlefieldTop = this.getBattlefieldTopSafeY(width) + 8;
     const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - 4;
     const availableY = Math.max(0, battlefieldBottom - battlefieldTop);
     const desiredTotalY = 2 * (2 * desiredCardHeight + desiredRowGap) + desiredCenterGap;
@@ -289,6 +294,27 @@ export class BattleScene {
 
   private getBattlefieldBottomSafeY(width: number) {
     return width < 520 ? COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y : BATTLEFIELD_BOTTOM_SAFE_Y;
+  }
+
+  private isCompactViewport(width: number) {
+    return width < 520;
+  }
+
+  private getTopBarTextY(width: number) {
+    return this.isCompactViewport(width) ? COMPACT_TOP_BAR_TEXT_Y : TOP_BAR_TEXT_Y;
+  }
+
+  private getActionOrderBarY(width: number) {
+    return this.isCompactViewport(width) ? COMPACT_ACTION_ORDER_BAR_Y : ACTION_ORDER_BAR_Y;
+  }
+
+  private getActionOrderBarHeight(width: number) {
+    return this.isCompactViewport(width) ? COMPACT_ACTION_ORDER_BAR_HEIGHT : ACTION_ORDER_BAR_HEIGHT;
+  }
+
+  private getBattlefieldTopSafeY(width: number) {
+    const gap = this.isCompactViewport(width) ? COMPACT_BATTLEFIELD_TOP_SAFE_GAP : BATTLEFIELD_TOP_SAFE_GAP;
+    return this.getActionOrderBarY(width) + this.getActionOrderBarHeight(width) + gap;
   }
 
   private layoutTeam(team: UnitState[], metrics: FormationMetrics, formationSide: FormationSide): UnitLayout[] {
@@ -666,22 +692,23 @@ export class BattleScene {
       return;
     }
 
-    const compact = width < 520;
+    const compact = this.isCompactViewport(width);
+    const topBarTextY = this.getTopBarTextY(width);
     ctx.fillStyle = "#f8f9fa";
     ctx.font = compact ? "bold 20px sans-serif" : "bold 24px sans-serif";
-    ctx.fillText(`Round ${state.snapshot.round}`, compact ? 28 : 48, compact ? 30 : TOP_BAR_TEXT_Y);
+    ctx.fillText(`Round ${state.snapshot.round}`, compact ? 20 : 48, compact ? 24 : topBarTextY);
 
     const resultText = state.snapshot.result
       ? `Result ${state.snapshot.result.winner} · ${state.snapshot.result.reason}`
       : "Result running";
     ctx.textAlign = compact ? "right" : "center";
     ctx.font = compact ? "bold 12px sans-serif" : "bold 14px sans-serif";
-    ctx.fillText(resultText, compact ? width - 24 : width / 2, compact ? 24 : TOP_BAR_TEXT_Y - 6, compact ? width - 150 : undefined);
+    ctx.fillText(resultText, compact ? width - 16 : width / 2, compact ? 20 : topBarTextY - 6, compact ? Math.max(140, width - 108) : undefined);
 
     if (state.banner) {
       ctx.font = compact ? "11px sans-serif" : "12px sans-serif";
       ctx.fillStyle = "#d9e2ec";
-      ctx.fillText(state.banner, compact ? width - 24 : width / 2, compact ? 40 : TOP_BAR_TEXT_Y + 12, compact ? width - 150 : undefined);
+      ctx.fillText(state.banner, compact ? width - 16 : width / 2, compact ? 34 : topBarTextY + 12, compact ? Math.max(140, width - 108) : undefined);
     }
     ctx.textAlign = "left";
 
@@ -702,22 +729,26 @@ export class BattleScene {
       return;
     }
 
+    const compact = this.isCompactViewport(width);
     const allUnits = [...snapshot.leftTeam, ...snapshot.rightTeam];
     const order = this.resolveActionOrder(snapshot, allUnits);
-    const panelWidth = Math.min(760, Math.max(380, width - 96));
+    const outerPadding = compact ? 8 : 48;
+    const panelWidth = Math.max(220, Math.min(760, width - outerPadding * 2));
     const x = Math.round((width - panelWidth) / 2);
-    const y = ACTION_ORDER_BAR_Y;
-    const trackX = x + 34;
-    const trackY = y + ACTION_ORDER_BAR_HEIGHT / 2;
-    const trackWidth = panelWidth - 68;
-    const iconSize = width < 560 ? 24 : 28;
+    const y = this.getActionOrderBarY(width);
+    const actionOrderBarHeight = this.getActionOrderBarHeight(width);
+    const trackInset = compact ? 22 : 34;
+    const trackX = x + trackInset;
+    const trackY = y + actionOrderBarHeight / 2;
+    const trackWidth = Math.max(120, panelWidth - trackInset * 2);
+    const iconSize = compact ? 22 : width < 560 ? 24 : 28;
 
     ctx.save();
     ctx.fillStyle = "rgba(11, 19, 32, 0.9)";
     ctx.strokeStyle = "rgba(255,255,255,0.14)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(x, y, panelWidth, ACTION_ORDER_BAR_HEIGHT, 10);
+    ctx.roundRect(x, y, panelWidth, actionOrderBarHeight, compact ? 8 : 10);
     ctx.fill();
     ctx.stroke();
 
