@@ -4,6 +4,7 @@ local ClassRoleConfig = require("config.class_role_config")
 local ClassBuildProgression = require("config.class_build_progression")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
+local Ability5e = require("modules.ability_5e")
 
 ---@class HeroAbilityScores
 ---@field str integer
@@ -201,13 +202,11 @@ local HERO_ABILITY_SCORES = {
 }
 
 local function clampAbility(score)
-    local v = tonumber(score) or 10
-    return math.max(1, math.min(30, math.floor(v)))
+    return Ability5e.ClampAbility(score)
 end
 
 local function getAbilityMod(score)
-    local s = clampAbility(score)
-    return math.floor((s - 10) / 2)
+    return Ability5e.GetAbilityMod(score)
 end
 
 local function getHeroAbilityScores(heroId, classId)
@@ -224,100 +223,41 @@ local function getHeroAbilityScores(heroId, classId)
 end
 
 local function getClassHitDie(classId)
-    local id = tonumber(classId) or 0
-    -- 5e base-class hit dice.
-    if id == 2 or id == 4 or id == 5 then return 10 end -- Fighter / Paladin / Ranger
-    if id == 1 or id == 3 or id == 6 then return 8 end -- Rogue / Monk / Cleric
-    if id == 7 or id == 8 or id == 9 then return 6 end
-    return 8
+    return Ability5e.GetClassHitDie(classId)
 end
 
 local function getHitDieAvg(hitDie)
-    local d = tonumber(hitDie) or 8
-    if d == 6 then return 4 end
-    if d == 8 then return 5 end
-    if d == 10 then return 6 end
-    if d == 12 then return 7 end
-    return math.max(1, math.floor((d / 2) + 1))
+    return Ability5e.GetHitDieAvg(hitDie)
 end
 
 local function calculate5eHp(level, hitDie, conMod)
-    -- Keep this helper independent from the later local HERO_LEVEL_MAX definition.
-    local lv = math.max(1, math.min(20, tonumber(level) or 1))
-    local die = tonumber(hitDie) or 8
-    local avg = getHitDieAvg(die)
-    local cm = tonumber(conMod) or 0
-
-    local total = die + cm
-    for _ = 2, lv do
-        total = total + math.max(1, avg + cm)
-    end
-    return math.max(1, total)
+    return Ability5e.Calculate5eHp(level, hitDie, conMod)
 end
 
 local function getProficiencyBonus(level)
-    local lv = math.max(1, math.min(20, tonumber(level) or 1))
-    if lv >= 17 then return 6 end
-    if lv >= 13 then return 5 end
-    if lv >= 9 then return 4 end
-    if lv >= 5 then return 3 end
-    return 2
+    return Ability5e.GetProficiencyBonus(level)
 end
 
 local function getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod)
-    local id = tonumber(classId) or 0
-    if id == 1 then return dexMod end -- Rogue
-    if id == 3 then return dexMod end -- Monk unarmed attacks
-    if id == 5 then return dexMod end -- Poison / finesse-ish melee
-    if id == 6 then return strMod end -- Cleric mace basic attack
-    if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
-    return strMod
+    return Ability5e.GetAttackAbilityMod(classId, {
+        str = strMod, dex = dexMod, int = intMod, wis = wisMod,
+    })
 end
 
 local function getSpellAbilityMod(classId, intMod, wisMod, chaMod)
-    local id = tonumber(classId) or 0
-    if id == 3 then return wisMod end -- Monk techniques / save DC
-    if id == 5 then return wisMod end -- Ranger tracking / control tools
-    if id == 6 then return wisMod end -- Holy caster
-    if id == 7 or id == 8 or id == 9 then return intMod end -- Arcane casters
-    if id == 4 then return chaMod end -- Paladin
-    return math.max(intMod, wisMod)
+    return Ability5e.GetSpellAbilityMod(classId, {
+        int = intMod, wis = wisMod, cha = chaMod,
+    })
 end
 
 local function isSaveProficient(classId, saveType)
-    local id = tonumber(classId) or 0
-    local map = {
-        [1] = { fort = false, ref = true,  will = false }, -- Rogue
-        [2] = { fort = true,  ref = false, will = true  }, -- Fighter
-        [3] = { fort = true,  ref = true,  will = false }, -- Monk
-        [4] = { fort = true,  ref = false, will = false }, -- Paladin
-        [5] = { fort = false, ref = true,  will = true  }, -- Poison
-        [6] = { fort = false, ref = false, will = true  }, -- Cleric
-        [7] = { fort = false, ref = false, will = true  }, -- Sorcerer
-        [8] = { fort = true,  ref = false, will = true  }, -- Wizard
-        [9] = { fort = false, ref = true,  will = true  }, -- Warlock
-    }
-    return map[id] and map[id][saveType] == true or false
+    return Ability5e.IsSaveProficient(classId, saveType)
 end
 
 local function calculateArmorClass(classId, dexMod, conMod, wisMod, level)
-    local id = tonumber(classId) or 0
-    if id == 2 then
-        return 17 -- heavy armor + shield tank fantasy
-    elseif id == 3 then
-        return 10 + dexMod + wisMod -- Monk unarmored defense
-    elseif id == 4 then
-        return 18 -- heavy armor holy knight
-    elseif id == 1 then
-        return 11 + dexMod -- light armor assassin
-    elseif id == 5 then
-        return 12 + dexMod -- light/medium armor ranger baseline
-    elseif id == 6 then
-        return 13 + math.min(2, dexMod) -- medium armor priest
-    elseif id == 7 or id == 8 or id == 9 then
-        return 10 + dexMod -- mage robe + dex
-    end
-    return 10 + dexMod
+    return Ability5e.CalculateArmorClass(classId, {
+        dex = dexMod, con = conMod, wis = wisMod,
+    })
 end
 
 local function OpenConfigFile(fileName)

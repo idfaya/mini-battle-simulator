@@ -48,6 +48,7 @@ local ClassRoleConfig = require("config.class_role_config")
 local BattleRhythmConfig = require("config.battle_rhythm_config")
 local ClassRhythmConfig = require("config.class_rhythm_config")
 local ClassWeaponConfig = require("config.class_weapon_config")
+local Ability5e = require("modules.ability_5e")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -171,21 +172,14 @@ local function GetPhysicalDamageAbilityMod(hero)
         return 0
     end
     local classId = GetClassId(hero)
-    local strMod = tonumber(hero.strMod) or 0
-    local dexMod = tonumber(hero.dexMod) or 0
-    local intMod = tonumber(hero.intMod) or 0
-    local wisMod = tonumber(hero.wisMod) or 0
-
-    if classId == 1 or classId == 5 then
-        return dexMod
-    end
-    if classId == 6 then
-        return strMod
-    end
-    if classId == 7 or classId == 8 or classId == 9 then
-        return intMod
-    end
-    return strMod
+    return Ability5e.GetPhysicalDamageAbilityMod(classId, {
+        str = tonumber(hero.strMod) or 0,
+        dex = tonumber(hero.dexMod) or 0,
+        con = tonumber(hero.conMod) or 0,
+        int = tonumber(hero.intMod) or 0,
+        wis = tonumber(hero.wisMod) or 0,
+        cha = tonumber(hero.chaMod) or 0,
+    })
 end
 
 local function ApplyPhysicalAbilityMod(hero, rawDamage, meta, opts)
