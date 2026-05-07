@@ -216,7 +216,7 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
             candidates[#candidates + 1] = heroId
         end
     end
-    if #candidates < count then
+    if #candidates == 0 then
         candidates = {}
         for _, heroId in ipairs(pool) do
             candidates[#candidates + 1] = heroId
@@ -225,14 +225,17 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
 
     local options = {}
     local picked = {}
-    while #options < count and #picked < #candidates do
+    local pickedCount = 0
+    while #options < count and pickedCount < #candidates do
         local idx = math.random(1, #candidates)
         local heroId = candidates[idx]
         if not picked[heroId] then
             picked[heroId] = true
+            pickedCount = pickedCount + 1
             options[#options + 1] = {
                 rewardType = "recruit",
                 refId = heroId,
+                heroName = HeroData.GetHeroName(heroId),
                 label = "招募 " .. HeroData.GetHeroName(heroId),
                 description = HeroData.GetClassName((HeroData.GetHeroInfo(heroId) or {}).Class or 0),
             }

@@ -9,6 +9,7 @@ local RunNodePool = require("config.roguelike.run_node_pool")
 local RunShopGoods = require("config.roguelike.run_shop_goods")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local BattleFormation = require("modules.battle_formation")
+local HeroData = require("config.hero_data")
 
 --[[
 平衡测试工具
@@ -99,6 +100,142 @@ local function formatPct(numerator, denominator)
     end
     return string.format("%.1f%%", (numerator / denominator) * 100)
 end
+
+-- #region debug-point A:debug-server-reporting
+local DEBUG_SESSION_FILE = ".dbg/frozen-gate-zero-loss.env"
+local DEBUG_LOCAL_LOG = ".dbg/trae-debug-log-frozen-gate-zero-loss.ndjson"
+local debugServerConfig = nil
+
+local function jsonEscape(value)
+    local str = tostring(value or "")
+    str = str:gsub("\\", "\\\\")
+    str = str:gsub("\"", "\\\"")
+    str = str:gsub("\r", "\\r")
+    str = str:gsub("\n", "\\n")
+    str = str:gsub("\t", "\\t")
+    return str
+end
+
+local function isArrayTable(value)
+    if type(value) ~= "table" then
+        return false
+    end
+    local index = 1
+    for key, _ in pairs(value) do
+        if key ~= index then
+            return false
+        end
+        index = index + 1
+    end
+    return true
+end
+
+local function encodeJson(value)
+    local valueType = type(value)
+    if valueType == "nil" then
+        return "null"
+    end
+    if valueType == "number" then
+        if value ~= value then
+            return "0"
+        end
+        return tostring(value)
+    end
+    if valueType == "boolean" then
+        return value and "true" or "false"
+    end
+    if valueType == "string" then
+        return "\"" .. jsonEscape(value) .. "\""
+    end
+    if valueType ~= "table" then
+        return "\"" .. jsonEscape(tostring(value)) .. "\""
+    end
+
+    if isArrayTable(value) then
+        local items = {}
+        for _, item in ipairs(value) do
+            items[#items + 1] = encodeJson(item)
+        end
+        return "[" .. table.concat(items, ",") .. "]"
+    end
+
+    local items = {}
+    for key, item in pairs(value) do
+        items[#items + 1] = "\"" .. jsonEscape(tostring(key)) .. "\":" .. encodeJson(item)
+    end
+    table.sort(items)
+    return "{" .. table.concat(items, ",") .. "}"
+end
+
+local function readDebugServerConfig()
+    if debugServerConfig ~= nil then
+        return debugServerConfig
+    end
+    debugServerConfig = {
+        url = "",
+        sessionId = "frozen-gate-zero-loss",
+    }
+    local file = io.open(DEBUG_SESSION_FILE, "r")
+    if not file then
+        return debugServerConfig
+    end
+    local content = file:read("*a") or ""
+    file:close()
+    local enabled = content:match("DEBUG_SERVER_ENABLED=([^\r\n]+)")
+    local url = content:match("DEBUG_SERVER_URL=([^\r\n]+)")
+    local sessionId = content:match("DEBUG_SESSION_ID=([^\r\n]+)")
+    if enabled == "1" and url and url ~= "" then
+        debugServerConfig.url = url
+    end
+    if sessionId and sessionId ~= "" then
+        debugServerConfig.sessionId = sessionId
+    end
+    return debugServerConfig
+end
+
+local function reportDebugEvent(runId, hypothesisId, location, msg, data)
+    local cfg = readDebugServerConfig()
+    local payload = {
+        sessionId = cfg.sessionId,
+        runId = runId or "pre",
+        hypothesisId = hypothesisId or "A",
+        location = location or "bin/test_roguelike_balance.lua",
+        msg = msg or "[DEBUG] event",
+        data = data or {},
+        ts = math.floor((os.time() or 0) * 1000),
+    }
+    local body = encodeJson(payload)
+    local logFile = io.open(DEBUG_LOCAL_LOG, "a")
+    if logFile then
+        logFile:write(body)
+        logFile:write("\n")
+        logFile:close()
+    end
+    if not cfg or not cfg.url or cfg.url == "" then
+        return
+    end
+    local tmpPath = string.format(
+        ".dbg/frozen-gate-zero-loss-%s-%s-%d.json",
+        tostring(runId or "pre"):gsub("[^%w%-_]", "_"),
+        tostring(hypothesisId or "A"):gsub("[^%w%-_]", "_"),
+        math.floor((os.clock() or 0) * 1000000)
+    )
+    local file = io.open(tmpPath, "w")
+    if not file then
+        return
+    end
+    file:write(body)
+    file:close()
+    local normalizedPath = tmpPath:gsub("/", "\\")
+    local command = string.format(
+        "powershell -NoProfile -Command \"Invoke-WebRequest -UseBasicParsing -Uri '%s' -Method Post -ContentType 'application/json' -InFile '%s' | Out-Null; Remove-Item '%s' -ErrorAction SilentlyContinue\"",
+        cfg.url,
+        normalizedPath,
+        normalizedPath
+    )
+    pcall(os.execute, command)
+end
+-- #endregion
 
 local function parseArgs(argv)
     local config = {
@@ -218,6 +355,71 @@ local function getBattleTeamStats(snapshot)
     return totalHp, totalMaxHp, aliveCount
 end
 
+-- #region debug-point B:frozen-gate-battle-state
+local function summarizeUnits(units)
+    local result = {}
+    for _, unit in ipairs(units or {}) do
+        result[#result + 1] = {
+            id = unit.id,
+            name = unit.name,
+            team = unit.team,
+            position = unit.position,
+            hp = unit.hp,
+            maxHp = unit.maxHp,
+            ac = unit.ac,
+            hit = unit.hit,
+            spellDC = unit.spellDC,
+            saveFort = unit.saveFort,
+            saveRef = unit.saveRef,
+            saveWill = unit.saveWill,
+            isAlive = unit.isAlive,
+            buffs = unit.buffs,
+        }
+    end
+    return result
+end
+
+local function summarizeInterestingEvent(event)
+    if type(event) ~= "table" then
+        return nil
+    end
+    local eventType = tostring(event.type or "")
+    local interesting = {
+        DAMAGE_DEALT = true,
+        HEAL_RECEIVED = true,
+        MISS = true,
+        DODGE = true,
+        BLOCK = true,
+        CRIT = true,
+        SKILL_CAST_STARTED = true,
+        TURN_STARTED = true,
+        TURN_ENDED = true,
+        CombatLog = true,
+        DebugCounterTiming = true,
+    }
+    if not interesting[eventType] then
+        return nil
+    end
+    return {
+        type = eventType,
+        payload = event.payload,
+    }
+end
+
+local function reportFrozenGateSnapshot(runId, hypothesisId, msg, snapshot, extra)
+    local battleSnapshot = snapshot and snapshot.battleSnapshot or {}
+    reportDebugEvent(runId, hypothesisId, "bin/test_roguelike_balance.lua", msg, {
+        phase = snapshot and snapshot.phase or nil,
+        round = battleSnapshot.round,
+        pendingCommands = battleSnapshot.pendingCommands,
+        leftTeam = summarizeUnits(battleSnapshot.leftTeam),
+        rightTeam = summarizeUnits(battleSnapshot.rightTeam),
+        result = battleSnapshot.result,
+        extra = extra,
+    })
+end
+-- #endregion
+
 local function getUltimateSkillForUnit(unitId)
     local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
     local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
@@ -285,16 +487,25 @@ local function chooseRewardIndex(snapshot)
     if reward.kind == "node_recruit" then
         local existing = {}
         for _, hero in ipairs(snapshot.team or {}) do
-            existing[hero.name] = true
+            existing[hero.heroId] = true
         end
         for _, hero in ipairs(snapshot.bench or {}) do
-            existing[hero.name] = true
+            existing[hero.heroId] = true
         end
+        local bestIndex, bestQuality
         for index, option in ipairs(reward.options) do
-            local heroName = option.heroName or string.gsub(option.label or "", "^招募%s+", "")
-            if heroName and not existing[heroName] then
-                return index
+            local heroId = tonumber(option.refId)
+            if heroId and not existing[heroId] then
+                local heroInfo = HeroData.GetHeroInfo(heroId) or {}
+                local quality = tonumber(heroInfo.BaseQuality or heroInfo.Quality) or 1
+                if not bestQuality or quality > bestQuality then
+                    bestIndex = index
+                    bestQuality = quality
+                end
             end
+        end
+        if bestIndex then
+            return bestIndex
         end
     end
 
@@ -395,7 +606,7 @@ function autoPromoteBench()
     end
 end
 
-local function resolveBattle(config)
+local function resolveBattle(config, debugBattle)
     local snapshot = Run.GetSnapshot()
     local ticks = 0
     local castedUltimate = false
@@ -403,6 +614,17 @@ local function resolveBattle(config)
     local lastRound = startRound
     local maxRoundSeen = startRound
     local lastBattleHp, lastBattleMaxHp, lastBattleAlive = getBattleTeamStats(snapshot)
+    if debugBattle and debugBattle.enabled then
+        reportFrozenGateSnapshot(debugBattle.runId, "A", "[DEBUG] Frozen Gate battle start", snapshot, {
+            route = debugBattle.routeName,
+            nodeId = debugBattle.nodeId,
+            title = debugBattle.title,
+            encounterId = debugBattle.encounterId,
+            beforeHp = lastBattleHp,
+            beforeMaxHp = lastBattleMaxHp,
+            beforeAlive = lastBattleAlive,
+        })
+    end
     while ticks < config.maxBattleTicks do
         ticks = ticks + 1
         local readyHeroId = (config.autoUltimate and not castedUltimate) and findReadyHero(snapshot) or nil
@@ -413,16 +635,50 @@ local function resolveBattle(config)
             })
             castedUltimate = true
         end
-        Run.Tick(config.tickMs)
+        local tickEvents = Run.Tick(config.tickMs) or {}
         snapshot = Run.GetSnapshot()
         if snapshot.phase == "battle" then
             lastRound = getBattleRound(snapshot)
             if lastRound > maxRoundSeen then
                 maxRoundSeen = lastRound
             end
+            local prevHp = lastBattleHp
             lastBattleHp, lastBattleMaxHp, lastBattleAlive = getBattleTeamStats(snapshot)
+            if debugBattle and debugBattle.enabled then
+                local interestingEvents = {}
+                for _, event in ipairs(tickEvents) do
+                    local summarized = summarizeInterestingEvent(event)
+                    if summarized then
+                        interestingEvents[#interestingEvents + 1] = summarized
+                    end
+                end
+                if #interestingEvents > 0 then
+                    reportDebugEvent(debugBattle.runId, "D", "bin/test_roguelike_balance.lua", "[DEBUG] Frozen Gate tick events", {
+                        tick = ticks,
+                        round = lastRound,
+                        events = interestingEvents,
+                    })
+                end
+                if lastRound ~= startRound and (lastRound ~= (debugBattle.lastReportedRound or -1) or lastBattleHp ~= prevHp) then
+                    debugBattle.lastReportedRound = lastRound
+                    reportFrozenGateSnapshot(debugBattle.runId, "B", "[DEBUG] Frozen Gate battle hp trace", snapshot, {
+                        tick = ticks,
+                        hp = lastBattleHp,
+                        maxHp = lastBattleMaxHp,
+                        alive = lastBattleAlive,
+                    })
+                end
+            end
         end
         if snapshot.phase ~= "battle" then
+            if debugBattle and debugBattle.enabled then
+                reportFrozenGateSnapshot(debugBattle.runId, "E", "[DEBUG] Frozen Gate battle end", snapshot, {
+                    tick = ticks,
+                    lastBattleHp = lastBattleHp,
+                    lastBattleMaxHp = lastBattleMaxHp,
+                    lastBattleAlive = lastBattleAlive,
+                })
+            end
             return snapshot, ticks, false, {
                 startRound = startRound,
                 endRound = lastRound,
@@ -508,7 +764,18 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
         snapshot = Run.GetSnapshot()
         if snapshot.phase == "battle" then
             local beforeHp, beforeMaxHp, beforeAlive = getBattleTeamStats(snapshot)
-            local resolved, ticks, timedOut, roundStats = resolveBattle(config)
+            local debugBattle = nil
+            if node.title == "Frozen Gate" then
+                debugBattle = {
+                    enabled = true,
+                    runId = string.format("pre-%s-%d", route.name, runIndex),
+                    routeName = route.name,
+                    nodeId = nodeId,
+                    title = node.title,
+                    encounterId = node.encounterId,
+                }
+            end
+            local resolved, ticks, timedOut, roundStats = resolveBattle(config, debugBattle)
             local afterHp = roundStats.lastBattleHp or 0
             local afterMaxHp = roundStats.lastBattleMaxHp or 0
             local afterAlive = roundStats.lastBattleAlive or 0

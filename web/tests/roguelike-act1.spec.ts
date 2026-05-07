@@ -51,12 +51,24 @@ async function driveBattleUntilResolved(page: import("playwright/test").Page, ti
 
 async function chooseRewardIndex(page: import("playwright/test").Page) {
   return page.evaluate(async () => {
+    const heroQuality: Record<number, number> = {
+      900001: 3,
+      900002: 4,
+      900003: 4,
+      900004: 4,
+      900005: 5,
+      900006: 3,
+      900007: 4,
+      900008: 4,
+      900009: 4,
+    };
     const runtime = window as typeof window & {
       __miniBattleHost?: {
         getRunSnapshot: () => Promise<{
-          rewardState?: { kind?: string; options?: Array<{ heroName?: string; label?: string; rewardType?: string }> };
-          team?: Array<{ name?: string }>;
-          bench?: Array<{ name?: string }>;
+          rewardState?: { kind?: string; options?: Array<{ heroName?: string; label?: string; rewardType?: string; refId?: number }> };
+          team?: Array<{ name?: string; heroId?: number }>;
+          bench?: Array<{ name?: string; heroId?: number }>;
+          maxHeroCount?: number;
         }>;
       };
     };
@@ -66,26 +78,90 @@ async function chooseRewardIndex(page: import("playwright/test").Page) {
       return 0;
     }
     if (reward.kind === "node_recruit") {
-      const existing = new Set<string>();
+      const existing = new Set<number>();
       for (const hero of snapshot?.team ?? []) {
-        if (hero.name) {
-          existing.add(hero.name);
+        if (hero.heroId) {
+          existing.add(hero.heroId);
         }
       }
       for (const hero of snapshot?.bench ?? []) {
-        if (hero.name) {
-          existing.add(hero.name);
+        if (hero.heroId) {
+          existing.add(hero.heroId);
         }
       }
-      const uniqueIndex = reward.options.findIndex((option) => {
-        const heroName = (option.heroName ?? option.label ?? "").replace(/^招募\s+/, "");
-        return heroName !== "" && !existing.has(heroName);
+      let bestIndex = -1;
+      let bestQuality = -1;
+      reward.options.forEach((option, index) => {
+        const heroId = option.refId ?? 0;
+        if (!heroId || existing.has(heroId)) {
+          return;
+        }
+        const quality = heroQuality[heroId] ?? 1;
+        if (quality > bestQuality) {
+          bestIndex = index;
+          bestQuality = quality;
+        }
       });
-      if (uniqueIndex >= 0) {
-        return uniqueIndex;
+      if (bestIndex >= 0) {
+        return bestIndex;
       }
     }
     return 0;
+  });
+}
+
+async function autoPromoteBench(page: import("playwright/test").Page) {
+  await page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        getRunSnapshot: () => Promise<{
+          team?: Array<{ rosterId?: number }>;
+          bench?: Array<{ rosterId?: number }>;
+          maxHeroCount?: number;
+        }>;
+        promoteBenchHero: (benchRosterId: number) => Promise<{ accepted?: boolean }>;
+      };
+    };
+    const host = runtime.__miniBattleHost;
+    if (!host) {
+      return;
+    }
+    let snapshot = await host.getRunSnapshot();
+    while ((snapshot.bench?.length ?? 0) > 0 && (snapshot.team?.length ?? 0) < (snapshot.maxHeroCount ?? 5)) {
+      const benchHero = snapshot.bench?.[0];
+      if (!benchHero?.rosterId) {
+        break;
+      }
+      await host.promoteBenchHero(benchHero.rosterId);
+      snapshot = await host.getRunSnapshot();
+    }
+  });
+}
+
+async function chooseCampAction(page: import("playwright/test").Page) {
+  return page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        getRunSnapshot: () => Promise<{
+          team?: Array<{ hp?: number; isDead?: boolean }>;
+          campState?: { actions?: Array<{ id?: number; available?: boolean }> };
+        }>;
+      };
+    };
+    const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+    const hasDeadHero = (snapshot?.team ?? []).some((hero) => hero.isDead === true || (hero.hp ?? 0) <= 0);
+    const actions = snapshot?.campState?.actions ?? [];
+    if (hasDeadHero) {
+      const rescue = actions.find((action) => action.id === 1 && action.available !== false);
+      if (rescue?.id) {
+        return rescue.id;
+      }
+    }
+    const sharpen = actions.find((action) => action.id === 2 && action.available !== false);
+    if (sharpen?.id) {
+      return sharpen.id;
+    }
+    return actions.find((action) => action.available !== false)?.id ?? 1;
   });
 }
 
@@ -155,6 +231,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       } else {
         await page.locator(".run-info-panel button").nth(rewardIndex).click();
       }
+      await autoPromoteBench(page);
     }
   };
 
@@ -173,8 +250,10 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Campfire Shrine");
-  await expect(page.getByRole("button", { name: "Sharpen" })).toBeVisible();
-  await page.getByRole("button", { name: "Sharpen" }).click();
+  const campActionId = await chooseCampAction(page);
+  const campButtonName = campActionId === 1 ? "Rescue" : campActionId === 2 ? "Sharpen" : "Revive";
+  await expect(page.getByRole("button", { name: campButtonName })).toBeVisible();
+  await page.getByRole("button", { name: campButtonName }).click();
 
   await clickNodeAndEnter("Ember Ambush");
   await driveBattleUntilResolved(page);

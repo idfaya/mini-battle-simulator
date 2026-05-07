@@ -111,6 +111,27 @@ local function GetHeroBattleId(hero)
     return hero.instanceId or hero.id
 end
 
+-- #region debug-point F:enemy-action-trace
+local function PublishEnemyActionTrace(stage, hero, extra)
+    if not hero or hero.isLeft then
+        return
+    end
+    BattleEvent.Publish("DebugCounterTiming", {
+        stage = stage,
+        source = "modules.battle_main",
+        data = {
+            heroId = GetHeroBattleId(hero),
+            heroName = hero.name,
+            isLeft = hero.isLeft,
+            hp = hero.hp,
+            maxHp = hero.maxHp,
+            energy = hero.energy,
+            extra = extra or {},
+        },
+    })
+end
+-- #endregion
+
 local function BuildRoundParticipants()
     local participants = {}
     for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
@@ -548,6 +569,15 @@ local function SelectAvailableSkill(hero)
     
     -- 从 hero.skillData.skillInstances 中获取实际可用的技能
     local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
+    PublishEnemyActionTrace("enemy_select_skill_begin", hero, {
+        skillCount = (function()
+            local count = 0
+            for _ in pairs(availableSkills) do
+                count = count + 1
+            end
+            return count
+        end)(),
+    })
 
     local heroId = GetHeroBattleId(hero)
     local queuedUltimate = heroId and queuedUltimateByHero[tostring(heroId)]
@@ -579,6 +609,13 @@ local function SelectAvailableSkill(hero)
                 if cd == 0 and BattleEnergy.CanCastUltimate(hero, skill) then
                     Logger.Log(string.format("[SelectAvailableSkill] %s 敌方自动选择大招: %s",
                         hero.name or "Unknown", skill.name or tostring(skillId)))
+                    PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+                        reason = "ultimate",
+                        skillId = skillId,
+                        skillName = skill.name,
+                        skillType = skill.skillType,
+                        cooldown = cd,
+                    })
                     return skill
                 end
             end
@@ -593,6 +630,13 @@ local function SelectAvailableSkill(hero)
                 Logger.Log(string.format("[SelectAvailableSkill] %s 选择主动技能: %s (CD:%d/%d)",
                     hero.name or "Unknown", skill.name or tostring(skillId),
                     cd, skill.maxCoolDown or 0))
+                PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+                    reason = "active",
+                    skillId = skillId,
+                    skillName = skill.name,
+                    skillType = skill.skillType,
+                    cooldown = cd,
+                })
                 return skill
             else
                 Logger.Log(string.format("[SelectAvailableSkill] %s 主动技能冷却中: %s (剩余CD:%d)",
@@ -604,6 +648,12 @@ local function SelectAvailableSkill(hero)
     -- 如果没有可用的大招和主动技能，使用普通攻击
     for skillId, skill in pairs(availableSkills) do
         if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
+            PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+                reason = "normal",
+                skillId = skillId,
+                skillName = skill.name,
+                skillType = skill.skillType,
+            })
             return skill
         end
     end
@@ -611,10 +661,17 @@ local function SelectAvailableSkill(hero)
     -- 默认返回第一个可用技能
     for _, skill in pairs(availableSkills) do
         if skill then
+            PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+                reason = "fallback",
+                skillId = skill.skillId,
+                skillName = skill.name,
+                skillType = skill.skillType,
+            })
             return skill
         end
     end
-    
+
+    PublishEnemyActionTrace("enemy_select_skill_none", hero, {})
     return nil
 end
 
@@ -647,10 +704,57 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
         return false
     end
 
+    local pendingCast = hero.__pendingCast
+    if pendingCast and (tonumber(pendingCast.remainTurns) or 0) <= 0 then
+        local target = nil
+        if pendingCast.targetId then
+            target = BattleFormation.FindHeroByInstanceId(pendingCast.targetId)
+            if target and (target.isDead or not target.isAlive or (tonumber(target.hp) or 0) <= 0) then
+                target = nil
+            end
+        end
+
+        hero.__pendingCast = nil
+        BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
+        PublishEnemyActionTrace("enemy_release_pending_cast", hero, {
+            skillId = pendingCast.skillId,
+            skillName = pendingCast.skillName,
+            targetId = target and (target.instanceId or target.id) or pendingCast.targetId,
+            targetName = target and target.name or nil,
+        })
+
+        local started = BattleSkill.StartSkillCastInSeq(hero, target, pendingCast.skillId, function(success, result)
+            if actionState then
+                actionState.timelineSucceeded = success
+                actionState.timelineResult = result
+                actionState.completed = true
+            end
+        end, {
+            ignoreChant = true,
+        })
+        PublishEnemyActionTrace("enemy_release_pending_cast_started", hero, {
+            skillId = pendingCast.skillId,
+            skillName = pendingCast.skillName,
+            started = started,
+        })
+        if started then
+            if actionState then
+                actionState.waitingForTimeline = true
+            end
+            return true
+        end
+        PublishEnemyActionTrace("enemy_release_pending_cast_failed", hero, {
+            skillId = pendingCast.skillId,
+            skillName = pendingCast.skillName,
+        })
+        return false
+    end
+
     -- 智能选择可用技能
     local skill = SelectAvailableSkill(hero)
     if not skill then
         Logger.LogWarning(string.format("[ExecuteHeroAction] %s 没有可用技能，跳过行动", hero.name or "Unknown"))
+        PublishEnemyActionTrace("enemy_execute_no_skill", hero, {})
         return false
     end
     
@@ -658,12 +762,25 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
         -- 获取随机敌人作为目标
         -- region debug-point enemy-no-damage-target
         local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
+        PublishEnemyActionTrace("enemy_execute_target", hero, {
+            skillId = skill.skillId,
+            skillName = skill.name,
+            targetId = targetId,
+        })
         Logger.Log(string.format("[DBG enemy-no-damage target] actor=%s actorId=%s isLeft=%s targetId=%s",
             tostring(hero.name), tostring(hero.instanceId), tostring(hero.isLeft), tostring(targetId)))
         -- endregion debug-point enemy-no-damage-target
         if targetId then
             local target = BattleFormation.FindHeroByInstanceId(targetId)
             if target then
+                PublishEnemyActionTrace("enemy_execute_target_resolved", hero, {
+                    skillId = skill.skillId,
+                    skillName = skill.name,
+                    targetId = targetId,
+                    targetName = target.name,
+                    targetIsLeft = target.isLeft,
+                    targetHp = target.hp,
+                })
                 -- region debug-point enemy-no-damage-target-resolved
                 Logger.Log(string.format("[DBG enemy-no-damage target-resolved] actor=%s actorLeft=%s target=%s targetLeft=%s",
                     tostring(hero.name), tostring(hero.isLeft), tostring(target.name), tostring(target.isLeft)))
@@ -681,13 +798,31 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
                         actionState.completed = true
                     end
                 end)
+                PublishEnemyActionTrace("enemy_execute_start_skill", hero, {
+                    skillId = skill.skillId,
+                    skillName = skill.name,
+                    targetId = targetId,
+                    targetName = target.name,
+                    started = started,
+                })
                 if started then
                     if actionState then
                         actionState.waitingForTimeline = true
                     end
                     return true
                 end
+                PublishEnemyActionTrace("enemy_execute_start_failed", hero, {
+                    skillId = skill.skillId,
+                    skillName = skill.name,
+                    targetId = targetId,
+                    targetName = target.name,
+                })
             end
+        else
+            PublishEnemyActionTrace("enemy_execute_no_target", hero, {
+                skillId = skill.skillId,
+                skillName = skill.name,
+            })
         end
     end
 

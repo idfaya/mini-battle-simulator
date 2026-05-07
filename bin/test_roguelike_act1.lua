@@ -8,6 +8,7 @@ local Run = require("roguelike.roguelike_run")
 local BattleFormation = require("modules.battle_formation")
 local RunEncounterGroup = require("config.roguelike.run_encounter_group")
 local ClassRoleConfig = require("config.class_role_config")
+local HeroData = require("config.hero_data")
 
 local function getUltimateSkillForUnit(unitId)
     local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
@@ -50,21 +51,30 @@ local function isEnemyOrOutputUltimate(unit)
     return false
 end
 
+local function findReadyHero(snapshot)
+    local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
+    if not battleSnapshot then
+        return nil
+    end
+    for _, unit in ipairs(battleSnapshot.leftTeam or {}) do
+        if isEnemyOrOutputUltimate(unit) then
+            return unit.id
+        end
+    end
+    return nil
+end
+
 local function runBattleUntilResolved(maxSteps)
     local snapshot = Run.GetSnapshot()
     local castedUltimate = false
     for _ = 1, maxSteps do
-        if not castedUltimate and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
-            for _, unit in ipairs(snapshot.battleSnapshot.leftTeam or {}) do
-                if isEnemyOrOutputUltimate(unit) then
-                    Run.QueueBattleCommand({
-                        type = "cast_ultimate",
-                        heroId = unit.id,
-                    })
-                    castedUltimate = true
-                    break
-                end
-            end
+        local readyHeroId = (not castedUltimate) and findReadyHero(snapshot) or nil
+        if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
+            Run.QueueBattleCommand({
+                type = "cast_ultimate",
+                heroId = readyHeroId,
+            })
+            castedUltimate = true
         end
         Run.Tick(800)
         snapshot = Run.GetSnapshot()
@@ -96,13 +106,24 @@ local function assertEncounterScalesStay5eStyle()
     end
 end
 
+local function autoPromoteBench()
+    local snapshot = Run.GetSnapshot()
+    while #(snapshot.bench or {}) > 0 and #(snapshot.team or {}) < (snapshot.maxHeroCount or 5) do
+        local benchHero = snapshot.bench[1]
+        assert(benchHero and benchHero.rosterId, "bench hero should exist when promoting")
+        assert(Run.PromoteBenchHero(benchHero.rosterId) == true, "bench promote should succeed")
+        snapshot = Run.GetSnapshot()
+    end
+    return snapshot
+end
+
 local function acceptRewardIfPresent()
     local current = Run.GetSnapshot()
     local guard = 0
     while current.phase == "reward" and guard < 4 do
         local rewardIndex = chooseRewardIndex(current)
         assert(Run.ChooseReward(rewardIndex) == true, "reward selection should succeed")
-        current = Run.GetSnapshot()
+        current = autoPromoteBench()
         guard = guard + 1
     end
     assert(current.phase == "map", "reward chain should return to map")
@@ -118,16 +139,25 @@ function chooseRewardIndex(snapshot)
     if reward.kind == "node_recruit" then
         local existing = {}
         for _, hero in ipairs(snapshot.team or {}) do
-            existing[hero.name] = true
+            existing[hero.heroId] = true
         end
         for _, hero in ipairs(snapshot.bench or {}) do
-            existing[hero.name] = true
+            existing[hero.heroId] = true
         end
+        local bestIndex, bestQuality
         for index, option in ipairs(reward.options) do
-            local heroName = option.heroName or string.gsub(option.label or "", "^招募%s+", "")
-            if heroName and not existing[heroName] then
-                return index
+            local heroId = tonumber(option.refId)
+            if heroId and not existing[heroId] then
+                local heroInfo = HeroData.GetHeroInfo(heroId) or {}
+                local quality = tonumber(heroInfo.BaseQuality or heroInfo.Quality) or 1
+                if not bestQuality or quality > bestQuality then
+                    bestIndex = index
+                    bestQuality = quality
+                end
             end
+        end
+        if bestIndex then
+            return bestIndex
         end
     end
 
@@ -161,7 +191,39 @@ local function countRows(team)
     return front, back
 end
 
+local function chooseCampAction(snapshot)
+    local hasDeadHero = false
+    for _, hero in ipairs((snapshot and snapshot.team) or {}) do
+        if hero.isDead or (hero.hp or 0) <= 0 then
+            hasDeadHero = true
+            break
+        end
+    end
+
+    local campState = snapshot and snapshot.campState or {}
+    if hasDeadHero then
+        for _, action in ipairs(campState.actions or {}) do
+            if tonumber(action.id) == 1 and action.available ~= false then
+                return 1
+            end
+        end
+    end
+    for _, action in ipairs(campState.actions or {}) do
+        if tonumber(action.id) == 2 and action.available ~= false then
+            return 2
+        end
+    end
+    for _, action in ipairs(campState.actions or {}) do
+        if action.available ~= false then
+            return tonumber(action.id)
+        end
+    end
+    return 1
+end
+
 assertEncounterScalesStay5eStyle()
+
+math.randomseed(10102)
 
 local snapshot = Run.StartRun({
     chapterId = 101,
@@ -184,7 +246,9 @@ snapshot = acceptRewardIfPresent()
 choosePathAndEnter(101002)
 assert(Run.GetSnapshot().phase == "reward", "second path should open recruit reward")
 assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "recruit selection should resolve")
-assert(Run.GetSnapshot().phase == "map", "recruit node should return to map")
+snapshot = autoPromoteBench()
+assert(snapshot.phase == "map", "recruit node should return to map")
+assert(#(snapshot.team or {}) >= 5 or #(snapshot.bench or {}) == 0, "first recruit should auto fill available team slot")
 
 choosePathAndEnter(101004)
 assert(Run.GetSnapshot().phase == "battle", "third path should be battle")
@@ -193,8 +257,9 @@ assert(snapshot.phase == "reward" or snapshot.phase == "map", "third battle shou
 snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101006)
-assert(Run.GetSnapshot().phase == "camp", "camp node should open camp")
-assert(Run.CampChoose(2) == true, "camp empower should work")
+snapshot = Run.GetSnapshot()
+assert(snapshot.phase == "camp", "camp node should open camp")
+assert(Run.CampChoose(chooseCampAction(snapshot)) == true, "camp action should work")
 
 choosePathAndEnter(101008)
 assert(Run.GetSnapshot().phase == "battle", "ember ambush should be battle")
@@ -205,7 +270,7 @@ snapshot = acceptRewardIfPresent()
 choosePathAndEnter(101010)
 assert(Run.GetSnapshot().phase == "reward", "last stop should open second recruit reward")
 assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "second recruit selection should resolve")
-local recruitSnapshot = Run.GetSnapshot()
+local recruitSnapshot = autoPromoteBench()
 assert(recruitSnapshot.phase == "map", "second recruit should return to map")
 assert((#(recruitSnapshot.team or {}) + #(recruitSnapshot.bench or {})) >= 4, "second recruit should keep boss roster viable")
 

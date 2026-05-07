@@ -86,7 +86,7 @@
 当前引擎已经具备以下 5e 关键件（可以直接用/小改）：
 - 豁免：`SkillTimelineCompiler` 的 `op=damage` 在 `meta.kind="spell"` 时会走 `RollSave`（基于 `spellDC` 和 `saveFort/saveRef/saveWill`）。
 - 施法命中：`BattleFormula.RollHit` 支持命中检定，且 `meta.kind ~= "spell"` 会走命中判定。
-- 吟唱=施法时间：`config/skill_5e_meta.lua` 的 `chantTurns` 已接入 `__pendingCast`。
+- 吟唱=施法时间：`config/skill_5e_meta.lua` 的 `chantTurns` 通过 `__pendingCast` 落地，并应在施法者下次行动开始时自动释放。
 - 专注：已有 `__concentrationSkillId` + 受伤触发 `RollConcentration` 打断。
 - 控制：`Frozen/STUN/SILENT` 等 `CONTROL` 类 Buff 已接入“跳过行动”。
 

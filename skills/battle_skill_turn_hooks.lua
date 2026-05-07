@@ -136,6 +136,24 @@ function BattleSkillTurnHooks.ProcessTurnStartStatus(hero)
         end
     end
 
+    if hero.__pendingCast then
+        local pending = hero.__pendingCast
+        pending.remainTurns = math.max(0, math.floor(tonumber(pending.remainTurns) or 0) - 1)
+        if pending.remainTurns > 0 then
+            Logger.Log(string.format("[CHANT] %s 继续吟唱 %s (%d)",
+                hero.name or "Unknown",
+                tostring(pending.skillName or pending.skillId),
+                pending.remainTurns))
+            BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
+            PublishTurnSkipped(hero, "吟唱中", tostring(pending.skillName or pending.skillId))
+            return false
+        end
+        Logger.Log(string.format("[CHANT] %s 吟唱完成，准备释放 %s",
+            hero.name or "Unknown",
+            tostring(pending.skillName or pending.skillId)))
+        BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
+    end
+
     if BattleBuff.IsHeroUnderControl(hero) then
         Logger.Log(string.format("[ProcessTurnStartStatus] %s 因冻结跳过行动", hero.name or "Unknown"))
         local names = {}
