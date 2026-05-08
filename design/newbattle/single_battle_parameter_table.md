@@ -162,6 +162,8 @@ roguelike_run_system_design.md
 | `dead_units` | string[] | 本场死亡单位 |
 | `survive_units` | string[] | 本场存活单位 |
 | `hp_snapshot` | table | 本场结束生命快照 |
+| `exp_gain` | table | 各 `unit_id` 的经验结算结果 |
+| `level_up_result` | table | 各 `unit_id` 的升级结果 |
 
 ---
 

@@ -26,6 +26,32 @@
 - 职业成长不写成固定战斗内等级，而应通过同职业进阶、装备与 Feat 链推进。
 - `额外攻击`、`额外行动`、`命中后追击` 必须严格区分，避免实现时语义串线。
 
+## 字段口径
+
+- 本文档采用 `class_system_design.md` 作为 Class 层字段规则源。
+- 本文档中的职业能力对象统一为 `Class 单位`，不再使用独立“角色”口径。
+- 阶段字段统一使用 `promotion_stage`。
+- `promotion_stage` 的数据值统一为：
+  - `low`
+  - `mid`
+  - `high`
+- 展示层可渲染为：
+  - `低阶`
+  - `中阶`
+  - `高阶`
+- 技能槽统一使用：
+  - `basic_attack_slot`
+  - `core_slot`
+  - `mid_slot`
+  - `high_slot`
+- 槽位语义统一为：
+  - `basic_attack_slot` = 基础出手技能
+  - `core_slot` = 低阶核心能力
+  - `mid_slot` = 中阶新增能力
+  - `high_slot` = 高阶终局能力
+- 职业卡只推动 `Class 单位` 获得或进阶，不直接提供等级提升。
+- `等级` 只负责数值成长；`进阶` 只负责同职业阶段推进；`转职` 才改变 `class_id`。
+
 ## 母技能映射
 
 - 战士：近战基础武器攻击
@@ -37,14 +63,14 @@
 
 ## 三阶子职业结构
 
-- 每个职业都拆成 `低阶 -> 中阶 -> 高阶` 三段。
+- 每个职业都拆成 `low -> mid -> high` 三段。
 - 推荐结构：
-  - `低阶`：建立职业辨识度，只给 `普攻 + 核心被动`
-  - `中阶`：补足职业的主动作或关键联动
-  - `高阶`：兑现高光体验，可沿用旧大招并改造，或重新设计
+  - `low`：建立职业辨识度，只启用 `basic_attack_slot + core_slot`
+  - `mid`：在 `low` 基础上追加 `mid_slot`
+  - `high`：在 `mid` 基础上追加 `high_slot`
 - 推荐授予顺序：
-  - 初始获得低阶子职业
-  - 后续通过同职业进阶或关键 Feat 晋升到中阶、高阶
+  - 初始获得 `low`
+  - 后续通过同职业进阶或关键 Feat 晋升到 `mid`、`high`
 - 设计目的：
   - 开局立即建立职业辨识度
   - 中期补足职业差异和可观察联动
@@ -54,7 +80,7 @@
 
 ## 六职业三阶拆分总表
 
-| 职业 | 低阶子职业 | 中阶子职业 | 高阶子职业 |
+| 职业 | `low` | `mid` | `high` |
 | --- | --- | --- | --- |
 | 战士 | 战技斩击 + 反击 | 护卫架势 | 不屈之风 |
 | 武僧 | 徒手打击 + 连击 | 震劲掌 | 明镜止水 |
@@ -127,6 +153,8 @@
 | `high` | 圣手 | 保留“低血友军自动救场、清负面、短时庇护”核心的高阶救场能力。 |
 
 ### 野蛮人
+
+- 5e 画像：`primary_ability = str`，`spell_ability = none`，`armor_formula = unarmored_str_con`，`save_proficiency = fort / will`。
 
 | 阶段 | 能力包 | 规则定义 |
 | --- | --- | --- |
@@ -373,8 +401,11 @@
 ## 实现落点建议
 
 - `design/`：以本文档为规则源，回写各职业 Build 文档。
+- `class_system_design.md`：提供 `Class 单位`、`promotion_stage`、技能槽和成长职责的统一字段口径。
 - `config/feat_build_config.lua`：定义职业核心技对应的 Feat。
 - `config/class_build_progression.lua`：决定同职业进阶、Feat 链与后续强化如何把职业推进到低阶 / 中阶 / 高阶。
+- `config/class_build_progression.lua` 中的阶段推进必须直接对应 `promotion_stage = low / mid / high`。
+- `skill_package_id` 的切换必须与 `basic_attack_slot / core_slot / mid_slot / high_slot` 的启用关系同步。
 - `config/skill_runtime_config.lua`：定义被动、命中后附伤、反应登记、标记等运行时语义。
 - `config/skill_5e_meta.lua`：补齐 5e 口径与规则说明。
 - `skills/`：实现各职业核心技的具体技能逻辑。

@@ -107,6 +107,15 @@ normal_battle / elite_battle
 → 职业卡三选一
 ```
 
+节点结算阶段统一向 Run 层传递：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `battle_result` | enum | `win` / `lose` |
+| `reward_gold` | integer | 节点金币收益 |
+| `reward_equip_count` | integer | 节点装备掉落次数 |
+| `enter_card_reward` | boolean | 是否进入职业卡三选一 |
+
 ### 3.3 节点到其他系统
 
 ```text

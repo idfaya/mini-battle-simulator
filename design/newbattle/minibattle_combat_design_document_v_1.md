@@ -1,4 +1,4 @@
-﻿# MiniBattle 战斗系统总纲 V1.1
+﻿﻿﻿﻿# MiniBattle 战斗系统总纲 V1.1
 
 ## 0. 文档定位
 

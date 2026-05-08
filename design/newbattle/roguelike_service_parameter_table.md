@@ -84,6 +84,20 @@ recruit.id
 → 进入 Run 持有表
 ```
 
+招募结算写回字段统一采用 `Class 单位` 口径：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `unit_id` | string | 单位唯一编号 |
+| `class_id` | string | 职业编号 |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `promotion_stage` | enum | `low` / `mid` / `high` |
+| `level` | integer | 当前等级 |
+| `exp` | integer | 当前经验 |
+| `current_hp` | integer | 当前生命 |
+| `battle_slot` | enum | `front` / `back` / `none` |
+| `skill_package_id` | string | 当前技能包编号 |
+
 ### 5.3 商店到装备
 
 ```text
@@ -102,6 +116,14 @@ event.id
 → 应用结果
 ```
 
+事件结果若改变职业成长，统一只允许写回：
+
+- `team_state`
+- `promotion_stage`
+- `level`
+- `exp`
+- `current_hp`
+
 ### 5.5 营地到修复
 
 ```text
@@ -109,6 +131,15 @@ camp.id
 → 复活 / 恢复 / 清状态
 → 更新队伍状态
 ```
+
+营地结算写回字段统一采用：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `unit_id` | string | 单位唯一编号 |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `current_hp` | integer | 当前生命 |
+| `battle_slot` | enum | `front` / `back` / `none` |
 
 ---
 
