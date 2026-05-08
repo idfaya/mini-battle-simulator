@@ -21,19 +21,21 @@
 
 每个职业单位统一采用 `class_system_design.md` §12.1 的 `team_state` 枚举：
 
-- `none`：尚未持有（仅存在于候选池判定）
 - `active`：已持有并上阵
 - `bench`：已持有并候补
 - `dead`：已持有但 Run 内死亡
+
+"未持有"不是 `team_state` 的取值：未持有意味着该 `class_id` 不存在于 Run 持有表，由外层的 `is_owned` 布尔入参或查表结果表达。
 
 ### 2.3 职业阶段
 
 每个职业单位统一采用 `class_system_design.md` §3 的 `promotion_stage` 枚举：
 
-- `none`：尚未持有
 - `low`：低阶
 - `mid`：中阶
 - `high`：高阶
+
+"未持有"不是 `promotion_stage` 的取值：未持有时该职业不在 Run 持有表中，无 `promotion_stage` 字段。
 
 ---
 
@@ -46,7 +48,7 @@
 ```text
 获得该职业卡
 → 职业单位加入玩家持有列表
-→ 职业阶段设为低阶
+→ promotion_stage = low
 ```
 
 ### 3.2 重复获得
@@ -87,7 +89,7 @@
 ```text
 新职业单位
 → 直接加入队伍
-→ 阶段 = 低阶
+→ promotion_stage = low
 ```
 
 ### 4.2 队伍已满
@@ -97,7 +99,7 @@
 ```text
 新职业单位
 → 进入候补
-→ 阶段 = 低阶
+→ promotion_stage = low
 ```
 
 ### 4.3 已持有职业单位
@@ -268,20 +270,20 @@
 | `class_id` | string | 职业唯一编号 |
 | `class_name` | string | 职业名称 |
 | `character_group` | enum | `physical` / `caster` |
-| `team_state` | enum | `none` / `active` / `bench` / `dead` |
-| `promotion_stage` | enum | `none` / `low` / `mid` / `high` |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `promotion_stage` | enum | `low` / `mid` / `high` |
 | `str` | integer | 力量 |
 | `dex` | integer | 敏捷 |
 | `con` | integer | 体质 |
 | `int` | integer | 智力 |
 | `wis` | integer | 感知 |
 | `cha` | integer | 魅力 |
-| `stage_low_label` | string | 低阶名称 |
-| `stage_mid_label` | string | 中阶名称 |
-| `stage_high_label` | string | 高阶名称 |
-| `stage_low_summary` | string | 低阶摘要 |
-| `stage_mid_summary` | string | 中阶摘要 |
-| `stage_high_summary` | string | 高阶摘要 |
+| `promotion_low_label` | string | 低阶名称 |
+| `promotion_mid_label` | string | 中阶名称 |
+| `promotion_high_label` | string | 高阶名称 |
+| `promotion_low_summary` | string | 低阶摘要 |
+| `promotion_mid_summary` | string | 中阶摘要 |
+| `promotion_high_summary` | string | 高阶摘要 |
 
 ---
 
@@ -310,8 +312,9 @@
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `class_id` | string | 职业编号 |
-| `owned_state` | enum | `none` / `active` / `bench` |
-| `stage` | enum | `none` / `low` / `mid` / `high` |
+| `is_owned` | boolean | 当前是否已持有该职业单位（查 Run 持有表） |
+| `team_state` | enum | `active` / `bench` / `dead`；`is_owned = false` 时不传 |
+| `promotion_stage` | enum | `low` / `mid` / `high`；`is_owned = false` 时不传 |
 | `team_has_free_slot` | boolean | 当前队伍是否有空位 |
 
 ### 13.2 结算输出
@@ -322,9 +325,9 @@
 | --- | --- | --- |
 | `result_type` | enum | `new_class_unit` / `class_promotion` |
 | `class_id` | string | 职业编号 |
-| `unit_state` | enum | `active` / `bench` |
-| `stage_before` | enum | `none` / `low` / `mid` / `high` |
-| `stage_after` | enum | `low` / `mid` / `high` |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `promotion_stage_before` | enum | `low` / `mid` / `high`；`result_type = new_class_unit` 时不传 |
+| `promotion_stage_after` | enum | `low` / `mid` / `high` |
 | `summary_key` | string | 本次新增能力摘要键 |
 
 ### 13.3 结算关系
@@ -332,9 +335,9 @@
 ```text
 roguelike_run_system_design.md
 → 职业卡三选一
-→ 传入 class_id / owned_state / stage / team_has_free_slot
+→ 传入 class_id / is_owned / team_state / promotion_stage / team_has_free_slot
 → class_promotion_design.md
-→ 输出 result_type / unit_state / stage_before / stage_after / summary_key
+→ 输出 result_type / team_state / promotion_stage_before / promotion_stage_after / summary_key
 ```
 
 ---
@@ -346,13 +349,13 @@ roguelike_run_system_design.md
 ```text
 第 1 张同职业卡
 → 获得该职业单位
-→ 阶段 = 低阶
+→ promotion_stage = low
 
 第 2 张同职业卡
-→ 阶段 = 中阶
+→ promotion_stage = mid
 
 第 3 张同职业卡
-→ 阶段 = 高阶
+→ promotion_stage = high
 
 高阶后
 → 不再进入职业卡池

@@ -290,9 +290,9 @@ node.id
 | --- | --- | --- |
 | `result_type` | enum | `new_class_unit` / `class_promotion` |
 | `class_id` | string | 职业编号 |
-| `team_state` | enum | `active` / `bench` |
-| `stage_before` | enum | `none` / `low` / `mid` |
-| `stage_after` | enum | `low` / `mid` / `high` |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `promotion_stage_before` | enum | `low` / `mid` / `high`（仅 `class_promotion` 类型必填；`new_class_unit` 时为空） |
+| `promotion_stage_after` | enum | `low` / `mid` / `high` |
 | `summary_key` | string | 本次新增能力摘要键 |
 
 ---
@@ -322,13 +322,15 @@ Run 层需要保留以下单位状态：
 
 ### 8.4 Run 持有表
 
+Run 持有表**仅记录已持有的职业单位**：未持有的职业不落入该表，无需 `none` 占位字段。
+
 Run 层至少保留以下字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `class_id` | string | 职业编号 |
-| `team_state` | enum | `none` / `active` / `bench` / `dead` |
-| `promotion_stage` | enum | `none` / `low` / `mid` / `high` |
+| `team_state` | enum | `active` / `bench` / `dead` |
+| `promotion_stage` | enum | `low` / `mid` / `high` |
 | `str` | integer | 力量 |
 | `dex` | integer | 敏捷 |
 | `con` | integer | 体质 |
