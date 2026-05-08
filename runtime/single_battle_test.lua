@@ -1,4 +1,6 @@
 local Runtime = require("runtime.browser_battle_runtime")
+local HeroData = require("config.hero_data")
+local EnemyData = require("config.enemy_data")
 
 local SingleBattleTest = {}
 
@@ -10,10 +12,21 @@ local DEFAULT_CONFIG = {
     seed = 101001,
 }
 
+local REINFORCEMENT_REASON = "右侧战场已清空且无后备敌人"
+local BOSS_DEAD_REASON = "Boss 已被击败"
+
 local function cloneArray(input)
     local result = {}
     for i, value in ipairs(input or {}) do
         result[i] = value
+    end
+    return result
+end
+
+local function shallowCopy(input)
+    local result = {}
+    for key, value in pairs(input or {}) do
+        result[key] = value
     end
     return result
 end
@@ -44,6 +57,68 @@ local function printTeam(title, team)
     end
 end
 
+local function buildHeroTeam(heroIds, level)
+    local result = {}
+    for index, heroId in ipairs(heroIds or {}) do
+        local heroData = HeroData.ConvertToHeroData(heroId, level, 5)
+        if heroData then
+            heroData.wpType = heroData.wpType or index
+            result[#result + 1] = heroData
+        end
+    end
+    return result
+end
+
+local function buildEnemy(enemyId, level, overrides)
+    local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
+    if not enemyData then
+        return nil
+    end
+    for key, value in pairs(overrides or {}) do
+        enemyData[key] = value
+    end
+    return enemyData
+end
+
+local function runRuntime(config, options)
+    local snapshot = Runtime.init(config)
+    local sawReady = false
+    local steps = 0
+    local maxSteps = tonumber(options and options.maxSteps) or 5000
+    local autoUltimate = options == nil or options.autoUltimate ~= false
+    local maxSpawned = tonumber(snapshot.battleRules and snapshot.battleRules.totalSpawned) or 0
+    local minReserveRemaining = tonumber(snapshot.reserveRemaining) or 0
+
+    while steps < maxSteps and not snapshot.result do
+        steps = steps + 1
+        local events = Runtime.tick(80)
+        snapshot = Runtime.getSnapshot()
+        maxSpawned = math.max(maxSpawned, tonumber(snapshot.battleRules and snapshot.battleRules.totalSpawned) or 0)
+        minReserveRemaining = math.min(minReserveRemaining, tonumber(snapshot.reserveRemaining) or 0)
+
+        if autoUltimate and snapshot.pendingCommands == 0 then
+            for _, event in ipairs(events) do
+                if event.type == "ultimate_ready" and event.payload and event.payload.heroId then
+                    sawReady = true
+                    Runtime.queueCommand({
+                        type = "cast_ultimate",
+                        heroId = event.payload.heroId,
+                    })
+                    break
+                end
+            end
+        end
+    end
+
+    return {
+        snapshot = snapshot,
+        steps = steps,
+        sawReady = sawReady,
+        maxSpawned = maxSpawned,
+        minReserveRemaining = minReserveRemaining,
+    }
+end
+
 function SingleBattleTest.Run(options)
     local config = mergeConfig(options)
     config.heroCount = #config.heroIds
@@ -62,29 +137,8 @@ function SingleBattleTest.Run(options)
     printTeam("【英雄阵容】", snapshot.leftTeam)
     printTeam("【敌人阵容】", snapshot.rightTeam)
 
-    local sawReady = false
-    local steps = 0
-    local maxSteps = tonumber(options and options.maxSteps) or 5000
-    local autoUltimate = options == nil or options.autoUltimate ~= false
-
-    while steps < maxSteps and not snapshot.result do
-        steps = steps + 1
-        local events = Runtime.tick(80)
-        snapshot = Runtime.getSnapshot()
-
-        if autoUltimate and snapshot.pendingCommands == 0 then
-            for _, event in ipairs(events) do
-                if event.type == "ultimate_ready" and event.payload and event.payload.heroId then
-                    sawReady = true
-                    Runtime.queueCommand({
-                        type = "cast_ultimate",
-                        heroId = event.payload.heroId,
-                    })
-                    break
-                end
-            end
-        end
-    end
+    local runResult = runRuntime(config, options)
+    snapshot = runResult.snapshot
 
     print("")
     if snapshot.result then
@@ -93,18 +147,84 @@ function SingleBattleTest.Run(options)
             tostring(snapshot.result.winner),
             tostring(snapshot.result.reason),
             tonumber(snapshot.round) or 0,
-            steps
+            runResult.steps
         ))
     else
-        print(string.format("战斗未结束: round=%d steps=%d/%d", tonumber(snapshot.round) or 0, steps, maxSteps))
+        print(string.format(
+            "战斗未结束: round=%d steps=%d/%d",
+            tonumber(snapshot.round) or 0,
+            runResult.steps,
+            tonumber(options and options.maxSteps) or 5000
+        ))
     end
-    print(string.format("自动大招触发: %s", sawReady and "是" or "否"))
+    print(string.format("自动大招触发: %s", runResult.sawReady and "是" or "否"))
 
     return {
         config = config,
         snapshot = snapshot,
-        steps = steps,
-        sawReady = sawReady,
+        steps = runResult.steps,
+        sawReady = runResult.sawReady,
+        maxSpawned = runResult.maxSpawned,
+        minReserveRemaining = runResult.minReserveRemaining,
+    }
+end
+
+function SingleBattleTest.RunScenarioAssertions()
+    print("=== 单场战斗专项断言 ===")
+
+    local reinforcementConfig = {
+        level = 3,
+        teamLeft = buildHeroTeam({ 900005, 900007, 900002 }, 3),
+        teamRight = {
+            buildEnemy(910001, 1, { hp = 12, maxHp = 12, wpType = 1 }),
+        },
+        enemyReserve = {
+            buildEnemy(910001, 1, { hp = 12, maxHp = 12, wpType = 0 }),
+            buildEnemy(910002, 1, { hp = 16, maxHp = 16, wpType = 0 }),
+        },
+        refreshOnClear = true,
+        refreshTurns = 0,
+        winRule = "reserve_empty_and_board_clear",
+        loseRule = "all_hero_dead",
+        initialEnergy = 100,
+    }
+    local reinforcementResult = runRuntime(reinforcementConfig, { maxSteps = 2500 })
+    local reinforcementSnapshot = reinforcementResult.snapshot
+    assert(reinforcementSnapshot.result ~= nil, "reinforcement scenario should complete")
+    assert(reinforcementSnapshot.result.winner == "left", "reinforcement scenario should be won by left team")
+    assert(reinforcementSnapshot.result.reason == REINFORCEMENT_REASON, "reinforcement scenario should end after reserve is exhausted")
+    assert(reinforcementResult.maxSpawned >= 2, "reinforcement scenario should spawn reserve enemies")
+    assert((tonumber(reinforcementSnapshot.reserveRemaining) or 0) == 0, "reinforcement scenario should consume all reserve enemies")
+    print(string.format("reinforcement: ok (spawned=%d, reserveRemaining=%d)", reinforcementResult.maxSpawned, tonumber(reinforcementSnapshot.reserveRemaining) or 0))
+
+    local bossConfig = {
+        level = 4,
+        teamLeft = buildHeroTeam({ 900005, 900007, 900002 }, 4),
+        teamRight = {
+            buildEnemy(910007, 1, { hp = 8, maxHp = 8, wpType = 1, id = 910007, enemyId = 910007, monsterType = 2 }),
+        },
+        enemyReserve = {
+            buildEnemy(910004, 2, { hp = 40, maxHp = 40, wpType = 0 }),
+            buildEnemy(910003, 2, { hp = 40, maxHp = 40, wpType = 0 }),
+        },
+        refreshOnClear = false,
+        refreshTurns = 0,
+        winRule = "boss_dead",
+        loseRule = "all_hero_dead",
+        bossId = 910007,
+        initialEnergy = 100,
+    }
+    local bossResult = runRuntime(bossConfig, { maxSteps = 2500 })
+    local bossSnapshot = bossResult.snapshot
+    assert(bossSnapshot.result ~= nil, "boss_dead scenario should complete")
+    assert(bossSnapshot.result.winner == "left", "boss_dead scenario should be won by left team")
+    assert(bossSnapshot.result.reason == BOSS_DEAD_REASON, "boss_dead scenario should end immediately after boss dies")
+    assert((tonumber(bossSnapshot.reserveRemaining) or 0) > 0, "boss_dead scenario should finish before reserve is exhausted")
+    print(string.format("boss_dead: ok (reserveRemaining=%d)", tonumber(bossSnapshot.reserveRemaining) or 0))
+
+    return {
+        reinforcement = shallowCopy(reinforcementResult),
+        bossDead = shallowCopy(bossResult),
     }
 end
 

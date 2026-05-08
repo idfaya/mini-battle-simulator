@@ -1,9 +1,10 @@
 local RunCampConfig = require("config.roguelike.run_camp_config")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeCamp = {}
 
 local function applyTeamHeal(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not hero.isDead then
             local heal = math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0))
             hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
@@ -12,11 +13,7 @@ local function applyTeamHeal(runState, healPct)
 end
 
 local function restoreUltimateCharges(runState)
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
-        hero.ultimateCharges = hero.ultimateChargesMax
-    end
-    for _, hero in ipairs(runState.benchRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
         hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
         hero.ultimateCharges = hero.ultimateChargesMax
     end
@@ -33,7 +30,7 @@ local function clearAllStatuses(hero)
 end
 
 local function reviveOne(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if hero.isDead then
             hero.isDead = false
             hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0)))
@@ -45,7 +42,7 @@ end
 
 local function reviveFullRestOne(runState)
     local revived = false
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if hero.isDead then
             hero.isDead = false
             hero.currentHp = hero.maxHp or 1
@@ -61,17 +58,14 @@ local function reviveFullRestOne(runState)
 end
 
 local function clearAllSkillCooldowns(runState)
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        hero.skillCooldowns = {}
-    end
-    for _, hero in ipairs(runState.benchRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
         hero.skillCooldowns = {}
     end
 end
 
 local function healTeamAddPctOfMax(runState, pct)
     local p = tonumber(pct) or 0
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not hero.isDead then
             local maxHp = tonumber(hero.maxHp) or 0
             local add = math.floor(maxHp * p)
@@ -96,7 +90,7 @@ function RoguelikeCamp.BuildCampState(campId, runState)
         local available = true
         if action.effectType == "revive_full_rest" or (action.requirements or {}).hasDeadHero then
             available = false
-            for _, hero in ipairs(runState.teamRoster or {}) do
+            for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
                 if hero.isDead then
                     available = true
                     break
@@ -136,7 +130,7 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
     end
     if selected.effectType == "revive_full_rest" then
         local hasDeadHero = false
-        for _, hero in ipairs(runState.teamRoster or {}) do
+        for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
             if hero.isDead then
                 hasDeadHero = true
                 break

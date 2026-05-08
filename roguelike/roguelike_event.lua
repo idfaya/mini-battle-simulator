@@ -1,9 +1,10 @@
 local RunEventConfig = require("config.roguelike.run_event_config")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeEvent = {}
 
 local function applyTeamHeal(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not hero.isDead then
             local heal = math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0))
             hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
@@ -17,7 +18,7 @@ local function applyHpCost(runState, costType, costValue)
         return true
     end
     local anyAlive = false
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not hero.isDead then
             anyAlive = true
             local base = hero.maxHp or 0

@@ -1,4 +1,5 @@
 local RunShopGoods = require("config.roguelike.run_shop_goods")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeShop = {}
 
@@ -18,7 +19,7 @@ local function addUnique(list, value)
 end
 
 local function applyTeamHeal(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not hero.isDead then
             local heal = math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0))
             hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
@@ -27,7 +28,7 @@ local function applyTeamHeal(runState, healPct)
 end
 
 local function reviveOne(runState, healPct)
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if hero.isDead then
             hero.isDead = false
             hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0)))

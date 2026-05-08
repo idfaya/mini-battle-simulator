@@ -5,6 +5,7 @@ local RoguelikeEvent = require("roguelike.roguelike_event")
 local RoguelikeShop = require("roguelike.roguelike_shop")
 local RoguelikeCamp = require("roguelike.roguelike_camp")
 local RoguelikeSnapshot = require("roguelike.roguelike_snapshot")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RunNodePool = require("config.roguelike.run_node_pool")
 local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEncounterGroup = require("config.roguelike.run_encounter_group")
@@ -132,7 +133,7 @@ local function grantBattleExp(battle)
     end
     local leveledUnits = {}
     local recipients = 0
-    for _, unit in ipairs(state.teamRoster or {}) do
+    for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
         if unit.teamState == "active" and unit.isDead ~= true and (tonumber(unit.currentHp) or 0) > 0 then
             local oldLevel = tonumber(unit.level) or STARTER_LEVEL
             local newExp = (tonumber(unit.exp) or 0) + expReward
@@ -171,7 +172,7 @@ end
 local function recalcRecommendedLevel()
     -- 推荐等级 = 存活成员等级的平均值，向下取整；用于敌人缩放与新兵接入基准。
     local total, count = 0, 0
-    for _, hero in ipairs(state.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
         if not hero.isDead then
             total = total + (tonumber(hero.level) or 1)
             count = count + 1
@@ -184,7 +185,7 @@ local function recalcRecommendedLevel()
     end
     local sampleExp = 0
     local sampleCount = 0
-    for _, hero in ipairs(state.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
         if not hero.isDead then
             sampleExp = sampleExp + (tonumber(hero.exp) or 0)
             sampleCount = sampleCount + 1
@@ -235,6 +236,7 @@ local function resetRunState()
         availableNextNodeIds = {},
         gold = 0,
         food = 0,
+        ownedUnits = {},
         teamRoster = {},
         benchRoster = {},
         equipmentIds = {},
@@ -375,7 +377,7 @@ local function enterChapterResult()
     local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
     local clearRewards = chapter.chapterClearRewards or {}
     if (clearRewards.healPct or 0) > 0 then
-        for _, hero in ipairs(state.teamRoster or {}) do
+        for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
             if not hero.isDead then
                 local heal = math.floor((hero.maxHp or 0) * clearRewards.healPct)
                 hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
@@ -395,7 +397,7 @@ end
 
 local function evaluateFailureIfNoAlive()
     local anyAlive = false
-    for _, hero in ipairs(state.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
         if not hero.isDead and (hero.currentHp or 0) > 0 then
             anyAlive = true
             break
@@ -411,19 +413,6 @@ end
 
 local function canManageRoster()
     return state.phase == "map" or state.phase == "shop" or state.phase == "event" or state.phase == "camp"
-end
-
-local function findRosterIndex(roster, rosterId)
-    local targetId = tonumber(rosterId)
-    if not targetId then
-        return nil
-    end
-    for index, hero in ipairs(roster or {}) do
-        if tonumber(hero.rosterId) == targetId then
-            return index, hero
-        end
-    end
-    return nil
 end
 
 local function refreshContextState()
@@ -460,8 +449,8 @@ function RoguelikeRun.StartRun(config)
     state.nextLevelExp = getExpToNextLevel(STARTER_LEVEL)
 
     local starterHeroIds = (config or {}).starterHeroIds or { 900005, 900001, 900007, 900002 }
-    state.teamRoster = buildStarterRoster(state, starterHeroIds)
-    state.benchRoster = {}
+    state.ownedUnits = buildStarterRoster(state, starterHeroIds)
+    RoguelikeRoster.RefreshLegacyViews(state)
     refreshAvailableNodes()
     return RoguelikeRun.GetSnapshot()
 end
@@ -726,17 +715,10 @@ function RoguelikeRun.PromoteBenchHero(benchRosterId)
         return false, "roster_locked"
     end
 
-    local benchIndex, benchHero = findRosterIndex(state.benchRoster, benchRosterId)
-    if not benchIndex or not benchHero then
-        return false, "bench_hero_not_found"
+    local ok, reason = RoguelikeRoster.PromoteBenchHero(state, benchRosterId)
+    if not ok then
+        return false, reason
     end
-    if #(state.teamRoster or {}) >= (state.maxHeroCount or 5) then
-        return false, "team_full"
-    end
-
-    table.remove(state.benchRoster, benchIndex)
-    benchHero.teamState = "active"
-    state.teamRoster[#state.teamRoster + 1] = benchHero
     state.lastActionMessage = "候补已直接上阵"
     refreshContextState()
     return true
@@ -747,19 +729,10 @@ function RoguelikeRun.SwapBenchWithTeam(benchRosterId, teamRosterId)
         return false, "roster_locked"
     end
 
-    local benchIndex, benchHero = findRosterIndex(state.benchRoster, benchRosterId)
-    local teamIndex, teamHero = findRosterIndex(state.teamRoster, teamRosterId)
-    if not benchIndex or not benchHero then
-        return false, "bench_hero_not_found"
+    local ok, benchHero, teamHero = RoguelikeRoster.SwapBenchWithTeam(state, benchRosterId, teamRosterId)
+    if not ok then
+        return false, benchHero
     end
-    if not teamIndex or not teamHero then
-        return false, "team_hero_not_found"
-    end
-
-    state.teamRoster[teamIndex] = benchHero
-    state.benchRoster[benchIndex] = teamHero
-    benchHero.teamState = "active"
-    teamHero.teamState = "bench"
     state.lastActionMessage = string.format("%s 替换 %s 上阵", benchHero.name or "候补", teamHero.name or "队员")
     refreshContextState()
     return true

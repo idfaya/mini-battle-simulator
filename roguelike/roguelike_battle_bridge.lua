@@ -11,6 +11,7 @@ local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeBattleBridge = {}
 
@@ -153,7 +154,7 @@ local function buildBattleModifiers(runState, encounter)
                 monsterType = 2
             end
             if contains(params.monsterTypes, monsterType) then
-                for _, hero in ipairs(runState.teamRoster or {}) do
+                for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
                     result.atkPctByClass[hero.classId] = (result.atkPctByClass[hero.classId] or 0) + (params.value or 0)
                 end
             end
@@ -393,10 +394,11 @@ local function buildDeterministicSeedArray(runState, encounterOrBattle)
 end
 
 local function buildBattleConfig(runState, battle, encounter)
-    assignWpTypes(runState.teamRoster)
+    local teamRoster = RoguelikeRoster.GetTeamUnits(runState)
+    assignWpTypes(teamRoster)
     local modifiers = buildBattleModifiers(runState, encounter)
     local teamLeft = {}
-    for _, rosterHero in ipairs(runState.teamRoster or {}) do
+    for _, rosterHero in ipairs(teamRoster) do
         if not rosterHero.isDead and (rosterHero.currentHp or 0) > 0 then
             local heroData = buildHeroForBattle(rosterHero, modifiers, encounter)
             if heroData then
@@ -486,7 +488,7 @@ local function applyPostBattleRest(runState)
     local restoreUltimateCharges = rest.restoreUltimateCharges == true
     local reviveDead = rest.reviveDead == true
 
-    for _, hero in ipairs(runState.teamRoster or {}) do
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if hero.isDead and reviveDead then
             hero.isDead = false
             hero.teamState = "active"
@@ -558,7 +560,7 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
 
     local leftTeam, _ = BattleFormation.GetTeams()
     local aliveRoster = {}
-    for _, rosterHero in ipairs(runState.teamRoster or {}) do
+    for _, rosterHero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if not rosterHero.isDead and (rosterHero.currentHp or 0) > 0 then
             aliveRoster[#aliveRoster + 1] = rosterHero
         end
@@ -608,7 +610,7 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
         earnedGold = earnedGold + (modifiers.bonusGold or 0)
         runState.gold = (runState.gold or 0) + earnedGold
         if (modifiers.postBattleHealPct or 0) > 0 then
-            for _, hero in ipairs(runState.teamRoster or {}) do
+            for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
                 if not hero.isDead then
                     local heal = math.floor((hero.maxHp or 0) * modifiers.postBattleHealPct)
                     hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)

@@ -191,6 +191,22 @@ local function countRows(team)
     return front, back
 end
 
+local function assertOwnedUnitViews(snapshot)
+    local ownedUnits = snapshot and snapshot.ownedUnits or {}
+    local teamCount = 0
+    local benchCount = 0
+    for _, hero in ipairs(ownedUnits) do
+        if hero.teamState == "bench" then
+            benchCount = benchCount + 1
+        else
+            teamCount = teamCount + 1
+        end
+    end
+    assert(teamCount == #(snapshot.team or {}), "team view should match ownedUnits non-bench partition")
+    assert(benchCount == #(snapshot.bench or {}), "bench view should match ownedUnits bench partition")
+    assert(#ownedUnits == teamCount + benchCount, "ownedUnits should be fully partitioned into team/bench views")
+end
+
 local function chooseCampAction(snapshot)
     local hasDeadHero = false
     for _, hero in ipairs((snapshot and snapshot.team) or {}) do
@@ -234,6 +250,7 @@ local snapshot = Run.StartRun({
 assert(snapshot.phase == "map", "run should start on map")
 assert(#(snapshot.debug.availableNextNodeIds or {}) == 1, "start map should expose one node")
 assert(#(snapshot.team or {}) == 4, "run should start with 4 heroes")
+assertOwnedUnitViews(snapshot)
 local frontCount, backCount = countRows(snapshot.team)
 assert(frontCount == 2 and backCount == 2, "starter team should be 2 front and 2 back")
 
@@ -249,6 +266,7 @@ assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "recruit 
 snapshot = autoPromoteBench()
 assert(snapshot.phase == "map", "recruit node should return to map")
 assert(#(snapshot.team or {}) >= 5 or #(snapshot.bench or {}) == 0, "first recruit should auto fill available team slot")
+assertOwnedUnitViews(snapshot)
 
 choosePathAndEnter(101004)
 assert(Run.GetSnapshot().phase == "battle", "third path should be battle")
@@ -279,6 +297,7 @@ assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "second r
 local recruitSnapshot = autoPromoteBench()
 assert(recruitSnapshot.phase == "map", "second recruit should return to map")
 assert((#(recruitSnapshot.team or {}) + #(recruitSnapshot.bench or {})) >= 4, "second recruit should keep boss roster viable")
+assertOwnedUnitViews(recruitSnapshot)
 
 choosePathAndEnter(101011)
 assert(Run.GetSnapshot().phase == "battle", "boss node should be battle")
@@ -293,4 +312,5 @@ end
 
 assert(snapshot.phase == "chapter_result", "run should end at chapter result")
 assert(snapshot.chapterResult and snapshot.chapterResult.success == true, "chapter should clear successfully")
+assertOwnedUnitViews(snapshot)
 print("roguelike act1 test passed")

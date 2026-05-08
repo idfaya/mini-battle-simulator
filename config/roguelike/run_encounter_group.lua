@@ -115,9 +115,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "medium", pressureFactor = 0.80 },
-        playerScale = { hp = 1.14, atk = 1.06, def = 1.08, energyBonus = 8 },
-        enemyScale = { hp = 0.98, atk = 1.06, def = 0.98, hitDelta = 0, spellDCDelta = 0 },
+        budget = { difficulty = "medium", pressureFactor = 0.90 },
+        playerScale = { hp = 1.10, atk = 1.04, def = 1.06, energyBonus = 6 },
+        enemyScale = { hp = 1.00, atk = 1.08, def = 1.00, hitDelta = 0, spellDCDelta = 0 },
     },
 
     -- Elite battles
@@ -150,9 +150,9 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "hard", pressureFactor = 1.12 },
-        playerScale = { hp = 1.00, atk = 1.00, def = 1.02, energyBonus = 6 },
-        enemyScale = { hp = 1.04, atk = 1.10, def = 1.02, hitDelta = 1, spellDCDelta = 1 },
+        budget = { difficulty = "hard", pressureFactor = 1.18 },
+        playerScale = { hp = 0.98, atk = 0.98, def = 1.00, energyBonus = 4 },
+        enemyScale = { hp = 1.06, atk = 1.10, def = 1.04, hitDelta = 1, spellDCDelta = 1 },
     },
 
     -- Light route battles: used to stop low-risk routes from skipping straight to boss.
@@ -182,9 +182,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 40,
         speed = 1.0,
         gold = { min = 46, max = 64 },
-        budget = { difficulty = "medium", pressureFactor = 0.92 },
-        playerScale = { hp = 1.04, atk = 1.04, def = 1.06, energyBonus = 6 },
-        enemyScale = { hp = 1.02, atk = 1.06, def = 1.00, hitDelta = 0, spellDCDelta = 0, saveDelta = 0 },
+        budget = { difficulty = "hard", pressureFactor = 1.00 },
+        playerScale = { hp = 1.00, atk = 1.02, def = 1.04, energyBonus = 4 },
+        enemyScale = { hp = 1.04, atk = 1.08, def = 1.02, hitDelta = 0, spellDCDelta = 1, saveDelta = 0 },
     },
 
     -- Boss battle
@@ -200,10 +200,10 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        budget = { difficulty = "hard", pressureFactor = 1.14 },
-        playerScale = { hp = 1.04, atk = 1.02, def = 1.06, energyBonus = 12 },
+        budget = { difficulty = "deadly", pressureFactor = 1.20 },
+        playerScale = { hp = 1.00, atk = 1.00, def = 1.04, energyBonus = 10 },
         -- Frozen Gate 需要保留“会完整释放吟唱大招”的机制真实性，但压强应回到可通关区间。
-        enemyScale = { hp = 1.04, atk = 1.08, def = 1.02, hitDelta = 1, spellDCDelta = 1, saveDelta = 1 },
+        enemyScale = { hp = 1.06, atk = 1.10, def = 1.04, hitDelta = 1, spellDCDelta = 1, saveDelta = 1 },
     },
 }
 

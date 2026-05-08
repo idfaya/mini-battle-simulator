@@ -17,6 +17,11 @@ local function parseIds(raw)
     return result
 end
 
+if arg[1] == "assert" or arg[1] == "assertions" then
+    SingleBattleTest.RunScenarioAssertions()
+    return
+end
+
 local level = tonumber(arg[1])
 local heroIds = parseIds(arg[2])
 local enemyIds = parseIds(arg[3])

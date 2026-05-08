@@ -101,6 +101,14 @@ local function formatPct(numerator, denominator)
     return string.format("%.1f%%", (numerator / denominator) * 100)
 end
 
+local function formatNumber(value)
+    return string.format("%.1f", tonumber(value) or 0)
+end
+
+local function getMissingHp(currentHp, maxHp)
+    return math.max(0, (tonumber(maxHp) or 0) - (tonumber(currentHp) or 0))
+end
+
 -- #region debug-point A:debug-server-reporting
 local DEBUG_SESSION_FILE = ".dbg/frozen-gate-zero-loss.env"
 local DEBUG_LOCAL_LOG = ".dbg/trae-debug-log-frozen-gate-zero-loss.ndjson"
@@ -723,6 +731,8 @@ local function ensureNodeStat(routeStats, nodeId, nodeTitle)
         totalRoundsSpent = 0,
         totalBeforeHpPct = 0,
         totalAfterHpPct = 0,
+        totalBeforeMissingHp = 0,
+        totalAfterMissingHp = 0,
         failureReasons = {},
     }
     return routeStats.nodeStats[nodeId]
@@ -922,6 +932,8 @@ local function summarizeRoute(route, runReports)
             nodeStat.totalRoundsSpent = nodeStat.totalRoundsSpent + (battle.roundsSpent or 0)
             nodeStat.totalBeforeHpPct = nodeStat.totalBeforeHpPct + ((battle.beforeMaxHp or 0) > 0 and (battle.beforeHp / battle.beforeMaxHp) or 0)
             nodeStat.totalAfterHpPct = nodeStat.totalAfterHpPct + ((battle.afterMaxHp or 0) > 0 and (battle.afterHp / battle.afterMaxHp) or 0)
+            nodeStat.totalBeforeMissingHp = nodeStat.totalBeforeMissingHp + getMissingHp(battle.beforeHp, battle.beforeMaxHp)
+            nodeStat.totalAfterMissingHp = nodeStat.totalAfterMissingHp + getMissingHp(battle.afterHp, battle.afterMaxHp)
             if battle.phase == "reward" then
                 nodeStat.clears = nodeStat.clears + 1
             else
@@ -953,9 +965,11 @@ local function summarizeRoute(route, runReports)
             local avgSpentRounds = nodeStat.appearances > 0 and (nodeStat.totalRoundsSpent / nodeStat.appearances) or 0
             local avgBeforeHp = nodeStat.appearances > 0 and (nodeStat.totalBeforeHpPct / nodeStat.appearances) or 0
             local avgAfterHp = nodeStat.appearances > 0 and (nodeStat.totalAfterHpPct / nodeStat.appearances) or 0
+            local avgBeforeMissingHp = nodeStat.appearances > 0 and (nodeStat.totalBeforeMissingHp / nodeStat.appearances) or 0
+            local avgAfterMissingHp = nodeStat.appearances > 0 and (nodeStat.totalAfterMissingHp / nodeStat.appearances) or 0
             local failCount = countTableValues(nodeStat.failureReasons)
             print(string.format(
-                "  %-18s clear=%s avgTicks=%.1f avgEndRound=%.1f avgSpentRounds=%.1f hp=%s -> %s fail=%d",
+                "  %-18s clear=%s avgTicks=%.1f avgEndRound=%.1f avgSpentRounds=%.1f hp=%s -> %s missing=%s -> %s fail=%d",
                 node.title,
                 formatPct(nodeStat.clears, nodeStat.appearances),
                 avgTicks,
@@ -963,6 +977,8 @@ local function summarizeRoute(route, runReports)
                 avgSpentRounds,
                 formatPct(avgBeforeHp, 1),
                 formatPct(avgAfterHp, 1),
+                formatNumber(avgBeforeMissingHp),
+                formatNumber(avgAfterMissingHp),
                 failCount
             ))
             if failCount > 0 then
@@ -1001,7 +1017,7 @@ local function printVerboseRuns(route, runReports)
         ))
         for _, battle in ipairs(report.battles) do
             print(string.format(
-                "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d reason=%s",
+            "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d missing=%d -> %d reason=%s",
                 battle.title,
                 battle.phase,
                 battle.ticks,
@@ -1012,6 +1028,8 @@ local function printVerboseRuns(route, runReports)
                 battle.beforeMaxHp,
                 battle.afterHp,
                 battle.afterMaxHp,
+            getMissingHp(battle.beforeHp, battle.beforeMaxHp),
+            getMissingHp(battle.afterHp, battle.afterMaxHp),
                 battle.reason
             ))
         end

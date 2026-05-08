@@ -8,6 +8,7 @@ local FeatBuildConfig = require("config.feat_build_config")
 local ClassBuildProgression = require("config.class_build_progression")
 local HeroBuild = require("modules.hero_build")
 local BattleEvent = require("core.battle_event")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeReward = {}
 local RECRUIT_LEVEL = 1
@@ -39,14 +40,7 @@ local function containsHeroId(roster, heroId)
 end
 
 local function collectAllUnits(runState)
-    local result = {}
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        result[#result + 1] = hero
-    end
-    for _, hero in ipairs(runState.benchRoster or {}) do
-        result[#result + 1] = hero
-    end
-    return result
+    return RoguelikeRoster.GetOwnedUnits(runState)
 end
 
 local function getClassIdFromHeroId(heroId)
@@ -73,7 +67,7 @@ local function findClassUnit(runState, classId)
 end
 
 local function getActiveUnitCount(runState)
-    return #(runState.teamRoster or {})
+    return RoguelikeRoster.GetTeamUnitCount(runState)
 end
 
 local function hasFreeActiveSlot(runState)
@@ -284,19 +278,16 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
     heroRecord.ultimateCharges = heroRecord.ultimateCharges or heroRecord.ultimateChargesMax
 
     if recruitOptions.forceBench then
-        heroRecord.teamState = "bench"
-        runState.benchRoster[#runState.benchRoster + 1] = heroRecord
+        RoguelikeRoster.AddOwnedUnit(runState, heroRecord, "bench")
         runState.lastActionMessage = "新职业卡已加入候补"
         return true, heroRecord
     end
 
     if hasFreeActiveSlot(runState) then
-        heroRecord.teamState = "active"
-        runState.teamRoster[#runState.teamRoster + 1] = heroRecord
+        RoguelikeRoster.AddOwnedUnit(runState, heroRecord, "active")
         runState.lastActionMessage = "新职业卡已直接加入上阵队伍"
     else
-        heroRecord.teamState = "bench"
-        runState.benchRoster[#runState.benchRoster + 1] = heroRecord
+        RoguelikeRoster.AddOwnedUnit(runState, heroRecord, "bench")
         runState.lastActionMessage = "新职业卡已加入候补"
     end
 
@@ -376,14 +367,7 @@ end
 function RoguelikeReward.GenerateLevelUpRewardState(runState)
     local existing = {}
     local existingSeen = {}
-    for _, unit in ipairs(runState.teamRoster or {}) do
-        local classId = tonumber(unit.classId) or 0
-        if classId > 0 and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" and not existingSeen[classId] then
-            existingSeen[classId] = true
-            existing[#existing + 1] = classId
-        end
-    end
-    for _, unit in ipairs(runState.benchRoster or {}) do
+    for _, unit in ipairs(collectAllUnits(runState)) do
         local classId = tonumber(unit.classId) or 0
         if classId > 0 and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" and not existingSeen[classId] then
             existingSeen[classId] = true
@@ -493,9 +477,9 @@ function RoguelikeReward.ApplyLevelUpReward(runState, option)
             return false, "create_class_unit_failed"
         end
         if teamState == "active" then
-            runState.teamRoster[#runState.teamRoster + 1] = created
+            RoguelikeRoster.AddOwnedUnit(runState, created, "active")
         else
-            runState.benchRoster[#runState.benchRoster + 1] = created
+            RoguelikeRoster.AddOwnedUnit(runState, created, "bench")
         end
         runState.lastActionMessage = string.format("%s 已加入队伍（%s）",
             created.name or "职业单位", getPromotionStageLabel(created.promotionStage))

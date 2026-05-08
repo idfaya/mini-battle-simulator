@@ -4,6 +4,7 @@ local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local FeatConfig = require("config.feat_config")
 local FeatBuildConfig = require("config.feat_build_config")
 local ClassBuildProgression = require("config.class_build_progression")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeSnapshot = {}
 local LEVEL_EXP_THRESHOLDS = {
@@ -164,6 +165,9 @@ local function serializeMap(runState)
 end
 
 function RoguelikeSnapshot.Build(runState, battleSnapshot)
+    local ownedUnits = serializeTeam(RoguelikeRoster.GetOwnedUnits(runState))
+    local teamRoster = serializeTeam(RoguelikeRoster.GetTeamUnits(runState))
+    local benchRoster = serializeTeam(RoguelikeRoster.GetBenchUnits(runState))
     return {
         phase = runState.phase,
         chapterId = runState.chapterId,
@@ -177,8 +181,9 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         food = runState.food or 0,
         lastActionMessage = runState.lastActionMessage or "",
         map = serializeMap(runState),
-        team = serializeTeam(runState.teamRoster),
-        bench = serializeTeam(runState.benchRoster),
+        ownedUnits = ownedUnits,
+        team = teamRoster,
+        bench = benchRoster,
         equipments = serializeEquipments(runState.equipmentIds),
         blessings = serializeBlessings(runState.blessingIds),
         eventState = runState.eventState,
