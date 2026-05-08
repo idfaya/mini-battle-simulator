@@ -294,26 +294,53 @@ local function appendEnemyId(target, enemyId)
     end
 end
 
+local function appendEnemyGroupIds(target, groupId)
+    local group = RunEnemyGroup.GetGroup(tonumber(groupId))
+    if not group then
+        return
+    end
+    for _, enemyId in ipairs(group.front or {}) do
+        appendEnemyId(target, enemyId)
+    end
+    for _, enemyId in ipairs(group.back or {}) do
+        appendEnemyId(target, enemyId)
+    end
+    for _, enemyId in ipairs(group.elite or {}) do
+        appendEnemyId(target, enemyId)
+    end
+    appendEnemyId(target, group.boss)
+    for _, enemyId in ipairs(group.guards or {}) do
+        appendEnemyId(target, enemyId)
+    end
+end
+
+local function getBattleWaveGroupIds(battle)
+    local waveGroupIds = {}
+    if not battle then
+        return waveGroupIds
+    end
+    for _, groupId in ipairs(battle.waveGroupIds or {}) do
+        local id = tonumber(groupId)
+        if id then
+            waveGroupIds[#waveGroupIds + 1] = id
+        end
+    end
+    if #waveGroupIds == 0 then
+        local openingGroupId = tonumber(battle.openingGroupId)
+        if openingGroupId then
+            waveGroupIds[#waveGroupIds + 1] = openingGroupId
+        end
+    end
+    return waveGroupIds
+end
+
 local function flattenBattleEnemyIds(battle)
     local enemyIds = {}
     if not battle then
         return enemyIds
     end
-    local opening = RunEnemyGroup.GetGroup(tonumber(battle.openingGroupId))
-    if opening then
-        for _, enemyId in ipairs(opening.front or {}) do
-            appendEnemyId(enemyIds, enemyId)
-        end
-        for _, enemyId in ipairs(opening.back or {}) do
-            appendEnemyId(enemyIds, enemyId)
-        end
-        for _, enemyId in ipairs(opening.elite or {}) do
-            appendEnemyId(enemyIds, enemyId)
-        end
-        appendEnemyId(enemyIds, opening.boss)
-        for _, enemyId in ipairs(opening.guards or {}) do
-            appendEnemyId(enemyIds, enemyId)
-        end
+    for _, groupId in ipairs(getBattleWaveGroupIds(battle)) do
+        appendEnemyGroupIds(enemyIds, groupId)
     end
     for _, enemyId in ipairs(battle.reserveUnits or {}) do
         appendEnemyId(enemyIds, enemyId)
@@ -326,23 +353,12 @@ local function pickInitialEnemyIds(battle)
     if not battle then
         return enemyIds
     end
-    local opening = RunEnemyGroup.GetGroup(tonumber(battle.openingGroupId))
-    if not opening then
+    local waveGroupIds = getBattleWaveGroupIds(battle)
+    local openingGroupId = waveGroupIds[1]
+    if not openingGroupId then
         return enemyIds
     end
-    for _, enemyId in ipairs(opening.front or {}) do
-        appendEnemyId(enemyIds, enemyId)
-    end
-    for _, enemyId in ipairs(opening.back or {}) do
-        appendEnemyId(enemyIds, enemyId)
-    end
-    for _, enemyId in ipairs(opening.elite or {}) do
-        appendEnemyId(enemyIds, enemyId)
-    end
-    appendEnemyId(enemyIds, opening.boss)
-    for _, enemyId in ipairs(opening.guards or {}) do
-        appendEnemyId(enemyIds, enemyId)
-    end
+    appendEnemyGroupIds(enemyIds, openingGroupId)
     return enemyIds
 end
 
@@ -350,6 +366,18 @@ local function buildReserveEnemies(battle, level, encounter, budgetAdjust)
     local reserve = {}
     if not battle then
         return reserve
+    end
+    local waveGroupIds = getBattleWaveGroupIds(battle)
+    for waveIndex = 2, #waveGroupIds do
+        local groupEnemyIds = {}
+        appendEnemyGroupIds(groupEnemyIds, waveGroupIds[waveIndex])
+        for _, enemyId in ipairs(groupEnemyIds) do
+            local enemyData = buildEnemyForBattle(enemyId, level, 0, encounter, budgetAdjust)
+            if enemyData then
+                enemyData.wpType = 0
+                reserve[#reserve + 1] = enemyData
+            end
+        end
     end
     for _, enemyId in ipairs(battle.reserveUnits or {}) do
         local enemyData = buildEnemyForBattle(enemyId, level, 0, encounter, budgetAdjust)
@@ -366,7 +394,7 @@ local function resolveBattleBossId(battle)
     if explicitBossId then
         return explicitBossId
     end
-    local openingGroupId = tonumber(battle and battle.openingGroupId)
+    local openingGroupId = getBattleWaveGroupIds(battle)[1]
     if not openingGroupId then
         return nil
     end

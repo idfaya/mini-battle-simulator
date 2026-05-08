@@ -9,10 +9,9 @@
 | `act` | string | 章节编号 | 所属章节 |
 | `type` | enum | `normal` / `elite` / `boss` | 战斗类型 |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` | 路线档位 |
-| `opening_group` | string | 编组编号 | 开场敌军编组 |
+| `wave_group_ids` | string[] | 编组编号列表 | 敌军波次列表，按顺序依次刷出 |
 | `exp_reward` | integer | `0+` | 胜利后发放给存活上阵单位的经验 |
-| `reserve_units` | string[] | 单位列表 | 本场战斗后备单位 |
-| `refresh_turns` | integer | `1` / `2` | 刷新间隔 |
+| `refresh_turns` | integer | `0~2` | 波次刷新间隔；`0` 表示仅清场后刷下一波 |
 | `refresh_on_clear` | boolean | `true` / `false` | 清场立刷 |
 | `spawn_order` | enum | `back_first_then_front` | 补位顺序 |
 | `win_rule` | enum | `reserve_empty_and_board_clear` / `boss_dead` | 胜利条件 |
@@ -65,10 +64,9 @@
 | --- | --- |
 | `type` | `normal` |
 | `route` | `safe` 或 `high_pressure` |
-| `opening_group` | 普通战开场编组 |
+| `wave_group_ids` | `2~3` 个编组 |
 | `exp_reward` | `20` |
-| `reserve_units` | `6~12` 个单位 |
-| `refresh_turns` | `2` |
+| `refresh_turns` | `0` |
 | `refresh_on_clear` | `true` |
 | `spawn_order` | `back_first_then_front` |
 | `win_rule` | `reserve_empty_and_board_clear` |
@@ -84,10 +82,9 @@
 | --- | --- |
 | `type` | `elite` |
 | `route` | `high_pressure` |
-| `opening_group` | 精英战开场编组 |
+| `wave_group_ids` | `2~3` 个编组 |
 | `exp_reward` | `36` |
-| `reserve_units` | `10~14` 个单位 |
-| `refresh_turns` | `2` |
+| `refresh_turns` | `0` |
 | `refresh_on_clear` | `true` |
 | `spawn_order` | `back_first_then_front` |
 | `win_rule` | `reserve_empty_and_board_clear` |
@@ -103,10 +100,9 @@
 | --- | --- |
 | `type` | `boss` |
 | `route` | `boss_path` |
-| `opening_group` | Boss 开场编组 |
+| `wave_group_ids` | `2~4` 个编组，最后一波通常含 Boss |
 | `exp_reward` | `60` |
-| `reserve_units` | 按 Boss 配置 |
-| `refresh_turns` | `2` |
+| `refresh_turns` | `0` |
 | `refresh_on_clear` | `true` |
 | `spawn_order` | `back_first_then_front` |
 | `win_rule` | `boss_dead` |
@@ -127,9 +123,8 @@
 - `act`
 - `type`
 - `route`
-- `opening_group`
+- `wave_group_ids`
 - `exp_reward`
-- `reserve_units`
 - `refresh_turns`
 - `refresh_on_clear`
 - `spawn_order`
@@ -182,10 +177,9 @@ name = 墓园外围
 act = act1
 type = normal
 route = safe
-opening_group = enemy_group_act1_opening_01
+wave_group_ids = enemy_group_act1_wave_01,enemy_group_act1_wave_02
 exp_reward = 20
-reserve_units = zombie_grunt,zombie_grunt,bone_thrower,bone_thrower,grave_archer,grave_shield
-refresh_turns = 2
+refresh_turns = 0
 refresh_on_clear = true
 spawn_order = back_first_then_front
 win_rule = reserve_empty_and_board_clear
@@ -204,10 +198,9 @@ name = 墓园领主
 act = act1
 type = boss
 route = boss_path
-opening_group = enemy_group_act1_boss_opening
+wave_group_ids = enemy_group_act1_boss_wave_01,enemy_group_act1_boss_wave_02,enemy_group_act1_boss_wave_03
 exp_reward = 60
-reserve_units = boss_guard,boss_guard,elite_tomb_guard,grave_archer,grave_archer
-refresh_turns = 2
+refresh_turns = 0
 refresh_on_clear = true
 spawn_order = back_first_then_front
 win_rule = boss_dead
@@ -221,10 +214,10 @@ boss_phase_trigger = hp70|40
 ### 7.3 敌军编组表
 
 ```text
-id = enemy_group_act1_opening_01
-name = 墓园外围开场包
-front = zombie_grunt,zombie_grunt,zombie_grunt
-back = bone_thrower,bone_thrower,bone_thrower
+id = enemy_group_act1_wave_01
+name = 墓园外围第一波
+front = zombie_grunt,zombie_grunt
+back = bone_thrower
 elite =
 boss =
 guards =
