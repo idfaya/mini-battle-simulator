@@ -15,6 +15,7 @@
 
 ---@class RunEventResult
 ---@field gold integer|nil
+---@field battleId integer|nil
 ---@field encounterId integer|nil
 ---@field rewardGroupId integer|nil
 ---@field value number|nil
@@ -76,7 +77,7 @@ RunEventConfig.EVENTS = {
                 label = "Chase the raiders",
                 resultType = "trigger_battle",
                 result = {
-                    encounterId = 101103,
+                    battleId = 101103,
                     rewardGroupId = 101301,
                 },
             },
@@ -112,7 +113,7 @@ RunEventConfig.EVENTS = {
                 label = "Open the sealed vault",
                 resultType = "trigger_battle",
                 result = {
-                    encounterId = 101104,
+                    battleId = 101104,
                     rewardGroupId = 101301,
                 },
             },

@@ -138,7 +138,10 @@ function createRosterInfo(member: RunSnapshot["team"][number]) {
 
   const primary = document.createElement("div");
   primary.className = "run-roster-meta";
-  primary.textContent = `${member.name}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+  const stageLabel =
+    member.promotionStage === "high" ? "高阶" : member.promotionStage === "mid" ? "中阶" : member.promotionStage === "low" ? "低阶" : "";
+  const levelText = `Lv${member.level}${member.nextLevelExp && member.nextLevelExp > 0 ? ` ${member.exp ?? 0}/${(member.exp ?? 0) + member.nextLevelExp}` : ""}`;
+  primary.textContent = `${member.name}${stageLabel ? ` · ${stageLabel}` : ""} · ${levelText}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
   wrapper.append(primary);
 
   const summary = member.buildSummary ?? [];
@@ -290,9 +293,9 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     title.className = "panel-title";
     title.textContent =
       snapshot.rewardState.kind === "battle_levelup"
-        ? "选择升级"
+        ? "选择职业卡"
         : snapshot.rewardState.kind === "node_recruit"
-          ? "选择招募"
+          ? "选择职业卡"
           : "选择奖励";
     host.append(title);
     if (snapshot.rewardState.kind === "battle_levelup") {
@@ -302,8 +305,22 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         const tags = option.featTags ?? [];
         const isRisk = tags.includes("risk");
         const heroName = option.heroName ?? "未知";
-        const fromLevel = Math.max(1, (option.nextLevel ?? 2) - 1);
-        const toLevel = option.nextLevel ?? fromLevel + 1;
+        const fromStage =
+          option.promotionStageBefore === "high"
+            ? "高阶"
+            : option.promotionStageBefore === "mid"
+              ? "中阶"
+              : option.promotionStageBefore === "low"
+                ? "低阶"
+                : "未持有";
+        const toStage =
+          option.promotionStageAfter === "high"
+            ? "高阶"
+            : option.promotionStageAfter === "mid"
+              ? "中阶"
+              : option.promotionStageAfter === "low"
+                ? "低阶"
+                : "-";
         const featName = option.featName ?? option.label;
         const featCode = option.featCode ?? option.description ?? "";
 
@@ -319,7 +336,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         hero.textContent = heroName;
         const lv = document.createElement("div");
         lv.className = "reward-card__level";
-        lv.textContent = `Lv.${fromLevel} → Lv.${toLevel}`;
+        lv.textContent = `${fromStage} → ${toStage}`;
         header.append(hero, lv);
 
         const feat = document.createElement("div");

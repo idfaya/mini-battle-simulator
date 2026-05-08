@@ -267,6 +267,12 @@ snapshot = runBattleUntilResolved(700)
 assert(snapshot.phase == "reward" or snapshot.phase == "map", "ember ambush should resolve")
 snapshot = acceptRewardIfPresent()
 
+choosePathAndEnter(101012)
+assert(Run.GetSnapshot().phase == "battle", "icebound crossing should be battle")
+snapshot = runBattleUntilResolved(700)
+assert(snapshot.phase == "reward" or snapshot.phase == "map", "icebound crossing should resolve")
+snapshot = acceptRewardIfPresent()
+
 choosePathAndEnter(101010)
 assert(Run.GetSnapshot().phase == "reward", "last stop should open second recruit reward")
 assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "second recruit selection should resolve")

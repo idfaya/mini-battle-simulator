@@ -20,6 +20,7 @@ local SkillTimeline = require("core.skill_timeline")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ConsoleRenderer = require("ui.console_renderer")
 local BattleRhythmConfig = require("config.battle_rhythm_config")
+local EnemyData = require("config.enemy_data")
 
 ---@class BattleMain
 local BattleMain = {}
@@ -65,6 +66,7 @@ local battleResult = {
 local currentAction = nil
 local actionPostGapRemainingMs = 0
 local queuedUltimateByHero = {}
+local battleFlowState = nil
 
 local function SafeClock()
     local ok, result = pcall(function()
@@ -79,6 +81,201 @@ local function SafeClock()
     end
 
     return 0
+end
+
+local function NormalizeBoolean(value, defaultValue)
+    if type(value) == "boolean" then
+        return value
+    end
+    if type(value) == "number" then
+        return value ~= 0
+    end
+    if type(value) == "string" then
+        local normalized = string.lower(value)
+        if normalized == "true" or normalized == "1" or normalized == "yes" then
+            return true
+        end
+        if normalized == "false" or normalized == "0" or normalized == "no" then
+            return false
+        end
+    end
+    return defaultValue
+end
+
+local function ShallowCopyTable(source)
+    local result = {}
+    for key, value in pairs(source or {}) do
+        result[key] = value
+    end
+    return result
+end
+
+local function GuessEnemyLevel(beginState)
+    local stateLevel = tonumber(beginState and beginState.level)
+    if stateLevel and stateLevel > 0 then
+        return math.floor(stateLevel)
+    end
+    for _, heroData in ipairs((beginState and beginState.teamRight) or {}) do
+        local heroLevel = tonumber(heroData and (heroData._level or heroData.level))
+        if heroLevel and heroLevel > 0 then
+            return math.floor(heroLevel)
+        end
+    end
+    return nil
+end
+
+local function NormalizeReserveUnit(entry, fallbackLevel)
+    if entry == nil then
+        return nil
+    end
+
+    if type(entry) == "table" then
+        local directHeroData = entry.hp ~= nil
+            or entry.maxHp ~= nil
+            or entry.skillsConfig ~= nil
+            or entry.skills ~= nil
+            or entry.name ~= nil
+        if directHeroData then
+            return ShallowCopyTable(entry)
+        end
+
+        local enemyId = tonumber(entry.enemyId or entry.enemy_id or entry.id or entry.configId or entry.heroId)
+        if enemyId then
+            local heroData = EnemyData.ConvertToHeroData(enemyId, tonumber(entry.level or entry._level or fallbackLevel))
+            if heroData then
+                for key, value in pairs(entry) do
+                    heroData[key] = value
+                end
+                heroData.id = heroData.id or enemyId
+                return heroData
+            end
+        end
+        return ShallowCopyTable(entry)
+    end
+
+    local enemyId = tonumber(entry)
+    if enemyId then
+        return EnemyData.ConvertToHeroData(enemyId, tonumber(fallbackLevel))
+    end
+
+    return nil
+end
+
+local function NormalizeBattleFlowState(beginState)
+    local fallbackEnemyLevel = GuessEnemyLevel(beginState)
+    local reserveInput = beginState and (
+        beginState.enemyReserve
+        or beginState.enemy_reserve
+        or beginState.reserveUnits
+        or beginState.reserve_units
+        or beginState.enemyReserveIds
+        or beginState.reserveEnemyIds
+    ) or nil
+    local reserveQueue = {}
+    if type(reserveInput) == "table" then
+        for _, entry in ipairs(reserveInput) do
+            local unitData = NormalizeReserveUnit(entry, fallbackEnemyLevel)
+            if unitData then
+                reserveQueue[#reserveQueue + 1] = unitData
+            end
+        end
+    end
+
+    local refreshTurns = math.max(0, math.floor(tonumber(beginState and (beginState.refreshTurns or beginState.refresh_turns)) or 0))
+    local winRule = beginState and (beginState.winRule or beginState.win_rule) or nil
+    local loseRule = beginState and (beginState.loseRule or beginState.lose_rule) or nil
+    local bossId = beginState and (beginState.bossId or beginState.boss_id) or nil
+    local spawnOrder = beginState and (beginState.spawnOrder or beginState.spawn_order) or "back_first_then_front"
+    local initialEnergy = beginState and beginState.initialEnergy
+    if initialEnergy == nil then
+        initialEnergy = BattleEnergy.GetDefaultInitialEnergy()
+    end
+
+    return {
+        enemyReserveQueue = reserveQueue,
+        refreshTurns = refreshTurns,
+        refreshOnClear = NormalizeBoolean(beginState and (beginState.refreshOnClear or beginState.refresh_on_clear), false),
+        winRule = winRule or "reserve_empty_and_board_clear",
+        loseRule = loseRule or "all_hero_dead",
+        bossId = bossId,
+        spawnOrder = spawnOrder,
+        initialEnergy = tonumber(initialEnergy) or 0,
+        lastPeriodicRefreshRound = 0,
+        lastClearRefreshRound = 0,
+        totalSpawned = 0,
+    }
+end
+
+local function BuildHeroAttributeMap(hero)
+    return {
+        [BattleAttribute.ATTR_ID.HP] = hero.maxHp or hero.hp or 100,
+        [BattleAttribute.ATTR_ID.ATK] = hero.atk or 0,
+        [BattleAttribute.ATTR_ID.DEF] = hero.def or 0,
+        [BattleAttribute.ATTR_ID.SPEED] = hero.spd or hero.speed or 0,
+        [BattleAttribute.ATTR_ID.CRIT_RATE] = hero.crt or hero.critRate or 0,
+        [BattleAttribute.ATTR_ID.CRIT_DMG] = hero.crtd or hero.critDamage or 150,
+        [BattleAttribute.ATTR_ID.HIT_RATE] = hero.hit or hero.hitRate or 100,
+        [BattleAttribute.ATTR_ID.DODGE_RATE] = hero.res or hero.dodgeRate or 0,
+        [BattleAttribute.ATTR_ID.DMG_REDUCE] = hero.damageReduce or 0,
+        [BattleAttribute.ATTR_ID.DMG_INCREASE] = hero.damageIncrease or 0,
+    }
+end
+
+local function PublishCombatLog(message, extra)
+    BattleEvent.Publish("CombatLog", {
+        message = message,
+        extra = extra or {},
+    })
+end
+
+local function MatchesBossIdentifier(heroOrData)
+    local flow = battleFlowState
+    if not flow then
+        return false
+    end
+
+    local bossId = flow.bossId
+    if bossId ~= nil and bossId ~= "" then
+        local expected = tostring(bossId)
+        local candidates = {
+            heroOrData and heroOrData.id,
+            heroOrData and heroOrData.configId,
+            heroOrData and heroOrData.enemyId,
+            heroOrData and heroOrData.heroId,
+        }
+        for _, candidate in ipairs(candidates) do
+            if candidate ~= nil and tostring(candidate) == expected then
+                return true
+            end
+        end
+        return false
+    end
+
+    local monsterType = tonumber(heroOrData and (heroOrData._monsterType or heroOrData.monsterType)) or 0
+    return monsterType == 2
+end
+
+local function HasAliveBossOnBoard()
+    local _, teamRight = BattleFormation.GetTeams()
+    for _, hero in ipairs(teamRight or {}) do
+        if hero and hero.isAlive and not hero.isDead and MatchesBossIdentifier(hero) then
+            return true
+        end
+    end
+    return false
+end
+
+local function HasBossInReserve()
+    local flow = battleFlowState
+    if not flow then
+        return false
+    end
+    for _, entry in ipairs(flow.enemyReserveQueue or {}) do
+        if MatchesBossIdentifier(entry) then
+            return true
+        end
+    end
+    return false
 end
 
 -- ==================== 内部函数 ====================
@@ -102,6 +299,7 @@ local function ResetState()
     }
     currentAction = nil
     actionPostGapRemainingMs = 0
+    battleFlowState = nil
 end
 
 local function GetHeroBattleId(hero)
@@ -141,6 +339,121 @@ local function BuildRoundParticipants()
         end
     end
     return participants
+end
+
+local function RegisterSpawnedHero(hero, options)
+    if not hero then
+        return false
+    end
+
+    BattleAttribute.Init(hero, BuildHeroAttributeMap(hero))
+    BattleSkill.Init(hero, hero.skillsConfig or {})
+
+    local initialEnergy = tonumber(options and options.initialEnergy) or 0
+    if initialEnergy > 0 then
+        BattleEnergy.AddEnergy(hero, initialEnergy, "initial_energy", { silent = true })
+    end
+
+    BattleActionOrder.RegisterHero(hero, options and options.initialProgress or 0)
+
+    local heroId = GetHeroBattleId(hero)
+    if heroId and currentRound > 0 then
+        roundParticipants[heroId] = true
+    end
+
+    BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(hero))
+    return true
+end
+
+local function SpawnEnemyReinforcements(reason)
+    local flow = battleFlowState
+    if not flow or not flow.enemyReserveQueue or #flow.enemyReserveQueue == 0 then
+        return false
+    end
+
+    local availableSlots = BattleFormation.GetAvailableSlotCount(false)
+    if availableSlots <= 0 then
+        return false
+    end
+
+    local spawnedHeroes = {}
+    while availableSlots > 0 and #flow.enemyReserveQueue > 0 do
+        local nextHeroData = table.remove(flow.enemyReserveQueue, 1)
+        local hero = BattleFormation.ReviveHero(nil, nextHeroData, false, {
+            spawnOrder = flow.spawnOrder,
+        })
+        if hero and RegisterSpawnedHero(hero, {
+            initialEnergy = flow.initialEnergy,
+            initialProgress = 0,
+        }) then
+            spawnedHeroes[#spawnedHeroes + 1] = hero
+        end
+        availableSlots = BattleFormation.GetAvailableSlotCount(false)
+    end
+
+    if #spawnedHeroes == 0 then
+        return false
+    end
+
+    flow.totalSpawned = (flow.totalSpawned or 0) + #spawnedHeroes
+    if reason == "periodic" then
+        flow.lastPeriodicRefreshRound = currentRound
+    elseif reason == "clear" then
+        flow.lastClearRefreshRound = currentRound
+    end
+
+    local names = {}
+    for _, hero in ipairs(spawnedHeroes) do
+        names[#names + 1] = hero.name or ("Enemy_" .. tostring(hero.instanceId))
+    end
+
+    PublishCombatLog(string.format("敌方增援抵达：%s", table.concat(names, "、")), {
+        trigger = reason,
+        round = currentRound,
+        reserveRemaining = #(flow.enemyReserveQueue or {}),
+    })
+
+    local orderList = BattleActionOrder.GetActionOrder and BattleActionOrder.GetActionOrder() or {}
+    local heroes = {}
+    for _, item in ipairs(orderList) do
+        if item and item.hero then
+            heroes[#heroes + 1] = item.hero
+        end
+    end
+    BattleEvent.Publish(
+        BattleVisualEvents.ACTION_ORDER_CHANGED,
+        BattleVisualEvents.BuildActionOrderChanged(heroes)
+    )
+    return true
+end
+
+local function TryRefreshEnemyReserve(trigger)
+    local flow = battleFlowState
+    if not flow or not flow.enemyReserveQueue or #flow.enemyReserveQueue == 0 then
+        return false
+    end
+
+    if trigger == "periodic" then
+        if flow.refreshTurns <= 0 or currentRound <= 1 or flow.lastPeriodicRefreshRound == currentRound then
+            return false
+        end
+        if ((currentRound - 1) % flow.refreshTurns) ~= 0 then
+            return false
+        end
+        return SpawnEnemyReinforcements("periodic")
+    end
+
+    if trigger == "clear" then
+        if not flow.refreshOnClear or flow.lastClearRefreshRound == currentRound then
+            return false
+        end
+        if BattleFormation.GetAliveHeroCount(false) > 0 then
+            return false
+        end
+        return SpawnEnemyReinforcements("clear")
+    end
+
+    return false
 end
 
 local function StartNextCombatRound()
@@ -260,20 +573,7 @@ local function InitSubsystems(beginState)
     local allHeroes = BattleFormation.GetAllHeroes()
     for _, hero in ipairs(allHeroes) do
         if hero then
-            -- 从英雄数据构建属性映射表
-            local attributeMap = {
-                [BattleAttribute.ATTR_ID.HP] = hero.maxHp or hero.hp or 100,
-                [BattleAttribute.ATTR_ID.ATK] = hero.atk or 0,
-                [BattleAttribute.ATTR_ID.DEF] = hero.def or 0,
-                [BattleAttribute.ATTR_ID.SPEED] = hero.spd or hero.speed or 0,
-                [BattleAttribute.ATTR_ID.CRIT_RATE] = hero.crt or hero.critRate or 0,
-                [BattleAttribute.ATTR_ID.CRIT_DMG] = hero.crtd or hero.critDamage or 150,
-                [BattleAttribute.ATTR_ID.HIT_RATE] = hero.hit or hero.hitRate or 100,
-                [BattleAttribute.ATTR_ID.DODGE_RATE] = hero.res or hero.dodgeRate or 0,
-                [BattleAttribute.ATTR_ID.DMG_REDUCE] = hero.damageReduce or 0,
-                [BattleAttribute.ATTR_ID.DMG_INCREASE] = hero.damageIncrease or 0,
-            }
-            BattleAttribute.Init(hero, attributeMap)
+            BattleAttribute.Init(hero, BuildHeroAttributeMap(hero))
         end
     end
     Logger.Debug("  所有英雄属性初始化完成，共 " .. #allHeroes .. " 名英雄")
@@ -374,10 +674,37 @@ local function CheckBattleEnd()
         return true, "draw", "达到最大回合数限制"
     end
 
-    -- 检查左侧队伍是否全灭
     local leftAlive = BattleFormation.GetAliveHeroCount(true)
-    -- 检查右侧队伍是否全灭
     local rightAlive = BattleFormation.GetAliveHeroCount(false)
+    local flow = battleFlowState
+    local reserveRemaining = flow and #(flow.enemyReserveQueue or {}) or 0
+
+    if leftAlive == 0 and rightAlive == 0 and reserveRemaining == 0 and not HasBossInReserve() then
+        return true, "draw", "双方同归于尽"
+    end
+
+    if flow and flow.loseRule == "all_hero_dead" and leftAlive == 0 then
+        return true, "right", "左侧队伍全灭"
+    end
+
+    TryRefreshEnemyReserve("clear")
+    rightAlive = BattleFormation.GetAliveHeroCount(false)
+
+    if flow then
+        if flow.winRule == "boss_dead" then
+            if not HasAliveBossOnBoard() and not HasBossInReserve() then
+                return true, "left", "Boss 已被击败"
+            end
+            return false, nil, nil
+        end
+
+        if flow.winRule == "reserve_empty_and_board_clear" then
+            if rightAlive == 0 and reserveRemaining == 0 then
+                return true, "left", "右侧战场已清空且无后备敌人"
+            end
+            return false, nil, nil
+        end
+    end
 
     if leftAlive == 0 and rightAlive == 0 then
         return true, "draw", "双方同归于尽"
@@ -440,6 +767,8 @@ local function BeginNextAction()
         return
     end
 
+    TryRefreshEnemyReserve("periodic")
+
     -- 检查战斗是否已结束
     local isEnd, winner, reason = CheckBattleEnd()
     if isEnd then
@@ -495,6 +824,7 @@ function BattleMain.Start(beginState, onBattleEnd)
     -- 保存参数
     battleBeginState = beginState or {}
     onBattleEndCallback = onBattleEnd
+    battleFlowState = NormalizeBattleFlowState(battleBeginState)
 
     -- 初始化所有子系统
     runStage("init_subsystems", function()
@@ -1064,6 +1394,20 @@ end
 ---@return table 战斗开始状态
 function BattleMain.GetBeginState()
     return battleBeginState
+end
+
+function BattleMain.GetBattleFlowState()
+    local flow = battleFlowState or {}
+    return {
+        reserveRemaining = #(flow.enemyReserveQueue or {}),
+        refreshTurns = tonumber(flow.refreshTurns) or 0,
+        refreshOnClear = flow.refreshOnClear == true,
+        winRule = flow.winRule or "reserve_empty_and_board_clear",
+        loseRule = flow.loseRule or "all_hero_dead",
+        bossId = flow.bossId,
+        spawnOrder = flow.spawnOrder or "back_first_then_front",
+        totalSpawned = tonumber(flow.totalSpawned) or 0,
+    }
 end
 
 return BattleMain

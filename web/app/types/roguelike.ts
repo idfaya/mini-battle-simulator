@@ -33,14 +33,22 @@ export type RunMapState = {
 
 export type RunTeamMember = {
   rosterId?: number;
+  unitId?: string;
   heroId: number;
   name: string;
   classId: number;
+  className?: string;
+  characterGroup?: "physical" | "caster";
   level: number;
+  exp?: number;
+  nextLevelExp?: number;
   star: number;
   hp: number;
   maxHp: number;
   isDead: boolean;
+  teamState?: "active" | "bench" | "dead";
+  promotionStage?: "low" | "mid" | "high";
+  skillPackageId?: string;
   buildSummary?: string[];
 };
 
@@ -64,6 +72,11 @@ export type RewardOption = {
   value?: number;
   label: string;
   description: string;
+  resultType?: "new_class_unit" | "class_promotion";
+  teamState?: "active" | "bench" | "dead";
+  promotionStageBefore?: "low" | "mid" | "high";
+  promotionStageAfter?: "low" | "mid" | "high";
+  summaryKey?: string;
   // Level-up composite card (battle_levelup)
   rosterId?: number;
   heroName?: string;

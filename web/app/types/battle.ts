@@ -69,6 +69,16 @@ export type BattleSnapshot = {
   rightTeam: UnitState[];
   actionOrder: ActionOrderState[];
   pendingCommands: number;
+  reserveRemaining?: number;
+  battleRules?: {
+    refreshTurns: number;
+    refreshOnClear: boolean;
+    winRule: string;
+    loseRule: string;
+    bossId?: string | number | null;
+    spawnOrder: string;
+    totalSpawned: number;
+  };
   result: BattleResult | null;
 };
 
@@ -91,6 +101,13 @@ export type BattleSetup = {
   speed: number;
   heroIds?: number[];
   enemyIds?: number[];
+  enemyReserveIds?: number[];
+  refreshTurns?: number;
+  refreshOnClear?: boolean;
+  winRule?: string;
+  loseRule?: string;
+  bossId?: string | number;
+  spawnOrder?: string;
   buildFeatIds?: number[];
   buildFeatIdsByHero?: number[][];
   seed?: number;

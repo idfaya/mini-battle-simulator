@@ -33,10 +33,10 @@ local HeroData = require("config.hero_data")
 local ROUTE_PRESETS = {
     [101] = {
         safe = {
-            101001, 101002, 101004, 101006, 101008, 101010, 101011,
+            101001, 101002, 101004, 101006, 101008, 101012, 101010, 101011,
         },
         combat = {
-            101001, 101003, 101005, 101007, 101009, 101010, 101011,
+            101001, 101003, 101005, 101007, 101009, 101013, 101010, 101011,
         },
     },
 }
@@ -619,7 +619,7 @@ local function resolveBattle(config, debugBattle)
             route = debugBattle.routeName,
             nodeId = debugBattle.nodeId,
             title = debugBattle.title,
-            encounterId = debugBattle.encounterId,
+            encounterId = debugBattle.battleId or debugBattle.encounterId,
             beforeHp = lastBattleHp,
             beforeMaxHp = lastBattleMaxHp,
             beforeAlive = lastBattleAlive,
@@ -772,7 +772,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                     routeName = route.name,
                     nodeId = nodeId,
                     title = node.title,
-                    encounterId = node.encounterId,
+                    battleId = node.battleId,
                 }
             end
             local resolved, ticks, timedOut, roundStats = resolveBattle(config, debugBattle)

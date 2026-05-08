@@ -237,16 +237,16 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await clickNodeAndEnter("Frontier Scouts");
   await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择升级|选择奖励/);
+  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Broken Caravan");
-  await resolveRewardChain(/选择招募/);
+  await resolveRewardChain(/选择职业卡|选择招募/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Frostbite Raid");
   await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择升级|选择奖励/);
+  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Campfire Shrine");
@@ -257,16 +257,21 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
 
   await clickNodeAndEnter("Ember Ambush");
   await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择升级|选择奖励/);
+  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
+  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
+
+  await clickNodeAndEnter("Icebound Crossing");
+  await driveBattleUntilResolved(page);
+  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Stranded Allies");
-  await resolveRewardChain(/选择招募/);
+  await resolveRewardChain(/选择职业卡|选择招募/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
   await clickNodeAndEnter("Frozen Gate");
   await driveBattleUntilResolved(page, 80000);
-  await resolveRewardChain(/选择升级|选择奖励/);
+  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect(page.getByRole("button", { name: "重新开始第一章" })).toBeVisible({ timeout: 20000 });
 
   expect(pageErrors).toEqual([]);

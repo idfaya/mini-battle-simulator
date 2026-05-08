@@ -42,6 +42,7 @@ end
 
 local Logger = require("utils.logger")
 local SkillConfig = require("config.skill_config")
+local PassiveDefs = require("config.passive.passive_defs")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
 local ClassRoleConfig = require("config.class_role_config")
@@ -593,9 +594,14 @@ function BattleSkill.Init(hero, skillsConfig)
                         isPassiveActive = true,
                         name = skill.name,
                     }
-                    BattlePassiveSkill.AddPassiveSkill2TriggerTime(hero, passiveSkillData)
-                    Logger.Log(string.format("[BattleSkill.Init] 注册被动技能: %s (classId=%s)", 
-                        skill.name, tostring(passiveSkillData.classId)))
+                    if PassiveDefs[passiveSkillData.classId] then
+                        BattlePassiveSkill.AddPassiveSkill2TriggerTime(hero, passiveSkillData)
+                        Logger.Log(string.format("[BattleSkill.Init] 注册被动技能: %s (classId=%s)",
+                            skill.name, tostring(passiveSkillData.classId)))
+                    else
+                        Logger.LogWarning(string.format("[BattleSkill.Init] 跳过未配置被动模板的技能: %s (skillId=%s)",
+                            tostring(skill.name), tostring(skillId)))
+                    end
                 end
             else
                 Logger.LogWarning(string.format("[BattleSkill.Init] 技能 %s 创建失败，跳过", tostring(skillId)))

@@ -7,6 +7,7 @@ local EnemyData = require("config.enemy_data")
 local BattleEvent = require("core.battle_event")
 local ClassRoleConfig = require("config.class_role_config")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
+local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
@@ -163,12 +164,7 @@ local function buildBattleModifiers(runState, encounter)
 end
 
 local function buildHeroForBattle(rosterHero, modifiers, encounter)
-    local heroData = HeroData.ConvertToHeroData(rosterHero.heroId, rosterHero.level, rosterHero.star, {
-        ownedSkills = rosterHero.ownedSkills,
-        skillLevels = rosterHero.skillLevels,
-        buildFeatIds = rosterHero.feats,
-        buildState = rosterHero.buildState,
-    })
+    local heroData = HeroData.ConvertClassUnitToHeroData(rosterHero)
     if not heroData then
         return nil
     end
@@ -189,32 +185,6 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
         })
     end
     -- #endregion
-
-    -- Apply roguelike feats / class-level grants to the battle hero, before equipment/blessing scaling.
-    -- ConvertToHeroData uses level only; without this step, feat stats would not affect combat.
-    if rosterHero.feats and #rosterHero.feats > 0 then
-        local baseAttrs = HeroData.CalculateHeroAttributes(rosterHero.heroId, rosterHero.level, 1)
-        if baseAttrs then
-            local grantMods = (HeroData.CollectClassLevelGrants(rosterHero.classId, 0, rosterHero.level))
-            local featMods = (HeroData.ApplyFeats(rosterHero.feats))
-            local merged = HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
-            heroData.maxHp = merged.maxHp or heroData.maxHp
-            heroData.hp = math.min(heroData.maxHp or 1, heroData.hp or heroData.maxHp or 1)
-            heroData.atk = merged.atk or heroData.atk
-            heroData.def = merged.def or heroData.def
-            heroData.speed = merged.speed or heroData.speed
-            heroData.spd = heroData.speed
-            heroData.ac = merged.ac or heroData.ac
-            heroData.hit = merged.hit or heroData.hit
-            heroData.spellDC = merged.spellDC or heroData.spellDC
-            heroData.saveFort = merged.saveFort or heroData.saveFort
-            heroData.saveRef = merged.saveRef or heroData.saveRef
-            heroData.saveWill = merged.saveWill or heroData.saveWill
-            heroData.critRate = merged.critRate or heroData.critRate
-            heroData.blockRate = merged.blockRate or heroData.blockRate
-            heroData.healBonus = merged.healBonus or heroData.healBonus
-        end
-    end
 
     local playerScale = encounter.playerScale or DEFAULT_PLAYER_SCALE
     local hpScale = (tonumber(playerScale.hp) or 1.0) + (modifiers.hpPctByClass[rosterHero.classId] or 0)
@@ -254,8 +224,8 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     return heroData
 end
 
-local function buildEncounterBudgetAdjust(runState, encounter, aliveCount)
-    local budget = encounter and encounter.budget
+local function buildEncounterBudgetAdjust(runState, encounterLike, aliveCount)
+    local budget = encounterLike and encounterLike.budget
     if not budget then
         return {
             hpMul = 1.0,
@@ -269,11 +239,11 @@ local function buildEncounterBudgetAdjust(runState, encounter, aliveCount)
     end
 
     local enemyMetas = {}
-    for _, enemyId in ipairs(encounter.enemyIds or {}) do
+    for _, enemyId in ipairs(encounterLike.enemyIds or {}) do
         enemyMetas[#enemyMetas + 1] = EnemyData.GetChallengeMeta(enemyId)
     end
     local report = RunEncounterBudget.BuildReport(
-        tonumber(runState and runState.partyLevel) or tonumber(encounter.level) or 1,
+        tonumber(runState and runState.partyLevel) or tonumber(encounterLike.level) or 1,
         aliveCount,
         enemyMetas,
         budget.difficulty or "deadly",
@@ -316,14 +286,101 @@ local function buildEnemyForBattle(enemyId, level, wpType, encounter, budgetAdju
     return enemyData
 end
 
-local function buildDeterministicSeedArray(runState, encounter)
+local function appendEnemyId(target, enemyId)
+    local id = tonumber(enemyId)
+    if id then
+        target[#target + 1] = id
+    end
+end
+
+local function flattenBattleEnemyIds(battle)
+    local enemyIds = {}
+    if not battle then
+        return enemyIds
+    end
+    local opening = RunEnemyGroup.GetGroup(tonumber(battle.openingGroupId))
+    if opening then
+        for _, enemyId in ipairs(opening.front or {}) do
+            appendEnemyId(enemyIds, enemyId)
+        end
+        for _, enemyId in ipairs(opening.back or {}) do
+            appendEnemyId(enemyIds, enemyId)
+        end
+        for _, enemyId in ipairs(opening.elite or {}) do
+            appendEnemyId(enemyIds, enemyId)
+        end
+        appendEnemyId(enemyIds, opening.boss)
+        for _, enemyId in ipairs(opening.guards or {}) do
+            appendEnemyId(enemyIds, enemyId)
+        end
+    end
+    for _, enemyId in ipairs(battle.reserveUnits or {}) do
+        appendEnemyId(enemyIds, enemyId)
+    end
+    return enemyIds
+end
+
+local function pickInitialEnemyIds(battle)
+    local enemyIds = {}
+    if not battle then
+        return enemyIds
+    end
+    local opening = RunEnemyGroup.GetGroup(tonumber(battle.openingGroupId))
+    if not opening then
+        return enemyIds
+    end
+    for _, enemyId in ipairs(opening.front or {}) do
+        appendEnemyId(enemyIds, enemyId)
+    end
+    for _, enemyId in ipairs(opening.back or {}) do
+        appendEnemyId(enemyIds, enemyId)
+    end
+    for _, enemyId in ipairs(opening.elite or {}) do
+        appendEnemyId(enemyIds, enemyId)
+    end
+    appendEnemyId(enemyIds, opening.boss)
+    for _, enemyId in ipairs(opening.guards or {}) do
+        appendEnemyId(enemyIds, enemyId)
+    end
+    return enemyIds
+end
+
+local function buildReserveEnemies(battle, level, encounter, budgetAdjust)
+    local reserve = {}
+    if not battle then
+        return reserve
+    end
+    for _, enemyId in ipairs(battle.reserveUnits or {}) do
+        local enemyData = buildEnemyForBattle(enemyId, level, 0, encounter, budgetAdjust)
+        if enemyData then
+            enemyData.wpType = 0
+            reserve[#reserve + 1] = enemyData
+        end
+    end
+    return reserve
+end
+
+local function resolveBattleBossId(battle)
+    local explicitBossId = tonumber(battle and battle.bossId)
+    if explicitBossId then
+        return explicitBossId
+    end
+    local openingGroupId = tonumber(battle and battle.openingGroupId)
+    if not openingGroupId then
+        return nil
+    end
+    local opening = RunEnemyGroup.GetGroup(openingGroupId)
+    return tonumber(opening and opening.boss) or nil
+end
+
+local function buildDeterministicSeedArray(runState, encounterOrBattle)
     -- Deterministic battle RNG:
     -- - Keeps roguelike flow stable for tests and avoids flaky outcomes caused by wall-clock seeds.
     -- - Still varies by node/encounter so different nodes don't share identical RNG.
     local chapterId = tonumber(runState and runState.chapterId) or 0
     local nodeId = tonumber(runState and runState.currentNodeId) or 0
-    local encounterId = tonumber(encounter and encounter.id) or 0
-    local base = (chapterId * 1000003 + nodeId * 10007 + encounterId * 131 + 12345) % 2147483647
+    local battleId = tonumber(encounterOrBattle and encounterOrBattle.id) or 0
+    local base = (chapterId * 1000003 + nodeId * 10007 + battleId * 131 + 12345) % 2147483647
     if base <= 0 then
         base = 123456789
     end
@@ -335,7 +392,7 @@ local function buildDeterministicSeedArray(runState, encounter)
     }
 end
 
-local function buildBattleConfig(runState, encounter)
+local function buildBattleConfig(runState, battle, encounter)
     assignWpTypes(runState.teamRoster)
     local modifiers = buildBattleModifiers(runState, encounter)
     local teamLeft = {}
@@ -349,23 +406,38 @@ local function buildBattleConfig(runState, encounter)
     end
 
     local teamRight = {}
-    local budgetAdjust = buildEncounterBudgetAdjust(runState, encounter, #teamLeft)
+    local encounterForBudget = {
+        -- Use the full encounter footprint so reserve waves still contribute to overall pressure.
+        -- The final scalar is intentionally clamped in buildEncounterBudgetAdjust.
+        enemyIds = flattenBattleEnemyIds(battle),
+        budget = encounter and encounter.budget or nil,
+        level = tonumber(encounter and encounter.level) or tonumber(runState and runState.partyLevel) or 1,
+    }
+    if #encounterForBudget.enemyIds == 0 then
+        encounterForBudget.enemyIds = encounter and encounter.enemyIds or {}
+    end
+    local budgetAdjust = buildEncounterBudgetAdjust(runState, encounterForBudget, #teamLeft)
     runState.currentEncounterBudget = budgetAdjust.report
 
     -- Keep enemy level close to the party's recommended level.
     -- Encounter entries still define "intended" pacing (encounter.level), but we cap how far
     -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
-    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(encounter.level) or 1
-    local baseLevel = tonumber(encounter.level) or partyLevel
+    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(encounter and encounter.level) or 1
+    local baseLevel = tonumber(encounter and encounter.level) or partyLevel
     local kindOffset = 0
-    if encounter.kind == "elite" then
+    local encounterKind = encounter and encounter.kind or battle.kind
+    if encounterKind == "elite" then
         kindOffset = 1
-    elseif encounter.kind == "boss" then
+    elseif encounterKind == "boss" then
         kindOffset = 2
     end
     local effectiveEnemyLevel = clamp(baseLevel, partyLevel - 1, partyLevel + 1 + kindOffset)
 
-    for index, enemyId in ipairs(encounter.enemyIds or {}) do
+    local openingEnemyIds = pickInitialEnemyIds(battle)
+    if #openingEnemyIds == 0 then
+        openingEnemyIds = encounter and encounter.enemyIds or {}
+    end
+    for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
         local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, encounter, budgetAdjust)
         if enemyData then
@@ -383,8 +455,15 @@ local function buildBattleConfig(runState, encounter)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
-        seedArray = buildDeterministicSeedArray(runState, encounter),
-        initialEnergy = encounter.initialEnergy or 40,
+        enemyReserve = buildReserveEnemies(battle, effectiveEnemyLevel, encounter, budgetAdjust),
+        refreshTurns = tonumber(battle and battle.refreshTurns) or 0,
+        refreshOnClear = battle and battle.refreshOnClear == true,
+        spawnOrder = battle and battle.spawnOrder or nil,
+        winRule = battle and battle.winRule or nil,
+        loseRule = battle and battle.loseRule or nil,
+        bossId = resolveBattleBossId(battle),
+        seedArray = buildDeterministicSeedArray(runState, encounter or battle),
+        initialEnergy = (encounter and encounter.initialEnergy) or 40,
         disableDefaultRenderer = true,
     }, modifiers
 end
@@ -410,6 +489,7 @@ local function applyPostBattleRest(runState)
     for _, hero in ipairs(runState.teamRoster or {}) do
         if hero.isDead and reviveDead then
             hero.isDead = false
+            hero.teamState = "active"
             hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * healPct))
         elseif not hero.isDead and healPct > 0 then
             local heal = math.floor((hero.maxHp or 0) * healPct)
@@ -430,8 +510,8 @@ local function applyPostBattleRest(runState)
     end
 end
 
-function RoguelikeBattleBridge.StartBattle(runState, encounter)
-    local config, modifiers, reason = buildBattleConfig(runState, encounter)
+function RoguelikeBattleBridge.StartBattle(runState, battle, encounter)
+    local config, modifiers, reason = buildBattleConfig(runState, battle, encounter)
     if not config then
         return false, reason
     end
@@ -470,7 +550,7 @@ function RoguelikeBattleBridge.GetSnapshot()
     return BattleRuntime.getSnapshot()
 end
 
-function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
+function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
     local snapshot = RoguelikeBattleBridge.GetSnapshot()
     if not snapshot or not snapshot.result then
         return nil
@@ -490,6 +570,7 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
             rosterHero.maxHp = math.max(rosterHero.maxHp or 1, battleHero.maxHp or rosterHero.maxHp or 1)
             rosterHero.currentHp = math.max(0, math.floor(battleHero.hp or 0))
             rosterHero.isDead = not (battleHero.isAlive and not battleHero.isDead)
+            rosterHero.teamState = rosterHero.isDead and "dead" or "active"
             rosterHero.ultimateChargesMax = tonumber(battleHero.ultimateChargesMax) or tonumber(rosterHero.ultimateChargesMax) or 1
             rosterHero.ultimateCharges = tonumber(battleHero.ultimateCharges)
                 or tonumber(rosterHero.ultimateCharges)
@@ -514,12 +595,13 @@ function RoguelikeBattleBridge.ResolveBattle(runState, encounter)
         else
             rosterHero.currentHp = 0
             rosterHero.isDead = true
+            rosterHero.teamState = "dead"
         end
     end
 
     local won = snapshot.result.winner == "left"
-    local minGold = ((encounter.gold or {}).min) or 0
-    local maxGold = ((encounter.gold or {}).max) or minGold
+    local minGold = (((encounter or {}).gold or {}).min) or 0
+    local maxGold = (((encounter or {}).gold or {}).max) or minGold
     local earnedGold = won and math.random(minGold, maxGold) or 0
     local modifiers = runState.currentBattleModifiers or {}
     if won then

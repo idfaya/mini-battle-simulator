@@ -82,6 +82,7 @@ async function bootstrapStandaloneBattle(
 
   const queryHeroIds = readIdList(options?.params?.get("heroes") ?? null);
   const queryEnemyIds = readIdList(options?.params?.get("enemies") ?? null);
+  const queryEnemyReserveIds = readIdList(options?.params?.get("enemyReserve") ?? options?.params?.get("reserveEnemies") ?? null);
   const buildFeatIds = readIdList(options?.params?.get("buildFeats") ?? options?.params?.get("fighterFeats") ?? null);
   const buildFeatIdsByHero = readNestedIdList(options?.params?.get("buildFeatsByHero") ?? options?.params?.get("fighterFeatsByHero") ?? null);
   const singleHeroIds = queryHeroIds.length > 0 ? queryHeroIds : [900005, 900001, 900007, 900002];
@@ -94,6 +95,16 @@ async function bootstrapStandaloneBattle(
     speed: 1,
     heroIds: options?.singleBattleMode ? singleHeroIds : undefined,
     enemyIds: options?.singleBattleMode ? singleEnemyIds : undefined,
+    enemyReserveIds: options?.singleBattleMode && queryEnemyReserveIds.length > 0 ? queryEnemyReserveIds : undefined,
+    refreshTurns: options?.singleBattleMode ? Number(options?.params?.get("refreshTurns")) || undefined : undefined,
+    refreshOnClear:
+      options?.singleBattleMode && options?.params?.has("refreshOnClear")
+        ? options?.params?.get("refreshOnClear") !== "false"
+        : undefined,
+    winRule: options?.singleBattleMode ? options?.params?.get("winRule") ?? undefined : undefined,
+    loseRule: options?.singleBattleMode ? options?.params?.get("loseRule") ?? undefined : undefined,
+    bossId: options?.singleBattleMode ? options?.params?.get("bossId") ?? undefined : undefined,
+    spawnOrder: options?.singleBattleMode ? options?.params?.get("spawnOrder") ?? undefined : undefined,
     buildFeatIds: options?.singleBattleMode && buildFeatIds.length > 0 ? buildFeatIds : undefined,
     buildFeatIdsByHero:
       options?.singleBattleMode && buildFeatIdsByHero.length > 0 ? buildFeatIdsByHero : undefined,
@@ -109,6 +120,13 @@ async function bootstrapStandaloneBattle(
     initialEnergy: nextSetup.initialEnergy,
     heroIds: nextSetup.heroIds,
     enemyIds: nextSetup.enemyIds,
+    enemyReserveIds: nextSetup.enemyReserveIds,
+    refreshTurns: nextSetup.refreshTurns,
+    refreshOnClear: nextSetup.refreshOnClear,
+    winRule: nextSetup.winRule,
+    loseRule: nextSetup.loseRule,
+    bossId: nextSetup.bossId,
+    spawnOrder: nextSetup.spawnOrder,
     buildFeatIds: nextSetup.buildFeatIds,
     buildFeatIdsByHero: nextSetup.buildFeatIdsByHero,
     seed: nextSetup.seed,

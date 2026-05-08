@@ -38,6 +38,93 @@ local function containsHeroId(roster, heroId)
     return false
 end
 
+local function collectAllUnits(runState)
+    local result = {}
+    for _, hero in ipairs(runState.teamRoster or {}) do
+        result[#result + 1] = hero
+    end
+    for _, hero in ipairs(runState.benchRoster or {}) do
+        result[#result + 1] = hero
+    end
+    return result
+end
+
+local function getClassIdFromHeroId(heroId)
+    local heroInfo = HeroData.GetHeroInfo(heroId)
+    return tonumber(heroInfo and heroInfo.Class) or 0
+end
+
+local function containsClassId(roster, classId)
+    for _, hero in ipairs(roster or {}) do
+        if tonumber(hero.classId) == tonumber(classId) then
+            return true
+        end
+    end
+    return false
+end
+
+local function findClassUnit(runState, classId)
+    for _, hero in ipairs(collectAllUnits(runState)) do
+        if tonumber(hero.classId) == tonumber(classId) then
+            return hero
+        end
+    end
+    return nil
+end
+
+local function getActiveUnitCount(runState)
+    return #(runState.teamRoster or {})
+end
+
+local function hasFreeActiveSlot(runState)
+    return getActiveUnitCount(runState) < (runState.maxHeroCount or 5)
+end
+
+local function getNextPromotionStage(stage)
+    local current = HeroData.NormalizePromotionStage(stage)
+    if current == "low" then
+        return "mid"
+    end
+    if current == "mid" then
+        return "high"
+    end
+    return "high"
+end
+
+local function getPromotionStageLabel(stage)
+    local value = HeroData.NormalizePromotionStage(stage)
+    if value == "mid" then
+        return "中阶"
+    end
+    if value == "high" then
+        return "高阶"
+    end
+    return "低阶"
+end
+
+local function buildClassCardPreview(runState, classId)
+    local ownedUnit = findClassUnit(runState, classId)
+    if ownedUnit then
+        local before = HeroData.NormalizePromotionStage(ownedUnit.promotionStage)
+        local after = getNextPromotionStage(before)
+        return {
+            resultType = "class_promotion",
+            teamState = ownedUnit.teamState or "active",
+            promotionStageBefore = before,
+            promotionStageAfter = after,
+            summaryKey = HeroData.GetClassCardSummaryKey(classId, after),
+        }
+    end
+    local teamState = hasFreeActiveSlot(runState) and "active" or "bench"
+    return {
+        resultType = "new_class_unit",
+        teamState = teamState,
+        promotionStageBefore = nil,
+        promotionStageAfter = "low",
+        summaryKey = HeroData.GetClassCardSummaryKey(classId, "low"),
+    }
+end
+
 local function weightedPick(entries, taken)
     local total = 0
     for index, entry in ipairs(entries or {}) do
@@ -145,32 +232,50 @@ local function getEligibleFeatPool(hero)
 end
 
 local function createHeroRecord(runState, heroId)
-    local recruitLevel = math.max(RECRUIT_LEVEL, tonumber(runState and runState.partyLevel) or RECRUIT_LEVEL)
-    local attrs = HeroData.CalculateHeroAttributes(heroId, recruitLevel, RECRUIT_STAR)
-    local heroInfo = HeroData.GetHeroInfo(heroId)
-    if not attrs or not heroInfo then
+    local classId = getClassIdFromHeroId(heroId)
+    if classId <= 0 then
         return nil
     end
-
-    return {
-        rosterId = allocateRosterId(runState),
-        heroId = heroId,
-        name = HeroData.GetHeroName(heroId),
-        classId = heroInfo.Class or 0,
-        level = attrs.level or recruitLevel,
-        star = attrs.star or RECRUIT_STAR,
-        maxHp = attrs.maxHp,
-        currentHp = attrs.maxHp,
-        isDead = false,
-        feats = {},
-        ownedSkills = {},
-        skillLevels = {},
+    local rosterId = allocateRosterId(runState)
+    return HeroData.CreateClassUnit(classId, {
+        rosterId = rosterId,
+        unitId = string.format("class_unit_%d_%d", classId, rosterId),
+        promotionStage = "low",
+        level = math.max(RECRUIT_LEVEL, tonumber(runState.partyLevel) or RECRUIT_LEVEL),
+        exp = 0,
+        teamState = hasFreeActiveSlot(runState) and "active" or "bench",
         source = "reward",
-    }
+    })
 end
 
 function RoguelikeReward.AddRecruit(runState, heroId, options)
     local recruitOptions = options or {}
+    local classId = getClassIdFromHeroId(heroId)
+    if classId <= 0 then
+        return false, "invalid_recruit"
+    end
+
+    local existingUnit = findClassUnit(runState, classId)
+    if existingUnit then
+        local beforeStage = HeroData.NormalizePromotionStage(existingUnit.promotionStage)
+        if beforeStage == "high" then
+            return false, "class_already_high"
+        end
+        local afterStage = getNextPromotionStage(beforeStage)
+        local oldMaxHp = tonumber(existingUnit.maxHp) or 1
+        local oldCurrentHp = tonumber(existingUnit.currentHp) or 0
+        local isDead = existingUnit.isDead == true or oldCurrentHp <= 0 or existingUnit.teamState == "dead"
+        HeroData.RefreshClassUnit(existingUnit, {
+            promotionStage = afterStage,
+            teamState = existingUnit.teamState,
+            currentHp = isDead and 0 or math.max(1, oldCurrentHp + ((tonumber(existingUnit.maxHp) or oldMaxHp) - oldMaxHp)),
+            isDead = isDead,
+            source = recruitOptions.forceBench and "recruit_bench" or "reward",
+        })
+        runState.lastActionMessage = string.format("%s 进阶至%s", existingUnit.name or "职业单位", getPromotionStageLabel(afterStage))
+        return true, existingUnit
+    end
+
     local heroRecord = createHeroRecord(runState, heroId)
     if not heroRecord then
         return false, "invalid_recruit"
@@ -179,25 +284,20 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
     heroRecord.ultimateCharges = heroRecord.ultimateCharges or heroRecord.ultimateChargesMax
 
     if recruitOptions.forceBench then
+        heroRecord.teamState = "bench"
         runState.benchRoster[#runState.benchRoster + 1] = heroRecord
-        runState.lastActionMessage = "新招募已加入候补"
+        runState.lastActionMessage = "新职业卡已加入候补"
         return true, heroRecord
     end
 
-    for index, rosterHero in ipairs(runState.teamRoster or {}) do
-        if rosterHero.isDead or (tonumber(rosterHero.currentHp) or 0) <= 0 then
-            runState.teamRoster[index] = heroRecord
-            runState.lastActionMessage = "新招募已补入上阵空缺"
-            return true, heroRecord
-        end
-    end
-
-    if #(runState.teamRoster or {}) < (runState.maxHeroCount or 5) then
+    if hasFreeActiveSlot(runState) then
+        heroRecord.teamState = "active"
         runState.teamRoster[#runState.teamRoster + 1] = heroRecord
-        runState.lastActionMessage = "新招募已直接加入上阵队伍"
+        runState.lastActionMessage = "新职业卡已直接加入上阵队伍"
     else
+        heroRecord.teamState = "bench"
         runState.benchRoster[#runState.benchRoster + 1] = heroRecord
-        runState.lastActionMessage = "新招募已加入候补"
+        runState.lastActionMessage = "新职业卡已加入候补"
     end
 
     return true, heroRecord
@@ -210,17 +310,24 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
         count = math.max(1, tonumber(optionCount) or tonumber(poolConfig.optionCount) or 3)
     end
     local pool = (poolConfig and poolConfig.heroIds) or HeroData.GetAllHeroIds() or {}
-    local candidates = {}
+    local classPool = {}
+    local classSeen = {}
     for _, heroId in ipairs(pool) do
-        if not containsHeroId(runState.teamRoster, heroId) and not containsHeroId(runState.benchRoster, heroId) then
-            candidates[#candidates + 1] = heroId
+        local classId = getClassIdFromHeroId(heroId)
+        if classId > 0 and not classSeen[classId] then
+            classSeen[classId] = true
+            classPool[#classPool + 1] = classId
+        end
+    end
+    local candidates = {}
+    for _, classId in ipairs(classPool) do
+        local unit = findClassUnit(runState, classId)
+        if not unit or HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" then
+            candidates[#candidates + 1] = classId
         end
     end
     if #candidates == 0 then
-        candidates = {}
-        for _, heroId in ipairs(pool) do
-            candidates[#candidates + 1] = heroId
-        end
+        candidates = classPool
     end
 
     local options = {}
@@ -228,16 +335,26 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
     local pickedCount = 0
     while #options < count and pickedCount < #candidates do
         local idx = math.random(1, #candidates)
-        local heroId = candidates[idx]
-        if not picked[heroId] then
-            picked[heroId] = true
+        local classId = candidates[idx]
+        if not picked[classId] then
+            local heroId = HeroData.GetRepresentativeHeroId(classId)
+            local preview = buildClassCardPreview(runState, classId)
+            picked[classId] = true
             pickedCount = pickedCount + 1
             options[#options + 1] = {
                 rewardType = "recruit",
                 refId = heroId,
-                heroName = HeroData.GetHeroName(heroId),
-                label = "招募 " .. HeroData.GetHeroName(heroId),
-                description = HeroData.GetClassName((HeroData.GetHeroInfo(heroId) or {}).Class or 0),
+                heroName = HeroData.GetClassName(classId),
+                classId = classId,
+                resultType = preview.resultType,
+                teamState = preview.teamState,
+                promotionStageBefore = preview.promotionStageBefore,
+                promotionStageAfter = preview.promotionStageAfter,
+                summaryKey = preview.summaryKey,
+                label = "职业卡 " .. HeroData.GetClassName(classId),
+                description = preview.resultType == "new_class_unit"
+                    and ("获得新职业单位 · " .. getPromotionStageLabel(preview.promotionStageAfter))
+                    or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
             }
         end
     end
@@ -250,163 +367,93 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
 end
 
 -- ==========================================================================
--- Level Up 3 选 1（一段式复合卡）
--- 每张卡 = { rosterId, heroName, nextLevel, featId, featName, featCode, featTags }
--- 约束：
---   1. 候选角色取存活且 level < levelCap 成员，落后者加权。
---   2. 3 张卡在 tag 上尽量互异，保证"攻/守/风险"视觉分化。
---   3. 每级池中必有至少 1 张 tag=risk 的代价型 feat（若候选池允许）。
+-- Battle reward now resolves as "职业卡三选一"。
+-- Compatibility note:
+--   - Keep rewardState.kind = "battle_levelup" for existing external callers.
+--   - Keep rewardType = "levelup" on options, but payload now carries class-card fields.
 -- ==========================================================================
 
-local function pickEligibleHeroes(runState)
-    local eligible = {}
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        local level = tonumber(hero.level) or 1
-        local cap = tonumber(runState.levelCap) or 20
-        if not hero.isDead and (tonumber(hero.currentHp) or 0) > 0 and level < cap then
-            eligible[#eligible + 1] = hero
-        end
-    end
-    return eligible
-end
-
-local function pickHeroWithWeight(eligible)
-    if #eligible == 0 then
-        return nil
-    end
-    local minLevel = eligible[1].level or 1
-    for _, hero in ipairs(eligible) do
-        if (hero.level or 1) < minLevel then
-            minLevel = hero.level or 1
-        end
-    end
-    local total = 0
-    local weights = {}
-    for _, hero in ipairs(eligible) do
-        local w = ((hero.level or 1) == minLevel) and 2 or 1
-        weights[#weights + 1] = w
-        total = total + w
-    end
-    local roll = math.random() * total
-    local cursor = 0
-    for index, hero in ipairs(eligible) do
-        cursor = cursor + weights[index]
-        if roll <= cursor then
-            return hero
-        end
-    end
-    return eligible[#eligible]
-end
-
-local function pickFeatForHero(hero, usedFeatIds, preferRisk, avoidTags)
-    local featPool = getEligibleFeatPool(hero)
-    if #featPool == 0 then
-        return nil
-    end
-
-    local function hasTag(def, tag)
-        for _, t in ipairs(def.tags or {}) do
-            if t == tag then
-                return true
-            end
-        end
-        return false
-    end
-
-    local function hasAnyAvoided(def)
-        for _, t in ipairs(def.tags or {}) do
-            if avoidTags and avoidTags[t] then
-                return true
-            end
-        end
-        return false
-    end
-
-    -- 三轮筛选：首选 preferRisk 且未用过；次选不命中 avoidTags 的；兜底任意。
-    local buckets = { {}, {}, {} }
-    for _, def in ipairs(featPool) do
-        if not usedFeatIds[def.id] then
-            if preferRisk and hasTag(def, "risk") then
-                buckets[1][#buckets[1] + 1] = def
-            elseif not hasAnyAvoided(def) then
-                buckets[2][#buckets[2] + 1] = def
-            else
-                buckets[3][#buckets[3] + 1] = def
-            end
-        end
-    end
-
-    for _, bucket in ipairs(buckets) do
-        if #bucket > 0 then
-            local total = 0
-            for _, def in ipairs(bucket) do
-                total = total + math.max(1, tonumber(def.weight) or 1)
-            end
-            local roll = math.random() * total
-            local cursor = 0
-            for _, def in ipairs(bucket) do
-                cursor = cursor + math.max(1, tonumber(def.weight) or 1)
-                if roll <= cursor then
-                    return def
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function buildLevelUpOption(hero, featDef)
-    return {
-        rewardType = "levelup",
-        rosterId = hero.rosterId,
-        heroName = hero.name,
-        classId = hero.classId,
-        nextLevel = (hero.level or 1) + 1,
-        refId = featDef.id,
-        featId = featDef.id,
-        label = string.format("%s Lv.%d → Lv.%d：%s",
-            hero.name or "?", hero.level or 1, (hero.level or 1) + 1, featDef.name or "?"),
-        description = featDef.code or featDef.description or "",
-        featName = featDef.name,
-        featCode = featDef.code or featDef.description or "",
-        featTags = featDef.tags or {},
-    }
-end
-
 function RoguelikeReward.GenerateLevelUpRewardState(runState)
-    local eligible = pickEligibleHeroes(runState)
-    if #eligible == 0 then
+    local existing = {}
+    local existingSeen = {}
+    for _, unit in ipairs(runState.teamRoster or {}) do
+        local classId = tonumber(unit.classId) or 0
+        if classId > 0 and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" and not existingSeen[classId] then
+            existingSeen[classId] = true
+            existing[#existing + 1] = classId
+        end
+    end
+    for _, unit in ipairs(runState.benchRoster or {}) do
+        local classId = tonumber(unit.classId) or 0
+        if classId > 0 and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" and not existingSeen[classId] then
+            existingSeen[classId] = true
+            existing[#existing + 1] = classId
+        end
+    end
+
+    local unowned = {}
+    for _, classId in ipairs(HeroData.GetAllClassIds() or {}) do
+        if not findClassUnit(runState, classId) then
+            unowned[#unowned + 1] = classId
+        end
+    end
+
+    if #existing == 0 and #unowned == 0 then
         return nil
+    end
+
+    local candidates = {}
+    local picked = {}
+    local function pickFromPool(pool, limit)
+        local used = 0
+        local guard = 0
+        while used < limit and guard < #pool * 2 do
+            guard = guard + 1
+            local classId = pool[math.random(1, #pool)]
+            if classId and not picked[classId] then
+                picked[classId] = true
+                candidates[#candidates + 1] = classId
+                used = used + 1
+            end
+        end
+    end
+
+    pickFromPool(existing, math.min(2, #existing))
+    if #candidates < 3 and #unowned > 0 then
+        pickFromPool(unowned, math.min(3 - #candidates, #unowned))
+    end
+    if #candidates < 3 and #existing > 0 then
+        pickFromPool(existing, math.min(3 - #candidates, #existing))
     end
 
     local options = {}
-    local usedFeatIds = {}
-    local avoidTags = {}
-
-    for cardIndex = 1, 3 do
-        local hero = pickHeroWithWeight(eligible) or eligible[1]
-        local featDef = pickFeatForHero(hero, usedFeatIds, false, avoidTags)
-        if not featDef then
-            -- 该角色无可用 feat，尝试其他角色。
-            for _, alt in ipairs(eligible) do
-                if alt.rosterId ~= hero.rosterId then
-                    featDef = pickFeatForHero(alt, usedFeatIds, false, avoidTags)
-                    if featDef then
-                        hero = alt
-                        break
-                    end
-                end
-            end
-        end
-        if not featDef then
-            break
-        end
-
-        usedFeatIds[featDef.id] = true
-        for _, tag in ipairs(featDef.tags or {}) do
-            avoidTags[tag] = true
-        end
-        options[#options + 1] = buildLevelUpOption(hero, featDef)
+    for _, classId in ipairs(candidates) do
+        local preview = buildClassCardPreview(runState, classId)
+        local heroId = HeroData.GetRepresentativeHeroId(classId)
+        local unit = findClassUnit(runState, classId)
+        options[#options + 1] = {
+            rewardType = "levelup",
+            rosterId = unit and unit.rosterId or nil,
+            heroName = HeroData.GetClassName(classId),
+            classId = classId,
+            nextLevel = HeroData.GetPromotionStageLevel(preview.promotionStageAfter),
+            refId = heroId,
+            featId = nil,
+            featName = preview.resultType == "new_class_unit" and "新职业单位" or "同职业进阶",
+            featCode = preview.resultType == "new_class_unit"
+                and ("获得 " .. getPromotionStageLabel(preview.promotionStageAfter) .. " 职业单位")
+                or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
+            featTags = { preview.resultType == "new_class_unit" and "new_class_unit" or "class_promotion" },
+            resultType = preview.resultType,
+            teamState = preview.teamState,
+            promotionStageBefore = preview.promotionStageBefore,
+            promotionStageAfter = preview.promotionStageAfter,
+            summaryKey = preview.summaryKey,
+            label = string.format("职业卡：%s", HeroData.GetClassName(classId)),
+            description = preview.resultType == "new_class_unit"
+                and ("获得新职业单位 · " .. getPromotionStageLabel(preview.promotionStageAfter))
+                or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
+        }
     end
 
     if #options == 0 then
@@ -420,151 +467,72 @@ function RoguelikeReward.GenerateLevelUpRewardState(runState)
     }
 end
 
--- 升级单个成员并应用 feat（由 Run 层在 ChooseReward 调用）。
 function RoguelikeReward.ApplyLevelUpReward(runState, option)
     if not option or option.rewardType ~= "levelup" then
         return false, "invalid_levelup"
     end
-
-    local targetHero = nil
-    for _, hero in ipairs(runState.teamRoster or {}) do
-        if tonumber(hero.rosterId) == tonumber(option.rosterId) then
-            targetHero = hero
-            break
-        end
+    local classId = tonumber(option.classId) or getClassIdFromHeroId(option.refId)
+    if classId <= 0 then
+        return false, "class_not_found"
     end
+
+    local targetHero = findClassUnit(runState, classId)
     if not targetHero then
-        return false, "hero_not_found"
-    end
-    if targetHero.isDead then
-        return false, "hero_dead"
-    end
-
-    local featDef = isFighterBuildHero(targetHero) and FeatBuildConfig.GetFeat(option.featId) or FeatConfig.GetFeat(option.featId)
-    if not featDef then
-        return false, "feat_not_found"
-    end
-
-    local newLevel = math.min(tonumber(runState.levelCap) or 20, (targetHero.level or 1) + 1)
-    local oldLevel = targetHero.level or 1
-
-    targetHero.feats = targetHero.feats or {}
-    targetHero.feats[#targetHero.feats + 1] = featDef.id
-    targetHero.level = newLevel
-
-    if isFighterBuildHero(targetHero) then
-        local buildState = HeroBuild.CompileBuild(targetHero.classId, newLevel, targetHero.feats)
-        local builtHero = HeroData.ConvertToHeroData(targetHero.heroId, newLevel, 1, {
-            buildState = buildState,
-            buildFeatIds = targetHero.feats,
+        local teamState = hasFreeActiveSlot(runState) and "active" or "bench"
+        local rosterId = allocateRosterId(runState)
+        local created = HeroData.CreateClassUnit(classId, {
+            rosterId = rosterId,
+            unitId = string.format("class_unit_%d_%d", classId, rosterId),
+            promotionStage = HeroData.NormalizePromotionStage(option.promotionStageAfter or "low"),
+            level = math.max(RECRUIT_LEVEL, tonumber(runState.partyLevel) or RECRUIT_LEVEL),
+            exp = 0,
+            teamState = teamState,
+            source = "battle_reward",
         })
-        if builtHero then
-            local oldMaxHp = tonumber(targetHero.maxHp) or 1
-            local oldCurrentHp = tonumber(targetHero.currentHp) or 0
-            targetHero.maxHp = builtHero.maxHp or oldMaxHp
-            local deltaHp = targetHero.maxHp - oldMaxHp
-            targetHero.currentHp = math.max(1, math.min(targetHero.maxHp, oldCurrentHp + deltaHp))
-            targetHero.atk = builtHero.atk
-            targetHero.def = builtHero.def
-            targetHero.ac = builtHero.ac
-            targetHero.hit = builtHero.hit
-            targetHero.spellDC = builtHero.spellDC
-            targetHero.saveFort = builtHero.saveFort
-            targetHero.saveRef = builtHero.saveRef
-            targetHero.saveWill = builtHero.saveWill
-            targetHero.speed = builtHero.speed
-            targetHero.critRate = builtHero.critRate
-            targetHero.blockRate = builtHero.blockRate
-            targetHero.healBonus = builtHero.healBonus
-            targetHero.featMods = buildState.statMods or {}
-            targetHero.buildState = buildState
-            targetHero.ownedSkills = {}
-            targetHero.skillLevels = {}
-            for _, skillCfg in ipairs(builtHero.skillsConfig or {}) do
-                targetHero.ownedSkills[#targetHero.ownedSkills + 1] = skillCfg.skillId
-                targetHero.skillLevels[skillCfg.skillId] = tonumber(skillCfg.level) or 1
-            end
-            -- #region debug-point A:roguelike-reward-fighter-build
-            BattleEvent.Publish("DebugCounterTiming", {
-                stage = "roguelike_reward_fighter_build",
-                source = "roguelike.roguelike_reward",
-                data = {
-                    heroName = targetHero.name,
-                    heroId = targetHero.heroId,
-                    level = targetHero.level,
-                    featId = featDef.id,
-                    featName = featDef.name,
-                    feats = targetHero.feats,
-                    passiveSkills = buildState.passiveSkills,
-                    activeSkills = buildState.activeSkills,
-                },
-            })
-            -- #endregion
+        if not created then
+            return false, "create_class_unit_failed"
         end
-
-        runState.lastActionMessage = string.format("%s 升至 Lv.%d，获得「%s」",
-            targetHero.name or "?", targetHero.level or oldLevel, featDef.name or "?")
+        if teamState == "active" then
+            runState.teamRoster[#runState.teamRoster + 1] = created
+        else
+            runState.benchRoster[#runState.benchRoster + 1] = created
+        end
+        runState.lastActionMessage = string.format("%s 已加入队伍（%s）",
+            created.name or "职业单位", getPromotionStageLabel(created.promotionStage))
         return true
     end
 
-    -- 重建属性：基底 + class grant(仅本次升级新增的等级段) + 全部 feats。
-    local baseAttrs = HeroData.CalculateHeroAttributes(targetHero.heroId, newLevel, 1)
-    if baseAttrs then
-        local grantMods, grantUnlockSkills, grantUpgradeSkills =
-            HeroData.CollectClassLevelGrants(targetHero.classId, oldLevel, newLevel)
-        local featMods, featUnlockSkills, featUpgradeSkills, riskHooks =
-            HeroData.ApplyFeats(targetHero.feats)
-        local final = HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
-
-        local oldMaxHp = tonumber(targetHero.maxHp) or 1
-        local oldCurrentHp = tonumber(targetHero.currentHp) or 0
-        targetHero.maxHp = final.maxHp or oldMaxHp
-        local deltaHp = targetHero.maxHp - oldMaxHp
-        targetHero.currentHp = math.max(1, math.min(targetHero.maxHp, oldCurrentHp + deltaHp))
-        targetHero.atk = final.atk
-        targetHero.def = final.def
-        targetHero.ac = final.ac
-        targetHero.hit = final.hit
-        targetHero.spellDC = final.spellDC
-        targetHero.saveFort = final.saveFort
-        targetHero.saveRef = final.saveRef
-        targetHero.saveWill = final.saveWill
-        targetHero.speed = final.speed
-        targetHero.critRate = final.critRate
-        targetHero.blockRate = final.blockRate
-        targetHero.healBonus = final.healBonus
-        targetHero.featMods = featMods
-        targetHero.riskHooks = riskHooks
-
-        -- 合并技能解锁/升级。
-        targetHero.ownedSkills = targetHero.ownedSkills or {}
-        local ownedSet = {}
-        for _, sid in ipairs(targetHero.ownedSkills) do
-            ownedSet[sid] = true
-        end
-        for _, sid in ipairs(grantUnlockSkills) do
-            if not ownedSet[sid] then
-                targetHero.ownedSkills[#targetHero.ownedSkills + 1] = sid
-                ownedSet[sid] = true
-            end
-        end
-        for _, sid in ipairs(featUnlockSkills) do
-            if not ownedSet[sid] then
-                targetHero.ownedSkills[#targetHero.ownedSkills + 1] = sid
-                ownedSet[sid] = true
-            end
-        end
-        targetHero.skillLevels = targetHero.skillLevels or {}
-        for sid, lv in pairs(grantUpgradeSkills) do
-            targetHero.skillLevels[sid] = math.max(targetHero.skillLevels[sid] or 0, lv)
-        end
-        for sid, lv in pairs(featUpgradeSkills) do
-            targetHero.skillLevels[sid] = math.max(targetHero.skillLevels[sid] or 0, lv)
-        end
+    local beforeStage = HeroData.NormalizePromotionStage(targetHero.promotionStage)
+    if beforeStage == "high" then
+        return false, "class_already_high"
     end
+    local afterStage = HeroData.NormalizePromotionStage(option.promotionStageAfter or getNextPromotionStage(beforeStage))
+    local oldMaxHp = tonumber(targetHero.maxHp) or 1
+    local oldCurrentHp = tonumber(targetHero.currentHp) or 0
+    local isDead = targetHero.isDead == true or oldCurrentHp <= 0 or targetHero.teamState == "dead"
+    HeroData.RefreshClassUnit(targetHero, {
+        promotionStage = afterStage,
+        teamState = targetHero.teamState,
+        currentHp = isDead and 0 or math.max(1, oldCurrentHp + ((tonumber(targetHero.maxHp) or oldMaxHp) - oldMaxHp)),
+        isDead = isDead,
+        source = "battle_reward",
+    })
 
-    runState.lastActionMessage = string.format("%s 升至 Lv.%d，获得「%s」",
-        targetHero.name or "?", targetHero.level or oldLevel, featDef.name or "?")
+    BattleEvent.Publish("DebugCounterTiming", {
+        stage = "roguelike_reward_class_card",
+        source = "roguelike.roguelike_reward",
+        data = {
+            heroName = targetHero.name,
+            heroId = targetHero.heroId,
+            classId = targetHero.classId,
+            promotionStageBefore = beforeStage,
+            promotionStageAfter = afterStage,
+            summaryKey = option.summaryKey,
+        },
+    })
+
+    runState.lastActionMessage = string.format("%s 进阶：%s → %s",
+        targetHero.name or "职业单位", getPromotionStageLabel(beforeStage), getPromotionStageLabel(afterStage))
     return true
 end
 

@@ -7,9 +7,9 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 local Runtime = require("runtime.browser_battle_runtime")
 
 local snapshot = Runtime.init({
-    level = 1,
-    heroCount = 3,
-    enemyCount = 4,
+    level = 3,
+    heroCount = 4,
+    enemyCount = 6,
     initialEnergy = 100,
 })
 assert(snapshot.phase == "running", "battle should start in running phase")

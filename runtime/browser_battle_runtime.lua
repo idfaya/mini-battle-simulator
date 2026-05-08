@@ -280,7 +280,8 @@ local function serializeHero(hero)
 end
 
 local function serializeTeams()
-    local left, right = BattleFormation.GetTeams()
+    local left = BattleFormation.GetVisibleTeam and BattleFormation.GetVisibleTeam(true) or select(1, BattleFormation.GetTeams())
+    local right = BattleFormation.GetVisibleTeam and BattleFormation.GetVisibleTeam(false) or select(2, BattleFormation.GetTeams())
     local leftSerialized = {}
     local rightSerialized = {}
 
@@ -326,6 +327,7 @@ local function buildSnapshot()
     end
     local result = nil
     local battleResult = BattleMain.GetBattleResult and BattleMain.GetBattleResult() or state.battleResult
+    local battleFlow = BattleMain.GetBattleFlowState and BattleMain.GetBattleFlowState() or {}
 
     if battleResult and battleResult.isFinished then
         result = {
@@ -344,6 +346,16 @@ local function buildSnapshot()
         rightTeam = rightTeam,
         actionOrder = actionOrder,
         pendingCommands = #state.queuedCommands + (BattleMain.GetQueuedUltimateCount and BattleMain.GetQueuedUltimateCount() or 0),
+        reserveRemaining = tonumber(battleFlow.reserveRemaining) or 0,
+        battleRules = {
+            refreshTurns = tonumber(battleFlow.refreshTurns) or 0,
+            refreshOnClear = battleFlow.refreshOnClear == true,
+            winRule = battleFlow.winRule or "reserve_empty_and_board_clear",
+            loseRule = battleFlow.loseRule or "all_hero_dead",
+            bossId = battleFlow.bossId,
+            spawnOrder = battleFlow.spawnOrder or "back_first_then_front",
+            totalSpawned = tonumber(battleFlow.totalSpawned) or 0,
+        },
         result = result,
     }
 end
@@ -406,6 +418,19 @@ end
 
 local function clamp(value, minValue, maxValue)
     return math.max(minValue, math.min(maxValue, value))
+end
+
+local function readOptionalField(source, ...)
+    if type(source) ~= "table" then
+        return nil
+    end
+    for i = 1, select("#", ...) do
+        local key = select(i, ...)
+        if source[key] ~= nil then
+            return source[key]
+        end
+    end
+    return nil
 end
 
 local function assignDefaultWpType(unit, index)
@@ -516,6 +541,10 @@ local function buildRuntimeTeamConfig(options)
     local seedArray = normalizeSeedArray(options)
     local fixedHeroIds = normalizeIdList(options and options.heroIds, 6)
     local fixedEnemyIds = normalizeIdList(options and options.enemyIds, 6)
+    local fixedEnemyReserveIds = normalizeIdList(
+        options and ((options.enemyReserveIds or options.reserveEnemyIds or options.enemyReserve)),
+        24
+    )
     local buildFeatIds = normalizeIdList((options and options.buildFeatIds) or (options and options.fighterBuildFeatIds), 12)
     local buildFeatIdsByHero = normalizeIdMatrix((options and options.buildFeatIdsByHero) or (options and options.fighterBuildFeatIdsByHero), 6, 12)
     if #fixedHeroIds > 0 then
@@ -696,9 +725,26 @@ local function buildRuntimeTeamConfig(options)
         error("Failed to build browser battle teams from runtime options")
     end
 
+    local enemyReserve = {}
+    for _, enemyId in ipairs(fixedEnemyReserveIds) do
+        local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
+        if enemyData then
+            enemyData.wpType = 0
+            enemyReserve[#enemyReserve + 1] = enemyData
+        end
+    end
+
     return {
         teamLeft = leftTeam,
         teamRight = rightTeam,
+        enemyReserve = (#enemyReserve > 0 and enemyReserve) or (options and options.enemyReserve) or nil,
+        refreshTurns = tonumber(readOptionalField(options, "refreshTurns", "refresh_turns")) or nil,
+        refreshOnClear = readOptionalField(options, "refreshOnClear", "refresh_on_clear"),
+        winRule = readOptionalField(options, "winRule", "win_rule"),
+        loseRule = readOptionalField(options, "loseRule", "lose_rule"),
+        bossId = readOptionalField(options, "bossId", "boss_id"),
+        spawnOrder = readOptionalField(options, "spawnOrder", "spawn_order"),
+        level = level,
         seedArray = seedArray,
         initialEnergy = initialEnergy,
         disableDefaultRenderer = true,
@@ -721,6 +767,14 @@ local function normalizeConfig(config)
     return {
         teamLeft = config.teamLeft,
         teamRight = config.teamRight,
+        enemyReserve = readOptionalField(config, "enemyReserve", "enemy_reserve", "reserveUnits", "reserve_units"),
+        refreshTurns = readOptionalField(config, "refreshTurns", "refresh_turns"),
+        refreshOnClear = readOptionalField(config, "refreshOnClear", "refresh_on_clear"),
+        winRule = readOptionalField(config, "winRule", "win_rule"),
+        loseRule = readOptionalField(config, "loseRule", "lose_rule"),
+        bossId = readOptionalField(config, "bossId", "boss_id"),
+        spawnOrder = readOptionalField(config, "spawnOrder", "spawn_order"),
+        level = config.level,
         seedArray = config.seedArray or { 123456789, 362436069, 521288629, 88675123 },
         initialEnergy = clamp(math.floor(tonumber(config.initialEnergy) or DEFAULT_INITIAL_ENERGY), 0, 100),
         disableDefaultRenderer = true,

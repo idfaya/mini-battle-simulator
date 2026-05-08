@@ -35,6 +35,7 @@ local heroInfoMap = {}
 local heroesByClass = {}
 local heroesByFaction = {}
 local heroesByQuality = {}
+local representativeHeroIdByClass = {}
 local allHeroes = {}
 local playableHeroes = {}
 local initialized = false
@@ -277,10 +278,57 @@ local function OpenConfigFile(fileName)
 end
 
 local HERO_LEVEL_MAX = 20
+local PROMOTION_STAGE_TO_LEVEL = {
+    -- promotion_stage only provides the minimum combat level fallback.
+    -- Real class_unit.level from Run exp growth must not be overwritten.
+    low = 3,
+    mid = 5,
+    high = 7,
+}
+local PROMOTION_STAGE_ORDER = {
+    low = 1,
+    mid = 2,
+    high = 3,
+}
 -- 5e-ish tier boundaries (inclusive start, exclusive end)
 -- T1: 1-4, T2: 5-10, T3: 11-16, T4: 17-20
 ---@type integer[]
 local HERO_TIER_STARTS = { 1, 5, 11, 17, HERO_LEVEL_MAX + 1 }
+
+local function normalizePromotionStage(stage)
+    local value = tostring(stage or "low")
+    if value ~= "mid" and value ~= "high" then
+        return "low"
+    end
+    return value
+end
+
+local function getPromotionStageLevel(stage)
+    return PROMOTION_STAGE_TO_LEVEL[normalizePromotionStage(stage)] or 1
+end
+
+local function getCharacterGroup(classId)
+    if ClassRoleConfig.IsMelee(classId) then
+        return "physical"
+    end
+    return "caster"
+end
+
+local function cloneArray(list)
+    local result = {}
+    for i, value in ipairs(list or {}) do
+        result[i] = value
+    end
+    return result
+end
+
+local function cloneMap(map)
+    local result = {}
+    for key, value in pairs(map or {}) do
+        result[key] = value
+    end
+    return result
+end
 
 local function GetTier(level)
     local lv = tonumber(level) or 1
@@ -398,6 +446,9 @@ local function LoadHeroInfo()
 
         if hero.IsHero == 1 then
             table.insert(playableHeroes, hero)
+            if not representativeHeroIdByClass[hero.Class] then
+                representativeHeroIdByClass[hero.Class] = hero.AllyID
+            end
         end
     end
 
@@ -513,7 +564,7 @@ function HeroData.GetQualityName(quality)
     return QUALITY_NAMES[quality] or "Unknown"
 end
 
-function HeroData.CalculateHeroAttributes(heroId, level, star)
+function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     Init()
     local hero = heroInfoMap[heroId]
     if not hero then
@@ -525,7 +576,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star)
     local template = GetTemplateStats(hero.Class, level)
 
     -- 5e growth: level drives progression; star no longer affects stats.
-    local abilities = getHeroAbilityScores(heroId, hero.Class)
+    local abilities = (override and override.abilityScores) or getHeroAbilityScores(heroId, hero.Class)
     local str = clampAbility(abilities.str)
     local dex = clampAbility(abilities.dex)
     local con = clampAbility(abilities.con)
@@ -600,7 +651,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         return nil
     end
 
-    local attrs = HeroData.CalculateHeroAttributes(heroId, level, star)
+    local attrs = HeroData.CalculateHeroAttributes(heroId, level, star, override)
     if not attrs then
         return nil
     end
@@ -889,6 +940,7 @@ Init()
 -- ==========================================================================
 
 local FeatConfig = require("config.feat_config")
+local FeatBuildConfig = require("config.feat_build_config")
 local ClassLevelGrants = require("config.class_level_grants")
 
 local STAT_KEYS = {
@@ -1015,6 +1067,365 @@ function HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
         end
     end
     return final
+end
+
+local function sortFeatDefs(list)
+    table.sort(list, function(a, b)
+        local aid = tonumber(a and a.id) or 0
+        local bid = tonumber(b and b.id) or 0
+        if aid ~= bid then
+            return aid < bid
+        end
+        return tostring(a and a.name or "") < tostring(b and b.name or "")
+    end)
+    return list
+end
+
+local function collectCanonicalBuildSelections(classId, level)
+    local selected = {}
+    if not ClassBuildProgression.GetProgression(classId) then
+        return selected
+    end
+    local maxLevel = math.max(1, tonumber(level) or 1)
+    for stageLevel = 1, maxLevel do
+        local entry = ClassBuildProgression.GetLevelEntry(classId, stageLevel)
+        if entry and entry.choiceGroup then
+            local pool = sortFeatDefs(FeatBuildConfig.GetFeatsByLevel(classId, stageLevel, entry.choiceGroup) or {})
+            if pool[1] and pool[1].id then
+                selected[#selected + 1] = pool[1].id
+            end
+        end
+    end
+    return selected
+end
+
+local function collectCanonicalFeatSelections(classId, level)
+    if ClassBuildProgression.GetProgression(classId) then
+        return collectCanonicalBuildSelections(classId, level)
+    end
+    local selected = {}
+    local maxLevel = math.max(1, tonumber(level) or 1)
+    for stageLevel = 2, maxLevel do
+        local pool = FeatConfig.GetEligibleFeats(classId, stageLevel, selected)
+        if #pool > 0 then
+            sortFeatDefs(pool)
+            local picked = nil
+            for _, feat in ipairs(pool) do
+                if tonumber(feat.minLevel) == stageLevel then
+                    picked = feat
+                    break
+                end
+            end
+            picked = picked or pool[1]
+            if picked and picked.id then
+                selected[#selected + 1] = picked.id
+            end
+        end
+    end
+    return selected
+end
+
+local function buildPromotionAbilityScores(classId, heroId, promotionStage)
+    local base = getHeroAbilityScores(heroId, classId)
+    local result = {
+        str = base.str,
+        dex = base.dex,
+        con = base.con,
+        int = base.int,
+        wis = base.wis,
+        cha = base.cha,
+    }
+    local profile = Ability5e.GetClassProfile(classId)
+    local stage = normalizePromotionStage(promotionStage)
+    local function addAbility(key, delta)
+        if not key or key == "none" or delta == 0 then
+            return
+        end
+        result[key] = clampAbility((tonumber(result[key]) or 10) + delta)
+    end
+
+    if PROMOTION_STAGE_ORDER[stage] >= PROMOTION_STAGE_ORDER.mid then
+        addAbility(profile and profile.primary_ability or nil, 1)
+        addAbility("con", 1)
+    end
+    if PROMOTION_STAGE_ORDER[stage] >= PROMOTION_STAGE_ORDER.high then
+        addAbility(profile and profile.primary_ability or nil, 2)
+        addAbility(profile and profile.spell_ability or nil, 1)
+        addAbility("con", 1)
+    end
+    return result
+end
+
+function HeroData.GetRepresentativeHeroId(classId)
+    Init()
+    return representativeHeroIdByClass[tonumber(classId) or 0]
+end
+
+function HeroData.GetAllClassIds()
+    Init()
+    local result = {}
+    for classId in pairs(representativeHeroIdByClass) do
+        result[#result + 1] = tonumber(classId) or 0
+    end
+    table.sort(result)
+    return result
+end
+
+function HeroData.NormalizePromotionStage(stage)
+    return normalizePromotionStage(stage)
+end
+
+function HeroData.GetPromotionStageLevel(stage)
+    return getPromotionStageLevel(stage)
+end
+
+function HeroData.GetCharacterGroup(classId)
+    return getCharacterGroup(classId)
+end
+
+function HeroData.GetCanonicalStageFeatIds(classId, promotionStage)
+    local level = getPromotionStageLevel(promotionStage)
+    return collectCanonicalFeatSelections(classId, level)
+end
+
+function HeroData.GetClassCardSummaryKey(classId, promotionStage)
+    return string.format("class_%d_%s", tonumber(classId) or 0, normalizePromotionStage(promotionStage))
+end
+
+function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
+    Init()
+    local resolvedClassId = tonumber(classId) or 0
+    local heroId = HeroData.GetRepresentativeHeroId(resolvedClassId)
+    if not heroId then
+        return nil
+    end
+
+    local stage = normalizePromotionStage(promotionStage)
+    local level = math.floor(tonumber(explicitLevel) or getPromotionStageLevel(stage))
+    level = math.max(1, level)
+    local abilityScores = buildPromotionAbilityScores(resolvedClassId, heroId, stage)
+    local selectedFeatIds = collectCanonicalFeatSelections(resolvedClassId, level)
+
+    if ClassBuildProgression.GetProgression(resolvedClassId) then
+        local buildState = HeroBuild.TryCompileBuild(resolvedClassId, level, selectedFeatIds)
+        local builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
+            abilityScores = abilityScores,
+            buildState = buildState,
+            buildFeatIds = selectedFeatIds,
+        })
+        if builtHero then
+            builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
+            builtHero.promotionStage = stage
+        end
+        return builtHero
+    end
+
+    local builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
+        abilityScores = abilityScores,
+    })
+    if not builtHero then
+        return nil
+    end
+
+    local grantMods, grantUnlockSkills, grantUpgradeSkills =
+        HeroData.CollectClassLevelGrants(resolvedClassId, 0, level)
+    local featMods, featUnlockSkills, featUpgradeSkills =
+        HeroData.ApplyFeats(selectedFeatIds)
+    local final = HeroData.MergeAttrMods(HeroData.CalculateHeroAttributes(heroId, level, 1, {
+        abilityScores = abilityScores,
+    }), featMods, grantMods)
+
+    if final then
+        builtHero.hp = final.hp or builtHero.hp
+        builtHero.maxHp = final.maxHp or builtHero.maxHp
+        builtHero.atk = final.atk or builtHero.atk
+        builtHero.def = final.def or builtHero.def
+        builtHero.ac = final.ac or builtHero.ac
+        builtHero.hit = final.hit or builtHero.hit
+        builtHero.spellDC = final.spellDC or builtHero.spellDC
+        builtHero.saveFort = final.saveFort or builtHero.saveFort
+        builtHero.saveRef = final.saveRef or builtHero.saveRef
+        builtHero.saveWill = final.saveWill or builtHero.saveWill
+        builtHero.speed = final.speed or builtHero.speed
+        builtHero.spd = builtHero.speed
+        builtHero.critRate = final.critRate or builtHero.critRate
+        builtHero.blockRate = final.blockRate or builtHero.blockRate
+        builtHero.healBonus = final.healBonus or builtHero.healBonus
+    end
+
+    local ownedSkills = {}
+    local ownedSet = {}
+    for _, sid in ipairs(grantUnlockSkills or {}) do
+        if not ownedSet[sid] then
+            ownedSet[sid] = true
+            ownedSkills[#ownedSkills + 1] = sid
+        end
+    end
+    for _, sid in ipairs(featUnlockSkills or {}) do
+        if not ownedSet[sid] then
+            ownedSet[sid] = true
+            ownedSkills[#ownedSkills + 1] = sid
+        end
+    end
+    local skillLevels = {}
+    for sid, lv in pairs(grantUpgradeSkills or {}) do
+        skillLevels[sid] = math.max(skillLevels[sid] or 0, tonumber(lv) or 1)
+    end
+    for sid, lv in pairs(featUpgradeSkills or {}) do
+        skillLevels[sid] = math.max(skillLevels[sid] or 0, tonumber(lv) or 1)
+    end
+
+    builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
+        abilityScores = abilityScores,
+        ownedSkills = ownedSkills,
+        skillLevels = skillLevels,
+    }) or builtHero
+    builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
+    builtHero.ownedSkills = cloneArray(ownedSkills)
+    builtHero.skillLevels = cloneMap(skillLevels)
+    builtHero.promotionStage = stage
+    return builtHero
+end
+
+function HeroData.CreateClassUnit(classId, options)
+    Init()
+    local resolvedClassId = tonumber(classId) or 0
+    local stage = options and options.promotionStage or "low"
+    local level = tonumber(options and options.level) or getPromotionStageLevel(stage)
+    local heroData = HeroData.BuildClassUnitHeroData(resolvedClassId, stage, level)
+    if not heroData then
+        return nil
+    end
+
+    local heroId = HeroData.GetRepresentativeHeroId(resolvedClassId)
+    local heroInfo = heroId and HeroData.GetHeroInfo(heroId) or nil
+    local currentHp = tonumber(options and options.currentHp)
+    currentHp = currentHp or heroData.maxHp
+    currentHp = math.max(0, math.min(heroData.maxHp or currentHp, currentHp))
+    local teamState = tostring(options and options.teamState or "active")
+    local isDead = (options and options.isDead) == true or currentHp <= 0 or teamState == "dead"
+    if isDead then
+        teamState = "dead"
+        currentHp = 0
+    end
+
+    return {
+        rosterId = options and options.rosterId or nil,
+        unitId = options and options.unitId or nil,
+        heroId = heroId,
+        name = ClassRoleConfig.GetName(resolvedClassId),
+        classId = resolvedClassId,
+        className = ClassRoleConfig.GetName(resolvedClassId),
+        characterGroup = getCharacterGroup(resolvedClassId),
+        level = heroData.level,
+        exp = tonumber(options and options.exp) or 0,
+        star = 1,
+        teamState = teamState,
+        promotionStage = heroData.promotionStage or normalizePromotionStage(options and options.promotionStage or "low"),
+        battleSlot = options and options.battleSlot or "none",
+        recommendedSlot = ClassRoleConfig.PreferFrontRow(resolvedClassId) and "front" or "back",
+        skillPackageId = HeroData.GetClassCardSummaryKey(resolvedClassId, heroData.promotionStage or "low"),
+        maxHp = heroData.maxHp,
+        currentHp = currentHp,
+        hp = currentHp,
+        isDead = isDead,
+        ultimateCharges = tonumber(options and options.ultimateCharges) or 1,
+        ultimateChargesMax = tonumber(options and options.ultimateChargesMax) or 1,
+        skillCooldowns = cloneMap(options and options.skillCooldowns or {}),
+        source = options and options.source or "class_card",
+        feats = cloneArray(heroData.selectedFeatIds),
+        ownedSkills = cloneArray(heroData.ownedSkills),
+        skillLevels = cloneMap(heroData.skillLevels),
+        buildState = heroData.buildState,
+        atk = heroData.atk,
+        def = heroData.def,
+        ac = heroData.ac,
+        hit = heroData.hit,
+        spellDC = heroData.spellDC,
+        saveFort = heroData.saveFort,
+        saveRef = heroData.saveRef,
+        saveWill = heroData.saveWill,
+        speed = heroData.speed,
+        critRate = heroData.critRate,
+        blockRate = heroData.blockRate,
+        healBonus = heroData.healBonus,
+        str = heroData.str,
+        dex = heroData.dex,
+        con = heroData.con,
+        int = heroData.int,
+        wis = heroData.wis,
+        cha = heroData.cha,
+        heroConfig = heroInfo,
+    }
+end
+
+function HeroData.RefreshClassUnit(classUnit, updates)
+    if type(classUnit) ~= "table" then
+        return nil
+    end
+    local patch = updates or {}
+    local currentHp = patch.currentHp
+    if currentHp == nil then
+        currentHp = classUnit.currentHp
+    end
+    local exp = patch.exp
+    if exp == nil then
+        exp = classUnit.exp
+    end
+    local ultimateCharges = patch.ultimateCharges
+    if ultimateCharges == nil then
+        ultimateCharges = classUnit.ultimateCharges
+    end
+    local ultimateChargesMax = patch.ultimateChargesMax
+    if ultimateChargesMax == nil then
+        ultimateChargesMax = classUnit.ultimateChargesMax
+    end
+    local rebuilt = HeroData.CreateClassUnit(classUnit.classId, {
+        rosterId = classUnit.rosterId,
+        unitId = classUnit.unitId,
+        promotionStage = patch.promotionStage or classUnit.promotionStage,
+        level = patch.level or classUnit.level,
+        teamState = patch.teamState or classUnit.teamState,
+        currentHp = currentHp,
+        isDead = patch.isDead,
+        exp = exp,
+        battleSlot = patch.battleSlot or classUnit.battleSlot,
+        source = patch.source or classUnit.source,
+        ultimateCharges = ultimateCharges,
+        ultimateChargesMax = ultimateChargesMax,
+        skillCooldowns = patch.skillCooldowns or classUnit.skillCooldowns,
+    })
+    if not rebuilt then
+        return nil
+    end
+    for key in pairs(classUnit) do
+        classUnit[key] = nil
+    end
+    for key, value in pairs(rebuilt) do
+        classUnit[key] = value
+    end
+    return classUnit
+end
+
+function HeroData.ConvertClassUnitToHeroData(classUnit)
+    if type(classUnit) ~= "table" then
+        return nil
+    end
+    local heroData = HeroData.BuildClassUnitHeroData(classUnit.classId, classUnit.promotionStage, classUnit.level)
+    if not heroData then
+        return nil
+    end
+    heroData.id = classUnit.heroId or heroData.id
+    heroData.name = classUnit.name or heroData.name
+    heroData.hp = math.max(0, math.min(heroData.maxHp or 1, tonumber(classUnit.currentHp) or heroData.maxHp or 1))
+    heroData.ultimateChargesMax = tonumber(classUnit.ultimateChargesMax) or 1
+    heroData.ultimateCharges = tonumber(classUnit.ultimateCharges)
+    if heroData.ultimateCharges == nil then
+        heroData.ultimateCharges = heroData.ultimateChargesMax
+    end
+    heroData.initialCooldowns = classUnit.skillCooldowns
+    heroData.classUnit = classUnit
+    return heroData
 end
 
 return HeroData

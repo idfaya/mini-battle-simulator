@@ -15,7 +15,7 @@
 ---@field code string
 ---@field nodeType RunNodeType
 ---@field title string
----@field encounterId integer|nil
+---@field battleId integer|nil
 ---@field eventId integer|nil
 ---@field shopId integer|nil
 ---@field campId integer|nil
@@ -40,7 +40,7 @@ RunNodePool.NODES = {
         code = "frontier_scouts",
         nodeType = "battle_normal",
         title = "Frontier Scouts",
-        encounterId = 101001,
+        battleId = 101001,
         nextNodeIds = { 101002, 101003 },
     },
     [101002] = {
@@ -62,7 +62,7 @@ RunNodePool.NODES = {
         code = "snowfield_ambush",
         nodeType = "battle_normal",
         title = "Snowfield Ambush",
-        encounterId = 101002,
+        battleId = 101002,
         nextNodeIds = { 101004, 101005 },
     },
     [101004] = {
@@ -73,7 +73,7 @@ RunNodePool.NODES = {
         code = "frostbite_raid",
         nodeType = "battle_normal",
         title = "Frostbite Raid",
-        encounterId = 101103,
+        battleId = 101103,
         nextNodeIds = { 101006, 101007 },
     },
     [101005] = {
@@ -84,7 +84,7 @@ RunNodePool.NODES = {
         code = "bone_patrol",
         nodeType = "battle_elite",
         title = "Bone Patrol",
-        encounterId = 101101,
+        battleId = 101101,
         nextNodeIds = { 101006, 101007 },
     },
     [101006] = {
@@ -106,7 +106,7 @@ RunNodePool.NODES = {
         code = "collapsed_bridge",
         nodeType = "battle_normal",
         title = "Collapsed Bridge",
-        encounterId = 101003,
+        battleId = 101003,
         nextNodeIds = { 101008, 101009 },
     },
     [101008] = {
@@ -117,8 +117,8 @@ RunNodePool.NODES = {
         code = "ember_ambush",
         nodeType = "battle_normal",
         title = "Ember Ambush",
-        encounterId = 101104,
-        nextNodeIds = { 101010 },
+        battleId = 101104,
+        nextNodeIds = { 101012, 101013 },
     },
     [101009] = {
         id = 101009,
@@ -128,13 +128,35 @@ RunNodePool.NODES = {
         code = "dark_cabal",
         nodeType = "battle_elite",
         title = "Dark Cabal",
-        encounterId = 101102,
+        battleId = 101102,
+        nextNodeIds = { 101012, 101013 },
+    },
+    [101012] = {
+        id = 101012,
+        chapterId = 101,
+        floor = 6,
+        lane = 1,
+        code = "icebound_crossing",
+        nodeType = "battle_normal",
+        title = "Icebound Crossing",
+        battleId = 101003,
+        nextNodeIds = { 101010 },
+    },
+    [101013] = {
+        id = 101013,
+        chapterId = 101,
+        floor = 6,
+        lane = 2,
+        code = "ashen_pursuit",
+        nodeType = "battle_normal",
+        title = "Ashen Pursuit",
+        battleId = 101104,
         nextNodeIds = { 101010 },
     },
     [101010] = {
         id = 101010,
         chapterId = 101,
-        floor = 6,
+        floor = 7,
         lane = 1,
         code = "stranded_allies",
         nodeType = "recruit",
@@ -145,12 +167,12 @@ RunNodePool.NODES = {
     [101011] = {
         id = 101011,
         chapterId = 101,
-        floor = 7,
+        floor = 8,
         lane = 1,
         code = "frozen_gate",
         nodeType = "boss",
         title = "Frozen Gate",
-        encounterId = 101201,
+        battleId = 101201,
         bossPhaseGroupId = 101201,
         nextNodeIds = {},
     },

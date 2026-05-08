@@ -1,6 +1,8 @@
 local RoguelikeConfig = {
     Chapter = require("config.roguelike.run_chapter_config"),
     Nodes = require("config.roguelike.run_node_pool"),
+    Battles = require("config.roguelike.run_battle_config"),
+    EnemyGroups = require("config.roguelike.run_enemy_group"),
     Encounters = require("config.roguelike.run_encounter_group"),
     Rewards = require("config.roguelike.run_reward_pool"),
     Equipments = require("config.roguelike.run_equipment_config"),

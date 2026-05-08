@@ -6,6 +6,27 @@ local FeatBuildConfig = require("config.feat_build_config")
 local ClassBuildProgression = require("config.class_build_progression")
 
 local RoguelikeSnapshot = {}
+local LEVEL_EXP_THRESHOLDS = {
+    [1] = 0,
+    [2] = 8,
+    [3] = 20,
+    [4] = 36,
+    [5] = 58,
+    [6] = 86,
+    [7] = 120,
+    [8] = 160,
+    [9] = 208,
+    [10] = 264,
+}
+
+local function getNextLevelExp(hero)
+    local level = math.max(1, tonumber(hero and hero.level) or 1)
+    if level >= 10 then
+        return 0
+    end
+    local exp = math.max(0, tonumber(hero and hero.exp) or 0)
+    return math.max(0, (LEVEL_EXP_THRESHOLDS[level + 1] or 0) - exp)
+end
 
 local function shallowCopyArray(input)
     local result = {}
@@ -55,14 +76,22 @@ local function serializeTeam(roster)
     for _, hero in ipairs(roster or {}) do
         result[#result + 1] = {
             rosterId = hero.rosterId,
+            unitId = hero.unitId,
             heroId = hero.heroId,
             name = hero.name,
             classId = hero.classId,
+            className = hero.className,
+            characterGroup = hero.characterGroup,
             level = hero.level,
+            exp = hero.exp or 0,
+            nextLevelExp = getNextLevelExp(hero),
             star = hero.star,
             hp = hero.currentHp,
             maxHp = hero.maxHp,
             isDead = hero.isDead == true,
+            teamState = hero.teamState,
+            promotionStage = hero.promotionStage,
+            skillPackageId = hero.skillPackageId,
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
             buildSummary = buildFeatSummary(hero),

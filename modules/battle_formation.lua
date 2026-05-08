@@ -37,6 +37,7 @@ local COLUMN_BY_WP_TYPE = {
 local DEFAULT_EMPTY_WP_PRIORITY = { 5, 4, 6, 2, 1, 3 }
 local FRONT_ROW_PRIORITY = { 2, 1, 3, 5, 4, 6 }
 local BACK_ROW_PRIORITY = { 5, 4, 6, 2, 1, 3 }
+local FRONT_FIRST_PRIORITY = { 2, 1, 3, 5, 4, 6 }
 
 --- 生成唯一实例ID
 ---@return number 实例ID
@@ -88,6 +89,14 @@ local function GetFirstAvailableWpType(isLeft, preferredOrder)
     return nil
 end
 
+local function ResolveSpawnPriority(options)
+    local spawnOrder = options and options.spawnOrder or nil
+    if spawnOrder == "front_first_then_back" then
+        return FRONT_FIRST_PRIORITY
+    end
+    return DEFAULT_EMPTY_WP_PRIORITY
+end
+
 local function IsMeleeClass(classId)
     return ClassRoleConfig.IsMelee(classId)
 end
@@ -136,6 +145,7 @@ local function CreateHero(heroData, wpType, isLeft)
     local hero = {
         -- 基础信息
         instanceId = GenerateInstanceId(),
+        id = heroData.id or heroData.configId or heroData.heroId or 0,
         configId = heroData.configId or heroData.heroId or 0,
         name = heroData.name or "Unknown",
         class = heroData.class or heroData.Class or 0,
@@ -306,6 +316,17 @@ function BattleFormation.GetTeams()
     return BattleFormation.teamLeft, BattleFormation.teamRight
 end
 
+function BattleFormation.GetVisibleTeam(isLeft)
+    local result = {}
+    for wpType = 1, MAX_WP_TYPE do
+        local hero = BattleFormation.FindHeroByCampAndPos(isLeft, wpType)
+        if hero then
+            table.insert(result, hero)
+        end
+    end
+    return result
+end
+
 --- 获取友好队伍
 ---@param hero table 英雄对象
 ---@return table 友好队伍数组
@@ -354,6 +375,16 @@ end
 
 function BattleFormation.GetFirstAvailableWpType(isLeft, preferredOrder)
     return GetFirstAvailableWpType(isLeft, preferredOrder)
+end
+
+function BattleFormation.GetAvailableSlotCount(isLeft)
+    local count = 0
+    for wpType = 1, MAX_WP_TYPE do
+        if not IsPositionOccupied(isLeft, wpType) then
+            count = count + 1
+        end
+    end
+    return count
 end
 
 function BattleFormation.GetAliveHeroesByRow(isLeft, row)
@@ -511,7 +542,7 @@ end
 ---@param heroData table 英雄数据
 ---@param isLeft boolean 是否在左侧队伍 (默认为true)
 ---@return table|nil 复活的英雄对象
-function BattleFormation.ReviveHero(wpType, heroData, isLeft)
+function BattleFormation.ReviveHero(wpType, heroData, isLeft, options)
     if not heroData then
         Logger.LogWarning("BattleFormation.ReviveHero - heroData 为空")
         return nil
@@ -534,7 +565,7 @@ function BattleFormation.ReviveHero(wpType, heroData, isLeft)
             return nil
         end
     else
-        wpType = GetFirstAvailableWpType(isLeft)
+        wpType = GetFirstAvailableWpType(isLeft, (options and options.preferredOrder) or ResolveSpawnPriority(options))
     end
     if not wpType then
         Logger.LogWarning(string.format("ReviveHero - 没有可用站位: isLeft=%s", tostring(isLeft)))

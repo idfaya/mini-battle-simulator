@@ -6,6 +6,7 @@ local RoguelikeShop = require("roguelike.roguelike_shop")
 local RoguelikeCamp = require("roguelike.roguelike_camp")
 local RoguelikeSnapshot = require("roguelike.roguelike_snapshot")
 local RunNodePool = require("config.roguelike.run_node_pool")
+local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEncounterGroup = require("config.roguelike.run_encounter_group")
 local HeroData = require("config.hero_data")
 
@@ -16,36 +17,17 @@ local STARTER_LEVEL = 1
 -- 5e growth: no star progression.
 local STARTER_STAR = 1
 local CHAPTER_LEVEL_CAP = 10
-local EXP_BY_NODE_TYPE = {
-    battle_normal = 1,
-    battle_elite = 2,
-    boss = 3,
-    event = 1,
-    shop = 1,
-    camp = 1,
-    recruit = 1,
-}
 local LEVEL_EXP_THRESHOLDS = {
     [1] = 0,
-    [2] = 1,
-    [3] = 2,
-    [4] = 3,
-    [5] = 4,
-    [6] = 5,
-    [7] = 6,
-    [8] = 7,
-    [9] = 8,
-    [10] = 9,
-    [11] = 10,
-    [12] = 11,
-    [13] = 12,
-    [14] = 13,
-    [15] = 14,
-    [16] = 15,
-    [17] = 16,
-    [18] = 17,
-    [19] = 18,
-    [20] = 19,
+    [2] = 8,
+    [3] = 20,
+    [4] = 36,
+    [5] = 58,
+    [6] = 86,
+    [7] = 120,
+    [8] = 160,
+    [9] = 208,
+    [10] = 264,
 }
 
 local function allocateRosterId(runState)
@@ -88,42 +70,95 @@ end
 
 local function getExpThreshold(level)
     local lv = math.max(1, tonumber(level) or 1)
-    return LEVEL_EXP_THRESHOLDS[lv] or (lv - 1)
+    return LEVEL_EXP_THRESHOLDS[lv] or LEVEL_EXP_THRESHOLDS[CHAPTER_LEVEL_CAP] or 0
 end
 
 local function getExpToNextLevel(level)
     local lv = math.max(1, tonumber(level) or 1)
+    if lv >= (state and state.levelCap or CHAPTER_LEVEL_CAP) then
+        return 0
+    end
     return math.max(1, getExpThreshold(lv + 1) - getExpThreshold(lv))
 end
 
-local function getNodeExp(nodeType)
-    return tonumber(EXP_BY_NODE_TYPE[nodeType]) or 0
+local function getNodeExp(_nodeType)
+    -- Non-battle node exp is reserved by design; current MVP only grants battle.expReward.
+    return 0
 end
 
-local function applyRosterLevel(hero, newLevel)
-    if not hero then
-        return
+local function getLevelForExp(exp, cap)
+    local current = STARTER_LEVEL
+    local levelCap = math.max(STARTER_LEVEL, tonumber(cap) or CHAPTER_LEVEL_CAP)
+    local totalExp = math.max(0, math.floor(tonumber(exp) or 0))
+    for lv = STARTER_LEVEL + 1, levelCap do
+        if totalExp >= getExpThreshold(lv) then
+            current = lv
+        else
+            break
+        end
     end
-    local attrs = HeroData.CalculateHeroAttributes(hero.heroId, newLevel, 1)
-    if not attrs then
-        return
+    return current
+end
+
+local function refreshUnitLevel(unit, newLevel, newExp)
+    if not unit then
+        return false
     end
-    local oldMaxHp = tonumber(hero.maxHp) or 1
-    local oldCurrentHp = tonumber(hero.currentHp) or 0
-    hero.level = attrs.level or newLevel
-    hero.star = 1
-    hero.maxHp = attrs.maxHp or oldMaxHp
-    if hero.isDead then
-        hero.currentHp = 0
+    local oldLevel = tonumber(unit.level) or STARTER_LEVEL
+    local oldMaxHp = tonumber(unit.maxHp) or 1
+    local oldCurrentHp = tonumber(unit.currentHp) or 0
+    local isDead = unit.isDead == true or oldCurrentHp <= 0 or unit.teamState == "dead"
+    HeroData.RefreshClassUnit(unit, {
+        level = newLevel,
+        exp = newExp,
+        currentHp = oldCurrentHp,
+        isDead = isDead,
+        teamState = unit.teamState,
+        promotionStage = unit.promotionStage,
+        source = unit.source,
+    })
+    if not isDead then
+        local deltaHp = (tonumber(unit.maxHp) or oldMaxHp) - oldMaxHp
+        unit.currentHp = math.max(1, math.min(unit.maxHp or oldCurrentHp, oldCurrentHp + math.max(0, deltaHp)))
+        unit.hp = unit.currentHp
+    end
+    return (tonumber(unit.level) or oldLevel) > oldLevel
+end
+
+local function grantBattleExp(battle)
+    local expReward = math.max(0, math.floor(tonumber(battle and battle.expReward) or 0))
+    if expReward <= 0 then
+        return {}
+    end
+    local leveledUnits = {}
+    local recipients = 0
+    for _, unit in ipairs(state.teamRoster or {}) do
+        if unit.teamState == "active" and unit.isDead ~= true and (tonumber(unit.currentHp) or 0) > 0 then
+            local oldLevel = tonumber(unit.level) or STARTER_LEVEL
+            local newExp = (tonumber(unit.exp) or 0) + expReward
+            local newLevel = getLevelForExp(newExp, state.levelCap)
+            refreshUnitLevel(unit, newLevel, newExp)
+            recipients = recipients + 1
+            if newLevel > oldLevel then
+                leveledUnits[#leveledUnits + 1] = unit.unitId or unit.name or tostring(unit.rosterId)
+            end
+        end
+    end
+    state.partyExp = (state.partyExp or 0) + expReward
+    state.lastBattleExpReward = expReward
+    state.lastLevelUpUnits = leveledUnits
+    if recipients <= 0 then
+        return leveledUnits
+    end
+    if #leveledUnits > 0 then
+        state.lastActionMessage = string.format("战斗胜利，获得 %d 经验，%d 名单位升级", expReward, #leveledUnits)
     else
-        local deltaHp = hero.maxHp - oldMaxHp
-        hero.currentHp = math.max(1, math.min(hero.maxHp, oldCurrentHp + deltaHp))
+        state.lastActionMessage = string.format("战斗胜利，获得 %d 经验", expReward)
     end
+    return leveledUnits
 end
 
 local function grantRunExp(amount, sourceLabel)
-    -- 5e 改版：取消全队自动升级。partyExp 仅作为"推荐等级"的历史足迹，
-    -- 升级完全交由战后 3 选 1 单人 feat 升级处理。
     local gain = math.max(0, math.floor(tonumber(amount) or 0))
     if gain <= 0 then
         return 0
@@ -147,33 +182,44 @@ local function recalcRecommendedLevel()
     else
         state.partyLevel = math.max(STARTER_LEVEL, math.floor(total / count))
     end
+    local sampleExp = 0
+    local sampleCount = 0
+    for _, hero in ipairs(state.teamRoster or {}) do
+        if not hero.isDead then
+            sampleExp = sampleExp + (tonumber(hero.exp) or 0)
+            sampleCount = sampleCount + 1
+        end
+    end
+    if sampleCount > 0 then
+        sampleExp = math.floor(sampleExp / sampleCount)
+    end
     local currentThreshold = getExpThreshold(state.partyLevel or STARTER_LEVEL)
-    state.levelProgressExp = math.max(0, (state.partyExp or 0) - currentThreshold)
-    state.nextLevelExp = 0
+    state.levelProgressExp = math.max(0, sampleExp - currentThreshold)
+    state.nextLevelExp = getExpToNextLevel(state.partyLevel or STARTER_LEVEL)
 end
 
 local function buildStarterRoster(runState, heroIds)
     local roster = {}
     for _, heroId in ipairs(heroIds or {}) do
         local heroInfo = HeroData.GetHeroInfo(heroId)
-        local attrs = HeroData.CalculateHeroAttributes(heroId, STARTER_LEVEL, STARTER_STAR)
-        if heroInfo and attrs then
-            roster[#roster + 1] = {
-                rosterId = allocateRosterId(runState),
-                heroId = heroId,
-                name = HeroData.GetHeroName(heroId),
-                classId = heroInfo.Class or 0,
-                level = attrs.level or STARTER_LEVEL,
-                star = attrs.star or STARTER_STAR,
-                maxHp = attrs.maxHp,
-                currentHp = attrs.maxHp,
-                isDead = false,
+        local classId = tonumber(heroInfo and heroInfo.Class) or 0
+        if classId > 0 then
+            local rosterId = allocateRosterId(runState)
+            local unit = HeroData.CreateClassUnit(classId, {
+                rosterId = rosterId,
+                unitId = string.format("class_unit_%d_%d", classId, rosterId),
+                promotionStage = "low",
+                level = STARTER_LEVEL,
+                exp = 0,
+                teamState = "active",
+                source = "starter",
                 ultimateCharges = 1,
                 ultimateChargesMax = 1,
-                -- Persisted skill cooldowns across battles. Map: skillId -> rounds remaining.
                 skillCooldowns = {},
-                source = "starter",
-            }
+            })
+            if unit then
+                roster[#roster + 1] = unit
+            end
         end
     end
     return roster
@@ -236,11 +282,16 @@ local function enterNode(nodeId)
     state.lastActionMessage = ""
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
-        local encounter = RunEncounterGroup.GetEncounter(node.encounterId)
+        local battleId = tonumber(node.battleId)
+        local battle = RunBattleConfig.GetBattle(battleId)
+        if not battle then
+            return false, "battle_not_found"
+        end
+        local encounter = RunEncounterGroup.GetEncounter(battleId)
         if not encounter then
             return false, "encounter_not_found"
         end
-        local ok, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, encounter)
+        local ok, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
         if not ok then
             state.phase = "failed"
             state.chapterResult = { success = false, reason = tostring(snapshotOrReason or "battle_init_failed") }
@@ -248,7 +299,7 @@ local function enterNode(nodeId)
         end
         cachedBattleSnapshot = snapshotOrReason
         state.phase = "battle"
-        state.battleEncounterId = node.encounterId
+        state.battleEncounterId = battleId
         return true
     end
 
@@ -460,7 +511,12 @@ function RoguelikeRun.Tick(deltaMs)
     end
     local events = RoguelikeBattleBridge.Tick(deltaMs)
     cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
-    local resolved = RoguelikeBattleBridge.ResolveBattle(state, RunEncounterGroup.GetEncounter(state.battleEncounterId))
+    local currentBattleId = tonumber(state.battleEncounterId)
+    local resolved = RoguelikeBattleBridge.ResolveBattle(
+        state,
+        RunBattleConfig.GetBattle(currentBattleId),
+        RunEncounterGroup.GetEncounter(currentBattleId)
+    )
     if resolved then
         if evaluateFailureIfNoAlive() then
             return events or {}
@@ -468,9 +524,9 @@ function RoguelikeRun.Tick(deltaMs)
 
         if resolved.won then
             local node = RunNodePool.GetNode(state.currentNodeId)
-            if node then
-                grantRunExp(getNodeExp(node.nodeType), "战斗胜利")
-            end
+            local battle = RunBattleConfig.GetBattle(currentBattleId)
+            grantBattleExp(battle)
+            recalcRecommendedLevel()
             if node and node.nodeType == "boss" then
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}
@@ -586,9 +642,16 @@ function RoguelikeRun.ChooseEventOption(optionId)
     end
     if result.kind == "battle" then
         state.phase = "battle"
-        state.battleEncounterId = result.encounterId
-        local encounter = RunEncounterGroup.GetEncounter(result.encounterId)
-        local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, encounter)
+        local battleId = tonumber(result.battleId or result.encounterId)
+        local battle = RunBattleConfig.GetBattle(battleId)
+        if not battle then
+            state.phase = "failed"
+            state.chapterResult = { success = false, reason = "event_battle_not_found" }
+            return false, "event_battle_not_found"
+        end
+        state.battleEncounterId = battleId
+        local encounter = RunEncounterGroup.GetEncounter(battleId)
+        local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
         if not ok2 then
             state.phase = "failed"
             state.chapterResult = { success = false, reason = tostring(reason2 or "event_battle_failed") }
@@ -672,6 +735,7 @@ function RoguelikeRun.PromoteBenchHero(benchRosterId)
     end
 
     table.remove(state.benchRoster, benchIndex)
+    benchHero.teamState = "active"
     state.teamRoster[#state.teamRoster + 1] = benchHero
     state.lastActionMessage = "候补已直接上阵"
     refreshContextState()
@@ -694,6 +758,8 @@ function RoguelikeRun.SwapBenchWithTeam(benchRosterId, teamRosterId)
 
     state.teamRoster[teamIndex] = benchHero
     state.benchRoster[benchIndex] = teamHero
+    benchHero.teamState = "active"
+    teamHero.teamState = "bench"
     state.lastActionMessage = string.format("%s 替换 %s 上阵", benchHero.name or "候补", teamHero.name or "队员")
     refreshContextState()
     return true

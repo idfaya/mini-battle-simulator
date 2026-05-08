@@ -93,7 +93,7 @@ function RoguelikeEvent.ResolveOption(runState, eventId, optionId)
         return true, { kind = "equipment", equipmentId = result.equipmentId }
     end
     if resultType == "trigger_battle" then
-        return true, { kind = "battle", encounterId = result.encounterId }
+        return true, { kind = "battle", battleId = result.battleId or result.encounterId }
     end
 
     return false, "unsupported_result"

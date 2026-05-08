@@ -59,6 +59,18 @@ local function getInitialActionBar(initiativeTotal)
     return math.floor(normalized * ACTION_BAR_THRESHOLD)
 end
 
+local function HasHero(hero)
+    if not hero or not hero.instanceId then
+        return false
+    end
+    for _, item in ipairs(_heroes) do
+        if item and item.instanceId == hero.instanceId then
+            return true
+        end
+    end
+    return false
+end
+
 --- 初始化行动顺序系统
 ---@param teamLeft table 左侧队伍英雄列表
 ---@param teamRight table 右侧队伍英雄列表
@@ -164,6 +176,35 @@ function BattleActionOrder.GetActionOrder()
     end)
 
     return orderList
+end
+
+function BattleActionOrder.RegisterHero(hero, initialProgress)
+    if not hero or not hero.instanceId then
+        Logger.LogWarning("BattleActionOrder.RegisterHero - hero 为空或没有instanceId")
+        return false
+    end
+    if HasHero(hero) then
+        return false
+    end
+
+    table.insert(_heroes, hero)
+    _initiative[hero.instanceId] = rollInitiative(hero)
+    if initialProgress ~= nil then
+        _actionBars[hero.instanceId] = math.max(0, math.floor(tonumber(initialProgress) or 0))
+    else
+        _actionBars[hero.instanceId] = getInitialActionBar(_initiative[hero.instanceId].total)
+    end
+
+    Logger.Log(string.format(
+        "BattleActionOrder.RegisterHero - 注册英雄 %s (ID: %s, 先攻: %d = d20(%d) %+d, 行动条: %d)",
+        hero.name or "Unknown",
+        tostring(hero.instanceId),
+        _initiative[hero.instanceId].total,
+        _initiative[hero.instanceId].roll,
+        _initiative[hero.instanceId].mod,
+        _actionBars[hero.instanceId] or 0
+    ))
+    return true
 end
 
 --- 选择下一个行动的英雄

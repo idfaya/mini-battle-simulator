@@ -10,6 +10,7 @@
 | `type` | enum | `normal` / `elite` / `boss` | 战斗类型 |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` | 路线档位 |
 | `opening_group` | string | 编组编号 | 开场敌军编组 |
+| `exp_reward` | integer | `0+` | 胜利后发放给存活上阵单位的经验 |
 | `reserve_units` | string[] | 单位列表 | 本场战斗后备单位 |
 | `refresh_turns` | integer | `1` / `2` | 刷新间隔 |
 | `refresh_on_clear` | boolean | `true` / `false` | 清场立刷 |
@@ -65,6 +66,7 @@
 | `type` | `normal` |
 | `route` | `safe` 或 `high_pressure` |
 | `opening_group` | 普通战开场编组 |
+| `exp_reward` | `20` |
 | `reserve_units` | `6~12` 个单位 |
 | `refresh_turns` | `2` |
 | `refresh_on_clear` | `true` |
@@ -83,6 +85,7 @@
 | `type` | `elite` |
 | `route` | `high_pressure` |
 | `opening_group` | 精英战开场编组 |
+| `exp_reward` | `36` |
 | `reserve_units` | `10~14` 个单位 |
 | `refresh_turns` | `2` |
 | `refresh_on_clear` | `true` |
@@ -101,6 +104,7 @@
 | `type` | `boss` |
 | `route` | `boss_path` |
 | `opening_group` | Boss 开场编组 |
+| `exp_reward` | `60` |
 | `reserve_units` | 按 Boss 配置 |
 | `refresh_turns` | `2` |
 | `refresh_on_clear` | `true` |
@@ -124,6 +128,7 @@
 - `type`
 - `route`
 - `opening_group`
+- `exp_reward`
 - `reserve_units`
 - `refresh_turns`
 - `refresh_on_clear`
@@ -178,6 +183,7 @@ act = act1
 type = normal
 route = safe
 opening_group = enemy_group_act1_opening_01
+exp_reward = 20
 reserve_units = zombie_grunt,zombie_grunt,bone_thrower,bone_thrower,grave_archer,grave_shield
 refresh_turns = 2
 refresh_on_clear = true
@@ -199,6 +205,7 @@ act = act1
 type = boss
 route = boss_path
 opening_group = enemy_group_act1_boss_opening
+exp_reward = 60
 reserve_units = boss_guard,boss_guard,elite_tomb_guard,grave_archer,grave_archer
 refresh_turns = 2
 refresh_on_clear = true
