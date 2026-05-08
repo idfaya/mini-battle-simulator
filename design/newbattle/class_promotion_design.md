@@ -59,17 +59,19 @@
 
 ```text
 再次获得该职业卡
-→ 该卡自动结算为同职业进阶
+→ 检查当前 promotion_stage 的等级门槛
+→ 若已达标：立即进阶
+→ 若未达标：记录为挂起进阶
 ```
 
 重复获得的阶段映射如下：
 
 ```text
 已持有低阶
-→ 升至中阶
+→ 目标阶段 = 中阶
 
 已持有中阶
-→ 升至高阶
+→ 目标阶段 = 高阶
 ```
 
 ### 3.3 已达高阶
@@ -111,7 +113,8 @@
 ```text
 职业卡
 → 不新增单位
-→ 直接提升该职业阶段
+→ 若等级已达门槛：直接提升该职业阶段
+→ 若等级未达门槛：写入 promotion_pending_target
 ```
 
 该规则同时适用于：
@@ -140,12 +143,28 @@
 | 职业卡获取次数 | 结算结果 | 当前阶段 |
 | --- | --- | --- |
 | 第 1 张 | 首次获得职业单位 | 低阶 |
-| 第 2 张 | 重复职业进阶 | 中阶 |
-| 第 3 张 | 重复职业进阶 | 高阶 |
+| 第 2 张 | 获得 `low → mid` 的进阶资格 | 低阶 / 中阶 |
+| 第 3 张 | 获得 `mid → high` 的进阶资格 | 中阶 / 高阶 |
 
 ### 5.3 晋升结果
 
 阶段晋升只改变该职业单位的职业阶段，不生成新的同名单位。
+
+### 5.4 晋升门槛
+
+统一门槛如下：
+
+| 晋升路径 | 等级要求 | 重复卡要求 |
+| --- | --- | --- |
+| `low → mid` | `Lv3` | 1 张同职业重复卡 |
+| `mid → high` | `Lv6` | 1 张同职业重复卡 |
+
+约束：
+
+- 同职业重复卡不是“立即升阶券”，而是“下一段进阶资格”。
+- 若当前等级已满足门槛，则重复卡立即结算为进阶。
+- 若当前等级未满足门槛，则重复卡写入 `promotion_pending_target`。
+- `promotion_pending_target` 只允许存储当前阶段的下一段目标，不允许跨段累计。
 
 ---
 
@@ -158,12 +177,12 @@
 
 ### 6.2 中阶
 
-- 第一次重复获得该职业单位时，统一晋升为 `中阶`。
+- 第一次重复获得该职业单位后，满足 `Lv3` 时晋升为 `中阶`。
 - `中阶` 负责补足该职业单位的关键动作或联动。
 
 ### 6.3 高阶
 
-- 第二次重复获得该职业单位时，统一晋升为 `高阶`。
+- 第二次重复获得该职业单位后，满足 `Lv6` 时晋升为 `高阶`。
 - `高阶` 负责兑现该职业单位的终局高光。
 
 ---
@@ -179,7 +198,7 @@
 - 结算后阶段
 - 本次新增能力摘要
 
-职业卡展示结果统一为以下两类：
+职业卡展示结果统一为以下三类：
 
 ### 7.1 新职业单位
 
@@ -195,6 +214,15 @@
 结果类型：重复进阶
 当前阶段：低阶 / 中阶
 结算后阶段：中阶 / 高阶
+```
+
+### 7.3 挂起进阶
+
+```text
+结果类型：挂起进阶
+当前阶段：低阶 / 中阶
+目标阶段：中阶 / 高阶
+缺少条件：等级未达门槛
 ```
 
 ---
@@ -214,6 +242,7 @@
 以下职业单位不进入职业卡候选池：
 
 - 当前已持有且阶段为高阶的职业单位
+- 当前已持有且 `promotion_pending_target` 已写入、等待升级兑现的职业单位
 
 ### 8.3 结算有效性
 
@@ -256,8 +285,10 @@
 读取职业标识
 → 检查是否已持有
 → 若未持有：加入队伍或候补，阶段设为低阶
-→ 若已持有且为低阶：升为中阶
-→ 若已持有且为中阶：升为高阶
+→ 若已持有：计算下一段目标阶段
+→ 检查当前等级是否满足该段门槛
+→ 若达标：立即升阶
+→ 若未达标：写入 promotion_pending_target
 → 刷新职业卡展示结果
 ```
 
@@ -324,6 +355,8 @@
 | `is_owned` | boolean | 当前是否已持有该职业单位（查 Run 持有表） |
 | `team_state` | enum | `active` / `bench` / `dead`；`is_owned = false` 时不传 |
 | `promotion_stage` | enum | `low` / `mid` / `high`；`is_owned = false` 时不传 |
+| `promotion_pending_target` | enum? | 已挂起的目标阶段；`mid` / `high` / `nil` |
+| `level` | integer | 当前等级；`is_owned = false` 时不传 |
 | `team_has_free_slot` | boolean | 当前队伍是否有空位 |
 
 ### 13.2 结算输出
@@ -332,11 +365,13 @@
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `result_type` | enum | `new_class_unit` / `class_promotion` |
+| `result_type` | enum | `new_class_unit` / `class_promotion` / `promotion_pending` |
 | `class_id` | string | 职业编号 |
 | `team_state` | enum | `active` / `bench` / `dead` |
 | `promotion_stage_before` | enum | `low` / `mid` / `high`；`result_type = new_class_unit` 时不传 |
 | `promotion_stage_after` | enum | `low` / `mid` / `high` |
+| `promotion_pending_target` | enum? | 挂起目标；仅 `promotion_pending` 时必填 |
+| `required_level` | integer? | 本段进阶所需等级；仅重复卡结算时使用 |
 | `summary_key` | string | 本次新增能力摘要键 |
 
 ### 13.3 结算关系
@@ -344,9 +379,9 @@
 ```text
 roguelike_run_system_design.md
 → 职业卡三选一
-→ 传入 class_id / is_owned / team_state / promotion_stage / team_has_free_slot
+→ 传入 class_id / is_owned / team_state / promotion_stage / promotion_pending_target / level / team_has_free_slot
 → class_promotion_design.md
-→ 输出 result_type / team_state / promotion_stage_before / promotion_stage_after / summary_key
+→ 输出 result_type / team_state / promotion_stage_before / promotion_stage_after / promotion_pending_target / required_level / summary_key
 ```
 
 ---
@@ -361,18 +396,23 @@ roguelike_run_system_design.md
 → promotion_stage = low
 
 第 2 张同职业卡
-→ promotion_stage = mid
+→ 获得 low → mid 的进阶资格
+→ 若已达 Lv3，立即升为 mid
+→ 否则记录 promotion_pending_target = mid
 
 第 3 张同职业卡
-→ promotion_stage = high
+→ 获得 mid → high 的进阶资格
+→ 若已达 Lv6，立即升为 high
+→ 否则记录 promotion_pending_target = high
 
 高阶后
 → 不再进入职业卡池
 ```
 
-职业卡的结算结果只允许两种：
+职业卡的结算结果允许三种：
 
 ```text
 新职业单位
 重复进阶
+挂起进阶
 ```

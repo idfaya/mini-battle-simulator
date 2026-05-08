@@ -13,6 +13,15 @@ local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RoguelikeReward = {}
 local RECRUIT_LEVEL = 1
 local RECRUIT_STAR = 1
+local PROMOTION_REQUIRED_LEVELS = {
+    mid = 3,
+    high = 6,
+}
+local EQUIPMENT_RARITY_TIER = {
+    common = 1,
+    rare = 2,
+    boss = 3,
+}
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)
@@ -85,6 +94,18 @@ local function getNextPromotionStage(stage)
     return "high"
 end
 
+local function normalizePendingPromotionTarget(stage)
+    local value = HeroData.NormalizePromotionStage(stage)
+    if value == "mid" or value == "high" then
+        return value
+    end
+    return nil
+end
+
+local function getPromotionRequiredLevel(targetStage)
+    return PROMOTION_REQUIRED_LEVELS[normalizePendingPromotionTarget(targetStage)] or 0
+end
+
 local function getPromotionStageLabel(stage)
     local value = HeroData.NormalizePromotionStage(stage)
     if value == "mid" then
@@ -96,18 +117,103 @@ local function getPromotionStageLabel(stage)
     return "低阶"
 end
 
+local function getCurrentLevel(unit)
+    return math.max(1, tonumber(unit and unit.level) or 1)
+end
+
+local function isPromotionUnlocked(unit, targetStage)
+    return getCurrentLevel(unit) >= getPromotionRequiredLevel(targetStage)
+end
+
+local function collectEquipmentPool(maxTier)
+    local pool = {}
+    for equipmentId, equipment in pairs(RunEquipmentConfig.EQUIPMENTS or {}) do
+        local rarityTier = EQUIPMENT_RARITY_TIER[tostring(equipment and equipment.rarity or "common")] or 1
+        if rarityTier <= maxTier then
+            pool[#pool + 1] = tonumber(equipmentId)
+        end
+    end
+    table.sort(pool)
+    return pool
+end
+
+local function chooseEquipmentId(maxTier)
+    local pool = collectEquipmentPool(maxTier)
+    if #pool <= 0 then
+        return nil
+    end
+    return pool[math.random(1, #pool)]
+end
+
+local function rollBattleEquipmentId(nodeType, encounter)
+    local resolvedNodeType = tostring(nodeType or "")
+    if resolvedNodeType == "battle_normal" then
+        if math.random() > 0.35 then
+            return nil
+        end
+        local rareChance = 0.20
+        local maxTier = math.random() <= rareChance and 2 or 1
+        return chooseEquipmentId(maxTier)
+    end
+    if resolvedNodeType == "battle_elite" then
+        local rarityBonus = math.max(0, tonumber(encounter and encounter.eliteBonus and encounter.eliteBonus.rewardRarityBonus) or 0)
+        local roll = math.random()
+        local rareThreshold = math.min(0.75, 0.30 + rarityBonus * 0.10)
+        local bossThreshold = math.min(0.35, math.max(0, (rarityBonus - 1) * 0.10))
+        if roll <= bossThreshold then
+            return chooseEquipmentId(3)
+        end
+        if roll <= (bossThreshold + rareThreshold) then
+            return chooseEquipmentId(2)
+        end
+        return chooseEquipmentId(1)
+    end
+    return nil
+end
+
+local function applyPromotionStage(unit, afterStage, source)
+    local beforeStage = HeroData.NormalizePromotionStage(unit and unit.promotionStage)
+    local targetStage = HeroData.NormalizePromotionStage(afterStage or getNextPromotionStage(beforeStage))
+    local oldMaxHp = tonumber(unit and unit.maxHp) or 1
+    local oldCurrentHp = tonumber(unit and unit.currentHp) or 0
+    local isDead = unit and (unit.isDead == true or oldCurrentHp <= 0 or unit.teamState == "dead") or false
+    HeroData.RefreshClassUnit(unit, {
+        promotionStage = targetStage,
+        clearPromotionPendingTarget = true,
+        teamState = unit.teamState,
+        currentHp = isDead and 0 or math.max(1, oldCurrentHp + ((tonumber(unit.maxHp) or oldMaxHp) - oldMaxHp)),
+        isDead = isDead,
+        source = source or unit.source,
+    })
+    return beforeStage, targetStage
+end
+
+local function buildPromotionCardPreview(ownedUnit)
+    local before = HeroData.NormalizePromotionStage(ownedUnit.promotionStage)
+    local after = getNextPromotionStage(before)
+    local requiredLevel = getPromotionRequiredLevel(after)
+    local unlocked = isPromotionUnlocked(ownedUnit, after)
+    local resultType = unlocked and "class_promotion" or "promotion_pending"
+    local description = unlocked
+        and (getPromotionStageLabel(before) .. " → " .. getPromotionStageLabel(after))
+        or string.format("%s → %s（%d级解锁，当前%d级）",
+            getPromotionStageLabel(before), getPromotionStageLabel(after), requiredLevel, getCurrentLevel(ownedUnit))
+    return {
+        resultType = resultType,
+        teamState = ownedUnit.teamState or "active",
+        promotionStageBefore = before,
+        promotionStageAfter = after,
+        promotionPendingTarget = unlocked and nil or after,
+        requiredLevel = requiredLevel,
+        summaryKey = HeroData.GetClassCardSummaryKey(tonumber(ownedUnit.classId) or 0, after),
+        description = description,
+    }
+end
+
 local function buildClassCardPreview(runState, classId)
     local ownedUnit = findClassUnit(runState, classId)
     if ownedUnit then
-        local before = HeroData.NormalizePromotionStage(ownedUnit.promotionStage)
-        local after = getNextPromotionStage(before)
-        return {
-            resultType = "class_promotion",
-            teamState = ownedUnit.teamState or "active",
-            promotionStageBefore = before,
-            promotionStageAfter = after,
-            summaryKey = HeroData.GetClassCardSummaryKey(classId, after),
-        }
+        return buildPromotionCardPreview(ownedUnit)
     end
     local teamState = hasFreeActiveSlot(runState) and "active" or "bench"
     return {
@@ -115,8 +221,41 @@ local function buildClassCardPreview(runState, classId)
         teamState = teamState,
         promotionStageBefore = nil,
         promotionStageAfter = "low",
+        promotionPendingTarget = nil,
+        requiredLevel = nil,
         summaryKey = HeroData.GetClassCardSummaryKey(classId, "low"),
+        description = "获得新职业单位 · 低阶",
     }
+end
+
+local function resolveExistingClassCard(runState, targetHero, source)
+    local beforeStage = HeroData.NormalizePromotionStage(targetHero.promotionStage)
+    if beforeStage == "high" then
+        return false, "class_already_high"
+    end
+    local afterStage = getNextPromotionStage(beforeStage)
+    if isPromotionUnlocked(targetHero, afterStage) then
+        local oldStage, newStage = applyPromotionStage(targetHero, afterStage, source)
+        BattleEvent.Publish("DebugCounterTiming", {
+            stage = "roguelike_reward_class_card",
+            source = "roguelike.roguelike_reward",
+            data = {
+                heroName = targetHero.name,
+                heroId = targetHero.heroId,
+                classId = targetHero.classId,
+                promotionStageBefore = oldStage,
+                promotionStageAfter = newStage,
+                summaryKey = HeroData.GetClassCardSummaryKey(targetHero.classId, newStage),
+            },
+        })
+        runState.lastActionMessage = string.format("%s 进阶：%s → %s",
+            targetHero.name or "职业单位", getPromotionStageLabel(oldStage), getPromotionStageLabel(newStage))
+        return true, "class_promotion"
+    end
+    targetHero.promotionPendingTarget = afterStage
+    runState.lastActionMessage = string.format("%s 获得挂起进阶：达到 Lv%d 后升为%s",
+        targetHero.name or "职业单位", getPromotionRequiredLevel(afterStage), getPromotionStageLabel(afterStage))
+    return true, "promotion_pending"
 end
 
 local function weightedPick(entries, taken)
@@ -251,22 +390,10 @@ function RoguelikeReward.AddRecruit(runState, heroId, options)
 
     local existingUnit = findClassUnit(runState, classId)
     if existingUnit then
-        local beforeStage = HeroData.NormalizePromotionStage(existingUnit.promotionStage)
-        if beforeStage == "high" then
-            return false, "class_already_high"
+        local ok, reason = resolveExistingClassCard(runState, existingUnit, recruitOptions.forceBench and "recruit_bench" or "reward")
+        if not ok then
+            return false, reason
         end
-        local afterStage = getNextPromotionStage(beforeStage)
-        local oldMaxHp = tonumber(existingUnit.maxHp) or 1
-        local oldCurrentHp = tonumber(existingUnit.currentHp) or 0
-        local isDead = existingUnit.isDead == true or oldCurrentHp <= 0 or existingUnit.teamState == "dead"
-        HeroData.RefreshClassUnit(existingUnit, {
-            promotionStage = afterStage,
-            teamState = existingUnit.teamState,
-            currentHp = isDead and 0 or math.max(1, oldCurrentHp + ((tonumber(existingUnit.maxHp) or oldMaxHp) - oldMaxHp)),
-            isDead = isDead,
-            source = recruitOptions.forceBench and "recruit_bench" or "reward",
-        })
-        runState.lastActionMessage = string.format("%s 进阶至%s", existingUnit.name or "职业单位", getPromotionStageLabel(afterStage))
         return true, existingUnit
     end
 
@@ -313,7 +440,9 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
     local candidates = {}
     for _, classId in ipairs(classPool) do
         local unit = findClassUnit(runState, classId)
-        if not unit or HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" then
+        if not unit
+            or (HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high"
+                and normalizePendingPromotionTarget(unit.promotionPendingTarget) == nil) then
             candidates[#candidates + 1] = classId
         end
     end
@@ -343,9 +472,9 @@ function RoguelikeReward.GenerateRecruitRewardState(runState, recruitPoolId, opt
                 promotionStageAfter = preview.promotionStageAfter,
                 summaryKey = preview.summaryKey,
                 label = "职业卡 " .. HeroData.GetClassName(classId),
-                description = preview.resultType == "new_class_unit"
-                    and ("获得新职业单位 · " .. getPromotionStageLabel(preview.promotionStageAfter))
-                    or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
+                requiredLevel = preview.requiredLevel,
+                promotionPendingTarget = preview.promotionPendingTarget,
+                description = preview.description,
             }
         end
     end
@@ -369,7 +498,10 @@ function RoguelikeReward.GenerateLevelUpRewardState(runState)
     local existingSeen = {}
     for _, unit in ipairs(collectAllUnits(runState)) do
         local classId = tonumber(unit.classId) or 0
-        if classId > 0 and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high" and not existingSeen[classId] then
+        if classId > 0
+            and HeroData.NormalizePromotionStage(unit.promotionStage) ~= "high"
+            and normalizePendingPromotionTarget(unit.promotionPendingTarget) == nil
+            and not existingSeen[classId] then
             existingSeen[classId] = true
             existing[#existing + 1] = classId
         end
@@ -426,17 +558,17 @@ function RoguelikeReward.GenerateLevelUpRewardState(runState)
             featName = preview.resultType == "new_class_unit" and "新职业单位" or "同职业进阶",
             featCode = preview.resultType == "new_class_unit"
                 and ("获得 " .. getPromotionStageLabel(preview.promotionStageAfter) .. " 职业单位")
-                or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
-            featTags = { preview.resultType == "new_class_unit" and "new_class_unit" or "class_promotion" },
+                or preview.description,
+            featTags = { preview.resultType },
             resultType = preview.resultType,
             teamState = preview.teamState,
             promotionStageBefore = preview.promotionStageBefore,
             promotionStageAfter = preview.promotionStageAfter,
+            promotionPendingTarget = preview.promotionPendingTarget,
+            requiredLevel = preview.requiredLevel,
             summaryKey = preview.summaryKey,
             label = string.format("职业卡：%s", HeroData.GetClassName(classId)),
-            description = preview.resultType == "new_class_unit"
-                and ("获得新职业单位 · " .. getPromotionStageLabel(preview.promotionStageAfter))
-                or (getPromotionStageLabel(preview.promotionStageBefore) .. " → " .. getPromotionStageLabel(preview.promotionStageAfter)),
+            description = preview.description,
         }
     end
 
@@ -485,39 +617,29 @@ function RoguelikeReward.ApplyLevelUpReward(runState, option)
             created.name or "职业单位", getPromotionStageLabel(created.promotionStage))
         return true
     end
+    return resolveExistingClassCard(runState, targetHero, "battle_reward")
+end
 
-    local beforeStage = HeroData.NormalizePromotionStage(targetHero.promotionStage)
-    if beforeStage == "high" then
-        return false, "class_already_high"
+function RoguelikeReward.ResolvePendingPromotion(runState, unit, source)
+    if type(unit) ~= "table" then
+        return false
     end
-    local afterStage = HeroData.NormalizePromotionStage(option.promotionStageAfter or getNextPromotionStage(beforeStage))
-    local oldMaxHp = tonumber(targetHero.maxHp) or 1
-    local oldCurrentHp = tonumber(targetHero.currentHp) or 0
-    local isDead = targetHero.isDead == true or oldCurrentHp <= 0 or targetHero.teamState == "dead"
-    HeroData.RefreshClassUnit(targetHero, {
-        promotionStage = afterStage,
-        teamState = targetHero.teamState,
-        currentHp = isDead and 0 or math.max(1, oldCurrentHp + ((tonumber(targetHero.maxHp) or oldMaxHp) - oldMaxHp)),
-        isDead = isDead,
-        source = "battle_reward",
-    })
-
-    BattleEvent.Publish("DebugCounterTiming", {
-        stage = "roguelike_reward_class_card",
-        source = "roguelike.roguelike_reward",
-        data = {
-            heroName = targetHero.name,
-            heroId = targetHero.heroId,
-            classId = targetHero.classId,
-            promotionStageBefore = beforeStage,
-            promotionStageAfter = afterStage,
-            summaryKey = option.summaryKey,
-        },
-    })
-
-    runState.lastActionMessage = string.format("%s 进阶：%s → %s",
-        targetHero.name or "职业单位", getPromotionStageLabel(beforeStage), getPromotionStageLabel(afterStage))
+    local targetStage = normalizePendingPromotionTarget(unit.promotionPendingTarget)
+    if not targetStage or not isPromotionUnlocked(unit, targetStage) then
+        return false
+    end
+    local oldStage, newStage = applyPromotionStage(unit, targetStage, source or "battle_level")
+    runState.lastActionMessage = string.format("%s 达到等级门槛，自动进阶：%s → %s",
+        unit.name or "职业单位", getPromotionStageLabel(oldStage), getPromotionStageLabel(newStage))
     return true
+end
+
+function RoguelikeReward.RollBattleEquipmentDrop(nodeType, encounter)
+    return rollBattleEquipmentId(nodeType, encounter)
+end
+
+function RoguelikeReward.GetPromotionRequiredLevel(targetStage)
+    return getPromotionRequiredLevel(targetStage)
 end
 
 function RoguelikeReward.GenerateRewardState(groupId)

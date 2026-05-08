@@ -80,6 +80,7 @@
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
 | `promotion_stage` | enum | `low` / `mid` / `high` |
+| `promotion_pending_target` | enum? | 挂起进阶目标；`mid` / `high` / `nil` |
 | `team_state` | enum | `active` / `bench` / `dead` |
 | `battle_slot` | enum | `front` / `back` / `none` |
 | `recommended_slot` | enum | `front` / `back` / `flex` |
@@ -97,6 +98,7 @@
 补充约定：
 
 - `promotion_stage` 的数据值统一为 `low` / `mid` / `high`；展示层可渲染为 `低阶` / `中阶` / `高阶`，但配置、存档、接口一律使用英文值。
+- `promotion_pending_target` 表示“重复职业卡已拿到，但下一段进阶尚未兑现”；只允许 `nil` / `mid` / `high`。
 - `team_state` 的数据值统一为 `active` / `bench` / `dead`。
 - `character_group` 数据值统一为 `physical` / `caster`，决定职业核心技文档归属。
 
@@ -250,8 +252,10 @@ Class 单位可从以下来源获得经验：
 → 发放给上阵且存活的 Class 单位
 → 检查等级阈值
 → 可连续提升多个等级
+→ 检查是否满足挂起进阶门槛
+→ 若满足则自动兑现 promotion_pending_target
 → 刷新 5e 派生属性
-→ 再进入固定恢复与职业卡三选一
+→ 再进入固定恢复与节点奖励
 ```
 
 经验采用累计值，不采用“当前等级内经验”。UI 可通过 `next_level_exp - exp` 显示距离下一级的差值。
@@ -302,6 +306,9 @@ Class 单位升级时，统一执行：
 - `promotion_stage` 可提供最低等级兜底，但不得覆盖单位真实 `level`。
 - 进阶保留当前 `level` 与 `exp`。
 - 升级只负责数值成长；进阶只负责槽位、技能包与职业阶段。
+- `low → mid` 的等级门槛固定为 `Lv3`。
+- `mid → high` 的等级门槛固定为 `Lv6`。
+- 若单位已持有重复职业卡但等级未达门槛，则记录到 `promotion_pending_target`，待后续升级时自动兑现。
 
 ---
 
@@ -321,7 +328,7 @@ low
 
 Class 单位可通过以下入口进入进阶结算：
 
-- 职业卡重复获得
+- 已满足等级门槛后的重复职业卡
 - 招募节点进阶结果
 - 事件节点进阶结果
 
@@ -334,6 +341,7 @@ Class 单位进阶时，统一执行：
 - 保留当前 `exp`
 - 替换当前技能包
 - 应用进阶属性修正
+- 清空已兑现的 `promotion_pending_target`
 
 ### 7.4 进阶职责
 
@@ -342,6 +350,22 @@ Class 单位进阶时，统一执行：
 - `进阶` 不重置等级。
 - `进阶` 不改变 `class_id`。
 - `进阶` 不新增同名单位。
+
+### 7.5 进阶门槛
+
+统一门槛如下：
+
+| 晋升路径 | 等级要求 | 额外要求 |
+| --- | --- | --- |
+| `low → mid` | `Lv3` | 持有 1 次同职业重复卡 |
+| `mid → high` | `Lv6` | 持有 1 次同职业重复卡 |
+
+约束：
+
+- 只靠等级不会自动进阶。
+- 只靠重复职业卡也不会越级进阶。
+- 两个条件都满足时，进阶立即生效。
+- 若先拿到重复职业卡，再达成等级门槛，则在升级结算中自动触发进阶。
 
 ---
 
@@ -567,6 +591,7 @@ Run 层至少保留以下字段：
 | `class_id` | string | 职业编号 |
 | `team_state` | enum | `active` / `bench` / `dead` |
 | `promotion_stage` | enum | `low` / `mid` / `high` |
+| `promotion_pending_target` | enum? | 挂起进阶目标；`mid` / `high` / `nil` |
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
 | `current_hp` | integer | 当前生命 |
@@ -647,7 +672,8 @@ Class 单位统一采用以下成长结构：
 → 获得 Class 单位
 → 战斗获取经验
 → 等级提升
-→ 重复职业卡触发进阶
+→ 重复职业卡提供下一段进阶资格
+→ 达到等级门槛后兑现进阶
 → 指定入口触发转职
 → 装备持续修正单位能力
 → 进入下一场战斗

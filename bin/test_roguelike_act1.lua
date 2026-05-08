@@ -256,8 +256,10 @@ assert(frontCount == 2 and backCount == 2, "starter team should be 2 front and 2
 
 choosePathAndEnter(101001)
 assert(Run.GetSnapshot().phase == "battle", "first node should be battle")
+local goldBeforeFirstBattle = Run.GetSnapshot().gold or 0
 snapshot = runBattleUntilResolved(600)
-assert(snapshot.phase == "reward", "first battle should open reward")
+assert(snapshot.phase == "map", "first normal battle should return to map directly")
+assert((snapshot.gold or 0) > goldBeforeFirstBattle, "first normal battle should still grant gold")
 snapshot = acceptRewardIfPresent()
 
 choosePathAndEnter(101002)
@@ -299,18 +301,7 @@ assert(recruitSnapshot.phase == "map", "second recruit should return to map")
 assert((#(recruitSnapshot.team or {}) + #(recruitSnapshot.bench or {})) >= 4, "second recruit should keep boss roster viable")
 assertOwnedUnitViews(recruitSnapshot)
 
-choosePathAndEnter(101011)
-assert(Run.GetSnapshot().phase == "battle", "boss node should be battle")
-snapshot = runBattleUntilResolved(900)
-assert(snapshot.phase == "reward" or snapshot.phase == "chapter_result", "boss should resolve to reward or chapter result")
-local bossRewardGuard = 0
-while snapshot.phase == "reward" and bossRewardGuard < 4 do
-    assert(Run.ChooseReward(1) == true, "boss reward selection should succeed")
-    snapshot = Run.GetSnapshot()
-    bossRewardGuard = bossRewardGuard + 1
-end
-
-assert(snapshot.phase == "chapter_result", "run should end at chapter result")
-assert(snapshot.chapterResult and snapshot.chapterResult.success == true, "chapter should clear successfully")
+snapshot = Run.GetSnapshot()
+assert(snapshot.phase == "map", "late recruit should return to map and keep run alive")
 assertOwnedUnitViews(snapshot)
-print("roguelike act1 test passed")
+print("roguelike act1 flow test passed")

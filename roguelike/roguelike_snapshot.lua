@@ -92,6 +92,7 @@ local function serializeTeam(roster)
             isDead = hero.isDead == true,
             teamState = hero.teamState,
             promotionStage = hero.promotionStage,
+            promotionPendingTarget = hero.promotionPendingTarget,
             skillPackageId = hero.skillPackageId,
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,

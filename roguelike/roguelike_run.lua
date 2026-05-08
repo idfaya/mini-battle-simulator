@@ -126,6 +126,42 @@ local function refreshUnitLevel(unit, newLevel, newExp)
     return (tonumber(unit.level) or oldLevel) > oldLevel
 end
 
+local function shouldOpenBattleClassCardReward(node)
+    if not node then
+        return false
+    end
+    return node.nodeType == "battle_elite" or node.nodeType == "boss"
+end
+
+local function grantBattleEquipmentDrop(node, encounter)
+    local equipmentId = RoguelikeReward.RollBattleEquipmentDrop(node and node.nodeType or nil, encounter)
+    if not equipmentId then
+        return nil
+    end
+    state.equipmentIds = state.equipmentIds or {}
+    addUnique(state.equipmentIds, equipmentId)
+    return equipmentId
+end
+
+local function grantBattleLoot(node, encounter)
+    if not node then
+        return 0
+    end
+    local rollCount = 0
+    if node.nodeType == "battle_normal" then
+        rollCount = 1
+    elseif node.nodeType == "battle_elite" then
+        rollCount = math.max(1, tonumber(encounter and encounter.eliteBonus and encounter.eliteBonus.equipmentRoll) or 1)
+    end
+    local dropCount = 0
+    for _ = 1, rollCount do
+        if grantBattleEquipmentDrop(node, encounter) then
+            dropCount = dropCount + 1
+        end
+    end
+    return dropCount
+end
+
 local function grantBattleExp(battle)
     local expReward = math.max(0, math.floor(tonumber(battle and battle.expReward) or 0))
     if expReward <= 0 then
@@ -139,6 +175,7 @@ local function grantBattleExp(battle)
             local newExp = (tonumber(unit.exp) or 0) + expReward
             local newLevel = getLevelForExp(newExp, state.levelCap)
             refreshUnitLevel(unit, newLevel, newExp)
+            RoguelikeReward.ResolvePendingPromotion(state, unit, "battle_level")
             recipients = recipients + 1
             if newLevel > oldLevel then
                 leveledUnits[#leveledUnits + 1] = unit.unitId or unit.name or tostring(unit.rosterId)
@@ -514,14 +551,16 @@ function RoguelikeRun.Tick(deltaMs)
         if resolved.won then
             local node = RunNodePool.GetNode(state.currentNodeId)
             local battle = RunBattleConfig.GetBattle(currentBattleId)
+            local encounter = RunEncounterGroup.GetEncounter(currentBattleId)
             grantBattleExp(battle)
+            grantBattleLoot(node, encounter)
             recalcRecommendedLevel()
             if node and node.nodeType == "boss" then
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}
                 state.gold = (state.gold or 0) + (clearRewards.gold or 0)
                 state.rewardReturnMode = "chapter_result"
-                local opened = openBattleLevelUpReward()
+                local opened = shouldOpenBattleClassCardReward(node) and openBattleLevelUpReward()
                 if not opened then
                     enterChapterResult()
                 end
@@ -529,7 +568,7 @@ function RoguelikeRun.Tick(deltaMs)
             end
 
             state.rewardReturnMode = "map"
-            local opened = openBattleLevelUpReward()
+            local opened = shouldOpenBattleClassCardReward(node) and openBattleLevelUpReward()
             if not opened then
                 leaveNodeBackToMap()
             end
