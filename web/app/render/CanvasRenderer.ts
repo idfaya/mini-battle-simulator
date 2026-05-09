@@ -45,6 +45,12 @@ export class CanvasRenderer {
   }
 
   renderBattle(state: BattleStoreState, now: number) {
+    // Reset any inline height left over from renderMap so the battle canvas
+    // is sized by CSS (constrained to the stage container) instead of inheriting
+    // the tall map height which would push the bottom rows out of view.
+    if (this.canvas.style.height !== "") {
+      this.canvas.style.height = "";
+    }
     this.resizeToDisplaySize();
     this.scene.draw(this.ctx, this.displayWidth, this.displayHeight, state, now);
   }

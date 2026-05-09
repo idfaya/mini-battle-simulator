@@ -73,7 +73,14 @@ export function createRunControls(handlers: RunHandlers): RunControls {
   const setScreen = (screen: RunScreen) => {
     controls.currentScreen = screen;
     root.dataset.screen = screen;
-    root.closest(".shell")?.setAttribute("data-screen", `run-${screen}`);
+    const shell = root.closest(".shell");
+    shell?.setAttribute("data-screen", `run-${screen}`);
+    // Reset stage scroll position when leaving the map screen so the battle
+    // canvas isn't shifted by leftover scrollTop on the stage container.
+    if (screen !== "map" && shell) {
+      const stage = shell.querySelector<HTMLElement>(".stage");
+      if (stage) stage.scrollTop = 0;
+    }
     for (const button of screenTabs.querySelectorAll<HTMLButtonElement>("button[data-screen]")) {
       button.classList.toggle("active", button.dataset.screen === screen);
     }
