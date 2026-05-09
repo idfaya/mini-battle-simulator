@@ -461,7 +461,16 @@ local function buildBattleConfig(runState, battle, encounter)
     elseif encounterKind == "boss" then
         kindOffset = 2
     end
-    local effectiveEnemyLevel = clamp(baseLevel, partyLevel - 1, partyLevel + 1 + kindOffset)
+    local minEnemyLevel = partyLevel - 1
+    if encounterKind == "normal" or encounterKind == "event_battle" then
+        -- Normal fights keep density for atmosphere; allow level to sit up to 4 below party
+        -- so balance can be tuned by stats instead of reducing unit count.
+        minEnemyLevel = partyLevel - 4
+    elseif encounterKind == "boss" then
+        -- Boss still stays above normal pressure, but should honor encounter level tuning.
+        minEnemyLevel = partyLevel - 3
+    end
+    local effectiveEnemyLevel = clamp(baseLevel, math.max(1, minEnemyLevel), partyLevel + 1 + kindOffset)
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
     if #openingEnemyIds == 0 then

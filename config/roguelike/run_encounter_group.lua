@@ -83,10 +83,10 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 20, max = 30 },
         -- 教学战：4 怪起步，配合初始 4 人队形成完整前后排战斗。
-        budget = { difficulty = "easy", pressureFactor = 0.40 },
-        playerScale = { hp = 1.24, atk = 1.08, def = 1.08, energyBonus = 14 },
+        budget = { difficulty = "easy", pressureFactor = 0.28 },
+        playerScale = { hp = 1.32, atk = 1.12, def = 1.12, energyBonus = 18 },
         -- enemyScale 保持近乎中性，不再把 hp 打到 0.45 造成与 budget 的双重打折。
-        enemyScale = { hp = 0.94, atk = 0.94, def = 0.92, hitDelta = -1, spellDCDelta = -1 },
+        enemyScale = { hp = 0.90, atk = 0.90, def = 0.90, hitDelta = -1, spellDCDelta = -1 },
     },
     [101002] = {
         id = 101002,
@@ -100,9 +100,9 @@ RunEncounterGroup.ENCOUNTERS = {
         speed = 1.0,
         gold = { min = 24, max = 38 },
         -- combat 二战维持低编组，但把白送战回拉成会产生真实损耗的缓坡战。
-        budget = { difficulty = "easy", pressureFactor = 0.42 },
-        playerScale = { hp = 1.26, atk = 1.10, def = 1.14, energyBonus = 16 },
-        enemyScale = { hp = 0.92, atk = 0.94, def = 0.92, hitDelta = -1, spellDCDelta = -1, saveDelta = -1 },
+        budget = { difficulty = "easy", pressureFactor = 0.34 },
+        playerScale = { hp = 1.30, atk = 1.12, def = 1.16, energyBonus = 18 },
+        enemyScale = { hp = 0.90, atk = 0.92, def = 0.90, hitDelta = -1, spellDCDelta = -1, saveDelta = -1 },
     },
     [101003] = {
         id = 101003,
@@ -115,9 +115,9 @@ RunEncounterGroup.ENCOUNTERS = {
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "easy", pressureFactor = 0.70 },
-        playerScale = { hp = 1.16, atk = 1.08, def = 1.10, energyBonus = 10 },
-        enemyScale = { hp = 0.94, atk = 0.96, def = 0.94, hitDelta = 0, spellDCDelta = 0 },
+        budget = { difficulty = "easy", pressureFactor = 0.56 },
+        playerScale = { hp = 1.20, atk = 1.10, def = 1.12, energyBonus = 12 },
+        enemyScale = { hp = 0.92, atk = 0.94, def = 0.92, hitDelta = -1, spellDCDelta = -1 },
     },
 
     -- Elite battles
@@ -176,15 +176,15 @@ RunEncounterGroup.ENCOUNTERS = {
         kind = "event_battle",
         chapterId = 101,
         difficulty = 2,
-        level = 5,
+        level = 1,
         enemyCount = 5,
         enemyIds = { 910002, 910001, 910001, 910001, 910001 },
-        initialEnergy = 40,
+        initialEnergy = 10,
         speed = 1.0,
         gold = { min = 46, max = 64 },
-        budget = { difficulty = "easy", pressureFactor = 0.72 },
-        playerScale = { hp = 1.10, atk = 1.06, def = 1.08, energyBonus = 12 },
-        enemyScale = { hp = 0.94, atk = 0.96, def = 0.94, hitDelta = 0, spellDCDelta = 0, saveDelta = 0 },
+        budget = { difficulty = "easy", pressureFactor = 0.45 },
+        playerScale = { hp = 1.28, atk = 1.12, def = 1.16, energyBonus = 18 },
+        enemyScale = { hp = 0.90, atk = 0.90, def = 0.90, hitDelta = -1, spellDCDelta = -1, saveDelta = -1 },
     },
 
     -- Boss battle
@@ -193,7 +193,7 @@ RunEncounterGroup.ENCOUNTERS = {
         kind = "boss",
         chapterId = 101,
         difficulty = 6,
-        level = 5,
+        level = 3,
         enemyCount = 5,
         enemyIds = { 910002, 910001, 910001, 910001, 910007 },
         initialEnergy = 20,

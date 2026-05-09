@@ -18,24 +18,21 @@ RunEncounterPool.POOLS = {
     [301001] = {
         id = 301001,
         entries = {
-            { encounterId = 101001, weight = 65 },
-            { encounterId = 101002, weight = 25 },
-            { encounterId = 101103, weight = 10 },
+            { encounterId = 101001, weight = 100 },
         },
     },
     [301002] = {
         id = 301002,
         entries = {
-            { encounterId = 101002, weight = 45 },
-            { encounterId = 101003, weight = 30 },
-            { encounterId = 101104, weight = 25 },
+            { encounterId = 101002, weight = 60 },
+            { encounterId = 101003, weight = 25 },
+            { encounterId = 101104, weight = 15 },
         },
     },
     [301003] = {
         id = 301003,
         entries = {
-            { encounterId = 101003, weight = 60 },
-            { encounterId = 101104, weight = 40 },
+            { encounterId = 101104, weight = 100 },
         },
     },
     [301101] = {
@@ -54,7 +51,7 @@ RunEncounterPool.POOLS = {
     [301201] = {
         id = 301201,
         entries = {
-            { encounterId = 101102, weight = 100 },
+            { encounterId = 101201, weight = 100 },
         },
     },
 }

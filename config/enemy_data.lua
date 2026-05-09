@@ -105,14 +105,7 @@ local function GetConfigFilePath(fileName)
     return nil
 end
 
-local function GetSkillFamily(skillId)
-    if not skillId then
-        return nil
-    end
-    return math.floor(skillId / 10)
-end
-
-local function BuildScaledSkillIds(enemy, level)
+local function BuildConfiguredSkillIds(enemy)
     local result = {}
     local seen = {}
 
@@ -124,42 +117,8 @@ local function BuildScaledSkillIds(enemy, level)
         table.insert(result, skillId)
     end
 
-    local baseSkillIds = {}
-    if enemy.SkillIDs then
-        for _, skillId in ipairs(enemy.SkillIDs) do
-            table.insert(baseSkillIds, skillId)
-        end
-    end
-    if enemy.SkillIDsBossWarning then
-        for _, skillId in ipairs(enemy.SkillIDsBossWarning) do
-            table.insert(baseSkillIds, skillId)
-        end
-    end
-
-    for _, skillId in ipairs(baseSkillIds) do
+    for _, skillId in ipairs(enemy.SkillIDs or {}) do
         Add(skillId)
-    end
-
-    local families = {}
-    for _, skillId in ipairs(baseSkillIds) do
-        local family = GetSkillFamily(skillId)
-        if family then
-            families[family] = true
-        end
-    end
-
-    for family, _ in pairs(families) do
-        Add(family * 10 + 1)
-        -- 1-20 scale: unlock more family skills as level rises.
-        if level >= 6 or (enemy.MonsterType or 0) >= 1 then
-            Add(family * 10 + 2)
-        end
-        if level >= 12 or (enemy.MonsterType or 0) >= 1 then
-            Add(family * 10 + 3)
-        end
-        if level >= 17 or (enemy.MonsterType or 0) >= 2 then
-            Add(family * 10 + 4)
-        end
     end
 
     return result
@@ -362,9 +321,6 @@ local function EnemyHasSkills(enemy)
         return false
     end
     if enemy.SkillIDs and #enemy.SkillIDs > 0 then
-        return true
-    end
-    if enemy.SkillIDsBossWarning and #enemy.SkillIDsBossWarning > 0 then
         return true
     end
     return false
@@ -574,7 +530,7 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         })
     end
 
-    for _, skillId in ipairs(BuildScaledSkillIds(enemy, level)) do
+    for _, skillId in ipairs(BuildConfiguredSkillIds(enemy)) do
         AddSkill(skillId)
     end
 

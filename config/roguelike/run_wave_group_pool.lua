@@ -33,8 +33,7 @@ RunWaveGroupPool.POOLS = {
     [401001] = {
         id = 401001,
         entries = {
-            { templateId = 501001, weight = 75 },
-            { templateId = 501002, weight = 25 },
+            { templateId = 501001, weight = 100 },
         },
     },
     [401002] = {
@@ -48,9 +47,7 @@ RunWaveGroupPool.POOLS = {
     [401003] = {
         id = 401003,
         entries = {
-            { templateId = 501002, weight = 40 },
-            { templateId = 501003, weight = 50 },
-            { templateId = 501004, weight = 10 },
+            { templateId = 501005, weight = 100 },
         },
     },
     [401101] = {
@@ -68,8 +65,7 @@ RunWaveGroupPool.POOLS = {
     [401201] = {
         id = 401201,
         entries = {
-            { templateId = 501201, weight = 35 },
-            { templateId = 501202, weight = 65 },
+            { templateId = 501201, weight = 100 },
         },
     },
 }
@@ -112,6 +108,15 @@ RunWaveGroupPool.TEMPLATES = {
         backPoolId = 701005,
         reinforcePoolId = nil,
     },
+    [501005] = {
+        id = 501005,
+        code = "normal_wave_soft_late",
+        name = "Normal Wave Soft Late",
+        formationProfileId = 601002,
+        frontPoolId = 701007,
+        backPoolId = 701008,
+        reinforcePoolId = nil,
+    },
     [501101] = {
         id = 501101,
         code = "elite_wave_brute",
@@ -119,7 +124,7 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601101,
         frontPoolId = 701004,
         backPoolId = 701006,
-        reinforcePoolId = 701005,
+        reinforcePoolId = nil,
     },
     [501102] = {
         id = 501102,
@@ -128,16 +133,16 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601102,
         frontPoolId = 701004,
         backPoolId = 701006,
-        reinforcePoolId = 701006,
+        reinforcePoolId = nil,
     },
     [501201] = {
         id = 501201,
         code = "boss_wave_guard",
         name = "Boss Wave Guard",
         formationProfileId = 601201,
-        frontPoolId = 701004,
-        backPoolId = 701005,
-        reinforcePoolId = 701005,
+        frontPoolId = 701203,
+        backPoolId = 701204,
+        reinforcePoolId = 701204,
         bossPoolId = 701201,
         guardPoolId = 701202,
         mustIncludeBoss = true,
@@ -148,9 +153,9 @@ RunWaveGroupPool.TEMPLATES = {
         code = "boss_wave_heavy_guard",
         name = "Boss Wave Heavy Guard",
         formationProfileId = 601202,
-        frontPoolId = 701004,
-        backPoolId = 701005,
-        reinforcePoolId = 701005,
+        frontPoolId = 701203,
+        backPoolId = 701204,
+        reinforcePoolId = 701204,
         bossPoolId = 701201,
         guardPoolId = 701202,
         mustIncludeBoss = true,
