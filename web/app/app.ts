@@ -66,17 +66,25 @@ export async function bootstrapApp(container: HTMLElement): Promise<AppHandle> {
     const shellScreen = shell.dataset.screen ?? "";
     const isBattleScreen = shellScreen === "battle";
     if (!mobilePortrait || !isBattleScreen) {
+      shell.style.height = "";
+      shell.style.maxHeight = "";
       stage.style.height = "";
       stage.style.maxHeight = "";
       return;
     }
 
-    const shellRect = shell.getBoundingClientRect();
+    const appStyles = window.getComputedStyle(container);
+    const appPaddingTop = Number.parseFloat(appStyles.paddingTop || "0") || 0;
+    const appPaddingBottom = Number.parseFloat(appStyles.paddingBottom || "0") || 0;
+    const viewportHeight = Math.floor(window.visualViewport?.height ?? window.innerHeight);
+    const shellHeight = Math.max(160, viewportHeight - appPaddingTop - appPaddingBottom);
     const panelRect = panelHost.getBoundingClientRect();
     const shellStyles = window.getComputedStyle(shell);
     const shellGap = Number.parseFloat(shellStyles.rowGap || shellStyles.gap || "0") || 0;
-    const availableHeight = Math.floor(shellRect.height - panelRect.height - shellGap);
+    const availableHeight = Math.floor(shellHeight - panelRect.height - shellGap);
     const clampedHeight = Math.max(120, availableHeight);
+    shell.style.height = `${shellHeight}px`;
+    shell.style.maxHeight = `${shellHeight}px`;
     stage.style.height = `${clampedHeight}px`;
     stage.style.maxHeight = `${clampedHeight}px`;
   };
