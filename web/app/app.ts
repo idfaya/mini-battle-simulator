@@ -7,7 +7,11 @@ import type { RunSnapshot } from "./types/roguelike";
 import { createControls, renderControls } from "./ui/domControls";
 import { createRunControls, renderRunControls } from "./ui/runControls";
 
-export async function bootstrapApp(container: HTMLElement) {
+export type AppHandle = {
+  cleanup: () => void;
+};
+
+export async function bootstrapApp(container: HTMLElement): Promise<AppHandle> {
   const shell = document.createElement("div");
   shell.className = "shell";
 
@@ -40,6 +44,23 @@ export async function bootstrapApp(container: HTMLElement) {
   diagnostics.remove();
   stage.append(renderer.canvas);
 
+  const cleanupCallbacks: Array<() => void> = [];
+  let cleanedUp = false;
+  const isActive = () => !cleanedUp;
+  const registerCleanup = (callback: () => void) => {
+    cleanupCallbacks.push(callback);
+  };
+  const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
+    while (cleanupCallbacks.length > 0) {
+      const callback = cleanupCallbacks.pop();
+      callback?.();
+    }
+  };
+
   const syncMobileBattleStageHeight = () => {
     const mobilePortrait = window.matchMedia("(max-width: 720px) and (orientation: portrait)").matches;
     const shellScreen = shell.dataset.screen ?? "";
@@ -69,21 +90,59 @@ export async function bootstrapApp(container: HTMLElement) {
   });
   resizeObserver.observe(shell);
   resizeObserver.observe(panelHost);
+  registerCleanup(() => {
+    resizeObserver.disconnect();
+  });
   if (typeof window.visualViewport !== "undefined") {
-    window.visualViewport.addEventListener("resize", scheduleMobileBattleStageSync);
-    window.visualViewport.addEventListener("scroll", scheduleMobileBattleStageSync);
+    const viewport = window.visualViewport;
+    viewport.addEventListener("resize", scheduleMobileBattleStageSync);
+    viewport.addEventListener("scroll", scheduleMobileBattleStageSync);
+    registerCleanup(() => {
+      viewport.removeEventListener("resize", scheduleMobileBattleStageSync);
+      viewport.removeEventListener("scroll", scheduleMobileBattleStageSync);
+    });
   }
   window.addEventListener("resize", scheduleMobileBattleStageSync);
+  registerCleanup(() => {
+    window.removeEventListener("resize", scheduleMobileBattleStageSync);
+  });
 
-  if (standaloneBattleMode || singleBattleMode) {
-    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore, shell, scheduleMobileBattleStageSync, {
-      singleBattleMode,
+  try {
+    if (standaloneBattleMode || singleBattleMode) {
+      await bootstrapStandaloneBattle(
+        host,
+        renderer,
+        panelHost,
+        battleStore,
+        shell,
+        scheduleMobileBattleStageSync,
+        registerCleanup,
+        isActive,
+        {
+          singleBattleMode,
+          params,
+        },
+      );
+      return { cleanup };
+    }
+
+    await bootstrapRunMode(
+      host,
+      renderer,
+      panelHost,
+      battleStore,
+      runStore,
+      shell,
+      scheduleMobileBattleStageSync,
+      registerCleanup,
+      isActive,
       params,
-    });
-    return;
+    );
+    return { cleanup };
+  } catch (error) {
+    cleanup();
+    throw error;
   }
-
-  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore, shell, scheduleMobileBattleStageSync, params);
 }
 
 async function bootstrapStandaloneBattle(
@@ -93,6 +152,8 @@ async function bootstrapStandaloneBattle(
   store: BattleStore,
   shell: HTMLDivElement,
   syncMobileBattleStageHeight: () => void,
+  registerCleanup: (callback: () => void) => void,
+  isActive: () => boolean,
   options?: {
     singleBattleMode?: boolean;
     params?: URLSearchParams;
@@ -199,15 +260,29 @@ async function bootstrapStandaloneBattle(
   const initialSnapshot = await host.initBattle(toRuntimeConfig(setup));
   store.setSnapshot(initialSnapshot);
 
+  let rafId: number | null = null;
+  registerCleanup(() => {
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  });
+
   let lastFrame = performance.now();
   let inFlight = false;
   const frame = async (now: number) => {
+    if (!isActive()) {
+      return;
+    }
     const delta = Math.min(120, now - lastFrame);
     lastFrame = now;
     if (!inFlight) {
       inFlight = true;
       const { events, snapshot } = await host.tick(delta * speed);
       inFlight = false;
+      if (!isActive()) {
+        return;
+      }
       store.appendEvents(events);
       store.setSnapshot(snapshot);
       if (autoUltimate && !snapshot.result && snapshot.pendingCommands === 0 && !snapshot.activeHeroId) {
@@ -221,13 +296,15 @@ async function bootstrapStandaloneBattle(
     renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
     syncMobileBattleStageHeight();
     store.clearTransient(now);
-    requestAnimationFrame(frame);
+    if (isActive()) {
+      rafId = requestAnimationFrame(frame);
+    }
   };
 
   renderer.renderBattle(store.getState(), performance.now());
   renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
   syncMobileBattleStageHeight();
-  requestAnimationFrame(frame);
+  rafId = requestAnimationFrame(frame);
 }
 
 async function bootstrapRunMode(
@@ -238,6 +315,8 @@ async function bootstrapRunMode(
   runStore: RunStore,
   shell: HTMLDivElement,
   syncMobileBattleStageHeight: () => void,
+  registerCleanup: (callback: () => void) => void,
+  isActive: () => boolean,
   params: URLSearchParams,
 ) {
   const runSeed = Number(params.get("seed")) || 10102;
@@ -350,9 +429,20 @@ async function bootstrapRunMode(
 
   syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002], seed: runSeed }));
 
+  let rafId: number | null = null;
+  registerCleanup(() => {
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  });
+
   let lastFrame = performance.now();
   let inFlight = false;
   const frame = async (now: number) => {
+    if (!isActive()) {
+      return;
+    }
     const delta = Math.min(120, now - lastFrame);
     lastFrame = now;
 
@@ -362,6 +452,9 @@ async function bootstrapRunMode(
       const previousBattleSnapshot = battleStore.getState().snapshot;
       const { events, snapshot } = await host.tickRun(delta * battleSpeed);
       inFlight = false;
+      if (!isActive()) {
+        return;
+      }
 
       if (previousPhase === "battle" && snapshot.phase !== "battle") {
         runSnapshot = snapshot;
@@ -433,10 +526,12 @@ async function bootstrapRunMode(
       }
     }
 
-    requestAnimationFrame(frame);
+    if (isActive()) {
+      rafId = requestAnimationFrame(frame);
+    }
   };
 
   renderer.renderMap(runSnapshot);
   renderRunControls(runControls, runStore.getState().snapshot, runStore.getState().logs);
-  requestAnimationFrame(frame);
+  rafId = requestAnimationFrame(frame);
 }

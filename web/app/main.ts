@@ -8,14 +8,27 @@ if (!root) {
 
 root.replaceChildren();
 
-void bootstrapApp(root).catch((error) => {
-  const panel = document.createElement("pre");
-  panel.className = "fatal-error";
-  panel.textContent = [
-    "浏览器战斗启动失败",
-    "",
-    error instanceof Error ? error.message : String(error),
-  ].join("\n");
-  root.replaceChildren(panel);
-  console.error(error);
-});
+let appHandle: Awaited<ReturnType<typeof bootstrapApp>> | null = null;
+
+void bootstrapApp(root)
+  .then((handle) => {
+    appHandle = handle;
+  })
+  .catch((error) => {
+    const panel = document.createElement("pre");
+    panel.className = "fatal-error";
+    panel.textContent = [
+      "浏览器战斗启动失败",
+      "",
+      error instanceof Error ? error.message : String(error),
+    ].join("\n");
+    root.replaceChildren(panel);
+    console.error(error);
+  });
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    appHandle?.cleanup();
+    appHandle = null;
+  });
+}
