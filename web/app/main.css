@@ -659,6 +659,21 @@ body {
     font-size: 10px;
   }
 
+  /* 战斗结束时仅显示一个“查看奖励”按钮，让它撑满两排高度，
+     与战斗中 .ult-panel 多行按钮布局保持等高，避免 HUD 高度突变
+     触发 stage 重算导致战场抖动。 */
+  .hud.battle-ended .result-actions {
+    grid-template-rows: repeat(2, 1fr);
+    min-height: 96px;
+  }
+
+  .hud.battle-ended .result-actions .ult-button {
+    grid-row: 1 / span 2;
+    min-height: 88px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
   .setup-panel {
     align-content: start;
     overflow: auto;
