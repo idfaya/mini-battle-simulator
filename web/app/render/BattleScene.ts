@@ -92,15 +92,15 @@ type FormationMetrics = {
 };
 
 const TOP_BAR_TEXT_Y = 36;
-const COMPACT_TOP_BAR_TEXT_Y = 28;
+const COMPACT_TOP_BAR_TEXT_Y = 22;
 const ACTION_ORDER_BAR_Y = 50;
-const COMPACT_ACTION_ORDER_BAR_Y = 40;
+const COMPACT_ACTION_ORDER_BAR_Y = 30;
 const ACTION_ORDER_BAR_HEIGHT = 56;
-const COMPACT_ACTION_ORDER_BAR_HEIGHT = 44;
+const COMPACT_ACTION_ORDER_BAR_HEIGHT = 36;
 const BATTLEFIELD_TOP_SAFE_GAP = 22;
-const COMPACT_BATTLEFIELD_TOP_SAFE_GAP = 12;
+const COMPACT_BATTLEFIELD_TOP_SAFE_GAP = 4;
 const BATTLEFIELD_BOTTOM_SAFE_Y = 0;
-const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 0;
+const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 12;
 const TEAM_ROW_GAP = 26;
 const TEAM_CENTER_GAP = 44;
 
@@ -235,14 +235,16 @@ export class BattleScene {
     const totalWidth = cardWidth * 3 + gapX * 2;
     const startX = Math.round((width - totalWidth) / 2);
 
-    const battlefieldTop = this.getBattlefieldTopSafeY(width) + 8;
-    const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - 4;
+    const battlefieldTop = this.getBattlefieldTopSafeY(width) + (compactViewport ? 2 : 8);
+    const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - (compactViewport ? 2 : 4);
     const availableY = Math.max(0, battlefieldBottom - battlefieldTop);
     const desiredTotalY = 2 * (2 * desiredCardHeight + desiredRowGap) + desiredCenterGap;
     const scaleY = desiredTotalY > 0 ? Math.min(1, availableY / desiredTotalY) : 1;
     let cardHeight = Math.max(minCardHeight, Math.floor(desiredCardHeight * scaleY));
     let rowGap = Math.max(minRowGap, Math.floor(desiredRowGap * scaleY));
     let centerGap = Math.max(minCenterGap, Math.floor(desiredCenterGap * scaleY));
+
+    const totalFormationHeight = () => 4 * cardHeight + 2 * rowGap + centerGap;
 
     const minTotalY = 4 * minCardHeight + 2 * minRowGap + minCenterGap;
     if (compactViewport && availableY > 0 && availableY < minTotalY) {
@@ -252,7 +254,6 @@ export class BattleScene {
       centerGap = Math.max(16, Math.floor(minCenterGap * tightScale));
     }
 
-    const totalFormationHeight = () => 4 * cardHeight + 2 * rowGap + centerGap;
     if (availableY > 0 && totalFormationHeight() > availableY) {
       const hardMinCardHeight = compactViewport ? 54 : 80;
       const hardMinRowGap = compactViewport ? 4 : 8;
@@ -271,8 +272,8 @@ export class BattleScene {
       }
     }
 
-    // Stack from top to bottom:
-    // enemy back -> enemy front -> center gap -> player front -> player back
+    // 4 行始终预留：enemy back -> enemy front -> center gap -> player front -> player back
+    // 即使某一行没有单位，也保留位置，避免 6v6 与 4v3 视觉层级不一致。
     const enemyBackY = battlefieldTop;
     const enemyFrontY = enemyBackY + cardHeight + rowGap;
     const playerFrontY = enemyFrontY + cardHeight + centerGap;
