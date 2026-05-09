@@ -18,17 +18,17 @@ RunEncounterPool.POOLS = {
     [301001] = {
         id = 301001,
         entries = {
-            { encounterId = 101001, weight = 45 },
-            { encounterId = 101002, weight = 35 },
-            { encounterId = 101103, weight = 20 },
+            { encounterId = 101001, weight = 65 },
+            { encounterId = 101002, weight = 25 },
+            { encounterId = 101103, weight = 10 },
         },
     },
     [301002] = {
         id = 301002,
         entries = {
-            { encounterId = 101002, weight = 20 },
-            { encounterId = 101003, weight = 45 },
-            { encounterId = 101104, weight = 35 },
+            { encounterId = 101002, weight = 45 },
+            { encounterId = 101003, weight = 30 },
+            { encounterId = 101104, weight = 25 },
         },
     },
     [301003] = {

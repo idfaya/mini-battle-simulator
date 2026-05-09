@@ -22,9 +22,25 @@ RunBattlePool.POOLS = {
         chapterId = 101,
         kind = "normal",
         entries = {
-            { battleTemplateId = 201001, weight = 40 },
-            { battleTemplateId = 201002, weight = 35 },
-            { battleTemplateId = 201003, weight = 25 },
+            { battleTemplateId = 201001, weight = 100 },
+        },
+    },
+    [101002] = {
+        id = 101002,
+        chapterId = 101,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 201001, weight = 55 },
+            { battleTemplateId = 201002, weight = 45 },
+        },
+    },
+    [101003] = {
+        id = 101003,
+        chapterId = 101,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 201002, weight = 60 },
+            { battleTemplateId = 201003, weight = 40 },
         },
     },
     [101101] = {

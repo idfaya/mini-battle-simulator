@@ -33,22 +33,24 @@ RunWaveGroupPool.POOLS = {
     [401001] = {
         id = 401001,
         entries = {
-            { templateId = 501001, weight = 55 },
-            { templateId = 501002, weight = 45 },
+            { templateId = 501001, weight = 75 },
+            { templateId = 501002, weight = 25 },
         },
     },
     [401002] = {
         id = 401002,
         entries = {
-            { templateId = 501002, weight = 40 },
-            { templateId = 501003, weight = 60 },
+            { templateId = 501001, weight = 35 },
+            { templateId = 501002, weight = 45 },
+            { templateId = 501003, weight = 20 },
         },
     },
     [401003] = {
         id = 401003,
         entries = {
-            { templateId = 501003, weight = 80 },
-            { templateId = 501004, weight = 20 },
+            { templateId = 501002, weight = 40 },
+            { templateId = 501003, weight = 50 },
+            { templateId = 501004, weight = 10 },
         },
     },
     [401101] = {
@@ -81,7 +83,7 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601001,
         frontPoolId = 701001,
         backPoolId = 701002,
-        reinforcePoolId = 701003,
+        reinforcePoolId = nil,
     },
     [501002] = {
         id = 501002,
@@ -90,7 +92,7 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601002,
         frontPoolId = 701001,
         backPoolId = 701002,
-        reinforcePoolId = 701003,
+        reinforcePoolId = nil,
     },
     [501003] = {
         id = 501003,
@@ -99,7 +101,7 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601003,
         frontPoolId = 701004,
         backPoolId = 701002,
-        reinforcePoolId = 701003,
+        reinforcePoolId = nil,
     },
     [501004] = {
         id = 501004,
@@ -108,7 +110,7 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601002,
         frontPoolId = 701004,
         backPoolId = 701005,
-        reinforcePoolId = 701003,
+        reinforcePoolId = nil,
     },
     [501101] = {
         id = 501101,

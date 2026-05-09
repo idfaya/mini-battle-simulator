@@ -114,6 +114,17 @@ local function chooseWeightedType(rng, weights, fallbackType)
     return picked and picked.nodeType or fallbackType or "battle_normal"
 end
 
+local function getNormalBattlePoolId(profile, floor)
+    local pools = profile and profile.battlePoolIds or {}
+    if floor <= 2 then
+        return pools.battle_normal_early or pools.battle_normal
+    end
+    if floor <= 5 then
+        return pools.battle_normal_mid or pools.battle_normal
+    end
+    return pools.battle_normal_late or pools.battle_normal_mid or pools.battle_normal
+end
+
 local function ensureIncomingConnections(currentNodes, nextNodes)
     if #currentNodes <= 0 or #nextNodes <= 0 then
         return
@@ -255,7 +266,7 @@ local function generateOnce(chapterId, seed, profile)
             elseif node.nodeType == "event" then
                 node.eventId = rng:pick(profile.eventIds)
             elseif node.nodeType == "battle_normal" then
-                node.battlePoolId = profile.battlePoolIds.battle_normal
+                node.battlePoolId = getNormalBattlePoolId(profile, floor)
             elseif node.nodeType == "battle_elite" then
                 node.battlePoolId = profile.battlePoolIds.battle_elite
             end
