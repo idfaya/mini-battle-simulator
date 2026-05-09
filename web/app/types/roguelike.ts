@@ -21,6 +21,14 @@ export type RunMapNodeState = {
   visited: boolean;
   current: boolean;
   selectable: boolean;
+  revealed: boolean;
+  titleVisible: boolean;
+  nextNodeIds: number[];
+};
+
+export type RunMapEdgeState = {
+  fromNodeId: number;
+  toNodeId: number;
 };
 
 export type RunMapState = {
@@ -29,6 +37,7 @@ export type RunMapState = {
   startNodeId: number;
   bossNodeId: number;
   nodes: RunMapNodeState[];
+  edges: RunMapEdgeState[];
 };
 
 export type RunTeamMember = {

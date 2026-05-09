@@ -427,8 +427,9 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
 
     const selectable = snapshot.map.nodes.filter((item) => item.selectable);
     for (const node of selectable) {
+      const label = node.titleVisible && node.title ? node.title : node.nodeType;
       host.append(
-        makeButton(`${node.title} · ${node.nodeType}`, false, async () => {
+        makeButton(`${label} · ${node.nodeType}`, false, async () => {
           // 选择即进入，避免手机端多一步操作
           await controls.handlers.onChooseNode(node.id);
           await controls.handlers.onEnterNode();

@@ -61,19 +61,21 @@ Roguelike 随机生成统一分为三层：
 - 战斗模板定义的是战斗规则壳子，而不是具体怪物名单。
 - 输出：
   - `battle_template_id`
+  - `wave_group_pool_id`
   - `encounter_pool_id`
   - 经验奖励
   - 胜负规则
-  - 波次刷新规则
+  - 波次列表规则
+  - 增援刷新规则
 
 ### 3.3 怪物层
 
 - 负责在关卡模板约束下生成实际怪物。
 - 输出：
-  - 开场怪物
-  - 候补波次
-  - 护卫
-  - Boss 本体
+  - `wave_group`
+  - `wave_group_ids`
+  - 每波敌军编组
+  - Boss 波次与护卫关系
   - 金币与初始能量等战斗实例参数
 
 ---
@@ -184,12 +186,15 @@ Roguelike 随机生成统一分为三层：
 
 - `kind`
 - `exp_reward`
+- `wave_count_min`
+- `wave_count_max`
 - `refresh_turns`
 - `refresh_on_clear`
 - `spawn_order`
 - `win_rule`
 - `lose_rule`
 - `boss_rule`
+- `wave_group_pool_id`
 - `encounter_pool_id`
 
 ### 5.3 节点与关卡关系
@@ -253,17 +258,17 @@ node_instance.id
 `怪物随机` 指的是：
 
 - 战斗模板确定后，不直接读取固定 `enemyIds`。
-- 系统根据 `encounter_pool`、`formation_profile` 与怪物候选池，生成本场实际敌方编成。
+- 系统根据 `encounter_pool`、`wave_group_pool`、`formation_profile` 与怪物候选池，生成本场实际敌方波次列表。
 
 ### 6.2 怪物层职责
 
 怪物层需要决定：
 
-- 开场上场怪物
-- 前后排分布
-- 候补波次
+- 总波次数
+- 每波的前后排分布
+- 波次间增援关系
 - 护卫单位
-- Boss 护卫与阶段编成
+- Boss 所在波次与阶段编成
 
 ### 6.3 怪物生成原则
 
@@ -282,9 +287,12 @@ node_instance.id
 
 怪物编成模板统一定义：
 
+- 单波前排槽位数
+- 单波后排槽位数
+- 单波编组容量
+- 单场可用波次数范围
 - 前排槽位数
 - 后排槽位数
-- 候补数量范围
 - 必需角色标签
 - 禁止角色标签
 - 同怪最大重复数
@@ -321,7 +329,7 @@ node_instance.id
 - 即：
   - Boss 节点可以从多个 Boss 模板中抽 1 个。
   - 每个 Boss 模板内部仍固定 Boss 本体来源。
-  - 护卫、候补与阶段小怪允许有限随机。
+  - 护卫、附属波次与阶段小怪允许有限随机。
 
 ### 6.8 事件战规则
 
@@ -371,12 +379,15 @@ node_instance.id
 | `id` | string | 模板编号 |
 | `kind` | enum | 战斗类型 |
 | `exp_reward` | integer | 经验奖励 |
+| `wave_count_min` | integer | 最少波次数 |
+| `wave_count_max` | integer | 最多波次数 |
 | `refresh_turns` | integer | 刷新轮次 |
 | `refresh_on_clear` | boolean | 清屏是否刷新 |
 | `spawn_order` | enum | 刷怪顺序 |
 | `win_rule` | enum | 胜利规则 |
 | `lose_rule` | enum | 失败规则 |
 | `boss_rule` | table | Boss 附加规则 |
+| `wave_group_pool_id` | string | 波次组池入口 |
 | `encounter_pool_id` | string | 遭遇池入口 |
 
 ### 7.4 遭遇池
@@ -404,14 +415,14 @@ node_instance.id
 | `id` | string | 编成模板编号 |
 | `front_slots` | integer | 前排数量 |
 | `back_slots` | integer | 后排数量 |
-| `reserve_count` | table | 候补数范围 |
+| `wave_unit_cap` | integer | 单波最大单位数 |
 | `required_tags` | string[] | 必须出现的标签 |
 | `forbidden_tags` | string[] | 禁止出现的标签 |
 | `max_same_enemy` | integer | 单怪最大重复数 |
 | `front_pool_id` | string | 前排候选池 |
 | `back_pool_id` | string | 后排候选池 |
-| `reserve_pool_id` | string | 候补候选池 |
 | `guard_pool_id` | string | 护卫候选池 |
+| `reinforce_pool_id` | string | 增援候选池 |
 
 ### 7.6 怪物候选池
 
@@ -451,9 +462,10 @@ node_instance.id
 进入战斗节点
 → 根据 node_instance.content_pool_id 获取 battle_pool
 → 抽取 battle_template
+→ 根据 template.wave_group_pool_id 确定波次组数量与波次主题
 → 根据 template.encounter_pool_id 获取 encounter_pool
-→ 抽取 formation_profile
-→ 按标签与预算生成怪物编成
+→ 按每个 wave_group 抽取 formation_profile
+→ 按标签与预算生成各波敌军编组
 → 组装 battle_instance
 → 进入战斗
 ```
@@ -516,8 +528,9 @@ node_instance.id
 - Boss 允许从多个 Boss 模板中随机选择。
 - 每个 Boss 模板必须保证：
   - 明确 Boss 本体
+  - 明确 Boss 所在波次
   - 明确胜利条件
-  - 明确候补与护卫关系
+  - 明确增援与护卫关系
   - 不会因错误配置导致 Boss 开场缺失或提前结算
 
 ---

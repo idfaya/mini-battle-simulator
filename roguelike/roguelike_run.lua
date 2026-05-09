@@ -6,10 +6,11 @@ local RoguelikeShop = require("roguelike.roguelike_shop")
 local RoguelikeCamp = require("roguelike.roguelike_camp")
 local RoguelikeSnapshot = require("roguelike.roguelike_snapshot")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
-local RunNodePool = require("config.roguelike.run_node_pool")
 local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEncounterGroup = require("config.roguelike.run_encounter_group")
+local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
+local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
 
 local RoguelikeRun = {}
 local state = nil
@@ -293,6 +294,10 @@ local function resetRunState()
         pendingRecruitHeroId = nil,
         maxHeroCount = 5,
         battleEncounterId = nil,
+        currentBattleConfig = nil,
+        currentEncounterConfig = nil,
+        mapState = nil,
+        seed = nil,
         rewardReturnMode = "map",
         nextRosterId = 1,
     }
@@ -302,7 +307,7 @@ state = resetRunState()
 cachedBattleSnapshot = nil
 
 local function refreshAvailableNodes()
-    local available = RoguelikeMap.GetAvailableNextNodeIds(state.currentNodeId, state.visitedNodeIds, state.chapterId)
+    local available = RoguelikeMap.GetAvailableNextNodeIds(state.currentNodeId, state.visitedNodeIds, state.chapterId, state.mapState)
     state.availableNextNodeIds = available
     if #available == 1 then
         state.selectedNextNodeId = available[1]
@@ -311,8 +316,12 @@ local function refreshAvailableNodes()
     end
 end
 
+local function getNode(nodeId)
+    return RoguelikeMap.GetNode(nodeId, state and state.mapState or nil)
+end
+
 local function enterNode(nodeId)
-    local node = RunNodePool.GetNode(nodeId)
+    local node = getNode(nodeId)
     if not node then
         return false, "node_not_found"
     end
@@ -321,14 +330,9 @@ local function enterNode(nodeId)
     state.lastActionMessage = ""
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
-        local battleId = tonumber(node.battleId)
-        local battle = RunBattleConfig.GetBattle(battleId)
-        if not battle then
-            return false, "battle_not_found"
-        end
-        local encounter = RunEncounterGroup.GetEncounter(battleId)
-        if not encounter then
-            return false, "encounter_not_found"
+        local battle, encounter, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
+        if not battle or not encounter then
+            return false, resolveReason or "battle_not_found"
         end
         local ok, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
         if not ok then
@@ -338,7 +342,9 @@ local function enterNode(nodeId)
         end
         cachedBattleSnapshot = snapshotOrReason
         state.phase = "battle"
-        state.battleEncounterId = battleId
+        state.battleEncounterId = tonumber(encounter and encounter.id) or tonumber(battle and battle.id)
+        state.currentBattleConfig = battle
+        state.currentEncounterConfig = encounter
         return true
     end
 
@@ -406,6 +412,8 @@ local function leaveNodeBackToMap()
     cachedBattleSnapshot = nil
     state.phase = "map"
     state.battleEncounterId = nil
+    state.currentBattleConfig = nil
+    state.currentEncounterConfig = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end
@@ -453,7 +461,7 @@ local function canManageRoster()
 end
 
 local function refreshContextState()
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     if state.phase == "shop" and node then
         state.shopState = RoguelikeShop.BuildShopState(state, node.shopId)
     elseif state.phase == "camp" and node then
@@ -464,7 +472,9 @@ end
 function RoguelikeRun.StartRun(config)
     state = resetRunState()
     cachedBattleSnapshot = nil
+    RunEnemyGroup.ResetRuntimeGroups()
     local seed = tonumber((config or {}).seed)
+    state.seed = seed or 0
     if seed then
         math.randomseed(seed)
     end
@@ -484,6 +494,13 @@ function RoguelikeRun.StartRun(config)
     state.levelProgressExp = 0
     state.levelCap = tonumber(chapter.targetMaxLevel) or CHAPTER_LEVEL_CAP
     state.nextLevelExp = getExpToNextLevel(STARTER_LEVEL)
+    if chapter.mapGenProfileId then
+        local mapState, reason = RoguelikeMap.GenerateChapterMap(chapterId, state.seed or 0)
+        if not mapState then
+            error("failed to generate roguelike map: " .. tostring(reason))
+        end
+        state.mapState = mapState
+    end
 
     local starterHeroIds = (config or {}).starterHeroIds or { 900005, 900001, 900007, 900002 }
     state.ownedUnits = buildStarterRoster(state, starterHeroIds)
@@ -537,11 +554,10 @@ function RoguelikeRun.Tick(deltaMs)
     end
     local events = RoguelikeBattleBridge.Tick(deltaMs)
     cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
-    local currentBattleId = tonumber(state.battleEncounterId)
     local resolved = RoguelikeBattleBridge.ResolveBattle(
         state,
-        RunBattleConfig.GetBattle(currentBattleId),
-        RunEncounterGroup.GetEncounter(currentBattleId)
+        state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.battleEncounterId)),
+        state.currentEncounterConfig or RunEncounterGroup.GetEncounter(tonumber(state.battleEncounterId))
     )
     if resolved then
         if evaluateFailureIfNoAlive() then
@@ -549,9 +565,9 @@ function RoguelikeRun.Tick(deltaMs)
         end
 
         if resolved.won then
-            local node = RunNodePool.GetNode(state.currentNodeId)
-            local battle = RunBattleConfig.GetBattle(currentBattleId)
-            local encounter = RunEncounterGroup.GetEncounter(currentBattleId)
+            local node = getNode(state.currentNodeId)
+            local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.battleEncounterId))
+            local encounter = state.currentEncounterConfig or RunEncounterGroup.GetEncounter(tonumber(state.battleEncounterId))
             grantBattleExp(battle)
             grantBattleLoot(node, encounter)
             recalcRecommendedLevel()
@@ -605,7 +621,7 @@ function RoguelikeRun.ChooseReward(index)
         return true
     end
     if state.rewardReturnMode == "shop" then
-        local node = RunNodePool.GetNode(state.currentNodeId)
+        local node = getNode(state.currentNodeId)
         state.phase = "shop"
         state.rewardState = nil
         state.shopState = RoguelikeShop.BuildShopState(state, node.shopId)
@@ -621,7 +637,7 @@ function RoguelikeRun.ChooseEventOption(optionId)
         return false, "not_in_event"
     end
 
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     local eventId = node and node.eventId or nil
     local ok, resultOrReason = RoguelikeEvent.ResolveOption(state, eventId, tonumber(optionId) or 0)
     if not ok then
@@ -679,6 +695,8 @@ function RoguelikeRun.ChooseEventOption(optionId)
         end
         state.battleEncounterId = battleId
         local encounter = RunEncounterGroup.GetEncounter(battleId)
+        state.currentBattleConfig = battle
+        state.currentEncounterConfig = encounter
         local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
         if not ok2 then
             state.phase = "failed"
@@ -695,7 +713,7 @@ function RoguelikeRun.ShopBuy(goodsId)
     if state.phase ~= "shop" then
         return false, "not_in_shop"
     end
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     local ok, reason = RoguelikeShop.Buy(state, node.shopId, tonumber(goodsId) or 0)
     if not ok then
         return false, reason
@@ -714,7 +732,7 @@ function RoguelikeRun.ShopRefresh()
     if state.phase ~= "shop" then
         return false, "not_in_shop"
     end
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     local ok, reason = RoguelikeShop.Refresh(state, node.shopId)
     if not ok then
         return false, reason
@@ -727,7 +745,7 @@ function RoguelikeRun.ShopLeave()
     if state.phase ~= "shop" then
         return false, "not_in_shop"
     end
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     if node then
         grantRunExp(getNodeExp(node.nodeType), "完成商店节点")
     end
@@ -739,7 +757,7 @@ function RoguelikeRun.CampChoose(actionId)
     if state.phase ~= "camp" then
         return false, "not_in_camp"
     end
-    local node = RunNodePool.GetNode(state.currentNodeId)
+    local node = getNode(state.currentNodeId)
     local ok, reason = RoguelikeCamp.ApplyAction(state, node.campId, tonumber(actionId) or 0)
     if not ok then
         return false, reason

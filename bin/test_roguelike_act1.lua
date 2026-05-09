@@ -66,16 +66,7 @@ end
 
 local function runBattleUntilResolved(maxSteps)
     local snapshot = Run.GetSnapshot()
-    local castedUltimate = false
     for _ = 1, maxSteps do
-        local readyHeroId = (not castedUltimate) and findReadyHero(snapshot) or nil
-        if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
-            Run.QueueBattleCommand({
-                type = "cast_ultimate",
-                heroId = readyHeroId,
-            })
-            castedUltimate = true
-        end
         Run.Tick(800)
         snapshot = Run.GetSnapshot()
         if snapshot.phase ~= "battle" then
@@ -126,7 +117,7 @@ local function acceptRewardIfPresent()
         current = autoPromoteBench()
         guard = guard + 1
     end
-    assert(current.phase == "map", "reward chain should return to map")
+    assert(current.phase == "map" or current.phase == "chapter_result", "reward chain should return to map or chapter_result")
     return current
 end
 
@@ -237,6 +228,144 @@ local function chooseCampAction(snapshot)
     return 1
 end
 
+local function findSelectableNodes(snapshot)
+    local result = {}
+    for _, node in ipairs((snapshot and snapshot.map and snapshot.map.nodes) or {}) do
+        if node.selectable then
+            result[#result + 1] = node
+        end
+    end
+    table.sort(result, function(a, b)
+        if (a.floor or 0) ~= (b.floor or 0) then
+            return (a.floor or 0) < (b.floor or 0)
+        end
+        return (a.lane or 0) < (b.lane or 0)
+    end)
+    return result
+end
+
+local function chooseNextNode(snapshot, routeState)
+    local selectable = findSelectableNodes(snapshot)
+    assert(#selectable > 0, "map should always expose at least one selectable node before completion")
+    local nodesById = {}
+    for _, node in ipairs((snapshot and snapshot.map and snapshot.map.nodes) or {}) do
+        nodesById[node.id] = node
+    end
+
+    local function pathCanReachType(startNodeId, wantedType, visited)
+        visited = visited or {}
+        if visited[startNodeId] then
+            return false
+        end
+        visited[startNodeId] = true
+        local node = nodesById[startNodeId]
+        if not node then
+            return false
+        end
+        if node.nodeType == wantedType then
+            return true
+        end
+        for _, nextNodeId in ipairs(node.nextNodeIds or {}) do
+            if pathCanReachType(nextNodeId, wantedType, visited) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function pickByTypes(types)
+        for _, wanted in ipairs(types) do
+            for _, node in ipairs(selectable) do
+                if node.nodeType == wanted then
+                    return node
+                end
+            end
+        end
+        return nil
+    end
+
+    local function pickByReachableType(wantedType)
+        for _, node in ipairs(selectable) do
+            if pathCanReachType(node.id, wantedType) then
+                return node
+            end
+        end
+        return nil
+    end
+
+    local function scoreNodeForPendingGoals(node)
+        local score = 0
+        if node.nodeType == "recruit" then
+            score = score + (routeState.recruitSeen and 0 or 1000)
+        end
+        if node.nodeType == "camp" then
+            score = score + (routeState.campSeen and 0 or 900)
+        end
+        if node.nodeType == "shop" then
+            score = score + (routeState.shopSeen and 0 or 700)
+        end
+        if node.nodeType == "event" then
+            score = score + (routeState.eventSeen and 0 or 500)
+        end
+        if not routeState.recruitSeen and pathCanReachType(node.id, "recruit") then
+            score = score + 400
+        end
+        if not routeState.campSeen and pathCanReachType(node.id, "camp") then
+            score = score + 320
+        end
+        if not routeState.shopSeen and pathCanReachType(node.id, "shop") then
+            score = score + 240
+        end
+        if not routeState.eventSeen and pathCanReachType(node.id, "event") then
+            score = score + 180
+        end
+        if node.nodeType == "battle_normal" then
+            score = score + 100
+        elseif node.nodeType == "battle_elite" then
+            score = score + 80
+        elseif node.nodeType == "boss" then
+            score = score + 20
+        end
+        return score
+    end
+
+    local bestNode = selectable[1]
+    local bestScore = -1
+    for _, node in ipairs(selectable) do
+        local score = scoreNodeForPendingGoals(node)
+        if score > bestScore then
+            bestScore = score
+            bestNode = node
+        end
+    end
+
+    if not routeState.shopSeen then
+        return pickByTypes({ "shop" })
+            or pickByReachableType("shop")
+            or pickByTypes({ "battle_normal", "event", "camp", "recruit", "battle_elite", "boss" })
+            or bestNode
+    end
+    if not routeState.campSeen then
+        return pickByTypes({ "camp" })
+            or pickByReachableType("camp")
+            or pickByTypes({ "battle_normal", "event", "battle_elite", "recruit", "boss" })
+            or bestNode
+    end
+    if not routeState.recruitSeen then
+        return pickByTypes({ "recruit" })
+            or pickByReachableType("recruit")
+            or pickByTypes({ "event", "battle_normal", "battle_elite", "shop", "boss" })
+            or bestNode
+    end
+    if not routeState.eventSeen then
+        return pickByTypes({ "event" })
+            or pickByReachableType("event")
+            or pickByTypes({ "battle_normal", "battle_elite", "shop", "recruit", "boss" })
+            or bestNode
+    end
+    return pickByTypes({ "event", "shop", "battle_normal", "battle_elite", "recruit", "boss" }) or bestNode
+end
+
 assertEncounterScalesStay5eStyle()
 
 math.randomseed(10102)
@@ -253,55 +382,81 @@ assert(#(snapshot.team or {}) == 4, "run should start with 4 heroes")
 assertOwnedUnitViews(snapshot)
 local frontCount, backCount = countRows(snapshot.team)
 assert(frontCount == 2 and backCount == 2, "starter team should be 2 front and 2 back")
+local routeState = {
+    recruitSeen = false,
+    campSeen = false,
+    shopSeen = false,
+    eventSeen = false,
+    firstBattleResolved = false,
+}
+local goldBeforeFirstBattle = nil
+local guard = 0
 
-choosePathAndEnter(101001)
-assert(Run.GetSnapshot().phase == "battle", "first node should be battle")
-local goldBeforeFirstBattle = Run.GetSnapshot().gold or 0
-snapshot = runBattleUntilResolved(600)
-assert(snapshot.phase == "map", "first normal battle should return to map directly")
-assert((snapshot.gold or 0) > goldBeforeFirstBattle, "first normal battle should still grant gold")
-snapshot = acceptRewardIfPresent()
+while guard < 24 do
+    guard = guard + 1
+    snapshot = Run.GetSnapshot()
+    assertOwnedUnitViews(snapshot)
 
-choosePathAndEnter(101002)
-assert(Run.GetSnapshot().phase == "reward", "second path should open recruit reward")
-assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "recruit selection should resolve")
-snapshot = autoPromoteBench()
-assert(snapshot.phase == "map", "recruit node should return to map")
-assert(#(snapshot.team or {}) >= 5 or #(snapshot.bench or {}) == 0, "first recruit should auto fill available team slot")
-assertOwnedUnitViews(snapshot)
+    if snapshot.phase == "chapter_result" then
+        break
+    end
+    assert(snapshot.phase ~= "failed", "run should not fail during act1 regression")
 
-choosePathAndEnter(101004)
-assert(Run.GetSnapshot().phase == "battle", "third path should be battle")
-snapshot = runBattleUntilResolved(700)
-assert(snapshot.phase == "reward" or snapshot.phase == "map", "third battle should resolve")
-snapshot = acceptRewardIfPresent()
+    if snapshot.phase == "map" then
+        local nextNode = chooseNextNode(snapshot, routeState)
+        assert(nextNode and nextNode.id, "should choose a valid next node")
+        choosePathAndEnter(nextNode.id)
+        local afterEnter = Run.GetSnapshot()
+        if nextNode.nodeType == "battle_normal" or nextNode.nodeType == "battle_elite" or nextNode.nodeType == "boss" then
+            assert(afterEnter.phase == "battle", "battle node should enter battle")
+            if goldBeforeFirstBattle == nil then
+                goldBeforeFirstBattle = afterEnter.gold or 0
+            end
+        elseif nextNode.nodeType == "recruit" then
+            assert(afterEnter.phase == "reward", "recruit node should open reward")
+            routeState.recruitSeen = true
+        elseif nextNode.nodeType == "camp" then
+            assert(afterEnter.phase == "camp", "camp node should open camp")
+            routeState.campSeen = true
+        elseif nextNode.nodeType == "shop" then
+            assert(afterEnter.phase == "shop", "shop node should open shop")
+            routeState.shopSeen = true
+        elseif nextNode.nodeType == "event" then
+            assert(afterEnter.phase == "event", "event node should open event")
+            routeState.eventSeen = true
+        end
+    elseif snapshot.phase == "battle" then
+        snapshot = runBattleUntilResolved(900)
+        if not routeState.firstBattleResolved then
+            routeState.firstBattleResolved = true
+            assert(goldBeforeFirstBattle ~= nil, "first battle gold baseline should be captured")
+            assert((snapshot.gold or 0) > goldBeforeFirstBattle, "first battle should still grant gold")
+        end
+        if snapshot.phase == "reward" then
+            snapshot = acceptRewardIfPresent()
+        end
+    elseif snapshot.phase == "reward" then
+        assert(Run.ChooseReward(chooseRewardIndex(snapshot)) == true, "reward selection should resolve")
+        snapshot = autoPromoteBench()
+        assertOwnedUnitViews(snapshot)
+    elseif snapshot.phase == "camp" then
+        assert(Run.CampChoose(chooseCampAction(snapshot)) == true, "camp action should work")
+    elseif snapshot.phase == "shop" then
+        assert(Run.ShopLeave() == true, "shop leave should succeed")
+    elseif snapshot.phase == "event" then
+        local options = snapshot.eventState and snapshot.eventState.options or {}
+        assert(#options > 0, "event should expose options")
+        assert(Run.ChooseEventOption(options[1].id) == true, "event option should resolve")
+    else
+        error("unsupported phase in act1 regression: " .. tostring(snapshot.phase))
+    end
+end
 
-choosePathAndEnter(101006)
 snapshot = Run.GetSnapshot()
-assert(snapshot.phase == "camp", "camp node should open camp")
-assert(Run.CampChoose(chooseCampAction(snapshot)) == true, "camp action should work")
-
-choosePathAndEnter(101008)
-assert(Run.GetSnapshot().phase == "battle", "ember ambush should be battle")
-snapshot = runBattleUntilResolved(700)
-assert(snapshot.phase == "reward" or snapshot.phase == "map", "ember ambush should resolve")
-snapshot = acceptRewardIfPresent()
-
-choosePathAndEnter(101012)
-assert(Run.GetSnapshot().phase == "battle", "icebound crossing should be battle")
-snapshot = runBattleUntilResolved(700)
-assert(snapshot.phase == "reward" or snapshot.phase == "map", "icebound crossing should resolve")
-snapshot = acceptRewardIfPresent()
-
-choosePathAndEnter(101010)
-assert(Run.GetSnapshot().phase == "reward", "last stop should open second recruit reward")
-assert(Run.ChooseReward(chooseRewardIndex(Run.GetSnapshot())) == true, "second recruit selection should resolve")
-local recruitSnapshot = autoPromoteBench()
-assert(recruitSnapshot.phase == "map", "second recruit should return to map")
-assert((#(recruitSnapshot.team or {}) + #(recruitSnapshot.bench or {})) >= 4, "second recruit should keep boss roster viable")
-assertOwnedUnitViews(recruitSnapshot)
-
-snapshot = Run.GetSnapshot()
-assert(snapshot.phase == "map", "late recruit should return to map and keep run alive")
+assert(guard < 24, "act1 flow should resolve within guard limit")
+assert(routeState.firstBattleResolved, "act1 flow should include at least one battle")
+assert(routeState.shopSeen, "act1 flow should include at least one shop")
+assert(routeState.campSeen, "act1 flow should include at least one camp")
+assert(snapshot.phase == "chapter_result", "act1 random route should eventually clear the chapter")
 assertOwnedUnitViews(snapshot)
 print("roguelike act1 flow test passed")

@@ -131,7 +131,7 @@ local function serializeBlessings(blessingIds)
 end
 
 local function serializeMap(runState)
-    local chapterMap = RoguelikeMap.BuildChapterMap(runState.chapterId)
+    local chapterMap = RoguelikeMap.BuildChapterMap(runState.chapterId, runState.mapState)
     if not chapterMap then
         return nil
     end
@@ -141,25 +141,40 @@ local function serializeMap(runState)
     for _, nodeId in ipairs(runState.availableNextNodeIds or {}) do
         available[nodeId] = true
     end
+    local chapter = RoguelikeMap.GetChapter(runState.chapterId) or {}
+    local hideNodeTitles = chapter.mapVision == "node_type_only"
+    local edges = {}
 
     local nodes = {}
     for _, node in ipairs(chapterMap.nodes or {}) do
+        local visible = visited[node.id] == true or runState.currentNodeId == node.id or available[node.id] == true or node.id == chapterMap.startNodeId
+        local titleVisible = (not hideNodeTitles) or visible
         nodes[#nodes + 1] = {
             id = node.id,
             floor = node.floor,
             lane = node.lane,
             nodeType = node.nodeType,
-            title = node.title,
+            title = titleVisible and node.title or "",
             visited = visited[node.id] == true,
             current = runState.currentNodeId == node.id,
             selectable = available[node.id] == true,
+            revealed = visible,
+            titleVisible = titleVisible,
+            nextNodeIds = shallowCopyArray(node.nextNodeIds),
         }
+        for _, nextNodeId in ipairs(node.nextNodeIds or {}) do
+            edges[#edges + 1] = {
+                fromNodeId = node.id,
+                toNodeId = nextNodeId,
+            }
+        end
     end
 
     return {
         chapterId = chapterMap.chapterId,
         floorCount = chapterMap.floorCount,
         nodes = nodes,
+        edges = edges,
         startNodeId = chapterMap.startNodeId,
         bossNodeId = chapterMap.bossNodeId,
     }

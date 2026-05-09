@@ -11,9 +11,14 @@
 ---@class RunEnemyGroupModule
 ---@field GROUPS table<integer, RunEnemyGroupEntry>
 ---@field GetGroup fun(groupId: integer): RunEnemyGroupEntry|nil
+---@field RegisterRuntimeGroup fun(entry: RunEnemyGroupEntry): integer
+---@field ResetRuntimeGroups fun()
 
 ---@type RunEnemyGroupModule
 local RunEnemyGroup = {}
+local RUNTIME_GROUP_START = 900000
+local nextRuntimeGroupId = RUNTIME_GROUP_START
+local runtimeGroupIds = {}
 
 ---@type table<integer, RunEnemyGroupEntry>
 RunEnemyGroup.GROUPS = {
@@ -191,6 +196,33 @@ RunEnemyGroup.GROUPS = {
 
 function RunEnemyGroup.GetGroup(groupId)
     return RunEnemyGroup.GROUPS[groupId]
+end
+
+function RunEnemyGroup.RegisterRuntimeGroup(entry)
+    local group = entry or {}
+    local groupId = tonumber(group.id)
+    if not groupId or RunEnemyGroup.GROUPS[groupId] then
+        groupId = nextRuntimeGroupId
+        nextRuntimeGroupId = nextRuntimeGroupId + 1
+    end
+    group.id = groupId
+    group.code = group.code or ("runtime_enemy_group_" .. tostring(groupId))
+    group.name = group.name or ("Runtime Enemy Group " .. tostring(groupId))
+    group.front = group.front or {}
+    group.back = group.back or {}
+    group.elite = group.elite or {}
+    group.guards = group.guards or {}
+    RunEnemyGroup.GROUPS[groupId] = group
+    runtimeGroupIds[#runtimeGroupIds + 1] = groupId
+    return groupId
+end
+
+function RunEnemyGroup.ResetRuntimeGroups()
+    for _, groupId in ipairs(runtimeGroupIds) do
+        RunEnemyGroup.GROUPS[groupId] = nil
+    end
+    runtimeGroupIds = {}
+    nextRuntimeGroupId = RUNTIME_GROUP_START
 end
 
 return RunEnemyGroup

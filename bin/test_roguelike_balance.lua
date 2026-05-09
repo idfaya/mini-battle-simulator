@@ -33,10 +33,10 @@ local HeroData = require("config.hero_data")
 local ROUTE_PRESETS = {
     [101] = {
         safe = {
-            101001, 101002, 101004, 101006, 101008, 101012, 101010, 101011,
+            "battle_normal", "recruit", "battle_normal", "camp", "battle_normal", "battle_normal", "recruit", "boss",
         },
         combat = {
-            101001, 101003, 101005, 101007, 101009, 101013, 101010, 101011,
+            "battle_normal", "battle_normal", "battle_elite", "battle_normal", "battle_elite", "battle_normal", "recruit", "boss",
         },
     },
 }
@@ -301,7 +301,7 @@ end
 local function printUsage()
     print("roguelike balance tool")
     print("  --route=all|safe|combat|custom")
-    print("  --nodes=101001,101003,...")
+    print("  --nodes=battle_normal,recruit,boss,...")
     print("  --runs=10")
     print("  --seed=101")
     print("  --tick=800")
@@ -316,7 +316,7 @@ local function buildRoutes(config)
         return {
             {
                 name = "custom",
-                nodeIds = config.customNodes,
+                nodeTypes = config.customNodes,
             },
         }
     end
@@ -326,15 +326,15 @@ local function buildRoutes(config)
 
     if config.route == "all" then
         return {
-            { name = "safe", nodeIds = chapterRoutes.safe },
-            { name = "combat", nodeIds = chapterRoutes.combat },
+            { name = "safe", nodeTypes = chapterRoutes.safe },
+            { name = "combat", nodeTypes = chapterRoutes.combat },
         }
     end
 
     local preset = chapterRoutes[config.route]
     assert(preset, "unknown route preset: " .. tostring(config.route))
     return {
-        { name = config.route, nodeIds = preset },
+        { name = config.route, nodeTypes = preset },
     }
 end
 
@@ -756,11 +756,38 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
         finalAlive = 0,
     }
 
-    for _, nodeId in ipairs(route.nodeIds) do
-        local node = RunNodePool.GetNode(nodeId)
-        assert(node, "node not found: " .. tostring(nodeId))
+    for index, wantedNodeType in ipairs(route.nodeTypes or {}) do
+        local selectable = {}
+        for _, candidate in ipairs((Run.GetSnapshot().map and Run.GetSnapshot().map.nodes) or {}) do
+            if candidate.selectable then
+                selectable[#selectable + 1] = candidate
+            end
+        end
+        table.sort(selectable, function(a, b)
+            if (a.floor or 0) ~= (b.floor or 0) then
+                return (a.floor or 0) < (b.floor or 0)
+            end
+            return (a.lane or 0) < (b.lane or 0)
+        end)
 
-        local ok, reason = Run.ChoosePath(nodeId)
+        local actualNode = nil
+        for _, candidate in ipairs(selectable) do
+            if candidate.nodeType == wantedNodeType then
+                actualNode = candidate
+                break
+            end
+        end
+        if not actualNode then
+            actualNode = selectable[1]
+        end
+
+        local actualNodeId = actualNode and actualNode.id or nil
+        if not actualNodeId then
+            runReport.terminalReason = "no_selectable_node"
+            break
+        end
+
+        local ok, reason = Run.ChoosePath(actualNodeId)
         if not ok then
             runReport.terminalReason = "choose_path_failed:" .. tostring(reason)
             break
@@ -775,14 +802,14 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
         if snapshot.phase == "battle" then
             local beforeHp, beforeMaxHp, beforeAlive = getBattleTeamStats(snapshot)
             local debugBattle = nil
-            if node.title == "Frozen Gate" then
+            if actualNode.nodeType == "boss" then
                 debugBattle = {
                     enabled = true,
                     runId = string.format("pre-%s-%d", route.name, runIndex),
                     routeName = route.name,
-                    nodeId = nodeId,
-                    title = node.title,
-                    battleId = node.battleId,
+                    nodeId = actualNodeId,
+                    title = actualNode.title,
+                    battleId = actualNode.battleId,
                 }
             end
             local resolved, ticks, timedOut, roundStats = resolveBattle(config, debugBattle)
@@ -796,8 +823,10 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 or resolved.phase
 
             runReport.battles[#runReport.battles + 1] = {
-                nodeId = nodeId,
-                title = node.title,
+                nodeId = actualNodeId,
+                title = actualNode.title,
+                plannedType = wantedNodeType,
+                routeIndex = index,
                 phase = resolved.phase,
                 ticks = ticks,
                 startRound = roundStats.startRound or 0,
@@ -813,17 +842,19 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 afterAlive = afterAlive,
             }
 
-            if timedOut or resolved.phase ~= "reward" then
+            if timedOut or (resolved.phase ~= "reward" and resolved.phase ~= "map" and resolved.phase ~= "chapter_result") then
                 runReport.terminalReason = battleReason
                 snapshot = resolved
                 break
             end
 
-            local rewardsOk, rewardsReason = chooseRewardsUntilDone()
-            if not rewardsOk then
-                runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardsReason)
-                snapshot = Run.GetSnapshot()
-                break
+            if resolved.phase == "reward" then
+                local rewardsOk, rewardsReason = chooseRewardsUntilDone()
+                if not rewardsOk then
+                    runReport.terminalReason = "choose_reward_failed:" .. tostring(rewardsReason)
+                    snapshot = Run.GetSnapshot()
+                    break
+                end
             end
             snapshot = Run.GetSnapshot()
         elseif snapshot.phase == "event" then
@@ -934,7 +965,7 @@ local function summarizeRoute(route, runReports)
             nodeStat.totalAfterHpPct = nodeStat.totalAfterHpPct + ((battle.afterMaxHp or 0) > 0 and (battle.afterHp / battle.afterMaxHp) or 0)
             nodeStat.totalBeforeMissingHp = nodeStat.totalBeforeMissingHp + getMissingHp(battle.beforeHp, battle.beforeMaxHp)
             nodeStat.totalAfterMissingHp = nodeStat.totalAfterMissingHp + getMissingHp(battle.afterHp, battle.afterMaxHp)
-            if battle.phase == "reward" then
+            if battle.phase == "reward" or battle.phase == "map" or battle.phase == "chapter_result" then
                 nodeStat.clears = nodeStat.clears + 1
             else
                 addCount(nodeStat.failureReasons, battle.reason or "unknown")
@@ -956,10 +987,15 @@ local function summarizeRoute(route, runReports)
     ))
     print("Nodes:")
 
-    for _, nodeId in ipairs(route.nodeIds) do
-        local node = RunNodePool.GetNode(nodeId)
+    local orderedNodeIds = {}
+    for nodeId, _ in pairs(stats.nodeStats) do
+        orderedNodeIds[#orderedNodeIds + 1] = nodeId
+    end
+    table.sort(orderedNodeIds)
+
+    for _, nodeId in ipairs(orderedNodeIds) do
         local nodeStat = stats.nodeStats[nodeId]
-        if node and nodeStat then
+        if nodeStat then
             local avgTicks = nodeStat.appearances > 0 and (nodeStat.totalTicks / nodeStat.appearances) or 0
             local avgEndRound = nodeStat.appearances > 0 and (nodeStat.totalEndRounds / nodeStat.appearances) or 0
             local avgSpentRounds = nodeStat.appearances > 0 and (nodeStat.totalRoundsSpent / nodeStat.appearances) or 0
@@ -970,7 +1006,7 @@ local function summarizeRoute(route, runReports)
             local failCount = countTableValues(nodeStat.failureReasons)
             print(string.format(
                 "  %-18s clear=%s avgTicks=%.1f avgEndRound=%.1f avgSpentRounds=%.1f hp=%s -> %s missing=%s -> %s fail=%d",
-                node.title,
+                nodeStat.title,
                 formatPct(nodeStat.clears, nodeStat.appearances),
                 avgTicks,
                 avgEndRound,
@@ -989,8 +1025,6 @@ local function summarizeRoute(route, runReports)
                 table.sort(reasons)
                 print("    failures: " .. table.concat(reasons, ", "))
             end
-        elseif node then
-            print(string.format("  %-18s clear=0.0%% avgTicks=0 avgEndRound=0 avgSpentRounds=0 hp=0.0%% -> 0.0%% fail=0", node.title))
         end
     end
 
@@ -1017,7 +1051,7 @@ local function printVerboseRuns(route, runReports)
         ))
         for _, battle in ipairs(report.battles) do
             print(string.format(
-            "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d missing=%d -> %d reason=%s",
+                "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d missing=%d -> %d reason=%s",
                 battle.title,
                 battle.phase,
                 battle.ticks,

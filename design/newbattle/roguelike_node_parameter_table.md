@@ -9,7 +9,8 @@
 | `type` | enum | `normal_battle` / `elite_battle` / `boss_battle` / `recruit` / `shop` / `event` / `camp` | 节点类型 |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` | 路线档位 |
 | `layer` | integer | 正整数 | 所在层级 |
-| `battle_id` | string | 战斗编号或空 | 战斗节点入口 |
+| `battle_id` | string | 战斗编号或空 | 固定图模式战斗节点入口 |
+| `battle_pool_id` | string | 战斗池编号或空 | 随机图模式战斗节点入口 |
 | `shop_id` | string | 商店编号或空 | 商店节点入口 |
 | `event_id` | string | 事件编号或空 | 事件节点入口 |
 | `camp_id` | string | 营地编号或空 | 营地节点入口 |
@@ -27,7 +28,8 @@
 | 字段 | 推荐值 |
 | --- | --- |
 | `type` | `normal_battle` |
-| `battle_id` | 必填 |
+| `battle_id` | 固定图模式必填 |
+| `battle_pool_id` | 随机图模式必填 |
 | `reward_gold` | `1~2` |
 | `reward_equip_count` | `0~1` |
 
@@ -36,7 +38,8 @@
 | 字段 | 推荐值 |
 | --- | --- |
 | `type` | `elite_battle` |
-| `battle_id` | 必填 |
+| `battle_id` | 固定图模式必填 |
+| `battle_pool_id` | 随机图模式必填 |
 | `reward_gold` | `2~4` |
 | `reward_equip_count` | `1` |
 
@@ -45,7 +48,8 @@
 | 字段 | 推荐值 |
 | --- | --- |
 | `type` | `boss_battle` |
-| `battle_id` | 必填 |
+| `battle_id` | 固定图模式必填 |
+| `battle_pool_id` | 随机图模式必填 |
 | `route` | `boss_path` |
 | `reward_gold` | `0` 或章节结算处理 |
 | `reward_equip_count` | `0` 或章节结算处理 |
@@ -92,10 +96,22 @@
 
 ### 3.1 节点到战斗
 
+固定图模式：
+
 ```text
 roguelike_node_parameter_table.id
 → battle_id
 → single_battle_parameter_table.id
+```
+
+随机图模式：
+
+```text
+roguelike_node_parameter_table.id
+→ battle_pool_id
+→ battle_template.id
+→ wave_group_pool.id
+→ wave_group_ids
 ```
 
 ### 3.2 战斗到职业卡
@@ -160,6 +176,7 @@ type = normal_battle
 route = safe
 layer = 1
 battle_id = act1_normal_01
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -176,6 +193,7 @@ type = recruit
 route = safe
 layer = 2
 battle_id =
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -192,6 +210,7 @@ type = elite_battle
 route = high_pressure
 layer = 2
 battle_id = act1_elite_01
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -208,6 +227,7 @@ type = shop
 route = safe
 layer = 3
 battle_id =
+battle_pool_id =
 shop_id = shop_act1_01
 event_id =
 camp_id =
@@ -224,6 +244,7 @@ type = event
 route = high_pressure
 layer = 3
 battle_id =
+battle_pool_id =
 shop_id =
 event_id = event_act1_01
 camp_id =
@@ -240,6 +261,7 @@ type = normal_battle
 route = safe
 layer = 4
 battle_id = act1_normal_02
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -256,6 +278,7 @@ type = camp
 route = safe
 layer = 5
 battle_id =
+battle_pool_id =
 shop_id =
 event_id =
 camp_id = camp_basic_01
@@ -272,6 +295,7 @@ type = elite_battle
 route = high_pressure
 layer = 5
 battle_id = act1_elite_02
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -288,6 +312,7 @@ type = boss_battle
 route = boss_path
 layer = 6
 battle_id = act1_boss_01
+battle_pool_id =
 shop_id =
 event_id =
 camp_id =
@@ -312,6 +337,6 @@ next_nodes =
 战斗入口统一接：
 
 ```text
-battle_id
-→ single_battle_parameter_table.id
+固定图：battle_id → single_battle_parameter_table.id
+随机图：battle_pool_id → battle_template.id → wave_group_ids
 ```

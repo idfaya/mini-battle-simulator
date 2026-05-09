@@ -79,31 +79,26 @@ export class RunMapScene {
       }
     }
 
-    for (const node of map.nodes) {
-      const from = nodePositions.get(node.id);
+    for (const edge of map.edges ?? []) {
+      const from = nodePositions.get(edge.fromNodeId);
       if (!from) {
         continue;
       }
-      const nextIds = map.nodes
-        .filter((candidate) => candidate.floor === node.floor + 1)
-        .map((candidate) => candidate.id);
-      for (const nextId of nextIds) {
-        const to = nodePositions.get(nextId);
-        if (!to) {
-          continue;
-        }
-        ctx.strokeStyle = "rgba(255,255,255,0.1)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        if (isPortrait) {
-          ctx.moveTo(from.x, from.y + 18);
-          ctx.lineTo(to.x, to.y - 18);
-        } else {
-          ctx.moveTo(from.x + 18, from.y);
-          ctx.lineTo(to.x - 18, to.y);
-        }
-        ctx.stroke();
+      const to = nodePositions.get(edge.toNodeId);
+      if (!to) {
+        continue;
       }
+      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (isPortrait) {
+        ctx.moveTo(from.x, from.y + 18);
+        ctx.lineTo(to.x, to.y - 18);
+      } else {
+        ctx.moveTo(from.x + 18, from.y);
+        ctx.lineTo(to.x - 18, to.y);
+      }
+      ctx.stroke();
     }
 
     for (const node of map.nodes) {
@@ -156,9 +151,10 @@ export class RunMapScene {
     ctx.textBaseline = "middle";
     ctx.fillText(this.getNodeShortLabel(node.nodeType), x, y);
 
+    const title = node.titleVisible ? node.title : this.getNodeTypeLabel(node.nodeType);
     ctx.fillStyle = node.selectable || node.current ? "#f8f9fa" : "rgba(255,255,255,0.6)";
     ctx.font = "12px sans-serif";
-    ctx.fillText(node.title, x, y + 42);
+    ctx.fillText(title, x, y + 42);
     ctx.restore();
   }
 
@@ -201,6 +197,27 @@ export class RunMapScene {
         return { fill: "#8338ec", stroke: "#d0b3ff" };
       default:
         return { fill: "#65748b", stroke: "#d9e2ec" };
+    }
+  }
+
+  private getNodeTypeLabel(nodeType: string) {
+    switch (nodeType) {
+      case "battle_normal":
+        return "普通战";
+      case "battle_elite":
+        return "精英战";
+      case "event":
+        return "事件";
+      case "shop":
+        return "商店";
+      case "camp":
+        return "营地";
+      case "recruit":
+        return "招募";
+      case "boss":
+        return "Boss";
+      default:
+        return "未知";
     }
   }
 }

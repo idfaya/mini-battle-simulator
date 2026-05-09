@@ -1,5 +1,6 @@
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local RunNodePool = require("config.roguelike.run_node_pool")
+local RoguelikeMapGenerator = require("roguelike.roguelike_map_generator")
 
 local RoguelikeMap = {}
 
@@ -10,7 +11,10 @@ local function sortNodes(a, b)
     return (a.lane or 0) < (b.lane or 0)
 end
 
-function RoguelikeMap.GetNode(nodeId)
+function RoguelikeMap.GetNode(nodeId, mapState)
+    if mapState and mapState.nodesById then
+        return mapState.nodesById[nodeId]
+    end
     return RunNodePool.GetNode(nodeId)
 end
 
@@ -18,7 +22,15 @@ function RoguelikeMap.GetChapter(chapterId)
     return RunChapterConfig.GetChapter(chapterId)
 end
 
-function RoguelikeMap.GetChapterNodes(chapterId)
+function RoguelikeMap.GetChapterNodes(chapterId, mapState)
+    if mapState and mapState.nodes then
+        local nodes = {}
+        for _, node in ipairs(mapState.nodes or {}) do
+            nodes[#nodes + 1] = node
+        end
+        table.sort(nodes, sortNodes)
+        return nodes
+    end
     local result = {}
     for _, node in pairs(RunNodePool.NODES or {}) do
         if node.chapterId == chapterId then
@@ -29,35 +41,42 @@ function RoguelikeMap.GetChapterNodes(chapterId)
     return result
 end
 
-function RoguelikeMap.BuildChapterMap(chapterId)
+function RoguelikeMap.BuildChapterMap(chapterId, mapState)
     local chapter = RoguelikeMap.GetChapter(chapterId)
     if not chapter then
         return nil
     end
 
+    local activeMapState = mapState
+    if not activeMapState and chapter.mapGenProfileId then
+        activeMapState = RoguelikeMapGenerator.Generate(chapterId, 0, chapter.mapGenProfileId)
+    end
+    local startNodeId = activeMapState and activeMapState.startNodeId or chapter.startNodeId
+    local bossNodeId = activeMapState and activeMapState.bossNodeId or chapter.bossNodeId
+    local floorCount = activeMapState and activeMapState.floorCount or chapter.floorCount
     return {
         chapterId = chapterId,
-        startNodeId = chapter.startNodeId,
-        bossNodeId = chapter.bossNodeId,
-        floorCount = chapter.floorCount,
-        nodes = RoguelikeMap.GetChapterNodes(chapterId),
+        startNodeId = startNodeId,
+        bossNodeId = bossNodeId,
+        floorCount = floorCount,
+        nodes = RoguelikeMap.GetChapterNodes(chapterId, activeMapState),
     }
 end
 
-function RoguelikeMap.GetAvailableNextNodeIds(currentNodeId, visitedNodeIds, chapterId)
+function RoguelikeMap.GetAvailableNextNodeIds(currentNodeId, visitedNodeIds, chapterId, mapState)
     local visited = visitedNodeIds or {}
     if not currentNodeId then
-        local chapter = RoguelikeMap.GetChapter(chapterId)
-        if not chapter or not chapter.startNodeId then
+        local chapterMap = RoguelikeMap.BuildChapterMap(chapterId, mapState)
+        if not chapterMap or not chapterMap.startNodeId then
             return {}
         end
-        if visited[chapter.startNodeId] then
+        if visited[chapterMap.startNodeId] then
             return {}
         end
-        return { chapter.startNodeId }
+        return { chapterMap.startNodeId }
     end
 
-    local node = RoguelikeMap.GetNode(currentNodeId)
+    local node = RoguelikeMap.GetNode(currentNodeId, mapState)
     if not node then
         return {}
     end
@@ -69,6 +88,14 @@ function RoguelikeMap.GetAvailableNextNodeIds(currentNodeId, visitedNodeIds, cha
         end
     end
     return result
+end
+
+function RoguelikeMap.GenerateChapterMap(chapterId, seed)
+    local chapter = RoguelikeMap.GetChapter(chapterId)
+    if not chapter or not chapter.mapGenProfileId then
+        return nil, "chapter_or_profile_not_found"
+    end
+    return RoguelikeMapGenerator.Generate(chapterId, seed, chapter.mapGenProfileId)
 end
 
 return RoguelikeMap

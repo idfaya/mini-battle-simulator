@@ -32,6 +32,7 @@
 ---@field maxHeroCount integer
 ---@field reviveLimit integer
 ---@field mapVision RunChapterMapVision
+---@field mapGenProfileId integer|nil
 ---@field routeBlueprint table<integer, integer[]>
 ---@field encounterPools RunChapterEncounterPools
 ---@field shopId integer
@@ -63,6 +64,7 @@ RunChapterConfig.CHAPTERS = {
         maxHeroCount = 6,
         reviveLimit = 1,
         mapVision = "node_type_only",
+        mapGenProfileId = 101001,
         routeBlueprint = {
             [1] = { 101001 },
             [2] = { 101002, 101003 },

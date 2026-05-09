@@ -77,7 +77,8 @@
 | `act` | string | 所属章节 |
 | `type` | enum | `normal_battle` / `elite_battle` / `boss_battle` / `recruit` / `shop` / `event` / `camp` |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` |
-| `battle_id` | string | 战斗节点绑定的战斗编号，非战斗节点为空 |
+| `battle_id` | string | 固定图模式下绑定的战斗编号，非战斗节点为空 |
+| `battle_pool_id` | string | 随机图模式下绑定的战斗池编号，非战斗节点为空 |
 | `shop_id` | string | 商店节点编号，非商店节点为空 |
 | `event_id` | string | 事件节点编号，非事件节点为空 |
 | `camp_id` | string | 营地节点编号，非营地节点为空 |
@@ -123,7 +124,8 @@
 ### 5.1 普通战节点
 
 - 进入一场普通战斗
-- 通过 `battle_id` 进入战斗主表
+- 固定图模式通过 `battle_id` 进入战斗主表
+- 随机图模式通过 `battle_pool_id` 抽取 `battle_template`
 - 胜利后发放基础金币收益
 - 胜利后按概率结算装备掉落
 - 胜利后发放战斗经验
@@ -133,7 +135,8 @@
 ### 5.2 精英战节点
 
 - 进入一场精英战斗
-- 通过 `battle_id` 进入战斗主表
+- 固定图模式通过 `battle_id` 进入战斗主表
+- 随机图模式通过 `battle_pool_id` 抽取 `battle_template`
 - 胜利后发放战斗经验
 - 胜利后执行固定恢复
 - 胜利后进入职业卡三选一
@@ -142,7 +145,8 @@
 ### 5.3 Boss 节点
 
 - 进入当前章节 Boss 战
-- 通过 `battle_id` 进入战斗主表
+- 固定图模式通过 `battle_id` 进入战斗主表
+- 随机图模式通过 `battle_pool_id` 抽取 Boss 模板
 - 获胜后可先进入章节职业卡奖励
 - 获胜后完成当前章节
 - 章节结束后进入章节结算
@@ -191,13 +195,31 @@
 
 ### 6.2 节点与战斗表接口
 
-战斗节点统一通过以下关系接入单场战斗表：
+战斗节点存在两种接法：
+
+固定图模式：
 
 ```text
 node.id
 → node.battle_id
 → single_battle_parameter_table.id
 ```
+
+随机图模式：
+
+```text
+node.id
+→ node.battle_pool_id
+→ battle_template.id
+→ wave_group_pool.id
+→ wave_group_ids
+```
+
+统一原则：
+
+- 固定图使用 `battle_id` 直连单场战斗表。
+- 随机图使用 `battle_pool_id` 驱动战斗模板与波次生成。
+- 两种模式对 Run 层结算输出口径保持一致。
 
 ### 6.3 固定恢复
 
@@ -209,9 +231,11 @@ node.id
 
 ### 6.4 战斗经验
 
-战斗经验统一由 `battle_id` 对应的战斗配置提供。
+战斗经验统一由战斗模板提供：
 
 - 普通战、精英战、事件战、Boss 战可配置不同经验值。
+- 固定图模式下经验可由 `battle_id` 对应表直接提供。
+- 随机图模式下经验由 `battle_template` 提供。
 - 经验只发放给上阵且战斗结束时存活的 Class 单位。
 - 候补单位不获得战斗经验。
 - 死亡单位不获得战斗经验。
@@ -241,6 +265,8 @@ node.id
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `battle_result` | enum | `win` / `lose` |
+| `battle_template_id` | string | 本场使用的战斗模板，固定图模式可为空 |
+| `wave_group_ids` | string[] | 本场实际波次列表，固定图模式可由 `battle_id` 内部展开 |
 | `dead_units` | string[] | 本场死亡单位 |
 | `survive_units` | string[] | 本场存活单位 |
 | `hp_snapshot` | table | 本场结束生命快照 |
