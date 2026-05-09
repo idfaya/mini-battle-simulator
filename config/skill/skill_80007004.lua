@@ -3,7 +3,6 @@ local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
 local skill_80007004 = {}
 
 function skill_80007004.BuildTimeline(hero, targets, skill)
-    local tier = tonumber(skill and skill.level) or 1
     return SkillTimelineCompiler.Build(hero, targets, skill, {
         id = 80007004,
         frames = {
@@ -13,9 +12,11 @@ function skill_80007004.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80007004_execute",
                 targetRef = "selected",
-                damageRate = 13000 + math.max(0, tier - 1) * 1000,
+                damageRate = 9000,
                 tags = {
-                    { tag = "apply_burn", phase = "post", param = { stacks = 2 + math.max(0, tier - 1), turns = tier >= 2 and 3 or 2 } },
+                    { tag = "set_targets_all_alive_enemies", phase = "pre" },
+                    { tag = "set_damage_kind", phase = "pre", param = { kind = "fire" } },
+                    { tag = "sorcerer_burn_settlement", phase = "both", param = { bonusDice = "1d8", turns = 3 } },
                 },
             },
             { frame = 66, op = "effect", effect = "skill_80007004_end", targetRef = "selected" },
@@ -24,5 +25,4 @@ function skill_80007004.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80007004
-
 

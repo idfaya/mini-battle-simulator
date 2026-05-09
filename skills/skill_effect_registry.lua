@@ -171,6 +171,30 @@ local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
     return totalDamage
 end
 
+local function ApplyDirectSpellDamage(hero, target, diceExpr, damageKind, skill)
+    if not hero or not target or target.isDead then
+        return 0
+    end
+    local BattleSkill = require("modules.battle_skill")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
+        skipCheck = true,
+        noClassScalar = true,
+        kind = "spell",
+        damageKind = damageKind or "spell",
+        damageDice = diceExpr,
+    })
+    local damage = tonumber(damageResult and damageResult.damage) or 0
+    if damage > 0 then
+        BattleDmgHeal.ApplyDamage(target, damage, hero, {
+            skillId = skill and skill.skillId or nil,
+            skillName = skill and skill.name or nil,
+            damageKind = damageKind or "spell",
+        })
+    end
+    return damage
+end
+
 function SkillEffectRegistry.Dispatch(ctx, frameCopy, phase)
     if not frameCopy or not frameCopy.tags then
         return
@@ -393,6 +417,52 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { buffId = 870001 }
     end)
 
+    SkillEffectRegistry.Register("apply_burn_refresh_only", function(ctx, frameCopy, _, spec)
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = tonumber(p and p.turns) or 2
+        for _, t in ipairs(frameCopy.targets or {}) do
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+                BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+            end
+        end
+        return { buffId = 870001 }
+    end)
+
+    SkillEffectRegistry.Register("sorcerer_burn_settlement", function(ctx, frameCopy, phase, spec)
+        local BattleBuff = require("modules.battle_buff")
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = tonumber(p and p.turns) or 2
+        if phase == "pre" then
+            frameCopy.__burningTargets = {}
+            for _, t in ipairs(frameCopy.targets or {}) do
+                if t and BattleBuff.GetBuff(t, 870001) then
+                    frameCopy.__burningTargets[t.instanceId or t.id] = true
+                end
+            end
+            return nil
+        end
+
+        local total = 0
+        for _, t in ipairs(frameCopy.targets or {}) do
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+                local wasBurning = frameCopy.__burningTargets and frameCopy.__burningTargets[t.instanceId or t.id]
+                if wasBurning then
+                    total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "fire", ctx.skill)
+                    BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                else
+                    BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                end
+            end
+        end
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + total,
+            effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + total,
+            buffId = 870001,
+        }
+    end)
+
     SkillEffectRegistry.Register("apply_poison", function(ctx, frameCopy, _, spec)
         local BattleSkill = require("modules.battle_skill")
         local p = type(spec) == "table" and spec.param or {}
@@ -421,6 +491,98 @@ function SkillEffectRegistry.RegisterBuiltins()
             end
         end
         return { buffId = 880001 }
+    end)
+
+    SkillEffectRegistry.Register("wizard_freezing_nova", function(ctx, frameCopy)
+        local BattleSkill = require("modules.battle_skill")
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        for _, t in ipairs(frameCopy.targets or {}) do
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId]) then
+                if BattleSkillStatus.HasSlow(t) then
+                    BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880003, ctx.skill, { duration = 1 })
+                end
+                BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
+            end
+        end
+        return { buffId = 880001 }
+    end)
+
+    SkillEffectRegistry.Register("wizard_blizzard_settlement", function(ctx, frameCopy, phase, spec)
+        local BattleSkill = require("modules.battle_skill")
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        if phase == "pre" then
+            frameCopy.__slowedTargets = {}
+            for _, t in ipairs(frameCopy.targets or {}) do
+                if t and BattleSkillStatus.HasSlow(t) then
+                    frameCopy.__slowedTargets[t.instanceId or t.id] = true
+                end
+            end
+            return nil
+        end
+
+        local total = 0
+        for _, t in ipairs(frameCopy.targets or {}) do
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+                local wasSlowed = frameCopy.__slowedTargets and frameCopy.__slowedTargets[t.instanceId or t.id]
+                if wasSlowed then
+                    total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "ice", ctx.skill)
+                end
+                BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
+            end
+        end
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + total,
+            effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + total,
+            buffId = 880001,
+        }
+    end)
+
+    SkillEffectRegistry.Register("apply_static_mark", function(ctx, frameCopy, _, spec)
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = tonumber(p and p.turns) or 2
+        for _, t in ipairs(frameCopy.targets or {}) do
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+                BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
+            end
+        end
+        return { buffId = 890001 }
+    end)
+
+    SkillEffectRegistry.Register("warlock_thunderstorm_settlement", function(ctx, frameCopy, phase, spec)
+        local BattleBuff = require("modules.battle_buff")
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = tonumber(p and p.turns) or 2
+        if phase == "pre" then
+            frameCopy.__staticMarkedTargets = {}
+            for _, t in ipairs(frameCopy.targets or {}) do
+                if t and BattleSkillStatus.HasStaticMark(t) then
+                    frameCopy.__staticMarkedTargets[t.instanceId or t.id] = true
+                end
+            end
+            return nil
+        end
+
+        local total = 0
+        for _, t in ipairs(frameCopy.targets or {}) do
+            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+                local wasMarked = frameCopy.__staticMarkedTargets and frameCopy.__staticMarkedTargets[t.instanceId or t.id]
+                if wasMarked then
+                    total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "thunder", ctx.skill)
+                    BattleBuff.DelBuffBySubType(t, 890001)
+                else
+                    BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
+                end
+            end
+        end
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + total,
+            effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + total,
+            buffId = 890001,
+        }
     end)
 
     SkillEffectRegistry.Register("set_damage_rate_passive", function(ctx, frameCopy, _, spec)

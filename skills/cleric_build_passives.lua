@@ -211,17 +211,10 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
     if not isAlive(hero) then
         return 0
     end
-    local runtime = ensureRuntime(hero)
-    if runtime.clericHealingWordUsed == true then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 再次尝试使用治愈之言，但本场战斗次数已用尽",
-            hero.name or "Unknown"))
-        return 0
-    end
     local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
     if not isAlive(ally) then
         return 0
     end
-    runtime.clericHealingWordUsed = true
     return applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1, skill and skill.skillId or IDS.cleric_healing_word, skill and skill.name or "治愈之言")
 end
 
@@ -256,7 +249,7 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill)
         return 0
     end
     local runtime = ensureRuntime(hero)
-    runtime.clericSanctuaryExpireRound = getRound() + 1
+    runtime.clericSanctuaryExpireRound = getRound() + 2
     runtime.clericSanctuaryProtectedTargets = {}
     BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：我方全体获得圣域护持",
         hero.name or "Unknown",
@@ -309,27 +302,33 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
         if isAlive(ally) then
             local runtime = ensureRuntime(ally)
             local round = getRound()
-            if hasSkill(ally, IDS.cleric_shelter_prayer) and runtime.clericShelterRound ~= round then
-                runtime.clericShelterRound = round
-                local reduction = BuildPassiveCommon.RollDice("1d6")
-                damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - reduction)
-                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发庇护祷文：为 %s 减免 %d 伤害",
-                    ally.name or "Unknown",
-                    defender.name or "目标",
-                    reduction))
+            local defenderId = tonumber(defender.instanceId or defender.id) or 0
+            local bestReduction = 0
+            local bestLabel = nil
+            runtime.clericShelterProtectedTargets = runtime.clericShelterProtectedTargets or {}
+            if hasSkill(ally, IDS.cleric_shelter_prayer) and runtime.clericShelterProtectedTargets[defenderId] ~= round then
+                runtime.clericShelterProtectedTargets[defenderId] = round
+                bestReduction = BuildPassiveCommon.RollDice("1d6")
+                bestLabel = "神恩庇护"
             end
             if getSanctuaryAcBonus(ally) > 0 then
                 runtime.clericSanctuaryProtectedTargets = runtime.clericSanctuaryProtectedTargets or {}
-                local defenderId = tonumber(defender.instanceId or defender.id) or 0
                 if runtime.clericSanctuaryProtectedTargets[defenderId] ~= round then
                     runtime.clericSanctuaryProtectedTargets[defenderId] = round
                     local reduction = BuildPassiveCommon.RollDice("1d6")
-                    damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - reduction)
-                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发圣域祷言：为 %s 减免 %d 伤害",
-                        ally.name or "Unknown",
-                        defender.name or "目标",
-                        reduction))
+                    if reduction > bestReduction then
+                        bestReduction = reduction
+                        bestLabel = "圣域祷言"
+                    end
                 end
+            end
+            if bestReduction > 0 then
+                damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - bestReduction)
+                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：为 %s 减免 %d 伤害",
+                    ally.name or "Unknown",
+                    bestLabel or "神术庇护",
+                    defender.name or "目标",
+                    bestReduction))
             end
         end
     end

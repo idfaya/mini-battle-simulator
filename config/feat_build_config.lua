@@ -105,6 +105,18 @@ FeatBuildConfig.Ids = {
     ranger_hunter_mastery = FeatId(305, 1),
     ranger_shadow_mastery = FeatId(305, 2),
     ranger_snare_mastery = FeatId(305, 3),
+    sorcerer_training = FeatId(701, 1),
+    sorcerer_ember_ignite = FeatId(701, 2),
+    sorcerer_ash_burst = FeatId(703, 1),
+    sorcerer_flame_storm = FeatId(705, 1),
+    wizard_training = FeatId(801, 1),
+    wizard_frost_lag = FeatId(801, 2),
+    wizard_freezing_nova = FeatId(803, 1),
+    wizard_blizzard = FeatId(805, 1),
+    warlock_training = FeatId(901, 1),
+    warlock_static_mark = FeatId(901, 2),
+    warlock_thunder_chain = FeatId(903, 1),
+    warlock_thunderstorm = FeatId(905, 1),
 }
 
 ---@type table<integer, BuildFeatDef>
@@ -279,9 +291,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.cleric_healing_word] = {
         id = FeatBuildConfig.Ids.cleric_healing_word,
         classId = 6,
-        level = 1,
+        level = 3,
         name = "治愈之言",
-        description = "每场战斗 1 次，为生命最低的友军回复 1d8 + 等级 生命。",
+        description = "获得治愈之言，CD3，为生命最低的友军回复 1d8 + 等级 生命。",
         effects = {
             { type = "grant_skill", skill = 80006012 },
         },
@@ -300,10 +312,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.cleric_shelter_prayer] = {
         id = FeatBuildConfig.Ids.cleric_shelter_prayer,
         classId = 6,
-        level = 2,
-        name = "庇护祷文",
-        description = "每回合第一次有友军被攻击命中时，该次伤害减少 1d6。",
-        choiceGroup = "cleric_lv2_prayer",
+        level = 1,
+        name = "神恩庇护",
+        description = "核心被动。每个友军每回合第一次受到伤害时，该次伤害减少 1d6。",
         effects = {
             { type = "grant_skill", skill = 80006103 },
         },
@@ -344,10 +355,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.cleric_guardian_domain] = {
         id = FeatBuildConfig.Ids.cleric_guardian_domain,
         classId = 6,
-        level = 3,
-        name = "守护领域",
-        description = "获得圣域祷言，CD3，持续到你下回合开始；期间我方全体 AC +1，且各自第一次受到的伤害减少 1d6。",
-        choiceGroup = "cleric_lv3_domain",
+        level = 5,
+        name = "圣域祷言",
+        description = "获得圣域祷言，CD5，持续 2 回合；我方全体 AC +1，且每个友军每回合第一次受到的伤害减少 1d6。",
         effects = {
             { type = "grant_skill", skill = 80006015 },
         },
@@ -416,6 +426,129 @@ local FEATS = {
         choiceGroup = "cleric_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80006111 },
+        },
+    },
+    -- Sorcerer (classId = 7)
+    [FeatBuildConfig.Ids.sorcerer_training] = {
+        id = FeatBuildConfig.Ids.sorcerer_training,
+        classId = 7,
+        level = 1,
+        name = "术士火焰训练",
+        description = "获得火焰弹，对单体敌人造成火焰法术伤害。",
+        effects = {
+            { type = "grant_skill", skill = 80007001 },
+        },
+    },
+    [FeatBuildConfig.Ids.sorcerer_ember_ignite] = {
+        id = FeatBuildConfig.Ids.sorcerer_ember_ignite,
+        classId = 7,
+        level = 1,
+        name = "余烬点燃",
+        description = "核心被动。火焰弹命中后点燃目标；已燃烧目标只刷新持续时间，不重复叠层。",
+        effects = {
+            { type = "grant_skill", skill = 80007002 },
+        },
+    },
+    [FeatBuildConfig.Ids.sorcerer_ash_burst] = {
+        id = FeatBuildConfig.Ids.sorcerer_ash_burst,
+        classId = 7,
+        level = 3,
+        name = "灰烬爆燃",
+        description = "获得灰烬爆燃，CD3，攻击燃烧目标时额外造成火焰伤害并刷新燃烧。",
+        effects = {
+            { type = "grant_skill", skill = 80007003 },
+        },
+    },
+    [FeatBuildConfig.Ids.sorcerer_flame_storm] = {
+        id = FeatBuildConfig.Ids.sorcerer_flame_storm,
+        classId = 7,
+        level = 5,
+        name = "烈焰风暴",
+        description = "获得烈焰风暴，CD5，对全体敌人造成火焰伤害；燃烧目标额外受 1d8 火焰伤害，未燃烧目标被点燃。",
+        effects = {
+            { type = "grant_skill", skill = 80007004 },
+        },
+    },
+    -- Wizard (classId = 8)
+    [FeatBuildConfig.Ids.wizard_training] = {
+        id = FeatBuildConfig.Ids.wizard_training,
+        classId = 8,
+        level = 1,
+        name = "法师寒霜训练",
+        description = "获得寒霜射线，对单体敌人造成冰霜法术伤害。",
+        effects = {
+            { type = "grant_skill", skill = 80008001 },
+        },
+    },
+    [FeatBuildConfig.Ids.wizard_frost_lag] = {
+        id = FeatBuildConfig.Ids.wizard_frost_lag,
+        classId = 8,
+        level = 1,
+        name = "寒霜迟滞",
+        description = "核心被动。寒霜射线命中后使目标减速。",
+        effects = {
+            { type = "grant_skill", skill = 80008002 },
+        },
+    },
+    [FeatBuildConfig.Ids.wizard_freezing_nova] = {
+        id = FeatBuildConfig.Ids.wizard_freezing_nova,
+        classId = 8,
+        level = 3,
+        name = "冻结新星",
+        description = "获得冻结新星，CD3，范围冰霜法术；已减速目标豁免失败时 STUN 1 回合。",
+        effects = {
+            { type = "grant_skill", skill = 80008003 },
+        },
+    },
+    [FeatBuildConfig.Ids.wizard_blizzard] = {
+        id = FeatBuildConfig.Ids.wizard_blizzard,
+        classId = 8,
+        level = 5,
+        name = "暴风雪",
+        description = "获得暴风雪，CD5，对全体敌人造成冰霜伤害；已减速目标额外受 1d8 伤害，未减速目标被减速。",
+        effects = {
+            { type = "grant_skill", skill = 80008004 },
+        },
+    },
+    -- Warlock (classId = 9)
+    [FeatBuildConfig.Ids.warlock_training] = {
+        id = FeatBuildConfig.Ids.warlock_training,
+        classId = 9,
+        level = 1,
+        name = "邪术师雷霆训练",
+        description = "获得邪能冲击，对单体敌人造成雷电法术伤害。",
+        effects = {
+            { type = "grant_skill", skill = 80009001 },
+        },
+    },
+    [FeatBuildConfig.Ids.warlock_static_mark] = {
+        id = FeatBuildConfig.Ids.warlock_static_mark,
+        classId = 9,
+        level = 1,
+        name = "静电印记",
+        description = "核心被动。邪能冲击命中后为目标附加静电印记，供雷链和雷暴引爆。",
+        effects = {
+            { type = "grant_skill", skill = 80009002 },
+        },
+    },
+    [FeatBuildConfig.Ids.warlock_thunder_chain] = {
+        id = FeatBuildConfig.Ids.warlock_thunder_chain,
+        classId = 9,
+        level = 3,
+        name = "雷链",
+        description = "获得雷链，CD3，攻击当前目标并额外弹射 1 名敌人，优先弹向带静电印记的目标。",
+        effects = {
+            { type = "grant_skill", skill = 80009003 },
+        },
+    },
+    [FeatBuildConfig.Ids.warlock_thunderstorm] = {
+        id = FeatBuildConfig.Ids.warlock_thunderstorm,
+        classId = 9,
+        level = 5,
+        name = "雷暴",
+        description = "获得雷暴，CD5，对全体敌人造成雷电伤害；印记目标额外受 1d8 伤害并清除印记，未印记目标被附加印记。",
+        effects = {
+            { type = "grant_skill", skill = 80009004 },
         },
     },
     [FeatBuildConfig.Ids.fighter_training] = {

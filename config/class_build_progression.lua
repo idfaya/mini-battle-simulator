@@ -32,20 +32,72 @@ local PROGRESSION = {
         [1] = {
             fixed = {
                 FeatBuildConfig.Ids.cleric_training,
+                FeatBuildConfig.Ids.cleric_shelter_prayer,
+            },
+        },
+        [3] = {
+            fixed = {
                 FeatBuildConfig.Ids.cleric_healing_word,
             },
         },
-        [2] = {
-            choiceGroup = "cleric_lv2_prayer",
+        [5] = {
+            fixed = {
+                FeatBuildConfig.Ids.cleric_guardian_domain,
+            },
+        },
+    },
+    [7] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.sorcerer_training,
+                FeatBuildConfig.Ids.sorcerer_ember_ignite,
+            },
         },
         [3] = {
-            choiceGroup = "cleric_lv3_domain",
-        },
-        [4] = {
-            choiceGroup = "cleric_lv4_mastery",
+            fixed = {
+                FeatBuildConfig.Ids.sorcerer_ash_burst,
+            },
         },
         [5] = {
-            choiceGroup = "cleric_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.sorcerer_flame_storm,
+            },
+        },
+    },
+    [8] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.wizard_training,
+                FeatBuildConfig.Ids.wizard_frost_lag,
+            },
+        },
+        [3] = {
+            fixed = {
+                FeatBuildConfig.Ids.wizard_freezing_nova,
+            },
+        },
+        [5] = {
+            fixed = {
+                FeatBuildConfig.Ids.wizard_blizzard,
+            },
+        },
+    },
+    [9] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.warlock_training,
+                FeatBuildConfig.Ids.warlock_static_mark,
+            },
+        },
+        [3] = {
+            fixed = {
+                FeatBuildConfig.Ids.warlock_thunder_chain,
+            },
+        },
+        [5] = {
+            fixed = {
+                FeatBuildConfig.Ids.warlock_thunderstorm,
+            },
         },
     },
     [2] = {

@@ -116,7 +116,7 @@ do
     assert_true(hasAll2, "Poison Burst tier2 targets all alive enemies")
 end
 
--- Test 5: Sorcerer fire bolt (80007001) burn stacks/turns scale by tier
+-- Test 5: Sorcerer fire bolt (80007001) applies one refreshed burn
 do
     local SkillTimeline = require("core.skill_timeline")
     local skillLua = require("config.skill.skill_80007001")
@@ -127,10 +127,9 @@ do
         local ok = SkillTimeline.Execute(hero, { target }, skill, skillLua.BuildTimeline(hero, { target }, skill))
         assert_true(ok, "Fire Bolt execute ok (tier " .. tier .. ")")
         local stacks = BattleBuff.GetBuffStackNumBySubType(target, 870001)
-        assert_true(stacks == ((tier >= 2) and 2 or 1), "Fire Bolt burn stacks scale (tier " .. tier .. ")")
+        assert_true(stacks == 1, "Fire Bolt burn remains one stack (tier " .. tier .. ")")
         local burn = require("modules.battle_buff").GetBuff(target, 870001)
-        local expectTurns = (tier >= 3) and 3 or 2
-        assert_true(burn and burn.duration == expectTurns, "Fire Bolt burn duration scale (tier " .. tier .. ")")
+        assert_true(burn and burn.duration == 2, "Fire Bolt burn refreshes to 2 turns (tier " .. tier .. ")")
     end
 end
 
@@ -173,7 +172,7 @@ do
     BattleFormula.RollHit = oldRollHit
 end
 
--- Test 6: Wizard blizzard (80008004) freeze chance baseChance scales by tier
+-- Test 6: Wizard blizzard (80008004) uses slow settlement instead of random freeze
 do
     local skillLua = require("config.skill.skill_80008004")
     local hero = new_unit(3701, "Ice")
@@ -181,16 +180,16 @@ do
     local tl = skillLua.BuildTimeline(hero, {}, skill)
     local f = find_frame(tl, "damage", 42)
     local tags = f and f.tags or {}
-    local baseChance = nil
+    local hasSettlement = false
     for _, tag in ipairs(tags) do
-        if tag.tag == "chance_apply_freeze" then
-            baseChance = tag.param and tag.param.baseChance
+        if tag.tag == "wizard_blizzard_settlement" then
+            hasSettlement = true
         end
     end
-    assert_true(baseChance == 5500, "Blizzard tier3 freeze baseChance == 5500")
+    assert_true(hasSettlement, "Blizzard uses deterministic slow settlement")
 end
 
--- Test 7: Warlock chain lightning (80009003) arc count scales by tier
+-- Test 7: Warlock chain lightning (80009003) hits current target plus one extra target
 do
     local skillLua = require("config.skill.skill_80009003")
     local hero = new_unit(3801, "Thunder")
@@ -198,23 +197,23 @@ do
     for i = 1, 10 do
         targets[i] = new_unit(3810 + i, "CL_T" .. i)
     end
-    local old = BattleSkill.GetChainTargets
-    BattleSkill.GetChainTargets = function(_, _, count)
-        local out = {}
-        for i = 1, count do
-            out[i] = targets[i]
+    local BattleFormation = require("modules.battle_formation")
+    local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
+    BattleFormation.GetEnemyTeam = function(src)
+        if src == hero then
+            return targets
         end
-        return out
+        return oldGetEnemyTeam(src)
     end
     local tl = skillLua.BuildTimeline(hero, targets, { skillId = 80009003, name = "Chain Lightning", level = 3 })
-    BattleSkill.GetChainTargets = old
+    BattleFormation.GetEnemyTeam = oldGetEnemyTeam
     local hits = 0
     for _, f in ipairs(tl or {}) do
         if f.op == "chain_damage" then
             hits = hits + 1
         end
     end
-    assert_true(hits == 6, "Chain Lightning tier3 creates 6 chain_damage frames")
+    assert_true(hits == 2, "Chain Lightning creates 2 chain_damage frames")
 end
 
 -- Test 8: Paladin aura (80004003) buff duration scales by tier via battle_intent_buff handler

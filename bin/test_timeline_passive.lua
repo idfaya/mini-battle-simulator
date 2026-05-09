@@ -111,7 +111,7 @@ do
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008001, name = "冰箭术" }, timeline)
     assert_true(ok, "IceArrow timeline execute ok")
-    assert_true(BattleBuff.GetBuffValueBySubType(target, 880001) == 2500, "IceArrow applies slow 2500")
+    assert_true(BattleBuff.GetBuffValueBySubType(target, 880001) == 3000, "IceArrow applies slow 3000")
 end
 
 -- Test 3: Frost Nova freezes and target skips action (80008003)
@@ -120,6 +120,7 @@ do
     local target = new_unit(2102, "Nova_Target", 10000, 0, 0)
     local BattleFormation = require("modules.battle_formation")
     local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
+    BattleSkill.ApplyFreeze(target, 0, 3000, hero)
     BattleFormation.GetEnemyTeam = function(src)
         if src == hero then
             return { target }
@@ -153,7 +154,7 @@ do
     assert_true(Attacker.hp < Attacker.maxHp, "Attacker took counter damage")
 end
 
--- Test 5: Chain Lightning hits 4 times (80009003)
+-- Test 5: Chain Lightning hits current target and one extra target (80009003)
 do
     local hero = new_unit(1301, "Tester_Thunder", 10000, 200, 0)
     local e1 = new_unit(2301, "CL_1", 10000, 0, 0)
@@ -193,7 +194,7 @@ do
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
     BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
     assert_true(ok, "ChainLightning timeline execute ok")
-    assert_true(frameHits == 4, "ChainLightning deals 4 jumps")
+    assert_true(frameHits == 2, "ChainLightning deals 2 jumps")
 end
 
 -- Test 6: Poison Burst consumes poison stacks (80005004)
@@ -331,35 +332,15 @@ do
     assert_true(freezeTriggered == true, "IceAffinity makes 44% roll trigger Blizzard freeze")
 end
 
--- Test 8d: Thunder affinity writes unified passive runtime and boosts chain chance (80009002)
+-- Test 8d: Warlock core marks target with static mark (80009002)
 do
     local hero = new_unit(1604, "Tester_ThunderPassive", 10000, 200, 0)
     local target = new_unit(2604, "Thunder_Target", 10000, 0, 0)
-    local thunderPassive = PassiveHandlers.Create(80009002, { src = hero })
-    thunderPassive:OnBattleBegin({})
-    assert_true((hero.passiveRuntime or {}).thunderChainChanceBonus == 2000, "ThunderAffinity writes chain chance runtime state")
-    assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 2000, "thunderChainChanceBonus") == 4000, "ThunderAffinity increases chain chance by 20%")
-
-    local oldRandom = math.random
-    local oldSelectRandomAliveEnemies = BattleSkill.SelectRandomAliveEnemies
-    local chainTriggered = 0
-    math.random = function(a, b)
-        if b == 10000 then
-            return 3500
-        end
-        return math.floor((a + b) / 2)
-    end
-    BattleSkill.SelectRandomAliveEnemies = function(src, count)
-        chainTriggered = chainTriggered + 1
-        return { target }
-    end
     local lightningArrow = require("config.skill.skill_80009001")
     local lightningTimeline = lightningArrow.BuildTimeline(hero, { target }, { skillId = 80009001, name = "闪电箭" })
     local SkillTimeline = require("core.skill_timeline")
     SkillTimeline.Execute(hero, { target }, { skillId = 80009001, name = "闪电箭" }, lightningTimeline)
-    BattleSkill.SelectRandomAliveEnemies = oldSelectRandomAliveEnemies
-    math.random = oldRandom
-    assert_true(chainTriggered == 1, "ThunderAffinity makes 35% roll trigger Lightning Arrow chain")
+    assert_true(BattleBuff.GetBuff(target, 890001) ~= nil, "Eldritch Blast applies static mark")
 end
 
 -- Test 9: Pursuit attacks a second target after kill (80001003)
@@ -557,7 +538,7 @@ do
     assert_true((hero.passiveRuntime or {}).clericChannelReady == false, "HealingWord consumes channel-ready state")
 end
 
--- Test 13: Fire Affinity extends Meteor burn duration to 5 turns (80007004 + 870002)
+-- Test 13: Fire Affinity extends Flame Storm burn duration (80007004 + 870002)
 do
     local hero = new_unit(2101, "Tester_Meteor", 10000, 250, 0)
     local e1 = new_unit(3101, "Meteor_1", 10000, 0, 0)
@@ -580,8 +561,8 @@ do
     for _, enemy in ipairs({ e1, e2, e3 }) do
         local burn = BattleBuff.GetBuff(enemy, 870001)
         assert_true(enemy.hp < enemy.maxHp, "Meteor damages all enemies: " .. enemy.name)
-        assert_true(burn and burn.stackCount == 2, "Meteor applies 2 burn stacks: " .. enemy.name)
-        assert_true(burn and burn.duration == 3, "FireAffinity extends meteor burn to 3 turns: " .. enemy.name)
+        assert_true(burn and burn.stackCount == 1, "Flame Storm applies one refreshed burn stack: " .. enemy.name)
+        assert_true(burn and burn.duration == 4, "FireAffinity extends flame storm burn to 4 turns: " .. enemy.name)
     end
 end
 

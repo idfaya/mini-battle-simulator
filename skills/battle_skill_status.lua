@@ -83,6 +83,32 @@ function BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
         target.name or "Unknown", stacks, BattleBuff.GetBuffStackNumBySubType(target, 870001), actualTurns))
 end
 
+--- 施加燃烧，但已燃烧目标只刷新持续时间，不叠加层数。
+---@param target table
+---@param turns number|nil
+---@param caster table|nil
+function BattleSkillStatus.ApplyBurnRefreshOnly(target, turns, caster)
+    if not target then
+        return
+    end
+    local BattleBuff = require("modules.battle_buff")
+    local actualTurns = turns or 2
+    if caster and BattleBuff.GetBuff(caster, 870002) then
+        actualTurns = actualTurns + 1
+    end
+    local existingBuff = BattleBuff.GetBuff(target, 870001)
+    if existingBuff then
+        existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+    else
+        GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 870001, nil, {
+            initialStack = 1,
+            duration = actualTurns,
+        })
+    end
+    Logger.Log(string.format("[ApplyBurnRefreshOnly] %s 燃烧刷新到 %d 回合",
+        target.name or "Unknown", actualTurns))
+end
+
 --- 施加冻结（减速 + 硬控两层 buff）
 ---@param target table
 ---@param turns number|nil 硬控冻结回合（880002）
@@ -107,6 +133,32 @@ function BattleSkillStatus.ApplyFreeze(target, turns, slowPct, caster)
     end
     Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
         target.name or "Unknown", turns or 0, slowPct or 0))
+end
+
+---@param target table
+---@param turns number|nil
+---@param caster table|nil
+function BattleSkillStatus.ApplyStaticMark(target, turns, caster)
+    if not target then
+        return
+    end
+    GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 890001, nil, {
+        duration = turns or 2,
+    })
+end
+
+---@param target table
+---@return boolean
+function BattleSkillStatus.HasStaticMark(target)
+    local BattleBuff = require("modules.battle_buff")
+    return BattleBuff.GetBuff(target, 890001) ~= nil
+end
+
+---@param target table
+---@return boolean
+function BattleSkillStatus.HasSlow(target)
+    local BattleBuff = require("modules.battle_buff")
+    return BattleBuff.GetBuff(target, 880001) ~= nil
 end
 
 return BattleSkillStatus

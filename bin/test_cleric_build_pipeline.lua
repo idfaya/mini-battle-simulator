@@ -57,31 +57,34 @@ local function new_unit(id, name)
 end
 
 do
-    local build = HeroBuild.CompileBuild(6, 5, {
-        FeatBuildConfig.Ids.cleric_radiant_prayer,
-        FeatBuildConfig.Ids.cleric_light_domain,
-        FeatBuildConfig.Ids.cleric_spell_mastery,
-        FeatBuildConfig.Ids.cleric_dawn_bishop,
-    })
+    local build = HeroBuild.CompileBuild(6, 5, {})
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_basic_spell), "Cleric Lv5 grants basic spell")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_healing_word), "Cleric Lv5 grants healing word")
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_holy_verdict), "Cleric Lv5 grants light domain action")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.cleric_dawn_bishop), "Cleric Lv5 grants dawn bishop")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "Cleric Lv5 grants sanctuary prayer")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.cleric_shelter_prayer), "Cleric Lv5 grants divine shelter")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.cleric_holy_verdict), "Cleric runtime exports domain action")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "Cleric runtime exports sanctuary prayer")
 end
 
 do
-    local clericHero = HeroData.ConvertToHeroData(900007, 5, 1, {
-        buildFeatIds = {
-            FeatBuildConfig.Ids.cleric_radiant_prayer,
-            FeatBuildConfig.Ids.cleric_light_domain,
-            FeatBuildConfig.Ids.cleric_spell_mastery,
-            FeatBuildConfig.Ids.cleric_dawn_bishop,
-        },
-    })
+    local clericHero = HeroData.ConvertToHeroData(900007, 5, 1, {})
     assert_true(clericHero and clericHero.buildState ~= nil, "HeroData generic build compile works for cleric")
-    assert_true(hasSkill(clericHero.skillsConfig, SkillRuntimeConfig.Ids.cleric_holy_verdict), "HeroData exports cleric subclass action")
+    assert_true(hasSkill(clericHero.skillsConfig, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "HeroData exports cleric high action")
+end
+
+do
+    local casterBuilds = {
+        { classId = 7, basic = SkillRuntimeConfig.Ids.sorcerer_fire_bolt, core = SkillRuntimeConfig.Ids.sorcerer_ember_ignite, mid = SkillRuntimeConfig.Ids.sorcerer_ash_burst, high = SkillRuntimeConfig.Ids.sorcerer_flame_storm },
+        { classId = 8, basic = SkillRuntimeConfig.Ids.wizard_frost_ray, core = SkillRuntimeConfig.Ids.wizard_frost_lag, mid = SkillRuntimeConfig.Ids.wizard_freezing_nova, high = SkillRuntimeConfig.Ids.wizard_blizzard },
+        { classId = 9, basic = SkillRuntimeConfig.Ids.warlock_eldritch_blast, core = SkillRuntimeConfig.Ids.warlock_static_mark, mid = SkillRuntimeConfig.Ids.warlock_thunder_chain, high = SkillRuntimeConfig.Ids.warlock_thunderstorm },
+    }
+    for _, spec in ipairs(casterBuilds) do
+        local build = HeroBuild.CompileBuild(spec.classId, 5, {})
+        assert_true(hasSkill(build.activeSkills, spec.basic), "Caster Lv5 grants basic skill for class " .. spec.classId)
+        assert_true(hasSkill(build.passiveSkills, spec.core), "Caster Lv5 grants core passive for class " .. spec.classId)
+        assert_true(hasSkill(build.activeSkills, spec.mid), "Caster Lv5 grants mid skill for class " .. spec.classId)
+        assert_true(hasSkill(build.activeSkills, spec.high), "Caster Lv5 grants high skill for class " .. spec.classId)
+    end
 end
 
 do
@@ -117,8 +120,8 @@ do
     local total = ClericBuildPassives.PerformHealingWord(hero, { skillId = SkillRuntimeConfig.Ids.cleric_healing_word, name = "治愈之言" })
     assert_true(total == 35, "healing word stacks revival prayer, healing mastery and mercy bishop")
     local second = ClericBuildPassives.PerformHealingWord(hero, { skillId = SkillRuntimeConfig.Ids.cleric_healing_word, name = "治愈之言" })
-    assert_true(second == 0, "healing word can only be used once per battle")
-    assert_true(healed == 35, "healing word applies the expected total heal once")
+    assert_true(second == 29, "healing word can be reused after cooldown control")
+    assert_true(healed == 64, "healing word applies repeated heals without once-per-battle lock")
 
     BuildPassiveCommon.PickLowestHpAlly = oldPickLowestHpAlly
     BattleSkill.CalculateHealDice = oldCalcHeal

@@ -3,9 +3,27 @@ local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
 local skill_80009003 = {}
 
 function skill_80009003.BuildTimeline(hero, targets, skill)
-    local BattleSkill = require("modules.battle_skill")
-    local tier = tonumber(skill and skill.level) or 1
-    local chainTargets = BattleSkill.GetChainTargets(hero, targets and targets[1] or nil, 4 + math.max(0, tier - 1))
+    local BattleFormation = require("modules.battle_formation")
+    local BattleBuff = require("modules.battle_buff")
+    local firstTarget = targets and targets[1] or nil
+    local chainTargets = {}
+    if firstTarget and not firstTarget.isDead then
+        chainTargets[#chainTargets + 1] = firstTarget
+    end
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        if enemy and not enemy.isDead and enemy ~= firstTarget and BattleBuff.GetBuff(enemy, 890001) then
+            chainTargets[#chainTargets + 1] = enemy
+            break
+        end
+    end
+    if #chainTargets < 2 then
+        for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+            if enemy and not enemy.isDead and enemy ~= firstTarget then
+                chainTargets[#chainTargets + 1] = enemy
+                break
+            end
+        end
+    end
     local frames = {}
     local frame = 12
 
@@ -24,8 +42,11 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
             op = "chain_damage",
             effect = "chain_lightning_arc",
             target = chainTarget,
-            damageRate = 7000 + math.max(0, tier - 1) * 500,
+            damageRate = hitIndex == 1 and 9000 or 7000,
             chainIndex = hitIndex,
+            tags = {
+                { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },
+            },
         })
         frame = frame + 8
     end
@@ -43,5 +64,4 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009003
-
 
