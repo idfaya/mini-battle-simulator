@@ -33,7 +33,7 @@ test("cleric light route shows holy verdict and blessed strikes", async ({ page 
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".ult-button-name")).toHaveText("Cleric");
+  await expect(page.locator(".ult-button-name")).toHaveText("牧师");
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })

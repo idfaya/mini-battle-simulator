@@ -33,7 +33,7 @@ test("monk smoke shows martial arts chain, subclass action and extra attack", as
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".ult-button-name")).toHaveText("Monk");
+  await expect(page.locator(".ult-button-name")).toHaveText("武僧");
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
@@ -62,7 +62,7 @@ test("paladin smoke shows judgement prayer, divine smite and oath action", async
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".ult-button-name")).toHaveText("Paladin");
+  await expect(page.locator(".ult-button-name")).toHaveText("圣武士");
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
@@ -95,7 +95,7 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".ult-button-name")).toHaveText("Ranger");
+  await expect(page.locator(".ult-button-name")).toHaveText("游侠");
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })

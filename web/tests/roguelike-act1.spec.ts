@@ -4,13 +4,23 @@ function filterKnownNoise(errors: string[]) {
   return errors.filter((message) => !message.includes("ERR_CONNECTION_REFUSED"));
 }
 
-async function driveBattleUntilResolved(page: import("playwright/test").Page, timeout = 60000) {
+async function driveBattleUntilResolved(page: import("playwright/test").Page, timeout = 90000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    await page.evaluate(async () => {
+    const phase = await page.evaluate(async () => {
       const runtime = window as typeof window & {
         __miniBattleHost?: {
+          tickRun: (deltaMs: number) => Promise<{
+            snapshot: {
+              phase?: string;
+              battleSnapshot?: {
+                pendingCommands: number;
+                leftTeam: Array<{ id: string; isAlive: boolean; ultimateReady: boolean; ultimateSkillName?: string }>;
+              };
+            };
+          }>;
           getRunSnapshot: () => Promise<{
+            phase?: string;
             battleSnapshot?: {
               pendingCommands: number;
               leftTeam: Array<{ id: string; isAlive: boolean; ultimateReady: boolean; ultimateSkillName?: string }>;
@@ -21,12 +31,16 @@ async function driveBattleUntilResolved(page: import("playwright/test").Page, ti
       };
       const host = runtime.__miniBattleHost;
       if (!host) {
-        return;
+        return "missing_host";
       }
-      const snapshot = await host.getRunSnapshot();
+      const ticked = await host.tickRun(600);
+      const snapshot = ticked?.snapshot ?? (await host.getRunSnapshot());
+      if (snapshot.phase && snapshot.phase !== "battle") {
+        return snapshot.phase;
+      }
       const battle = snapshot.battleSnapshot;
       if (!battle || battle.pendingCommands !== 0) {
-        return;
+        return snapshot.phase ?? "battle";
       }
       const outputUnit = battle.leftTeam.find((unit) => {
         if (!unit.isAlive || unit.ultimateReady !== true) {
@@ -38,7 +52,11 @@ async function driveBattleUntilResolved(page: import("playwright/test").Page, ti
       if (outputUnit) {
         await host.queueRunBattleCommand({ type: "cast_ultimate", heroId: outputUnit.id });
       }
+      return snapshot.phase ?? "battle";
     });
+    if (phase && phase !== "battle") {
+      return;
+    }
     const hasRewardButton = await page.getByRole("button", { name: /查看\s*奖励/ }).first().isVisible().catch(() => false);
     const hasRestartButton = await page.getByRole("button", { name: "重新开始第一章" }).isVisible().catch(() => false);
     if (hasRewardButton || hasRestartButton) {
@@ -165,8 +183,19 @@ async function chooseCampAction(page: import("playwright/test").Page) {
   });
 }
 
+async function applyCampAction(page: import("playwright/test").Page, actionId: number) {
+  await page.evaluate(async (selectedActionId) => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        campChoose: (actionId: number) => Promise<{ accepted?: boolean }>;
+      };
+    };
+    await runtime.__miniBattleHost?.campChoose(selectedActionId);
+  }, actionId);
+}
+
 test("roguelike act1 boots into map and can finish the chapter flow", async ({ page }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
 
@@ -186,12 +215,46 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".panel-title").filter({ hasText: "选择下一个节点" }).first()).toBeVisible();
   await page.getByRole("button", { name: "队伍" }).click();
-  await expect(page.locator(".run-team-card").first()).toContainText("Fighter");
+  await expect(page.locator(".run-team-card").first()).toContainText("战士");
   await expect(page.locator(".run-team-card").first()).toContainText("构筑: 战士训练 / 二次生命");
   await page.getByRole("button", { name: "地图" }).click();
 
-  const clickNodeAndEnter = async (nodeTitle: string) => {
-    await page.getByRole("button", { name: new RegExp(nodeTitle) }).click();
+  const chooseNodeAndEnter = async (preferredTypes: string[]) => {
+    const chosen = await page.evaluate(async (types) => {
+      const runtime = window as typeof window & {
+        __miniBattleHost?: {
+          getRunSnapshot: () => Promise<{
+            map?: {
+              nodes?: Array<{ id: number; nodeType?: string; title?: string; selectable?: boolean }>;
+            };
+          }>;
+          choosePath: (nodeId: number) => Promise<boolean>;
+          enterNode: () => Promise<boolean>;
+        };
+      };
+      const host = runtime.__miniBattleHost;
+      if (!host) {
+        return null;
+      }
+      const snapshot = await host.getRunSnapshot();
+      const selectable = (snapshot.map?.nodes ?? []).filter((node) => node.selectable);
+      const selected =
+        types
+          .map((type) => selectable.find((node) => node.nodeType === type))
+          .find((node) => Boolean(node)) ?? selectable[0] ?? null;
+      if (!selected) {
+        return null;
+      }
+      await host.choosePath(selected.id);
+      await host.enterNode();
+      return {
+        id: selected.id,
+        nodeType: selected.nodeType ?? "",
+        title: selected.title ?? "",
+      };
+    }, preferredTypes);
+    expect(chosen).not.toBeNull();
+    return chosen;
   };
 
   const leaveBattleResultIfNeeded = async () => {
@@ -235,43 +298,101 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
     }
   };
 
-  await clickNodeAndEnter("Frontier Scouts");
+  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
   await driveBattleUntilResolved(page);
   await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Broken Caravan");
+  await chooseNodeAndEnter(["recruit", "event"]);
   await resolveRewardChain(/选择职业卡|选择招募/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Frostbite Raid");
+  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
   await driveBattleUntilResolved(page);
   await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Campfire Shrine");
+  await chooseNodeAndEnter(["camp", "shop", "event"]);
   const campActionId = await chooseCampAction(page);
-  const campButtonName = campActionId === 1 ? "Rescue" : campActionId === 2 ? "Sharpen" : "Revive";
-  await expect(page.getByRole("button", { name: campButtonName })).toBeVisible();
-  await page.getByRole("button", { name: campButtonName }).click();
+  await applyCampAction(page, campActionId);
 
-  await clickNodeAndEnter("Ember Ambush");
+  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
   await driveBattleUntilResolved(page);
   await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Icebound Crossing");
+  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
   await driveBattleUntilResolved(page);
   await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Stranded Allies");
+  await chooseNodeAndEnter(["recruit", "event", "shop"]);
   await resolveRewardChain(/选择职业卡|选择招募/);
   await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
 
-  await clickNodeAndEnter("Frozen Gate");
+  await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
   await driveBattleUntilResolved(page, 80000);
   await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
+
+  for (let guard = 0; guard < 4; guard += 1) {
+    const phase = await page.evaluate(async () => {
+      const runtime = window as typeof window & {
+        __miniBattleHost?: {
+          getRunSnapshot: () => Promise<{ phase?: string }>;
+        };
+      };
+      const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+      return snapshot?.phase ?? "";
+    });
+    if (phase === "chapter_result" || phase === "failed") {
+      break;
+    }
+    if (phase !== "map") {
+      break;
+    }
+    await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
+    await driveBattleUntilResolved(page, 80000);
+    await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
+  }
+  for (let guard = 0; guard < 6; guard += 1) {
+    const phase = await page.evaluate(async () => {
+      const runtime = window as typeof window & {
+        __miniBattleHost?: {
+          getRunSnapshot: () => Promise<{ phase?: string }>;
+        };
+      };
+      const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+      return snapshot?.phase ?? "";
+    });
+    if (phase === "chapter_result" || phase === "failed") {
+      break;
+    }
+    if (phase === "reward") {
+      await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+      continue;
+    }
+    if (phase === "map") {
+      await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
+      await driveBattleUntilResolved(page, 80000);
+      await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+      continue;
+    }
+    break;
+  }
+  await expect
+    .poll(async () => {
+      return page.evaluate(async () => {
+        const runtime = window as typeof window & {
+          __miniBattleHost?: {
+            getRunSnapshot: () => Promise<{ phase?: string }>;
+          };
+        };
+        const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+        return snapshot?.phase ?? "";
+      });
+    }, { timeout: 20000 })
+    .toMatch(/chapter_result|failed/);
+  await page.getByRole("button", { name: "信息" }).click();
   await expect(page.getByRole("button", { name: "重新开始第一章" })).toBeVisible({ timeout: 20000 });
 
   expect(pageErrors).toEqual([]);

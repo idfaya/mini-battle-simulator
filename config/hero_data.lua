@@ -505,9 +505,13 @@ function HeroData.GetHeroName(heroId)
     Init()
     local hero = heroInfoMap[heroId]
     if hero then
+        local className = ClassRoleConfig.GetName(hero.Class)
+        if className and className ~= "" and className ~= "未知" then
+            return className
+        end
         return hero.Name or ("Hero_" .. tostring(heroId))
     end
-    return "Unknown"
+    return "未知"
 end
 
 function HeroData.GetAllyName(heroId)

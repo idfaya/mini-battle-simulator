@@ -7,6 +7,8 @@ import type { RunSnapshot } from "./types/roguelike";
 import { createControls, renderControls } from "./ui/domControls";
 import { createRunControls, renderRunControls } from "./ui/runControls";
 
+const BATTLE_ENTRANCE_HOLD_MS = 760;
+
 export type AppHandle = {
   cleanup: () => void;
 };
@@ -30,10 +32,16 @@ export async function bootstrapApp(container: HTMLElement): Promise<AppHandle> {
   container.replaceChildren(shell);
 
   const host = await LuaBattleHost.create();
-  if (typeof window !== "undefined") {
-    (window as typeof window & { __miniBattleHost?: LuaBattleHost }).__miniBattleHost = host;
-  }
   const renderer = new CanvasRenderer();
+  if (typeof window !== "undefined") {
+    (
+      window as typeof window & {
+        __miniBattleHost?: LuaBattleHost;
+        __miniBattleRenderer?: CanvasRenderer;
+      }
+    ).__miniBattleHost = host;
+    (window as typeof window & { __miniBattleRenderer?: CanvasRenderer }).__miniBattleRenderer = renderer;
+  }
   const battleStore = new BattleStore();
   const runStore = new RunStore();
   const params = new URLSearchParams(window.location.search);
@@ -218,6 +226,7 @@ async function bootstrapStandaloneBattle(
   };
   let speed = setup.speed;
   let autoUltimate = options?.singleBattleMode === true;
+  let battleIntroHoldUntil = performance.now() + BATTLE_ENTRANCE_HOLD_MS;
 
   const toRuntimeConfig = (nextSetup: BattleSetup) => ({
     level: nextSetup.level,
@@ -250,6 +259,7 @@ async function bootstrapStandaloneBattle(
       speed = setup.speed;
       const snapshot = await host.restart(toRuntimeConfig(setup));
       store.setSnapshot(snapshot);
+      battleIntroHoldUntil = performance.now() + BATTLE_ENTRANCE_HOLD_MS;
     },
     (nextSpeed) => {
       speed = nextSpeed;
@@ -267,6 +277,7 @@ async function bootstrapStandaloneBattle(
 
   const initialSnapshot = await host.initBattle(toRuntimeConfig(setup));
   store.setSnapshot(initialSnapshot);
+  battleIntroHoldUntil = performance.now() + BATTLE_ENTRANCE_HOLD_MS;
 
   let rafId: number | null = null;
   registerCleanup(() => {
@@ -284,7 +295,7 @@ async function bootstrapStandaloneBattle(
     }
     const delta = Math.min(120, now - lastFrame);
     lastFrame = now;
-    if (!inFlight) {
+    if (now >= battleIntroHoldUntil && !inFlight) {
       inFlight = true;
       const { events, snapshot } = await host.tick(delta * speed);
       inFlight = false;
@@ -335,12 +346,19 @@ async function bootstrapRunMode(
   let deferredPostBattleSnapshot: RunSnapshot | null = null;
   let holdBattleResultScene = false;
   let runUiDirty = true;
+  let battleIntroHoldUntil = 0;
+  let activeBattleKey = "";
 
   const syncRunSnapshot = (snapshot: RunSnapshot) => {
     runSnapshot = snapshot;
     runStore.setSnapshot(snapshot);
     runUiDirty = true;
     if (snapshot.battleSnapshot) {
+      const battleKey = `${snapshot.currentNodeId ?? "node"}:${snapshot.battleSnapshot.leftTeam.map((unit) => unit.id).join(",")}__${snapshot.battleSnapshot.rightTeam.map((unit) => unit.id).join(",")}`;
+      if (battleKey !== activeBattleKey) {
+        activeBattleKey = battleKey;
+        battleIntroHoldUntil = performance.now() + BATTLE_ENTRANCE_HOLD_MS;
+      }
       battleStore.setSnapshot(snapshot.battleSnapshot);
       battleStore.setRunContext({
         chapterLabel: `Act 1`,
@@ -351,6 +369,7 @@ async function bootstrapRunMode(
         blessingCount: snapshot.blessings.length,
       });
     } else {
+      activeBattleKey = "";
       battleStore.setRunContext(null);
     }
   };
@@ -454,7 +473,7 @@ async function bootstrapRunMode(
     const delta = Math.min(120, now - lastFrame);
     lastFrame = now;
 
-    if (runSnapshot?.phase === "battle" && !inFlight) {
+    if (runSnapshot?.phase === "battle" && now >= battleIntroHoldUntil && !inFlight) {
       inFlight = true;
       const previousPhase = runSnapshot.phase;
       const previousBattleSnapshot = battleStore.getState().snapshot;

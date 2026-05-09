@@ -1,8 +1,96 @@
 import { expect, test } from "playwright/test";
+import { createFloatingText } from "../app/render/animations";
+import type { AnimationEvent, UnitState } from "../app/types/battle";
 
 function filterKnownNoise(errors: string[]) {
   return errors.filter((message) => !message.includes("ERR_CONNECTION_REFUSED"));
 }
+
+const mockUnit: UnitState = {
+  id: "hero-1",
+  name: "Hero",
+  team: "left",
+  position: 1,
+  classId: 1,
+  className: "盗贼",
+  classIcon: "S",
+  hp: 10,
+  maxHp: 10,
+  speed: 10,
+  initiativeRoll: 10,
+  initiativeMod: 2,
+  initiative: 12,
+  ac: 15,
+  hit: 5,
+  spellDC: 12,
+  saveFort: 2,
+  saveRef: 1,
+  saveWill: 0,
+  energy: 0,
+  maxEnergy: 100,
+  ultimateCharges: 0,
+  ultimateChargesMax: 100,
+  isAlive: true,
+  isChanting: false,
+  pendingSkillName: null,
+  isConcentrating: false,
+  concentrationSkillId: null,
+  concentrationSkillName: null,
+  buffs: [],
+  actionBar: 0,
+  actionBarMax: 1000,
+  ultimateReady: false,
+  ultimateSkillName: "Burst",
+};
+
+test("floating text styles cover damage critical heal and miss", () => {
+  const now = 1000;
+  const cases: Array<{ event: AnimationEvent; expectedKind: "damage" | "critical" | "heal" | "miss" }> = [
+    {
+      event: {
+        type: "damage",
+        heroId: "target",
+        attackerId: "hero-1",
+        skillName: "",
+        value: 18,
+        critical: false,
+      },
+      expectedKind: "damage",
+    },
+    {
+      event: {
+        type: "damage",
+        heroId: "target",
+        attackerId: "hero-1",
+        skillName: "",
+        value: 42,
+        critical: true,
+      },
+      expectedKind: "critical",
+    },
+    {
+      event: {
+        type: "heal",
+        heroId: "hero-1",
+        value: 12,
+      },
+      expectedKind: "heal",
+    },
+    {
+      event: {
+        type: "miss",
+        heroId: "target",
+        text: "MISS",
+      },
+      expectedKind: "miss",
+    },
+  ];
+
+  for (const testCase of cases) {
+    const text = createFloatingText(testCase.event, mockUnit, now);
+    expect(text?.kind).toBe(testCase.expectedKind);
+  }
+});
 
 test("battle screen boots and renders actionable UI", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -51,6 +139,38 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
   });
 
   expect(canvasReady).toBeTruthy();
+  const battleDebugState = await page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        tick: (delta: number) => Promise<unknown>;
+      };
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          entranceStartedCount: number;
+          entranceActiveCount: number;
+          deathStartedCount: number;
+          deathActiveCount: number;
+          observedFloatingTextKinds: string[];
+          floatingTextKinds: string[];
+        };
+      };
+    };
+    const host = runtime.__miniBattleHost;
+    const renderer = runtime.__miniBattleRenderer;
+    if (!host || !renderer) {
+      return null;
+    }
+    for (let index = 0; index < 36; index += 1) {
+      await host.tick(220);
+    }
+    return renderer.getBattleDebugState();
+  });
+  expect(battleDebugState).not.toBeNull();
+  expect(battleDebugState?.entranceStartedCount ?? 0).toBeGreaterThan(0);
+  expect(battleDebugState?.deathStartedCount ?? 0).toBeGreaterThan(0);
+  expect(battleDebugState?.observedFloatingTextKinds ?? []).toEqual(
+    expect.arrayContaining(["damage"]),
+  );
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 

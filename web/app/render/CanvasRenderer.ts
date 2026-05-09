@@ -67,4 +67,8 @@ export class CanvasRenderer {
     this.resizeToDisplaySize();
     this.runMapScene.draw(this.ctx, this.displayWidth, this.displayHeight, snapshot);
   }
+
+  getBattleDebugState() {
+    return this.scene.getDebugState();
+  }
 }

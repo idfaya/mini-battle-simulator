@@ -45,9 +45,9 @@ end
 function ClassRoleConfig.GetName(classId)
     local role = ClassRoleConfig.GetRole(classId)
     if not role then
-        return "Unknown"
+        return "未知"
     end
-    return string.format("%s %s", role.streamId, role.name)
+    return role.name
 end
 
 function ClassRoleConfig.IsMelee(classId)

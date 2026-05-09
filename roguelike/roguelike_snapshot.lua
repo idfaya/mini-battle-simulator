@@ -53,7 +53,9 @@ local function buildFeatSummary(hero)
     local result = {}
     local classId = tonumber(hero and hero.classId) or 0
     local level = tonumber(hero and hero.level) or 1
-    if classId == 2 then
+    -- 已迁移到 ClassBuildProgression 的职业（战士/武僧/盗贼/牧师/圣骑/游侠等）
+    -- 统一走 FeatBuildConfig + 固定 feat 列表，避免被旧的 FeatConfig 漏查。
+    if ClassBuildProgression.GetProgression(classId) then
         for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
             local feat = FeatBuildConfig.GetFeat(featId)
             addUnique(result, feat and feat.name or nil)

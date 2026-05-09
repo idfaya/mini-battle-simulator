@@ -10,6 +10,12 @@ type UnitLayout = {
   y: number;
   width: number;
   height: number;
+  alpha: number;
+  scale: number;
+  darken: number;
+  entryGlow: number;
+  showDefeatedLabel: boolean;
+  defeatedLabelAlpha: number;
   unit: UnitState;
   formationSide: FormationSide;
   row: FormationRow;
@@ -78,6 +84,21 @@ type ImpactBurst = {
   size: number;
 };
 
+type EntranceAnimation = {
+  startedAt: number;
+  delayMs: number;
+  durationMs: number;
+  fromY: number;
+  fromScale: number;
+};
+
+type DeathAnimation = {
+  startedAt: number;
+  holdMs: number;
+  durationMs: number;
+  driftY: number;
+};
+
 type FormationMetrics = {
   cardWidth: number;
   cardHeight: number;
@@ -105,11 +126,18 @@ const TEAM_ROW_GAP = 26;
 const TEAM_CENTER_GAP = 44;
 
 export class BattleScene {
-  private floatingTexts: Array<FloatingText & { unitId: string }> = [];
+  private floatingTexts: Array<FloatingText & { unitId: string; offsetX: number; offsetY: number }> = [];
   private activeTimeline: TimelineOverlay | null = null;
   private meleeClashes: MeleeClash[] = [];
   private projectiles: ProjectileAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
+  private entranceAnimations = new Map<string, EntranceAnimation>();
+  private deathAnimations = new Map<string, DeathAnimation>();
+  private observedFloatingTextKinds = new Set<FloatingText["kind"]>();
+  private currentBattleKey = "";
+  private previousAliveByUnit = new Map<string, boolean>();
+  private entranceStartedCount = 0;
+  private deathStartedCount = 0;
   private lastProjectileAtByCaster = new Map<string, number>();
   private pendingExtraAttackUntilByHero = new Map<string, number>();
   private pendingPreciseTargetsByHero = new Map<string, { until: number; targetId: string }>();
@@ -133,6 +161,7 @@ export class BattleScene {
     const playerLayouts = this.layoutTeam(state.snapshot.leftTeam, metrics, "player");
     const baseLayouts = [...enemyLayouts, ...playerLayouts];
 
+    this.syncPresentationState(state.snapshot, baseLayouts, now);
     this.consumeAnimations(state.animations, baseLayouts, now);
     this.pruneTransientAnimations(now);
 
@@ -338,6 +367,12 @@ export class BattleScene {
         y: baseY,
         width: metrics.cardWidth,
         height: metrics.cardHeight,
+        alpha: 1,
+        scale: 1,
+        darken: unit.isAlive ? 0 : 0.46,
+        entryGlow: 0,
+        showDefeatedLabel: !unit.isAlive,
+        defeatedLabelAlpha: unit.isAlive ? 0 : 0.72,
         unit,
         formationSide,
         row,
@@ -348,9 +383,125 @@ export class BattleScene {
     });
   }
 
+  private syncPresentationState(
+    snapshot: NonNullable<BattleStoreState["snapshot"]>,
+    layouts: UnitLayout[],
+    now: number,
+  ) {
+    const battleKey = `${snapshot.leftTeam.map((unit) => unit.id).join(",")}__${snapshot.rightTeam.map((unit) => unit.id).join(",")}`;
+    if (battleKey !== this.currentBattleKey) {
+      this.currentBattleKey = battleKey;
+      this.entranceAnimations.clear();
+      this.deathAnimations.clear();
+      this.observedFloatingTextKinds.clear();
+      this.previousAliveByUnit.clear();
+      const orderedLayouts = [...layouts].sort((a, b) => {
+        const aSide = a.formationSide === "enemy" ? 0 : 1;
+        const bSide = b.formationSide === "enemy" ? 0 : 1;
+        if (aSide !== bSide) {
+          return aSide - bSide;
+        }
+        const aRow = a.row === "front" ? 0 : 1;
+        const bRow = b.row === "front" ? 0 : 1;
+        if (aRow !== bRow) {
+          return aRow - bRow;
+        }
+        return a.column - b.column;
+      });
+      for (const [index, layout] of orderedLayouts.entries()) {
+        const sideDelay = layout.row === "front" ? 0 : 100;
+        const columnDelay = layout.column * 65;
+        this.entranceAnimations.set(layout.unit.id, {
+          startedAt: now,
+          delayMs: sideDelay + columnDelay + index * 12,
+          durationMs: 420,
+          fromY: layout.formationSide === "enemy" ? -56 : 56,
+          fromScale: 0.88,
+        });
+        this.previousAliveByUnit.set(layout.unit.id, layout.unit.isAlive);
+      }
+      this.entranceStartedCount += orderedLayouts.length;
+      return;
+    }
+
+    const activeUnitIds = new Set(layouts.map((layout) => layout.unit.id));
+    for (const layout of layouts) {
+      const wasAlive = this.previousAliveByUnit.get(layout.unit.id);
+      if (wasAlive === true && !layout.unit.isAlive && !this.deathAnimations.has(layout.unit.id)) {
+        this.deathAnimations.set(layout.unit.id, {
+          startedAt: now,
+          holdMs: 60,
+          durationMs: 320,
+          driftY: layout.formationSide === "enemy" ? -8 : 10,
+        });
+        this.deathStartedCount += 1;
+      }
+      this.previousAliveByUnit.set(layout.unit.id, layout.unit.isAlive);
+    }
+    for (const unitId of this.previousAliveByUnit.keys()) {
+      if (!activeUnitIds.has(unitId)) {
+        this.previousAliveByUnit.delete(unitId);
+      }
+    }
+  }
+
   private resolveAnimatedLayout(layout: UnitLayout, baseLayouts: UnitLayout[], now: number): UnitLayout {
     let dx = 0;
     let dy = 0;
+    let alpha = layout.alpha;
+    let scale = layout.scale;
+    let darken = layout.darken;
+    let entryGlow = layout.entryGlow;
+    let showDefeatedLabel = layout.showDefeatedLabel;
+    let defeatedLabelAlpha = layout.defeatedLabelAlpha;
+
+    const entrance = this.entranceAnimations.get(layout.unit.id);
+    if (entrance) {
+      const elapsed = now - (entrance.startedAt + entrance.delayMs);
+      if (elapsed < 0) {
+        dy += entrance.fromY;
+        alpha = 0;
+        scale *= entrance.fromScale;
+      } else if (elapsed <= entrance.durationMs) {
+        const progress = Math.max(0, Math.min(1, elapsed / entrance.durationMs));
+        const easedOut = 1 - Math.pow(1 - progress, 3);
+        const settleY = entrance.fromY * Math.pow(1 - progress, 1.55);
+        const overshoot =
+          progress > 0.64 ? -Math.sign(entrance.fromY) * Math.sin(((progress - 0.64) / 0.36) * Math.PI) * 7 : 0;
+        dy += settleY + overshoot;
+        alpha *= Math.min(1, progress / 0.42);
+        scale *= entrance.fromScale + (1 - entrance.fromScale) * easedOut;
+        entryGlow = Math.max(entryGlow, Math.sin(progress * Math.PI) * 0.42);
+      }
+    }
+
+    const death = this.deathAnimations.get(layout.unit.id);
+    if (!layout.unit.isAlive) {
+      if (death) {
+        const elapsed = now - death.startedAt;
+        if (elapsed <= death.holdMs) {
+          darken = Math.max(darken, 0.14);
+          defeatedLabelAlpha = 0;
+          showDefeatedLabel = false;
+        } else {
+          const progress = Math.max(0, Math.min(1, (elapsed - death.holdMs) / Math.max(1, death.durationMs - death.holdMs)));
+          const easedOut = 1 - Math.pow(1 - progress, 2);
+          alpha *= 1 - 0.68 * easedOut;
+          scale *= 1 - 0.08 * easedOut;
+          dy += death.driftY * easedOut;
+          darken = Math.max(darken, 0.18 + 0.28 * easedOut);
+          defeatedLabelAlpha = Math.max(0, Math.min(0.72, (progress - 0.35) / 0.65));
+          showDefeatedLabel = progress > 0.35;
+        }
+      } else {
+        alpha *= 0.32;
+        scale *= 0.92;
+        dy += layout.formationSide === "enemy" ? -8 : 10;
+        darken = Math.max(darken, 0.46);
+        showDefeatedLabel = true;
+        defeatedLabelAlpha = 0.72;
+      }
+    }
 
     for (const clash of this.meleeClashes) {
       const attacker = baseLayouts.find((candidate) => candidate.unit.id === clash.attackerId);
@@ -410,14 +561,32 @@ export class BattleScene {
       ...layout,
       x: layout.baseX + dx,
       y: layout.baseY + dy,
+      alpha,
+      scale,
+      darken,
+      entryGlow,
+      showDefeatedLabel,
+      defeatedLabelAlpha,
     };
   }
 
   private drawUnitCard(ctx: CanvasRenderingContext2D, layout: UnitLayout, isActive: boolean) {
-    const { x, y, width, height, unit } = layout;
+    let x = layout.x;
+    let y = layout.y;
+    const { width, height, unit } = layout;
     const isCastingHero = this.activeTimeline?.heroId === unit.id;
     const isTimelineTarget = this.activeTimeline?.targetIds.includes(unit.id) ?? false;
     const classBadge = this.getClassBadge(unit.classId);
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+
+    ctx.save();
+    ctx.globalAlpha = layout.alpha;
+    ctx.translate(centerX, centerY);
+    ctx.scale(layout.scale, layout.scale);
+    x = -width / 2;
+    y = -height / 2;
+
     const fillGradient = ctx.createLinearGradient(x, y, x, y + height);
 
     if (unit.team === "left") {
@@ -428,7 +597,13 @@ export class BattleScene {
       fillGradient.addColorStop(1, "#4b1024");
     }
 
-    ctx.save();
+    if (layout.entryGlow > 0) {
+      ctx.fillStyle = `rgba(255, 209, 102, ${layout.entryGlow})`;
+      ctx.beginPath();
+      ctx.ellipse(0, height / 2 + 6, Math.max(24, width * 0.36), Math.max(8, height * 0.08), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
     ctx.shadowBlur = 18;
     ctx.shadowOffsetY = 8;
@@ -494,16 +669,21 @@ export class BattleScene {
       micro ? 4 : 6,
     );
 
-    if (!unit.isAlive) {
-      ctx.fillStyle = "rgba(0,0,0,0.48)";
+    if (layout.darken > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${layout.darken})`;
       ctx.beginPath();
       ctx.roundRect(x, y, width, height, 18);
       ctx.fill();
+    }
+
+    if (!unit.isAlive && layout.showDefeatedLabel) {
+      ctx.globalAlpha = Math.max(0.28, layout.defeatedLabelAlpha);
       ctx.fillStyle = "#f8f9fa";
       ctx.font = compact ? "bold 10px sans-serif" : "bold 20px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("DEFEATED", x + width / 2, y + height / 2 + 4, width - 8);
       ctx.textAlign = "left";
+      ctx.globalAlpha = layout.alpha;
     }
 
     ctx.restore();
@@ -959,7 +1139,10 @@ export class BattleScene {
         this.floatingTexts.push({
           ...text,
           unitId: layout.unit.id,
+          offsetX: [0, -12, 12, -18][Math.min(this.floatingTexts.filter((item) => item.unitId === layout.unit.id).length, 3)],
+          offsetY: -Math.min(this.floatingTexts.filter((item) => item.unitId === layout.unit.id).length, 2) * 8,
         });
+        this.observedFloatingTextKinds.add(text.kind);
         if (event.type === "miss") {
           continue;
         }
@@ -985,7 +1168,7 @@ export class BattleScene {
       if (!layout) {
         return false;
       }
-      return drawFloatingText(ctx, item, layout.x + layout.width / 2, layout.y + 28, now);
+      return drawFloatingText(ctx, item, layout.x + layout.width / 2 + item.offsetX, layout.y + 28 + item.offsetY, now);
     });
   }
 
@@ -1118,6 +1301,16 @@ export class BattleScene {
     this.meleeClashes = this.meleeClashes.filter((item) => now - item.startedAt <= item.durationMs);
     this.projectiles = this.projectiles.filter((item) => now - item.startedAt <= item.durationMs);
     this.impactBursts = this.impactBursts.filter((item) => now - (item.startedAt + item.delayMs) <= item.durationMs);
+    for (const [unitId, entrance] of this.entranceAnimations.entries()) {
+      if (now - (entrance.startedAt + entrance.delayMs) > entrance.durationMs) {
+        this.entranceAnimations.delete(unitId);
+      }
+    }
+    for (const [unitId, death] of this.deathAnimations.entries()) {
+      if (now - death.startedAt > death.durationMs) {
+        this.deathAnimations.delete(unitId);
+      }
+    }
     for (const [heroId, until] of this.pendingExtraAttackUntilByHero.entries()) {
       if (until < now) {
         this.pendingExtraAttackUntilByHero.delete(heroId);
@@ -1520,6 +1713,17 @@ export class BattleScene {
     return {
       x: invT * invT * start.x + 2 * invT * t * control.x + t * t * end.x,
       y: invT * invT * start.y + 2 * invT * t * control.y + t * t * end.y,
+    };
+  }
+
+  getDebugState() {
+    return {
+      entranceStartedCount: this.entranceStartedCount,
+      entranceActiveCount: this.entranceAnimations.size,
+      deathStartedCount: this.deathStartedCount,
+      deathActiveCount: this.deathAnimations.size,
+      observedFloatingTextKinds: [...this.observedFloatingTextKinds],
+      floatingTextKinds: [...new Set(this.floatingTexts.map((item) => item.kind))],
     };
   }
 }
