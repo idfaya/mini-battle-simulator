@@ -40,15 +40,50 @@ export async function bootstrapApp(container: HTMLElement) {
   diagnostics.remove();
   stage.append(renderer.canvas);
 
+  const syncMobileBattleStageHeight = () => {
+    const mobilePortrait = window.matchMedia("(max-width: 720px) and (orientation: portrait)").matches;
+    const shellScreen = shell.dataset.screen ?? "";
+    const isBattleScreen = shellScreen === "battle";
+    if (!mobilePortrait || !isBattleScreen) {
+      stage.style.height = "";
+      stage.style.maxHeight = "";
+      return;
+    }
+
+    const shellRect = shell.getBoundingClientRect();
+    const panelRect = panelHost.getBoundingClientRect();
+    const shellStyles = window.getComputedStyle(shell);
+    const shellGap = Number.parseFloat(shellStyles.rowGap || shellStyles.gap || "0") || 0;
+    const availableHeight = Math.floor(shellRect.height - panelRect.height - shellGap);
+    const clampedHeight = Math.max(120, availableHeight);
+    stage.style.height = `${clampedHeight}px`;
+    stage.style.maxHeight = `${clampedHeight}px`;
+  };
+
+  const scheduleMobileBattleStageSync = () => {
+    window.requestAnimationFrame(syncMobileBattleStageHeight);
+  };
+
+  const resizeObserver = new ResizeObserver(() => {
+    scheduleMobileBattleStageSync();
+  });
+  resizeObserver.observe(shell);
+  resizeObserver.observe(panelHost);
+  if (typeof window.visualViewport !== "undefined") {
+    window.visualViewport.addEventListener("resize", scheduleMobileBattleStageSync);
+    window.visualViewport.addEventListener("scroll", scheduleMobileBattleStageSync);
+  }
+  window.addEventListener("resize", scheduleMobileBattleStageSync);
+
   if (standaloneBattleMode || singleBattleMode) {
-    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore, {
+    await bootstrapStandaloneBattle(host, renderer, panelHost, battleStore, shell, scheduleMobileBattleStageSync, {
       singleBattleMode,
       params,
     });
     return;
   }
 
-  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore, params);
+  await bootstrapRunMode(host, renderer, panelHost, battleStore, runStore, shell, scheduleMobileBattleStageSync, params);
 }
 
 async function bootstrapStandaloneBattle(
@@ -56,6 +91,8 @@ async function bootstrapStandaloneBattle(
   renderer: CanvasRenderer,
   panelHost: HTMLDivElement,
   store: BattleStore,
+  shell: HTMLDivElement,
+  syncMobileBattleStageHeight: () => void,
   options?: {
     singleBattleMode?: boolean;
     params?: URLSearchParams;
@@ -156,6 +193,8 @@ async function bootstrapStandaloneBattle(
     autoUltimate,
   );
   panelHost.replaceChildren(controls.root);
+  shell.dataset.screen = controls.root.dataset.screen ?? "battle";
+  syncMobileBattleStageHeight();
 
   const initialSnapshot = await host.initBattle(toRuntimeConfig(setup));
   store.setSnapshot(initialSnapshot);
@@ -180,12 +219,14 @@ async function bootstrapStandaloneBattle(
     }
     renderer.renderBattle(store.getState(), now);
     renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+    syncMobileBattleStageHeight();
     store.clearTransient(now);
     requestAnimationFrame(frame);
   };
 
   renderer.renderBattle(store.getState(), performance.now());
   renderControls(controls, store.getState().snapshot, store.getState().log, castUltimate);
+  syncMobileBattleStageHeight();
   requestAnimationFrame(frame);
 }
 
@@ -195,6 +236,8 @@ async function bootstrapRunMode(
   panelHost: HTMLDivElement,
   battleStore: BattleStore,
   runStore: RunStore,
+  shell: HTMLDivElement,
+  syncMobileBattleStageHeight: () => void,
   params: URLSearchParams,
 ) {
   const runSeed = Number(params.get("seed")) || 10102;
@@ -357,7 +400,8 @@ async function bootstrapRunMode(
         panelHost.replaceChildren(battleControls.root);
         // 切换到战斗 HUD 时，把当前 hud 的 screen 同步到 shell，避免 CSS 失配
         const currentScreen = battleControls.root.dataset.screen ?? "battle";
-        panelHost.closest(".shell")?.setAttribute("data-screen", currentScreen);
+        shell.dataset.screen = currentScreen;
+        syncMobileBattleStageHeight();
       }
       battleControls.root.classList.toggle("battle-ended", holdBattleResultScene);
       renderer.renderBattle(battleStore.getState(), now);
@@ -371,13 +415,15 @@ async function bootstrapRunMode(
             ]
           : [],
       });
+      syncMobileBattleStageHeight();
       battleStore.clearTransient(now);
     } else {
       if (panelHost.firstChild !== runControls.root) {
         panelHost.replaceChildren(runControls.root);
         // 切到 Roguelike HUD 时，把 runControls 当前 screen 同步到 shell，手机上 CSS 才会正确隐藏 stage
         const runScreen = runControls.root.dataset.screen ?? "map";
-        panelHost.closest(".shell")?.setAttribute("data-screen", `run-${runScreen}`);
+        shell.dataset.screen = `run-${runScreen}`;
+        syncMobileBattleStageHeight();
         runUiDirty = true;
       }
       renderer.renderMap(runSnapshot);
