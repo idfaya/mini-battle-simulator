@@ -52,8 +52,28 @@ type MeleeClash = {
   targetIds: string[];
   startedAt: number;
   durationMs: number;
+  baseDurationMs: number;
   hitMoments: number[];
   precise: boolean;
+  style: MeleeStyle;
+  holdUntil?: number;
+  counterReactorId?: string;
+};
+
+type ElementStyle = {
+  fill: string;
+  ring: string;
+  core: string;
+  trail: string;
+};
+
+type ElementTheme = "physical" | "slash" | "martial" | "heavy" | "fire" | "ice" | "poison" | "holy" | "lightning" | "rage";
+
+type MeleeStyle = {
+  kind: "slash" | "crush" | "martial" | "heavy";
+  fill: string;
+  ring: string;
+  trail: string;
 };
 
 type ProjectileStyle = {
@@ -74,6 +94,15 @@ type ProjectileAnimation = {
   style: ProjectileStyle;
 };
 
+type AoeAnimation = {
+  id: string;
+  targetIds: string[];
+  startedAt: number;
+  durationMs: number;
+  style: ElementStyle;
+  kind: "burst" | "mist" | "storm" | "nova";
+};
+
 type ImpactBurst = {
   unitId: string;
   startedAt: number;
@@ -82,6 +111,14 @@ type ImpactBurst = {
   color: string;
   ringColor: string;
   size: number;
+};
+
+type UnitPulse = {
+  unitId: string;
+  startedAt: number;
+  durationMs: number;
+  style: ElementStyle;
+  label?: string;
 };
 
 type EntranceAnimation = {
@@ -130,7 +167,9 @@ export class BattleScene {
   private activeTimeline: TimelineOverlay | null = null;
   private meleeClashes: MeleeClash[] = [];
   private projectiles: ProjectileAnimation[] = [];
+  private aoeAnimations: AoeAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
+  private unitPulses: UnitPulse[] = [];
   private entranceAnimations = new Map<string, EntranceAnimation>();
   private deathAnimations = new Map<string, DeathAnimation>();
   private observedFloatingTextKinds = new Set<FloatingText["kind"]>();
@@ -167,13 +206,16 @@ export class BattleScene {
 
     const allLayouts = baseLayouts.map((layout) => this.resolveAnimatedLayout(layout, baseLayouts, now));
     this.drawBoardFrame(ctx, width, height, allLayouts);
+    this.drawAoeAnimations(ctx, allLayouts, now);
 
     for (const layout of allLayouts) {
       this.drawUnitCard(ctx, layout, state.snapshot.activeHeroId === layout.unit.id);
     }
 
+    this.drawMeleeEffects(ctx, allLayouts, now);
     this.drawProjectileAnimations(ctx, allLayouts, now);
     this.drawImpactBursts(ctx, allLayouts, now);
+    this.drawUnitPulses(ctx, allLayouts, now);
     this.drawTopBar(ctx, width, state);
     this.drawActionOrderBar(ctx, width, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
@@ -515,7 +557,8 @@ export class BattleScene {
       if (elapsed < 0 || elapsed > clash.durationMs) {
         continue;
       }
-      const progress = elapsed / clash.durationMs;
+      const baseDurationMs = Math.max(1, clash.baseDurationMs || clash.durationMs);
+      const progress = Math.min(1, elapsed / baseDurationMs);
       const anchorTarget = targets.find((candidate) => candidate.unit.id === clash.anchorTargetId) ?? targets[0];
       const focus = this.getMeleeFocusPoint(attacker, targets, clash);
       const vectorX = focus.x - (attacker.baseX + attacker.width / 2);
@@ -534,8 +577,7 @@ export class BattleScene {
       );
 
       if (layout.unit.id === attacker.unit.id) {
-        const maxPush = contactDistance;
-        const travel = this.getMeleeTravelDistance(progress, maxPush, clash.hitMoments.length);
+        const travel = this.getMeleeTravelDistanceForClash(clash, elapsed, now, contactDistance);
 
         dx += unitX * travel;
         dy += unitY * travel;
@@ -1117,6 +1159,14 @@ export class BattleScene {
         if (event.skillName === "额外攻击") {
           this.pendingExtraAttackUntilByHero.set(event.heroId, now + 900);
         }
+        if (this.looksLikeCounterPassive(event.skillName, event.triggerType)) {
+          this.queueCounterHold(event.heroId, now);
+        }
+        const passiveUnit = layouts.find((layout) => layout.unit.id === event.heroId);
+        this.queueUnitPulse(event.heroId, now, this.resolveElementStyle(this.resolveElementTheme("", event.skillName, passiveUnit?.unit.classId ?? 0)), {
+          durationMs: event.skillName === "Rage" || event.skillName === "Berserk" ? 760 : 620,
+          label: event.skillName,
+        });
         continue;
       }
 
@@ -1151,8 +1201,8 @@ export class BattleScene {
           startedAt: now,
           durationMs: event.type === "damage" ? 320 : 360,
           delayMs: 0,
-          color: event.type === "damage" ? "rgba(255, 120, 117, 0.22)" : "rgba(128, 237, 153, 0.2)",
-          ringColor: event.type === "damage" ? "rgba(255, 209, 102, 0.72)" : "rgba(128, 237, 153, 0.72)",
+          color: event.type === "damage" ? this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).fill : "rgba(128, 237, 153, 0.2)",
+          ringColor: event.type === "damage" ? this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).ring : "rgba(128, 237, 153, 0.72)",
           size: event.type === "damage" ? 58 : 48,
         });
         if (event.type === "damage") {
@@ -1187,6 +1237,12 @@ export class BattleScene {
     const isDamageFrame = this.isDamageLikeOp(event.op);
     const isMeleeExecuteFrame = isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
     const isRangedExecuteFrame = !isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
+    const theme = this.resolveElementTheme(event.effect, event.skillName, attacker.unit.classId);
+    const style = this.resolveElementStyle(theme);
+
+    if (this.looksLikeAoeSkill(event.effect, event.skillName) && event.op !== "cast" && hostileTargets.length > 0) {
+      this.queueAoeAnimation(event, hostileTargets, now, style);
+    }
 
     if (isProjectileFrame) {
       for (const target of hostileTargets) {
@@ -1196,11 +1252,13 @@ export class BattleScene {
           targetId: target.unit.id,
           startedAt: now,
           durationMs: 340,
-          style: this.resolveProjectileStyle(event.effect, attacker.unit.classId),
+          style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
         });
       }
       this.lastProjectileAtByCaster.set(attacker.unit.id, now);
-      return;
+      if (!this.looksLikeAoeSkill(event.effect, event.skillName)) {
+        return;
+      }
     }
 
     const friendlyTargets = event.targetIds
@@ -1218,7 +1276,10 @@ export class BattleScene {
             targetId: target.unit.id,
             startedAt: now,
             durationMs: 300,
-            style: this.resolveProjectileStyle(event.effect, attacker.unit.classId),
+            style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
+          });
+          this.queueUnitPulse(target.unit.id, now + 90, style, {
+            durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
           });
         }
         this.lastProjectileAtByCaster.set(attacker.unit.id, now);
@@ -1258,10 +1319,13 @@ export class BattleScene {
           targetIds: [primaryTarget.unit.id],
           startedAt: now,
           durationMs: 360,
+          baseDurationMs: 360,
           hitMoments: [0.5],
           precise: preciseTargetId === primaryTarget.unit.id,
+          style: this.resolveMeleeStyle(event.effect, event.skillName, attacker.unit.classId),
         };
         this.meleeClashes.push(clash);
+        this.extendCounterHoldForReaction(attacker.unit.id, now + clash.durationMs + 120);
         if (clash.precise) {
           this.queueImpactBurst(primaryTarget.unit.id, now, {
             delayMs: 150,
@@ -1290,7 +1354,7 @@ export class BattleScene {
           targetId: target.unit.id,
           startedAt: now,
           durationMs: 280,
-          style: this.resolveProjectileStyle(event.effect, attacker.unit.classId),
+          style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
         });
       }
       this.lastProjectileAtByCaster.set(attacker.unit.id, now);
@@ -1300,7 +1364,9 @@ export class BattleScene {
   private pruneTransientAnimations(now: number) {
     this.meleeClashes = this.meleeClashes.filter((item) => now - item.startedAt <= item.durationMs);
     this.projectiles = this.projectiles.filter((item) => now - item.startedAt <= item.durationMs);
+    this.aoeAnimations = this.aoeAnimations.filter((item) => now - item.startedAt <= item.durationMs);
     this.impactBursts = this.impactBursts.filter((item) => now - (item.startedAt + item.delayMs) <= item.durationMs);
+    this.unitPulses = this.unitPulses.filter((item) => now - item.startedAt <= item.durationMs);
     for (const [unitId, entrance] of this.entranceAnimations.entries()) {
       if (now - (entrance.startedAt + entrance.delayMs) > entrance.durationMs) {
         this.entranceAnimations.delete(unitId);
@@ -1385,6 +1451,73 @@ export class BattleScene {
     });
   }
 
+  private queueAoeAnimation(
+    event: Extract<AnimationEvent, { type: "timeline_frame" }>,
+    targets: UnitLayout[],
+    startedAt: number,
+    style: ElementStyle,
+  ) {
+    const existing = this.aoeAnimations.find((item) => item.id === `${event.heroId}:${event.frameIndex}:${event.frame}:aoe`);
+    if (existing) {
+      return;
+    }
+    this.aoeAnimations.push({
+      id: `${event.heroId}:${event.frameIndex}:${event.frame}:aoe`,
+      targetIds: targets.map((target) => target.unit.id),
+      startedAt,
+      durationMs: this.looksLikeStormSkill(event.effect, event.skillName) ? 900 : 560,
+      style,
+      kind: this.resolveAoeKind(event.effect, event.skillName),
+    });
+  }
+
+  private queueUnitPulse(
+    unitId: string,
+    startedAt: number,
+    style: ElementStyle,
+    options?: {
+      durationMs?: number;
+      label?: string;
+    },
+  ) {
+    this.unitPulses.push({
+      unitId,
+      startedAt,
+      durationMs: options?.durationMs ?? 560,
+      style,
+      label: options?.label,
+    });
+  }
+
+  private queueCounterHold(reactorId: string, now: number) {
+    for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
+      const clash = this.meleeClashes[index];
+      if (clash.attackerId === reactorId || !clash.targetIds.includes(reactorId)) {
+        continue;
+      }
+      if (now - clash.startedAt > 700) {
+        break;
+      }
+      const holdUntil = now + 700;
+      clash.counterReactorId = reactorId;
+      clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
+      clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
+      return;
+    }
+  }
+
+  private extendCounterHoldForReaction(reactorId: string, holdUntil: number) {
+    for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
+      const clash = this.meleeClashes[index];
+      if (clash.counterReactorId !== reactorId) {
+        continue;
+      }
+      clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
+      clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
+      return;
+    }
+  }
+
   private getMeleeFocusPoint(attacker: UnitLayout, targets: UnitLayout[], clash: MeleeClash) {
     if (targets.length === 1) {
       const target = targets[0];
@@ -1434,6 +1567,25 @@ export class BattleScene {
     return 0;
   }
 
+  private getMeleeTravelDistanceForClash(clash: MeleeClash, elapsed: number, now: number, maxPush: number) {
+    const baseDurationMs = Math.max(1, clash.baseDurationMs || clash.durationMs);
+    const hitCount = clash.hitMoments.length;
+    const holdUntil = clash.holdUntil ?? 0;
+    if (holdUntil > 0) {
+      const contactProgress = hitCount >= 2 ? 0.28 : 0.46;
+      const contactElapsed = baseDurationMs * contactProgress;
+      if (elapsed < contactElapsed) {
+        return this.getMeleeTravelDistance(Math.min(1, elapsed / baseDurationMs), maxPush, hitCount);
+      }
+      if (now < holdUntil) {
+        return maxPush;
+      }
+      const releaseProgress = Math.max(0, Math.min(1, (now - holdUntil) / 220));
+      return maxPush * Math.pow(1 - releaseProgress, 2);
+    }
+    return this.getMeleeTravelDistance(Math.min(1, elapsed / baseDurationMs), maxPush, hitCount);
+  }
+
   private getHitEnvelope(progress: number, hitMoment: number, halfWidth: number) {
     const start = hitMoment - halfWidth;
     const end = hitMoment + halfWidth;
@@ -1445,8 +1597,8 @@ export class BattleScene {
 
   private isMeleeUnit(unit: UnitState) {
     // Web-only heuristic: Ranger (class 5) looks/feels ranged in this prototype,
-    // while healer (class 6) still uses a melee weapon basic attack.
-    return (unit.classId >= 1 && unit.classId <= 4) || unit.classId === 6;
+    // while healer (class 6) and barbarian (class 10) still read as melee.
+    return (unit.classId >= 1 && unit.classId <= 4) || unit.classId === 6 || unit.classId === 10;
   }
 
   private isDamageLikeOp(op: string) {
@@ -1467,8 +1619,115 @@ export class BattleScene {
     return /_execute\b|execute\b/.test(normalized);
   }
 
-  private resolveProjectileStyle(effect: string, classId: number): ProjectileStyle {
-    const normalized = String(effect ?? "").toLowerCase();
+  private looksLikeCounterPassive(skillName: string, triggerType: string) {
+    const normalized = `${String(skillName ?? "")} ${String(triggerType ?? "")}`.toLowerCase();
+    return /counter|反击/.test(normalized);
+  }
+
+  private looksLikeAoeSkill(effect: string, skillName: string) {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    return /80001004|80005003|80005004|80007004|80008003|80008004|80009004|fireball|nova|blizzard|thunderstorm|storm|poison_burst|poison burst|mist|flurry|blade flurry|poison mist|毒雾|爆毒|火球|冻结新星|暴风雪|雷暴/.test(normalized);
+  }
+
+  private looksLikeStormSkill(effect: string, skillName: string) {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    return /80008004|80009004|blizzard|thunderstorm|storm|暴风雪|雷暴/.test(normalized);
+  }
+
+  private looksLikeReviveSkill(effect: string, skillName: string) {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    return /revive|revivify/.test(normalized);
+  }
+
+  private resolveAoeKind(effect: string, skillName: string): AoeAnimation["kind"] {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    if (/80008004|80009004|blizzard|thunderstorm|storm|暴风雪|雷暴/.test(normalized)) {
+      return "storm";
+    }
+    if (/80005003|80005004|poison|mist|毒雾|爆毒/.test(normalized)) {
+      return "mist";
+    }
+    if (/80008003|nova|冻结新星/.test(normalized)) {
+      return "nova";
+    }
+    return "burst";
+  }
+
+  private resolveElementTheme(effect: string, skillName: string, classId: number): ElementTheme {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    if (/rage|berserk|barbarian|heavy/.test(normalized) || classId === 10) {
+      return "rage";
+    }
+    if (/lightning|thunder|chain|eldritch|warlock|雷|邪能/.test(normalized) || classId === 9) {
+      return "lightning";
+    }
+    if (/fire|scorch|flame|火|灼/.test(normalized) || classId === 7) {
+      return "fire";
+    }
+    if (/ice|frost|blizzard|cold|freez|冰|霜|冻结|暴风雪/.test(normalized) || classId === 8) {
+      return "ice";
+    }
+    if (/poison|toxic|venom|mist|毒/.test(normalized) || classId === 5) {
+      return "poison";
+    }
+    if (/holy|bless|heal|revive|revivify|lay on hands|paladin|cleric|治疗|复活|祝福|圣/.test(normalized) || classId === 4 || classId === 6) {
+      return "holy";
+    }
+    if (/monk|martial|ki|渗透|调息/.test(normalized) || classId === 3) {
+      return "martial";
+    }
+    if (/sneak|cunning|blade|rogue|assassinate/.test(normalized) || classId === 1) {
+      return "slash";
+    }
+    if (/pressure|fighter|warhammer|mace|strike/.test(normalized) || classId === 2) {
+      return "physical";
+    }
+    return "physical";
+  }
+
+  private resolveElementStyle(theme: ElementTheme): ElementStyle {
+    switch (theme) {
+      case "fire":
+        return { fill: "rgba(255, 105, 48, 0.24)", ring: "rgba(255, 184, 77, 0.9)", core: "#ff9f1c", trail: "rgba(255, 87, 34, 0.64)" };
+      case "ice":
+        return { fill: "rgba(76, 201, 240, 0.2)", ring: "rgba(202, 240, 248, 0.92)", core: "#caf0f8", trail: "rgba(144, 202, 249, 0.62)" };
+      case "poison":
+        return { fill: "rgba(46, 204, 113, 0.2)", ring: "rgba(128, 237, 153, 0.88)", core: "#b7efc5", trail: "rgba(46, 204, 113, 0.56)" };
+      case "holy":
+        return { fill: "rgba(255, 243, 176, 0.2)", ring: "rgba(255, 244, 179, 0.92)", core: "#fff3b0", trail: "rgba(255, 209, 102, 0.58)" };
+      case "lightning":
+        return { fill: "rgba(173, 216, 255, 0.18)", ring: "rgba(255, 242, 179, 0.92)", core: "#fff3b0", trail: "rgba(173, 216, 255, 0.78)" };
+      case "rage":
+      case "heavy":
+        return { fill: "rgba(239, 71, 111, 0.23)", ring: "rgba(255, 120, 117, 0.92)", core: "#ff6b6b", trail: "rgba(255, 82, 82, 0.58)" };
+      case "martial":
+        return { fill: "rgba(128, 237, 153, 0.18)", ring: "rgba(202, 255, 191, 0.82)", core: "#caffbf", trail: "rgba(128, 237, 153, 0.48)" };
+      case "slash":
+        return { fill: "rgba(255, 209, 102, 0.18)", ring: "rgba(255, 244, 179, 0.86)", core: "#ffe66d", trail: "rgba(255, 209, 102, 0.52)" };
+      case "physical":
+      default:
+        return { fill: "rgba(255, 209, 102, 0.2)", ring: "rgba(255, 244, 179, 0.84)", core: "#ffd166", trail: "rgba(255, 209, 102, 0.5)" };
+    }
+  }
+
+  private resolveMeleeStyle(effect: string, skillName: string, classId: number): MeleeStyle {
+    const theme = this.resolveElementTheme(effect, skillName, classId);
+    const style = this.resolveElementStyle(theme);
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    if (theme === "rage" || /heavy|cleave|barbarian/.test(normalized)) {
+      return { kind: "heavy", fill: style.fill, ring: style.ring, trail: style.trail };
+    }
+    if (theme === "slash" || /blade|sneak|cunning|poisoned/.test(normalized)) {
+      return { kind: "slash", fill: style.fill, ring: style.ring, trail: style.trail };
+    }
+    if (theme === "martial") {
+      return { kind: "martial", fill: style.fill, ring: style.ring, trail: style.trail };
+    }
+    return { kind: "crush", fill: style.fill, ring: style.ring, trail: style.trail };
+  }
+
+  private resolveProjectileStyle(effect: string, skillName: string, classId: number): ProjectileStyle {
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
 
     if (normalized.includes("lightning") || classId === 9) {
       return {
@@ -1544,6 +1803,195 @@ export class BattleScene {
       radius: 10,
       arcHeight: 28,
     };
+  }
+
+  private drawAoeAnimations(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
+    const layoutById = new Map(layouts.map((layout) => [layout.unit.id, layout]));
+    for (const aoe of this.aoeAnimations) {
+      const elapsed = now - aoe.startedAt;
+      if (elapsed < 0 || elapsed > aoe.durationMs) {
+        continue;
+      }
+
+      let targetCount = 0;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const targetId of aoe.targetIds) {
+        const target = layoutById.get(targetId);
+        if (!target) {
+          continue;
+        }
+        targetCount += 1;
+        minX = Math.min(minX, target.x);
+        maxX = Math.max(maxX, target.x + target.width);
+        minY = Math.min(minY, target.y);
+        maxY = Math.max(maxY, target.y + target.height);
+      }
+      if (targetCount === 0) {
+        continue;
+      }
+
+      const progress = Math.max(0, Math.min(1, elapsed / aoe.durationMs));
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const radiusX = Math.max(54, (maxX - minX) / 2 + 28) * (0.72 + progress * 0.34);
+      const radiusY = Math.max(34, (maxY - minY) / 2 + 20) * (0.72 + progress * 0.34);
+      const alpha = Math.max(0, 1 - progress);
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.8, alpha);
+      ctx.fillStyle = aoe.style.fill;
+      ctx.strokeStyle = aoe.style.ring;
+      ctx.lineWidth = aoe.kind === "storm" ? 2 : 3;
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      if (aoe.kind === "storm") {
+        ctx.strokeStyle = aoe.style.trail;
+        ctx.lineWidth = 2;
+        for (let index = 0; index < 5; index += 1) {
+          const x = centerX - radiusX * 0.58 + (radiusX * 1.16 * index) / 4;
+          const y = centerY - radiusY * 0.72 + ((progress * 26 + index * 7) % 24);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + (index % 2 === 0 ? 10 : -10), y + radiusY * 0.72);
+          ctx.stroke();
+        }
+      } else if (aoe.kind === "mist") {
+        ctx.globalAlpha = Math.min(0.45, alpha);
+        ctx.fillStyle = aoe.style.trail;
+        for (let index = 0; index < 4; index += 1) {
+          ctx.beginPath();
+          ctx.ellipse(centerX - radiusX * 0.42 + index * radiusX * 0.28, centerY + Math.sin(progress * Math.PI + index) * 8, radiusX * 0.22, radiusY * 0.24, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (aoe.kind === "nova") {
+        ctx.globalAlpha = Math.min(0.9, alpha);
+        ctx.strokeStyle = aoe.style.core;
+        ctx.lineWidth = 2;
+        for (let index = 0; index < 8; index += 1) {
+          const angle = (Math.PI * 2 * index) / 8;
+          ctx.beginPath();
+          ctx.moveTo(centerX + Math.cos(angle) * radiusX * 0.45, centerY + Math.sin(angle) * radiusY * 0.45);
+          ctx.lineTo(centerX + Math.cos(angle) * radiusX * 0.92, centerY + Math.sin(angle) * radiusY * 0.92);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawMeleeEffects(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
+    for (const clash of this.meleeClashes) {
+      const targets = clash.targetIds
+        .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
+        .filter((layout): layout is UnitLayout => Boolean(layout));
+      if (targets.length === 0) {
+        continue;
+      }
+
+      const elapsed = now - clash.startedAt;
+      if (elapsed < 0 || elapsed > clash.durationMs) {
+        continue;
+      }
+      const progress = elapsed / clash.durationMs;
+
+      for (const target of targets) {
+        const centerX = target.x + target.width / 2;
+        const centerY = target.y + target.height / 2;
+        for (const hitMoment of clash.hitMoments) {
+          const hitProgress = this.getHitEnvelope(progress, hitMoment, 0.2);
+          if (hitProgress <= 0) {
+            continue;
+          }
+          const alpha = Math.sin(hitProgress * Math.PI);
+          const size = Math.min(target.width, target.height) * (0.52 + hitProgress * 0.22);
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = clash.style.ring;
+          ctx.fillStyle = clash.style.fill;
+          ctx.lineWidth = clash.style.kind === "heavy" ? 5 : 3;
+          ctx.lineCap = "round";
+          ctx.shadowColor = clash.style.ring;
+          ctx.shadowBlur = clash.style.kind === "heavy" ? 18 : 10;
+
+          if (clash.style.kind === "slash" || clash.style.kind === "heavy") {
+            const tilt = clash.style.kind === "heavy" ? 0.35 : -0.55;
+            ctx.translate(centerX, centerY);
+            ctx.rotate(tilt);
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.56, -size * 0.26);
+            ctx.lineTo(size * 0.58, size * 0.22);
+            ctx.stroke();
+            if (clash.style.kind === "heavy") {
+              ctx.strokeStyle = clash.style.trail;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(-size * 0.25, size * 0.28);
+              ctx.lineTo(size * 0.2, size * 0.46);
+              ctx.stroke();
+            }
+          } else if (clash.style.kind === "martial") {
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, size * 0.48, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, size * 0.24, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, size * 0.46, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  private drawUnitPulses(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
+    for (const pulse of this.unitPulses) {
+      const layout = layouts.find((candidate) => candidate.unit.id === pulse.unitId);
+      if (!layout) {
+        continue;
+      }
+
+      const elapsed = now - pulse.startedAt;
+      if (elapsed < 0 || elapsed > pulse.durationMs) {
+        continue;
+      }
+
+      const progress = elapsed / pulse.durationMs;
+      const centerX = layout.x + layout.width / 2;
+      const centerY = layout.y + layout.height / 2;
+      const radius = Math.max(layout.width, layout.height) * (0.48 + progress * 0.28);
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - progress);
+      ctx.strokeStyle = pulse.style.ring;
+      ctx.fillStyle = pulse.style.fill;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = pulse.style.ring;
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radius, radius * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      if (pulse.label && progress < 0.65) {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = pulse.style.core;
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(pulse.label.slice(0, 8), centerX, layout.y - 8);
+      }
+      ctx.restore();
+    }
   }
 
   private drawProjectileAnimations(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
