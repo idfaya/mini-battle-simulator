@@ -306,12 +306,6 @@ local function getBattleWaveGroupIds(battle)
             waveGroupIds[#waveGroupIds + 1] = id
         end
     end
-    if #waveGroupIds == 0 then
-        local openingGroupId = tonumber(battle.openingGroupId)
-        if openingGroupId then
-            waveGroupIds[#waveGroupIds + 1] = openingGroupId
-        end
-    end
     return waveGroupIds
 end
 
@@ -322,9 +316,6 @@ local function flattenBattleEnemyIds(battle)
     end
     for _, groupId in ipairs(getBattleWaveGroupIds(battle)) do
         appendEnemyGroupIds(enemyIds, groupId)
-    end
-    for _, enemyId in ipairs(battle.reserveUnits or {}) do
-        appendEnemyId(enemyIds, enemyId)
     end
     return enemyIds
 end
@@ -358,13 +349,6 @@ local function buildReserveEnemies(battle, level, encounter, budgetAdjust)
                 enemyData.wpType = 0
                 reserve[#reserve + 1] = enemyData
             end
-        end
-    end
-    for _, enemyId in ipairs(battle.reserveUnits or {}) do
-        local enemyData = buildEnemyForBattle(enemyId, level, 0, encounter, budgetAdjust)
-        if enemyData then
-            enemyData.wpType = 0
-            reserve[#reserve + 1] = enemyData
         end
     end
     return reserve
@@ -424,9 +408,6 @@ local function buildBattleConfig(runState, battle, encounter)
         budget = encounter and encounter.budget or nil,
         level = tonumber(encounter and encounter.level) or tonumber(runState and runState.partyLevel) or 1,
     }
-    if #encounterForBudget.enemyIds == 0 then
-        encounterForBudget.enemyIds = encounter and encounter.enemyIds or {}
-    end
     local budgetAdjust = buildEncounterBudgetAdjust(runState, encounterForBudget, #teamLeft)
     runState.currentEncounterBudget = budgetAdjust.report
 
@@ -454,9 +435,6 @@ local function buildBattleConfig(runState, battle, encounter)
     local effectiveEnemyLevel = clamp(baseLevel, math.max(1, minEnemyLevel), partyLevel + 1 + kindOffset)
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
-    if #openingEnemyIds == 0 then
-        openingEnemyIds = encounter and encounter.enemyIds or {}
-    end
     for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
         local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, encounter, budgetAdjust)
@@ -642,6 +620,7 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
         won = won,
         earnedGold = earnedGold,
         result = snapshot.result,
+        battleNodeId = tonumber(runState.currentNodeId) or 0,
     }
     runState.currentBattleModifiers = nil
 

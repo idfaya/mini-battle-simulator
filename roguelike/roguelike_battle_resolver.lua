@@ -135,26 +135,6 @@ function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
         bossId = template.bossEnemyId or generated.bossEnemyId,
     }
 
-    encounter.enemyIds = {}
-    for _, groupId in ipairs(generated.waveGroupIds or {}) do
-        local group = RunEnemyGroup.GetGroup(groupId)
-        for _, enemyId in ipairs(group and group.front or {}) do
-            encounter.enemyIds[#encounter.enemyIds + 1] = enemyId
-        end
-        for _, enemyId in ipairs(group and group.back or {}) do
-            encounter.enemyIds[#encounter.enemyIds + 1] = enemyId
-        end
-        for _, enemyId in ipairs(group and group.elite or {}) do
-            encounter.enemyIds[#encounter.enemyIds + 1] = enemyId
-        end
-        if group and group.boss then
-            encounter.enemyIds[#encounter.enemyIds + 1] = group.boss
-        end
-        for _, enemyId in ipairs(group and group.guards or {}) do
-            encounter.enemyIds[#encounter.enemyIds + 1] = enemyId
-        end
-    end
-
     return battle, encounter
 end
 
