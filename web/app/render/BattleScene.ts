@@ -1160,7 +1160,7 @@ export class BattleScene {
           this.pendingExtraAttackUntilByHero.set(event.heroId, now + 900);
         }
         if (this.looksLikeCounterPassive(event.skillName, event.triggerType)) {
-          this.queueCounterHold(event.heroId, now);
+          this.queueCounterHold(event.heroId, layouts, now);
         }
         const passiveUnit = layouts.find((layout) => layout.unit.id === event.heroId);
         this.queueUnitPulse(event.heroId, now, this.resolveElementStyle(this.resolveElementTheme("", event.skillName, passiveUnit?.unit.classId ?? 0)), {
@@ -1489,14 +1489,30 @@ export class BattleScene {
     });
   }
 
-  private queueCounterHold(reactorId: string, now: number) {
+  private queueCounterHold(reactorId: string, layouts: UnitLayout[], now: number) {
+    const reactor = layouts.find((layout) => layout.unit.id === reactorId);
+    const reactorTeam = reactor?.unit.team ?? "";
     for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
       const clash = this.meleeClashes[index];
-      if (clash.attackerId === reactorId || !clash.targetIds.includes(reactorId)) {
+      if (clash.attackerId === reactorId) {
         continue;
       }
       if (now - clash.startedAt > 700) {
         break;
+      }
+      if (clash.targetIds.includes(reactorId)) {
+        const holdUntil = now + 700;
+        clash.counterReactorId = reactorId;
+        clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
+        clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
+        return;
+      }
+      if (!reactorTeam) {
+        continue;
+      }
+      const sharesTeam = clash.targetIds.some((targetId) => layouts.find((layout) => layout.unit.id === targetId)?.unit.team === reactorTeam);
+      if (!sharesTeam) {
+        continue;
       }
       const holdUntil = now + 700;
       clash.counterReactorId = reactorId;
