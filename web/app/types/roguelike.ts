@@ -103,6 +103,47 @@ export type RewardState = {
   options: RewardOption[];
 };
 
+export type BattleLevelUpStatChange = {
+  key: string;
+  label: string;
+  format: "flat" | "bp_pct";
+  delta: number;
+  before: number;
+  after: number;
+};
+
+export type BattleLevelUpFeatGain = {
+  featId: number;
+  name: string;
+  description: string;
+};
+
+export type BattleLevelUpSummary = {
+  rosterId: number;
+  unitId?: string;
+  heroName: string;
+  classId: number;
+  levelBefore: number;
+  levelAfter: number;
+  promotionStageBefore?: "low" | "mid" | "high";
+  promotionStageAfter?: "low" | "mid" | "high";
+  statChanges: BattleLevelUpStatChange[];
+  gainedFeats: BattleLevelUpFeatGain[];
+};
+
+export type LastBattleSummary = {
+  won: boolean;
+  earnedGold: number;
+  expReward?: number;
+  equipmentDropCount?: number;
+  battleNodeId?: number;
+  levelUps?: BattleLevelUpSummary[];
+  result?: {
+    winner?: string;
+    reason?: string;
+  };
+};
+
 export type EventOptionState = {
   id: number;
   label: string;
@@ -179,6 +220,7 @@ export type RunSnapshot = {
   shopState: ShopState | null;
   campState: CampState | null;
   rewardState: RewardState | null;
+  lastBattleSummary?: LastBattleSummary | null;
   battleSnapshot: BattleSnapshot | null;
   chapterResult: ChapterResult | null;
   debug: {

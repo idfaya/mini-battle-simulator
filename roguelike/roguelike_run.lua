@@ -10,6 +10,8 @@ local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEncounterGroup = require("config.roguelike.run_encounter_group")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
+local FeatConfig = require("config.feat_config")
+local FeatBuildConfig = require("config.feat_build_config")
 local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
 
 local RoguelikeRun = {}
@@ -102,6 +104,120 @@ local function getLevelForExp(exp, cap)
     return current
 end
 
+local LEVELUP_STAT_FIELDS = {
+    { key = "maxHp", label = "HP上限", format = "flat" },
+    { key = "atk", label = "攻击", format = "flat" },
+    { key = "def", label = "防御", format = "flat" },
+    { key = "ac", label = "护甲等级", format = "flat" },
+    { key = "hit", label = "命中", format = "flat" },
+    { key = "spellDC", label = "法术DC", format = "flat" },
+    { key = "saveFort", label = "强韧豁免", format = "flat" },
+    { key = "saveRef", label = "敏捷豁免", format = "flat" },
+    { key = "saveWill", label = "意志豁免", format = "flat" },
+    { key = "speed", label = "速度", format = "flat" },
+    { key = "critRate", label = "暴击率", format = "bp_pct" },
+    { key = "blockRate", label = "格挡率", format = "bp_pct" },
+    { key = "healBonus", label = "治疗加成", format = "bp_pct" },
+}
+
+local function cloneArray(input)
+    local result = {}
+    for index, value in ipairs(input or {}) do
+        result[index] = value
+    end
+    return result
+end
+
+local function resolveFeatEntry(featId)
+    return FeatBuildConfig.GetFeat(featId) or FeatConfig.GetFeat(featId)
+end
+
+local function captureUnitLevelState(unit)
+    if type(unit) ~= "table" then
+        return nil
+    end
+    local stats = {}
+    for _, field in ipairs(LEVELUP_STAT_FIELDS) do
+        stats[field.key] = tonumber(unit[field.key]) or 0
+    end
+    return {
+        rosterId = tonumber(unit.rosterId) or 0,
+        unitId = unit.unitId,
+        heroName = unit.name or "职业单位",
+        classId = tonumber(unit.classId) or 0,
+        level = tonumber(unit.level) or STARTER_LEVEL,
+        promotionStage = HeroData.NormalizePromotionStage(unit.promotionStage),
+        stats = stats,
+        feats = cloneArray(unit.feats),
+    }
+end
+
+local function buildLevelUpStatChanges(beforeState, afterUnit)
+    local changes = {}
+    local beforeStats = beforeState and beforeState.stats or {}
+    for _, field in ipairs(LEVELUP_STAT_FIELDS) do
+        local afterValue = tonumber(afterUnit and afterUnit[field.key]) or 0
+        local beforeValue = tonumber(beforeStats[field.key]) or 0
+        local delta = afterValue - beforeValue
+        if delta ~= 0 then
+            changes[#changes + 1] = {
+                key = field.key,
+                label = field.label,
+                format = field.format,
+                delta = delta,
+                before = beforeValue,
+                after = afterValue,
+            }
+        end
+    end
+    return changes
+end
+
+local function buildLevelUpFeatChanges(beforeState, afterUnit)
+    local result = {}
+    local ownedBefore = {}
+    for _, featId in ipairs(beforeState and beforeState.feats or {}) do
+        ownedBefore[tonumber(featId) or 0] = true
+    end
+    for _, featId in ipairs(afterUnit and afterUnit.feats or {}) do
+        local id = tonumber(featId) or 0
+        if id > 0 and not ownedBefore[id] then
+            local feat = resolveFeatEntry(id)
+            result[#result + 1] = {
+                featId = id,
+                name = feat and feat.name or ("Feat " .. tostring(id)),
+                description = feat and (feat.description or feat.code) or "",
+            }
+        end
+    end
+    return result
+end
+
+local function buildLevelUpDetail(beforeState, afterUnit)
+    if not beforeState or not afterUnit then
+        return nil
+    end
+    return {
+        rosterId = beforeState.rosterId,
+        unitId = beforeState.unitId,
+        heroName = beforeState.heroName,
+        classId = beforeState.classId,
+        levelBefore = tonumber(beforeState.level) or STARTER_LEVEL,
+        levelAfter = tonumber(afterUnit.level) or STARTER_LEVEL,
+        promotionStageBefore = beforeState.promotionStage,
+        promotionStageAfter = HeroData.NormalizePromotionStage(afterUnit.promotionStage),
+        statChanges = buildLevelUpStatChanges(beforeState, afterUnit),
+        gainedFeats = buildLevelUpFeatChanges(beforeState, afterUnit),
+    }
+end
+
+local function mergeLastBattleSummary(fields)
+    state.lastBattleSummary = state.lastBattleSummary or {}
+    for key, value in pairs(fields or {}) do
+        state.lastBattleSummary[key] = value
+    end
+end
+
 local function refreshUnitLevel(unit, newLevel, newExp)
     if not unit then
         return false
@@ -165,14 +281,19 @@ end
 
 local function grantBattleExp(battle)
     local expReward = math.max(0, math.floor(tonumber(battle and battle.expReward) or 0))
+    state.lastBattleExpReward = expReward
+    state.lastLevelUpUnits = {}
+    state.lastBattleLevelUpDetails = {}
     if expReward <= 0 then
         return {}
     end
     local leveledUnits = {}
+    local levelUpDetails = {}
     local recipients = 0
     for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
         if unit.teamState == "active" and unit.isDead ~= true and (tonumber(unit.currentHp) or 0) > 0 then
             local oldLevel = tonumber(unit.level) or STARTER_LEVEL
+            local beforeState = captureUnitLevelState(unit)
             local newExp = (tonumber(unit.exp) or 0) + expReward
             local newLevel = getLevelForExp(newExp, state.levelCap)
             refreshUnitLevel(unit, newLevel, newExp)
@@ -180,21 +301,25 @@ local function grantBattleExp(battle)
             recipients = recipients + 1
             if newLevel > oldLevel then
                 leveledUnits[#leveledUnits + 1] = unit.unitId or unit.name or tostring(unit.rosterId)
+                local detail = buildLevelUpDetail(beforeState, unit)
+                if detail then
+                    levelUpDetails[#levelUpDetails + 1] = detail
+                end
             end
         end
     end
     state.partyExp = (state.partyExp or 0) + expReward
-    state.lastBattleExpReward = expReward
     state.lastLevelUpUnits = leveledUnits
+    state.lastBattleLevelUpDetails = levelUpDetails
     if recipients <= 0 then
-        return leveledUnits
+        return levelUpDetails
     end
     if #leveledUnits > 0 then
         state.lastActionMessage = string.format("战斗胜利，获得 %d 经验，%d 名单位升级", expReward, #leveledUnits)
     else
         state.lastActionMessage = string.format("战斗胜利，获得 %d 经验", expReward)
     end
-    return leveledUnits
+    return levelUpDetails
 end
 
 local function grantRunExp(amount, sourceLabel)
@@ -296,6 +421,7 @@ local function resetRunState()
         battleEncounterId = nil,
         currentBattleConfig = nil,
         currentEncounterConfig = nil,
+        lastBattleSummary = nil,
         mapState = nil,
         seed = nil,
         rewardReturnMode = "map",
@@ -328,6 +454,7 @@ local function enterNode(nodeId)
     state.currentNodeId = nodeId
     state.visitedNodeIds[nodeId] = true
     state.lastActionMessage = ""
+    state.lastBattleSummary = nil
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
         local battle, encounter, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
@@ -568,9 +695,14 @@ function RoguelikeRun.Tick(deltaMs)
             local node = getNode(state.currentNodeId)
             local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.battleEncounterId))
             local encounter = state.currentEncounterConfig or RunEncounterGroup.GetEncounter(tonumber(state.battleEncounterId))
-            grantBattleExp(battle)
-            grantBattleLoot(node, encounter)
+            local levelUpDetails = grantBattleExp(battle)
+            local equipmentDropCount = grantBattleLoot(node, encounter)
             recalcRecommendedLevel()
+            mergeLastBattleSummary({
+                expReward = state.lastBattleExpReward or 0,
+                levelUps = levelUpDetails or {},
+                equipmentDropCount = equipmentDropCount or 0,
+            })
             if node and node.nodeType == "boss" then
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}

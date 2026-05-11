@@ -378,6 +378,8 @@ async function bootstrapRunMode(
     await host.queueRunBattleCommand({ type: "cast_ultimate", heroId });
   };
 
+  let runControls!: ReturnType<typeof createRunControls>;
+
   const exitBattleScene = () => {
     if (!deferredPostBattleSnapshot) {
       return;
@@ -386,6 +388,8 @@ async function bootstrapRunMode(
     deferredPostBattleSnapshot = null;
     holdBattleResultScene = false;
     syncRunSnapshot(nextSnapshot);
+    runControls.setScreen("info");
+    shell.dataset.screen = "run-info";
   };
 
   const battleControls = createControls(
@@ -408,7 +412,7 @@ async function bootstrapRunMode(
     { showSetupPanel: false },
   );
 
-  const runControls = createRunControls({
+  runControls = createRunControls({
     onChooseNode: async (nodeId) => {
       await host.choosePath(nodeId);
       syncRunSnapshot(await host.getRunSnapshot());

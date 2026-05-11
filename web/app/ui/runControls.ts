@@ -162,6 +162,108 @@ function createRosterInfo(member: RunSnapshot["team"][number]) {
   return wrapper;
 }
 
+function formatPromotionStage(stage?: "low" | "mid" | "high") {
+  if (stage === "high") {
+    return "高阶";
+  }
+  if (stage === "mid") {
+    return "中阶";
+  }
+  if (stage === "low") {
+    return "低阶";
+  }
+  return "-";
+}
+
+function formatBattleSummaryDelta(change: { delta: number; format: "flat" | "bp_pct" }) {
+  const sign = change.delta > 0 ? "+" : "";
+  if (change.format === "bp_pct") {
+    const pct = change.delta / 100;
+    const text = Number.isInteger(pct) ? String(pct) : pct.toFixed(2).replace(/\.?0+$/, "");
+    return `${sign}${text}%`;
+  }
+  return `${sign}${change.delta}`;
+}
+
+function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
+  const summary = snapshot.lastBattleSummary;
+  if (!summary || summary.won !== true) {
+    return;
+  }
+
+  const title = document.createElement("div");
+  title.className = "panel-title";
+  title.textContent = "战斗结算";
+  host.append(title);
+
+  const stats = document.createElement("div");
+  stats.className = "setup-grid";
+  stats.innerHTML = `
+    <div class="setup-field"><span>获得经验</span><strong>${summary.expReward ?? 0}</strong></div>
+    <div class="setup-field"><span>获得金币</span><strong>${summary.earnedGold ?? 0}</strong></div>
+    <div class="setup-field"><span>升级人数</span><strong>${summary.levelUps?.length ?? 0}</strong></div>
+    <div class="setup-field"><span>掉落装备</span><strong>${summary.equipmentDropCount ?? 0}</strong></div>
+  `;
+  host.append(stats);
+
+  if ((summary.levelUps?.length ?? 0) <= 0) {
+    const empty = document.createElement("div");
+    empty.className = "run-roster-meta";
+    empty.textContent = "本场没有单位升级";
+    host.append(empty);
+    return;
+  }
+
+  const levelTitle = document.createElement("div");
+  levelTitle.className = "panel-title";
+  levelTitle.textContent = "升级效果";
+  host.append(levelTitle);
+
+  const levelList = document.createElement("div");
+  levelList.className = "run-team-summary";
+  for (const levelUp of summary.levelUps ?? []) {
+    const card = document.createElement("div");
+    card.className = "run-team-card";
+
+    const header = document.createElement("div");
+    header.className = "run-roster-meta";
+    const promotionChanged = levelUp.promotionStageBefore !== levelUp.promotionStageAfter;
+    header.textContent = promotionChanged
+      ? `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter} · ${formatPromotionStage(levelUp.promotionStageBefore)} -> ${formatPromotionStage(levelUp.promotionStageAfter)}`
+      : `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`;
+    card.append(header);
+
+    const statText =
+      levelUp.statChanges.length > 0
+        ? `属性: ${levelUp.statChanges.map((change) => `${change.label} ${formatBattleSummaryDelta(change)}`).join(" / ")}`
+        : "属性: 无变化";
+    const statRow = document.createElement("div");
+    statRow.className = "run-build-summary";
+    statRow.textContent = statText;
+    card.append(statRow);
+
+    const featRow = document.createElement("div");
+    featRow.className = "run-build-summary";
+    featRow.textContent =
+      levelUp.gainedFeats.length > 0
+        ? `Feat: ${levelUp.gainedFeats.map((feat) => feat.name).join(" / ")}`
+        : "Feat: 无新增";
+    card.append(featRow);
+
+    if (levelUp.gainedFeats.length > 0) {
+      const descRow = document.createElement("div");
+      descRow.className = "run-roster-meta";
+      descRow.textContent = levelUp.gainedFeats
+        .map((feat) => `${feat.name}${feat.description ? ` - ${feat.description}` : ""}`)
+        .join(" / ");
+      card.append(descRow);
+    }
+
+    levelList.append(card);
+  }
+  host.append(levelList);
+}
+
 function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
@@ -283,6 +385,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     <div class="setup-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
   `;
   host.append(stats);
+
+  renderBattleSummary(host, snapshot);
 
   // 阶段性交互
   if (snapshot.phase === "event" && snapshot.eventState) {
@@ -418,7 +522,9 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
   } else if (snapshot.phase === "map") {
     const hint = document.createElement("div");
     hint.className = "run-roster-meta";
-    hint.textContent = "（地图推进中，请切到「地图」页选择下一个节点）";
+    hint.textContent = snapshot.lastBattleSummary?.won
+      ? "（结算已展示，切到「地图」页选择下一个节点）"
+      : "（地图推进中，请切到「地图」页选择下一个节点）";
     host.append(hint);
   }
 }
