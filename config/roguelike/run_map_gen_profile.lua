@@ -44,12 +44,12 @@ RunMapGenProfile.PROFILES = {
         battleRatioMin = 0.60,
         nodeCountByFloor = {
             [1] = { min = 1, max = 1 },
-            [2] = { min = 2, max = 2 },
-            [3] = { min = 2, max = 3 },
-            [4] = { min = 2, max = 3 },
-            [5] = { min = 2, max = 3 },
-            [6] = { min = 2, max = 2 },
-            [7] = { min = 1, max = 1 },
+            [2] = { min = 3, max = 3 },
+            [3] = { min = 3, max = 3 },
+            [4] = { min = 3, max = 3 },
+            [5] = { min = 3, max = 3 },
+            [6] = { min = 3, max = 3 },
+            [7] = { min = 3, max = 3 },
             [8] = { min = 1, max = 1 },
         },
         typeWeightsByFloor = {
