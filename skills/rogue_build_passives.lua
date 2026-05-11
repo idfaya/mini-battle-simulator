@@ -53,12 +53,22 @@ end
 local function evaluateSneakCondition(hero, target)
     local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
+    local targetRuntime = ensureRuntime(target)
     local forcedCharges = tonumber(runtime.rogueForcedSneakCharges) or 0
     if forcedCharges > 0 then
         return {
             qualified = true,
             viaForced = true,
             label = runtime.rogueForcedSneakLabel or "强制偷袭",
+        }
+    end
+    local heroId = tonumber(hero and (hero.instanceId or hero.id)) or 0
+    local targetFocusId = tonumber(targetRuntime.lastAttackVictimId) or 0
+    if targetFocusId > 0 and targetFocusId ~= heroId then
+        return {
+            qualified = true,
+            viaDistracted = true,
+            label = "目标被牵制",
         }
     end
     if BattleBuff.HasControlBuff(target) then
@@ -97,10 +107,6 @@ local function applySneakAttack(hero, target, condition)
         return 0
     end
     local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.rogueSneakAttackRound == round then
-        return 0
-    end
     local diceExpr = hasSkill(hero, IDS.rogue_sneak_attack_mastery) and "2d6" or "1d6"
     if hasSkill(hero, IDS.rogue_executioner) then
         diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
@@ -112,15 +118,14 @@ local function applySneakAttack(hero, target, condition)
         diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "2d6")
         runtime.rogueShadowDancePending = false
     end
-    runtime.rogueSneakAttackRound = round
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
         kind = "physical",
         damageKind = "direct",
         skillId = IDS.rogue_sneak_attack,
-        skillName = "偷袭",
+        skillName = "伏击",
     })
     if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发偷袭：对 %s 追加 %d 点伤害（%s）",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发伏击：对 %s 追加 %d 点伤害（%s）",
             hero.name or "Unknown",
             target.name or "目标",
             bonus,
@@ -183,19 +188,32 @@ function RogueBuildPassives.PerformExecuteStrike(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local runtime = ensureRuntime(hero)
     local isExecutionWindow = (tonumber(target.hp) or 0) <= math.max(1, math.floor((tonumber(target.maxHp) or 1) * 0.5))
+    runtime.rogueForcedSneakCharges = (tonumber(runtime.rogueForcedSneakCharges) or 0) + 1
+    runtime.rogueForcedSneakLabel = "影袭处决"
     local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
     local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
+    if damage > 0 then
+        damage = damage + applySneakAttack(hero, target, {
+            qualified = true,
+            viaForced = true,
+            label = "影袭处决",
+        })
+    end
+    if (tonumber(runtime.rogueForcedSneakCharges) or 0) > 0 then
+        consumeForcedSneak(runtime)
+    end
     if damage > 0 and isExecutionWindow then
         local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "2d6", {
             kind = "physical",
             damageKind = "direct",
             skillId = skill and skill.skillId or IDS.rogue_execute_strike,
-            skillName = skill and skill.name or "处决打击",
+            skillName = skill and skill.name or "影袭处决",
         })
         damage = damage + bonus
         if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动处决打击：对半血目标 %s 追加 %d 点伤害",
+            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动影袭处决：对半血目标 %s 追加 %d 点伤害",
                 hero.name or "Unknown",
                 target.name or "目标",
                 bonus))

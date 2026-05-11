@@ -79,6 +79,7 @@ async function chooseRewardIndex(page: import("playwright/test").Page) {
       900007: 4,
       900008: 4,
       900009: 4,
+      900010: 4,
     };
     const runtime = window as typeof window & {
       __miniBattleHost?: {
@@ -194,6 +195,18 @@ async function applyCampAction(page: import("playwright/test").Page, actionId: n
   }, actionId);
 }
 
+async function getRunPhase(page: import("playwright/test").Page) {
+  return page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        getRunSnapshot: () => Promise<{ phase?: string }>;
+      };
+    };
+    const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+    return snapshot?.phase ?? "";
+  });
+}
+
 test("roguelike act1 boots into map and can finish the chapter flow", async ({ page }) => {
   test.setTimeout(180000);
   const pageErrors: string[] = [];
@@ -216,7 +229,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator(".panel-title").filter({ hasText: "选择下一个节点" }).first()).toBeVisible();
   await page.getByRole("button", { name: "队伍" }).click();
   await expect(page.locator(".run-team-card").first()).toContainText("战士");
-  await expect(page.locator(".run-team-card").first()).toContainText("构筑: 战士训练 / 二次生命");
+  await expect(page.locator(".run-team-card").first()).toContainText("构筑: 战士训练 / 反击");
   await page.getByRole("button", { name: "地图" }).click();
 
   const chooseNodeAndEnter = async (preferredTypes: string[]) => {
@@ -267,26 +280,42 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   };
 
   const resolveRewardChain = async (titlePattern: RegExp) => {
+    const getSnapshotPhase = async () =>
+      page.evaluate(async () => {
+        const runtime = window as typeof window & {
+          __miniBattleHost?: {
+            getRunSnapshot: () => Promise<{ phase?: string }>;
+          };
+        };
+        const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+        return snapshot?.phase ?? "";
+      });
     for (let guard = 0; guard < 4; guard += 1) {
-      const status = (await page.locator(".hud-status").textContent()) ?? "";
-      if (status.includes("阶段: map") || status.includes("阶段: chapter_result")) {
+      const phase = await getSnapshotPhase();
+      if (phase === "map" || phase === "chapter_result" || phase === "failed") {
         return;
       }
       await expect
         .poll(async () => {
           await leaveBattleResultIfNeeded();
-          return (await page.locator(".hud-status").textContent()) ?? "";
+          return getSnapshotPhase();
         }, { timeout: 15000 })
-        .not.toContain("阶段: failed");
-      const currentStatus = (await page.locator(".hud-status").textContent()) ?? "";
-      if (currentStatus.includes("阶段: map") || currentStatus.includes("阶段: chapter_result")) {
+        .not.toBe("failed");
+      const currentPhase = await getSnapshotPhase();
+      if (currentPhase === "map" || currentPhase === "chapter_result" || currentPhase === "failed") {
         return;
       }
-      expect(currentStatus).toContain("阶段: reward");
+      expect(currentPhase).toBe("reward");
       await page.getByRole("button", { name: "信息" }).click();
-      await expect(page.locator(".run-info-panel .panel-title").filter({ hasText: titlePattern })).toBeVisible({
-        timeout: 15000,
-      });
+      const title = page.locator(".run-info-panel .panel-title").filter({ hasText: titlePattern });
+      const hasExpectedTitle = await title.isVisible({ timeout: 1500 }).catch(() => false);
+      if (!hasExpectedTitle) {
+        const status = (await page.locator(".hud-status").textContent()) ?? "";
+        if (status.includes("阶段: map") || status.includes("阶段: chapter_result")) {
+          return;
+        }
+        await expect(title).toBeVisible({ timeout: 15000 });
+      }
       const rewardIndex = await chooseRewardIndex(page);
       const rewardCard = page.locator(".run-info-panel .reward-card").nth(rewardIndex);
       if (await rewardCard.isVisible().catch(() => false)) {
@@ -298,99 +327,53 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
     }
   };
 
-  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
-  await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["recruit", "event"]);
-  await resolveRewardChain(/选择职业卡|选择招募/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
-  await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["camp", "shop", "event"]);
-  const campActionId = await chooseCampAction(page);
-  await applyCampAction(page, campActionId);
-
-  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
-  await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["battle_normal", "battle_elite", "boss"]);
-  await driveBattleUntilResolved(page);
-  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["recruit", "event", "shop"]);
-  await resolveRewardChain(/选择职业卡|选择招募/);
-  await expect.poll(async () => page.locator(".hud-status").textContent(), { timeout: 15000 }).toContain("阶段: map");
-
-  await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
-  await driveBattleUntilResolved(page, 80000);
-  await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-
-  for (let guard = 0; guard < 4; guard += 1) {
-    const phase = await page.evaluate(async () => {
-      const runtime = window as typeof window & {
-        __miniBattleHost?: {
-          getRunSnapshot: () => Promise<{ phase?: string }>;
-        };
-      };
-      const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
-      return snapshot?.phase ?? "";
-    });
+  for (let guard = 0; guard < 24; guard += 1) {
+    const phase = await getRunPhase(page);
     if (phase === "chapter_result" || phase === "failed") {
       break;
     }
-    if (phase !== "map") {
-      break;
+    if (phase === "map") {
+      await chooseNodeAndEnter(["recruit", "camp", "shop", "event", "battle_normal", "battle_elite", "boss"]);
+      continue;
     }
-    await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
-    await driveBattleUntilResolved(page, 80000);
-    await resolveRewardChain(/选择职业卡|选择升级|选择奖励/);
-  }
-  for (let guard = 0; guard < 6; guard += 1) {
-    const phase = await page.evaluate(async () => {
-      const runtime = window as typeof window & {
-        __miniBattleHost?: {
-          getRunSnapshot: () => Promise<{ phase?: string }>;
-        };
-      };
-      const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
-      return snapshot?.phase ?? "";
-    });
-    if (phase === "chapter_result" || phase === "failed") {
-      break;
+    if (phase === "battle") {
+      await driveBattleUntilResolved(page, 80000);
+      continue;
     }
     if (phase === "reward") {
       await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
       continue;
     }
-    if (phase === "map") {
-      await chooseNodeAndEnter(["boss", "battle_elite", "battle_normal"]);
-      await driveBattleUntilResolved(page, 80000);
-      await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+    if (phase === "camp") {
+      const campActionId = await chooseCampAction(page);
+      await applyCampAction(page, campActionId);
       continue;
     }
-    break;
-  }
-  await expect
-    .poll(async () => {
-      return page.evaluate(async () => {
+    if (phase === "shop") {
+      await page.evaluate(async () => {
+        await (window as typeof window & {
+          __miniBattleHost?: { shopLeave: () => Promise<{ accepted?: boolean }> };
+        }).__miniBattleHost?.shopLeave();
+      });
+      continue;
+    }
+    if (phase === "event") {
+      await page.evaluate(async () => {
         const runtime = window as typeof window & {
           __miniBattleHost?: {
-            getRunSnapshot: () => Promise<{ phase?: string }>;
+            getRunSnapshot: () => Promise<{ eventState?: { options?: Array<{ id?: number }> } }>;
+            chooseEventOption: (optionId: number) => Promise<{ accepted?: boolean }>;
           };
         };
         const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
-        return snapshot?.phase ?? "";
+        const optionId = snapshot?.eventState?.options?.[0]?.id ?? 1;
+        await runtime.__miniBattleHost?.chooseEventOption(optionId);
       });
-    }, { timeout: 20000 })
+      continue;
+    }
+  }
+  await expect
+    .poll(async () => getRunPhase(page), { timeout: 20000 })
     .toMatch(/chapter_result|failed/);
   await page.getByRole("button", { name: "信息" }).click();
   await expect(page.getByRole("button", { name: "重新开始第一章" })).toBeVisible({ timeout: 20000 });

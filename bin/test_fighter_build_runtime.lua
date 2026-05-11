@@ -149,7 +149,7 @@ do
     hero.passiveRuntime = {}
     passive:OnDefBeforeDmg({ data = { extraParam = { attacker = attacker, damage = 0 } } })
     assert_true(castCount == 0, "counter basic is queued until attacker animation resolves")
-    assert_true(passiveEvent and passiveEvent.skillName == "反击战法", "counter basic publishes passive trigger event when queued")
+    assert_true(passiveEvent and passiveEvent.skillName == "反击", "counter basic publishes passive trigger event when queued")
     assert_true(passiveEvent and passiveEvent.triggerType == "登记反击", "counter basic passive event marks queued reaction")
     FighterBuildPassives.ResolveQueuedReactions(attacker)
     assert_true(castCount == 1, "counter basic resolves after attacker action finishes")
@@ -377,7 +377,7 @@ do
     local healed = 0
 
     hero.level = 3
-    hero.hp = 40
+    hero.hp = 20
     hero.maxHp = 100
     hero.passiveRuntime = {}
 
@@ -390,54 +390,38 @@ do
     end
     BattleEvent.AddListener("PassiveSkillTriggered", listener)
 
-    passive:OnDefAfterDmg({ data = { extraParam = { attacker = new_unit(9602, "Enemy"), damage = 12 } } })
+    local ctx = { data = { extraParam = { attacker = new_unit(9602, "Enemy"), damage = 25 } } }
+    passive:OnDefBeforeDmg(ctx)
 
     BattleEvent.RemoveListener("PassiveSkillTriggered", listener)
     BattleDmgHeal.ApplyHeal = oldApplyHeal
 
-    assert_true(healed > 0, "second wind applies healing when hp falls to half or lower")
+    assert_true(healed == 30, "indomitable wind heals to half max hp before lethal damage")
+    assert_true(ctx.data.extraParam.damage == 0, "indomitable wind prevents lethal damage")
     assert_true(passiveEvent ~= nil, "second wind publishes passive trigger event")
-    assert_true(passiveEvent.skillName == "二次生命", "second wind passive trigger event exposes skill name")
+    assert_true(passiveEvent.skillName == "不屈之风", "indomitable wind passive trigger event exposes skill name")
 end
 
 do
     local hero = new_unit(9611, "SecondWindMasterHero")
     local passive = FighterBuildPassives.CreateSecondWindPassive({ src = hero })
-    local mastery = FighterBuildPassives.CreateSecondWindMasteryPassive({ src = hero })
     local oldApplyHeal = BattleDmgHeal.ApplyHeal
-    local Dice = require("core.dice")
-    local oldDiceRoll = Dice.Roll
     local healed = 0
-    local rolls = {}
 
     hero.level = 5
-    hero.hp = 40
+    hero.hp = 10
     hero.maxHp = 100
     hero.passiveRuntime = {}
 
-    mastery:OnBattleBegin()
-
-    Dice.Roll = function(expr)
-        rolls[#rolls + 1] = expr
-        if expr == "1d10+5" then
-            return 9
-        end
-        if expr == "1d10" then
-            return 4
-        end
-        return oldDiceRoll(expr)
-    end
     BattleDmgHeal.ApplyHeal = function(_, amount)
         healed = amount
     end
 
-    passive:OnDefAfterDmg({ data = { extraParam = { attacker = new_unit(9612, "Enemy"), damage = 12 } } })
+    passive:OnDefBeforeDmg({ data = { extraParam = { attacker = new_unit(9612, "Enemy"), damage = 12 } } })
 
     BattleDmgHeal.ApplyHeal = oldApplyHeal
-    Dice.Roll = oldDiceRoll
 
-    assert_true(healed == 13, "second wind mastery adds an extra 1d10 heal on top of second wind")
-    assert_true(#rolls == 2 and rolls[1] == "1d10+5" and rolls[2] == "1d10", "second wind mastery rolls base heal and bonus heal separately")
+    assert_true(healed == 40, "indomitable wind restores hero to half max hp")
 end
 
 log("Fighter build runtime tests passed.")

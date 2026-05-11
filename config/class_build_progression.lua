@@ -15,17 +15,15 @@ local PROGRESSION = {
                 FeatBuildConfig.Ids.rogue_sneak_attack,
             },
         },
-        [2] = {
-            choiceGroup = "rogue_lv2_basic",
-        },
         [3] = {
-            choiceGroup = "rogue_lv3_subclass",
-        },
-        [4] = {
-            choiceGroup = "rogue_lv4_mastery",
+            fixed = {
+                FeatBuildConfig.Ids.rogue_execute_strike,
+            },
         },
         [5] = {
-            choiceGroup = "rogue_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.rogue_executioner,
+            },
         },
     },
     [6] = {
@@ -100,26 +98,40 @@ local PROGRESSION = {
             },
         },
     },
+    [10] = {
+        [1] = {
+            fixed = {
+                FeatBuildConfig.Ids.barbarian_training,
+                FeatBuildConfig.Ids.barbarian_rage,
+            },
+        },
+        [3] = {
+            fixed = {
+                FeatBuildConfig.Ids.barbarian_heavy_strike,
+            },
+        },
+        [5] = {
+            fixed = {
+                FeatBuildConfig.Ids.barbarian_berserk,
+            },
+        },
+    },
     [2] = {
         [1] = {
             fixed = {
                 FeatBuildConfig.Ids.fighter_training,
-                FeatBuildConfig.Ids.fighter_second_wind,
-            },
-        },
-        [2] = {
-            fixed = {
-                FeatBuildConfig.Ids.fighter_extra_attack,
+                FeatBuildConfig.Ids.fighter_counter_basic,
             },
         },
         [3] = {
-            choiceGroup = "fighter_lv3_active",
-        },
-        [4] = {
-            choiceGroup = "fighter_lv4_passive",
+            fixed = {
+                FeatBuildConfig.Ids.fighter_guard,
+            },
         },
         [5] = {
-            choiceGroup = "fighter_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.fighter_second_wind,
+            },
         },
     },
     [3] = {
@@ -129,37 +141,33 @@ local PROGRESSION = {
                 FeatBuildConfig.Ids.monk_martial_arts,
             },
         },
-        [2] = {
-            choiceGroup = "monk_lv2_basic",
-        },
         [3] = {
-            choiceGroup = "monk_lv3_subclass",
-        },
-        [4] = {
-            choiceGroup = "monk_lv4_mastery",
+            fixed = {
+                FeatBuildConfig.Ids.monk_open_hand,
+            },
         },
         [5] = {
-            choiceGroup = "monk_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.monk_harmonize,
+            },
         },
     },
     [4] = {
         [1] = {
             fixed = {
                 FeatBuildConfig.Ids.paladin_training,
-                FeatBuildConfig.Ids.paladin_divine_smite,
+                FeatBuildConfig.Ids.paladin_shelter_prayer,
             },
         },
-        [2] = {
-            choiceGroup = "paladin_lv2_prayer",
-        },
         [3] = {
-            choiceGroup = "paladin_lv3_oath",
-        },
-        [4] = {
-            choiceGroup = "paladin_lv4_mastery",
+            fixed = {
+                FeatBuildConfig.Ids.paladin_vengeance_smite,
+            },
         },
         [5] = {
-            choiceGroup = "paladin_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.paladin_lay_on_hands,
+            },
         },
     },
     [5] = {
@@ -169,17 +177,15 @@ local PROGRESSION = {
                 FeatBuildConfig.Ids.ranger_hunter_mark,
             },
         },
-        [2] = {
-            choiceGroup = "ranger_lv2_basic",
-        },
         [3] = {
-            choiceGroup = "ranger_lv3_subclass",
-        },
-        [4] = {
-            choiceGroup = "ranger_lv4_mastery",
+            fixed = {
+                FeatBuildConfig.Ids.ranger_hunter_shot,
+            },
         },
         [5] = {
-            choiceGroup = "ranger_lv5_capstone",
+            fixed = {
+                FeatBuildConfig.Ids.ranger_hunter_mastery,
+            },
         },
     },
 }

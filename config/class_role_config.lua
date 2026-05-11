@@ -30,6 +30,7 @@ ClassRoleConfig.ROLES = {
     [7] = { streamId = "Sorcerer", name = "术士(火)", icon = "🔥", isMelee = false, preferRow = "back" },
     [8] = { streamId = "Wizard", name = "法师(冰)", icon = "❄️", isMelee = false, preferRow = "back" },
     [9] = { streamId = "Warlock", name = "邪术师(雷)", icon = "🌩️", isMelee = false, preferRow = "back" },
+    [10] = { streamId = "Barbarian", name = "野蛮人", icon = "🪓", isMelee = true, preferRow = "front" },
 }
 
 function ClassRoleConfig.GetRole(classId)

@@ -55,33 +55,22 @@ local function new_unit(id, name)
 end
 
 do
-    local build = HeroBuild.CompileBuild(1, 5, {
-        FeatBuildConfig.Ids.rogue_shadow_step,
-        FeatBuildConfig.Ids.rogue_swashbuckler_thrust,
-        FeatBuildConfig.Ids.rogue_subclass_mastery,
-        FeatBuildConfig.Ids.rogue_survivor,
-    })
+    local build = HeroBuild.CompileBuild(1, 5, {})
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_basic_attack), "Rogue Lv5 grants basic attack")
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_swashbuckler_thrust), "Rogue Lv5 grants swashbuckler thrust")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_sneak_attack), "Rogue Lv5 keeps sneak attack")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_execute_strike), "Rogue Lv5 grants shadow execution")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_sneak_attack), "Rogue Lv5 keeps ambush")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_uncanny_dodge), "Rogue Lv5 grants uncanny dodge")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_survivor), "Rogue Lv5 grants survivor capstone")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_basic_attack), "Rogue runtime exports basic attack")
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_swashbuckler_thrust), "Rogue runtime exports subclass action")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_execute_strike), "Rogue runtime exports mid-tier action")
 end
 
 do
     local rogueHero = HeroData.ConvertToHeroData(900006, 5, 1, {
-        buildFeatIds = {
-            FeatBuildConfig.Ids.rogue_shadow_step,
-            FeatBuildConfig.Ids.rogue_swashbuckler_thrust,
-            FeatBuildConfig.Ids.rogue_subclass_mastery,
-            FeatBuildConfig.Ids.rogue_survivor,
-        },
+        buildFeatIds = {},
     })
     assert_true(rogueHero and rogueHero.buildState ~= nil, "HeroData generic build compile works for rogue")
-    assert_true(hasSkill(rogueHero.skillsConfig, SkillRuntimeConfig.Ids.rogue_swashbuckler_thrust), "HeroData exports rogue subclass action")
+    assert_true(hasSkill(rogueHero.skillsConfig, SkillRuntimeConfig.Ids.rogue_execute_strike), "HeroData exports rogue mid-tier action")
 end
 
 do

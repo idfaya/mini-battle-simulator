@@ -88,8 +88,13 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
     if not isAlive(hero) or not isAlive(target) then
         return
     end
-    local marks = getMarkTable(target)
+    local BattleFormation = require("modules.battle_formation")
     local sourceId = tonumber(hero.instanceId or hero.id) or 0
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local marks = getMarkTable(enemy)
+        marks[sourceId] = nil
+    end
+    local marks = getMarkTable(target)
     marks[sourceId] = {
         expireRound = getRound() + 1,
     }
@@ -197,11 +202,11 @@ function RangerBuildPassives.PerformHunterShot(hero, target, skill)
             kind = "physical",
             damageKind = "direct",
             skillId = skill and skill.skillId or IDS.ranger_hunter_shot,
-            skillName = skill and skill.name or "猎杀箭",
+            skillName = skill and skill.name or "狩猎指引",
         })
         damage = damage + bonus
         if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动猎杀箭：对印记目标 %s 追加 %d 点伤害",
+            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动狩猎指引：对印记目标 %s 追加 %d 点伤害",
                 hero.name or "Unknown",
                 target.name or "目标",
                 bonus))

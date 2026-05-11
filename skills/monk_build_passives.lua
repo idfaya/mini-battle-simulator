@@ -65,28 +65,21 @@ local function triggerMartialArts(hero, target, opts)
     end
     opts = opts or {}
     local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.monkMartialArtsRound == round and opts.force ~= true then
+    if runtime.__inMonkCombo and opts.force ~= true then
         return 0
     end
-    if opts.force ~= true then
-        runtime.monkMartialArtsRound = round
+    if opts.force ~= true and math.random(10000) > 5000 then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 连击未触发",
+            hero.name or "Unknown"))
+        return 0
     end
-    local diceExpr = "1d4"
-    if hasSkill(hero, IDS.monk_flurry_training) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    if hasSkill(hero, IDS.monk_combo_mastery) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    local damage = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
-        kind = "physical",
-        damageKind = "direct",
-        skillId = IDS.monk_martial_arts,
-        skillName = "武艺",
-    })
+    runtime.__inMonkCombo = true
+    local BattleSkill = require("modules.battle_skill")
+    local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
+    runtime.__inMonkCombo = false
+    local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
     if damage > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发武艺：对 %s 追加 %d 点打击伤害",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发连击：对 %s 追加 %d 点打击伤害",
             hero.name or "Unknown",
             target.name or "目标",
             damage))

@@ -1,6 +1,7 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
+local SkillRuntimeConfig = require("config.skill_runtime_config")
 local Ability5e = require("modules.ability_5e")
 
 ---@class EnemyAbilityScores
@@ -122,6 +123,46 @@ local function BuildConfiguredSkillIds(enemy)
     end
 
     return result
+end
+
+local function resolveSkillTypeFromConfigs(skillId, skillConfig)
+    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+    if runtimeEntry then
+        local runtimeData = runtimeEntry.runtimeData or {}
+        if runtimeData.skillType ~= nil then
+            return runtimeData.skillType, runtimeData.skillCost or 0
+        end
+        if runtimeEntry.runtimeKind == "passive" then
+            return E_SKILL_TYPE_PASSIVE, 0
+        end
+        if runtimeEntry.runtimeKind == "active" then
+            return E_SKILL_TYPE_ACTIVE, 0
+        end
+    end
+
+    local resolvedType = E_SKILL_TYPE_PASSIVE
+    local resolvedCost = 0
+    if skillConfig then
+        if skillConfig.Type == 1 then
+            resolvedType = E_SKILL_TYPE_NORMAL
+        elseif skillConfig.Type == 2 then
+            resolvedType = E_SKILL_TYPE_ACTIVE
+        elseif skillConfig.Type == 3 then
+            resolvedType = E_SKILL_TYPE_LIMITED
+            resolvedCost = skillConfig.Cost or 100
+        elseif skillConfig.Type == 4 then
+            resolvedType = E_SKILL_TYPE_PASSIVE
+        end
+    elseif skillId >= 800010000 and skillId < 800013000 then
+        local lastDigit = (math.floor(skillId / 100)) % 10
+        if lastDigit == 1 or lastDigit == 2 then
+            resolvedType = E_SKILL_TYPE_NORMAL
+        elseif lastDigit >= 3 then
+            resolvedType = E_SKILL_TYPE_LIMITED
+            resolvedCost = 100
+        end
+    end
+    return resolvedType, resolvedCost
 end
 
 local ENEMY_LEVEL_MAX = 20
@@ -497,30 +538,8 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         processedSkillIds[skillId] = true
         table.insert(skillList, skillId)
 
-        local skillType = E_SKILL_TYPE_PASSIVE
-        local skillCost = 0
         local skillConfig = SkillConfig.GetSkillConfig(skillId)
-
-        if skillConfig then
-            if skillConfig.Type == 1 then
-                skillType = E_SKILL_TYPE_NORMAL
-            elseif skillConfig.Type == 2 then
-                skillType = E_SKILL_TYPE_ACTIVE
-            elseif skillConfig.Type == 3 then
-                skillType = E_SKILL_TYPE_ULTIMATE
-                skillCost = skillConfig.Cost or 100
-            elseif skillConfig.Type == 4 then
-                skillType = E_SKILL_TYPE_PASSIVE
-            end
-        elseif skillId >= 800010000 and skillId < 800013000 then
-            local lastDigit = (math.floor(skillId / 100)) % 10
-            if lastDigit == 1 or lastDigit == 2 then
-                skillType = E_SKILL_TYPE_NORMAL
-            elseif lastDigit >= 3 then
-                skillType = E_SKILL_TYPE_ULTIMATE
-                skillCost = 100
-            end
-        end
+        local skillType, skillCost = resolveSkillTypeFromConfigs(skillId, skillConfig)
 
         table.insert(skillsConfig, {
             skillId = skillId,

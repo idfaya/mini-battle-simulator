@@ -1016,6 +1016,19 @@ function SkillEffectRegistry.RegisterBuiltins()
             targets = { target },
         }
     end)
+
+    SkillEffectRegistry.Register("barbarian_heavy_strike", function(ctx, frameCopy)
+        local BarbarianBuildPassives = require("skills.barbarian_build_passives")
+        local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
+        if not target or target.isDead then
+            return nil
+        end
+        local damage = BarbarianBuildPassives.PerformHeavyStrike(ctx.hero, target, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = { target },
+        }
+    end)
 end
 
 return SkillEffectRegistry

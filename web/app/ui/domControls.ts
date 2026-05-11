@@ -72,6 +72,7 @@ export function createControls(
 
   const buttonsHost = document.createElement("div");
   buttonsHost.className = "ult-panel";
+  buttonsHost.style.display = "none";
 
   const resultActionsHost = document.createElement("div");
   resultActionsHost.className = "result-actions";
@@ -258,6 +259,7 @@ export function renderControls(
     }>;
   },
 ) {
+  void onUltCast;
   const allUnits = [...(snapshot?.leftTeam ?? []), ...(snapshot?.rightTeam ?? [])];
   const activeUnit =
     snapshot?.activeHeroId != null
@@ -289,32 +291,6 @@ export function renderControls(
   controls.status.textContent = lines.join("\n");
 
   controls.buttonsHost.replaceChildren();
-  for (const [index, unit] of (snapshot?.leftTeam ?? []).entries()) {
-    const button = document.createElement("button");
-    button.className = "ult-button";
-    button.type = "button";
-    button.disabled = !unit.ultimateReady || !unit.isAlive;
-    const slot = getFormationSlot(unit, index);
-    button.style.gridRow = String(slot.row);
-    button.style.gridColumn = String(slot.column);
-    const name = document.createElement("span");
-    name.className = "ult-button-name";
-    name.textContent = unit.name;
-    const skill = document.createElement("span");
-    skill.className = "ult-button-skill";
-    skill.textContent = `${unit.ultimateSkillName} · ${unit.ultimateCharges}/${unit.ultimateChargesMax}`;
-    button.replaceChildren(name, skill);
-    if (unit.ultimateReady) {
-      button.classList.add("ready");
-    }
-    button.onpointerdown = (event) => {
-      event.preventDefault();
-      if (!button.disabled) {
-        onUltCast(unit.id);
-      }
-    };
-    controls.buttonsHost.append(button);
-  }
 
   // Battle result actions live in a dedicated host (not mixed with ult buttons).
   const extraActions = options?.extraActions ?? [];

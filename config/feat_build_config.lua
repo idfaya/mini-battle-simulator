@@ -117,6 +117,10 @@ FeatBuildConfig.Ids = {
     warlock_static_mark = FeatId(901, 2),
     warlock_thunder_chain = FeatId(903, 1),
     warlock_thunderstorm = FeatId(905, 1),
+    barbarian_training = FeatId(1001, 1),
+    barbarian_rage = FeatId(1001, 2),
+    barbarian_heavy_strike = FeatId(1003, 1),
+    barbarian_berserk = FeatId(1005, 1),
 }
 
 ---@type table<integer, BuildFeatDef>
@@ -136,8 +140,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_sneak_attack,
         classId = 1,
         level = 1,
-        name = "偷袭",
-        description = "每回合 1 次，基础武器攻击命中后，若目标被控制，或目标位于前排且我方前排存活单位 >= 2，则额外造成 1d6 伤害。",
+        name = "伏击",
+        description = "核心被动。当目标当前目标不是你，或目标本回合已被其他友军攻击过时，你的基础攻击造成额外伤害。",
         effects = {
             { type = "grant_skill", skill = 80001101 },
         },
@@ -179,8 +183,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_execute_strike,
         classId = 1,
         level = 3,
-        name = "刺客",
-        description = "获得处决打击，CD2，对当前目标发动 1 次基础武器攻击；若目标生命不高于一半，额外造成 2d6 伤害。",
+        name = "影袭处决",
+        description = "获得影袭处决，CD3，对后排或低血量目标发动 1 次攻击；该次攻击视为满足伏击条件。",
         choiceGroup = "rogue_lv3_subclass",
         effects = {
             { type = "grant_skill", skill = 80001013 },
@@ -245,12 +249,11 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_executioner,
         classId = 1,
         level = 5,
-        name = "处刑者",
-        description = "获得 Uncanny Dodge；每回合第一次被攻击命中时，受到伤害减半；你的偷袭额外再造成 1d6 伤害。",
+        name = "直觉闪避",
+        description = "高阶被动。每回合第一次被攻击命中时，受到伤害减半。",
         choiceGroup = "rogue_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80001108 },
-            { type = "grant_skill", skill = 80001109 },
         },
     },
     [FeatBuildConfig.Ids.rogue_shadow_dancer] = {
@@ -551,6 +554,47 @@ local FEATS = {
             { type = "grant_skill", skill = 80009004 },
         },
     },
+    -- Barbarian (classId = 10)
+    [FeatBuildConfig.Ids.barbarian_training] = {
+        id = FeatBuildConfig.Ids.barbarian_training,
+        classId = 10,
+        level = 1,
+        name = "野蛮人训练",
+        description = "获得狂斧劈砍，对单体敌人进行一次标准近战武器攻击。",
+        effects = {
+            { type = "grant_skill", skill = 80010011 },
+        },
+    },
+    [FeatBuildConfig.Ids.barbarian_rage] = {
+        id = FeatBuildConfig.Ids.barbarian_rage,
+        classId = 10,
+        level = 1,
+        name = "狂怒",
+        description = "核心被动。每次主动攻击或受到攻击后积累 1 层狂怒，上限 5 层。",
+        effects = {
+            { type = "grant_skill", skill = 80010101 },
+        },
+    },
+    [FeatBuildConfig.Ids.barbarian_heavy_strike] = {
+        id = FeatBuildConfig.Ids.barbarian_heavy_strike,
+        classId = 10,
+        level = 3,
+        name = "重击",
+        description = "获得重击，CD2，对当前目标发动一次强化近战攻击：命中 -2，伤害提高，且 19-20 暴击。",
+        effects = {
+            { type = "grant_skill", skill = 80010013 },
+        },
+    },
+    [FeatBuildConfig.Ids.barbarian_berserk] = {
+        id = FeatBuildConfig.Ids.barbarian_berserk,
+        classId = 10,
+        level = 5,
+        name = "狂暴",
+        description = "高阶被动。狂怒达到 5 层时自动触发短时狂暴，持续 2 回合；期间受到伤害减少 2，重击额外造成 1d6 伤害；每场战斗 1 次。",
+        effects = {
+            { type = "grant_skill", skill = 80010103 },
+        },
+    },
     [FeatBuildConfig.Ids.fighter_training] = {
         id = FeatBuildConfig.Ids.fighter_training,
         classId = 2,
@@ -564,9 +608,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.fighter_second_wind] = {
         id = FeatBuildConfig.Ids.fighter_second_wind,
         classId = 2,
-        level = 1,
-        name = "二次生命",
-        description = "每场战斗 1 次，生命首次降到一半及以下时回复 1d10 + 等级 生命。",
+        level = 5,
+        name = "不屈之风",
+        description = "高阶被动。生命值将降到 0 时不会死亡，而是清除状态并恢复 50% 最大生命值；每场战斗 1 次。",
         effects = {
             { type = "grant_skill", skill = 80002101 },
         },
@@ -618,9 +662,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.fighter_counter_basic] = {
         id = FeatBuildConfig.Ids.fighter_counter_basic,
         classId = 2,
-        level = 4,
-        name = "反击战法",
-        description = "每回合 1 次，被近战攻击指定为目标时，在该次攻击结算后对攻击者发动 1 次基础武器攻击。",
+        level = 1,
+        name = "反击",
+        description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
         choiceGroup = "fighter_lv4_passive",
         effects = {
             { type = "grant_skill", skill = 80002104 },
@@ -663,8 +707,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.monk_martial_arts,
         classId = 3,
         level = 1,
-        name = "武艺",
-        description = "每回合第一次徒手打击命中后，再追加 1 次 1d4 武艺打击。",
+        name = "连击",
+        description = "核心被动。徒手打击命中后有 50% 概率对同一目标追加 1 次额外攻击；额外攻击不会再次触发连击。",
         effects = {
             { type = "grant_skill", skill = 80003101 },
         },
@@ -730,9 +774,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.monk_harmonize] = {
         id = FeatBuildConfig.Ids.monk_harmonize,
         classId = 3,
-        level = 3,
-        name = "调和流",
-        description = "获得调息自愈，CD3，回复 2d8+4 生命，并清除 1 个控制或负面状态。",
+        level = 5,
+        name = "明镜止水",
+        description = "获得明镜止水，CD3，恢复生命、清除控制或负面状态，并提供短时救场能力。",
         choiceGroup = "monk_lv3_subclass",
         effects = {
             { type = "grant_skill", skill = 80003015 },
@@ -822,7 +866,7 @@ local FEATS = {
         classId = 4,
         level = 1,
         name = "神圣惩击",
-        description = "每回合第一次基础武器攻击命中后，额外造成 1d6 光耀伤害。",
+        description = "旧版核心惩击。当前三阶主线不默认授予，保留给后续分支扩展。",
         effects = {
             { type = "grant_skill", skill = 80004101 },
         },
@@ -841,9 +885,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.paladin_shelter_prayer] = {
         id = FeatBuildConfig.Ids.paladin_shelter_prayer,
         classId = 4,
-        level = 2,
-        name = "庇护祷法",
-        description = "每回合第一次有友军被攻击命中时，该次伤害减少 1d6。",
+        level = 1,
+        name = "神圣庇护",
+        description = "核心被动。每回合第一次受到伤害时获得减伤；对邪恶单位攻击造成的伤害可作为后续特攻扩展。",
         choiceGroup = "paladin_lv2_prayer",
         effects = {
             { type = "grant_skill", skill = 80004102 },
@@ -863,9 +907,9 @@ local FEATS = {
     [FeatBuildConfig.Ids.paladin_lay_on_hands] = {
         id = FeatBuildConfig.Ids.paladin_lay_on_hands,
         classId = 4,
-        level = 3,
-        name = "奉献誓约",
-        description = "获得圣疗之手，CD3，为生命最低友军回复 2d8+4 生命，并清除 1 个控制或负面状态。",
+        level = 5,
+        name = "圣手",
+        description = "获得圣手，CD3，为生命最低友军回复生命，清除 1 个控制或负面状态，并承担高阶救场定位。",
         choiceGroup = "paladin_lv3_oath",
         effects = {
             { type = "grant_skill", skill = 80004013 },
@@ -875,8 +919,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.paladin_vengeance_smite,
         classId = 4,
         level = 3,
-        name = "复仇誓约",
-        description = "获得复仇裁击，CD3，对当前目标发动 1 次基础武器攻击；若命中，额外造成 2d8 光耀伤害。",
+        name = "破邪斩",
+        description = "获得破邪斩，CD3，对当前目标发动 1 次神圣斩击；若命中，追加神圣伤害并驱散目标 1 个正面增益。",
         choiceGroup = "paladin_lv3_oath",
         effects = {
             { type = "grant_skill", skill = 80004014 },
@@ -1020,8 +1064,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.ranger_hunter_shot,
         classId = 5,
         level = 3,
-        name = "猎人",
-        description = "获得猎杀箭，CD3，对当前目标发动 1 次远程基础攻击；若目标带有印记，额外造成 2d6 伤害。",
+        name = "狩猎指引",
+        description = "获得狩猎指引，CD3，始终作用于当前标记目标；对标记目标发动远程攻击并造成追猎收益。",
         choiceGroup = "ranger_lv3_subclass",
         effects = {
             { type = "grant_skill", skill = 80005013 },
@@ -1086,8 +1130,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.ranger_hunter_mastery,
         classId = 5,
         level = 5,
-        name = "逐猎宗师",
-        description = "获得额外攻击；当你执行一次远程基础攻击行动时，对同一目标追加第二击；若第一击命中印记目标，则额外造成 1d6 伤害。",
+        name = "箭雨",
+        description = "获得箭雨。对标记目标进行多段追猎：远程基础攻击追加第二击，若第一击命中印记目标则额外造成 1d6 伤害。",
         choiceGroup = "ranger_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80005109 },

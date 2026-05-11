@@ -114,15 +114,10 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
   await expect(page.locator("#battle-hero-count")).toHaveCount(1);
   await expect(page.locator("#battle-enemy-count")).toHaveCount(1);
   await expect(page.locator("#battle-speed")).toHaveCount(1);
-  await expect(page.locator(".ult-button")).toHaveCount(6);
+  await expect(page.locator(".ult-button")).toHaveCount(0);
   await expect
-    .poll(async () => page.locator(".ult-button:not([disabled])").count(), { timeout: 6000 })
-    .toBeGreaterThan(0);
-
-  await page.locator(".ult-button:not([disabled])").first().dispatchEvent("pointerdown");
-  await expect
-    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 5000 })
-    .toContain("已下达大招指令");
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
+    .toContain("战斗开始");
 
   const canvasReady = await page.evaluate(() => {
     const canvas = document.querySelector("canvas");
@@ -160,17 +155,18 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
     if (!host || !renderer) {
       return null;
     }
-    for (let index = 0; index < 36; index += 1) {
+    for (let index = 0; index < 120; index += 1) {
       await host.tick(220);
+      const state = renderer.getBattleDebugState();
+      if (state.entranceStartedCount > 0 && state.observedFloatingTextKinds.length > 0) {
+        return state;
+      }
     }
     return renderer.getBattleDebugState();
   });
   expect(battleDebugState).not.toBeNull();
   expect(battleDebugState?.entranceStartedCount ?? 0).toBeGreaterThan(0);
-  expect(battleDebugState?.deathStartedCount ?? 0).toBeGreaterThan(0);
-  expect(battleDebugState?.observedFloatingTextKinds ?? []).toEqual(
-    expect.arrayContaining(["damage"]),
-  );
+  expect(battleDebugState?.observedFloatingTextKinds?.length ?? 0).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 

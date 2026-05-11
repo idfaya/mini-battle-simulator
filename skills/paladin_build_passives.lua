@@ -40,7 +40,10 @@ local function eachFriendlyPaladin(defender, callback)
     end
     local BattleFormation = require("modules.battle_formation")
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
-        if isAlive(ally) and hasSkill(ally, IDS.paladin_divine_smite) then
+        if isAlive(ally)
+            and (hasSkill(ally, IDS.paladin_shelter_prayer)
+                or hasSkill(ally, IDS.paladin_guardian_aura)
+                or hasSkill(ally, IDS.paladin_divine_smite)) then
             local result = callback(ally, ensureRuntime(ally))
             if result ~= nil then
                 return result
@@ -120,7 +123,7 @@ function PaladinBuildPassives.ApplyPaladinProtections(defender, extraParam)
             defenderRuntime.paladinShelterRound = round
             local reduction = BuildPassiveCommon.RollDice("1d6")
             damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - reduction)
-            BuildPassiveCommon.PublishPassiveTriggered(ally, "庇护祷法", "团队减伤", string.format("为 %s 抵消 %d 伤害", defender.name or "目标", reduction))
+            BuildPassiveCommon.PublishPassiveTriggered(ally, "神圣庇护", "团队减伤", string.format("为 %s 抵消 %d 伤害", defender.name or "目标", reduction))
         end
         return nil
     end)
@@ -162,10 +165,21 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
             kind = "physical",
             damageKind = "direct",
             skillId = skill and skill.skillId or IDS.paladin_vengeance_smite,
-            skillName = skill and skill.name or "复仇裁击",
+            skillName = skill and skill.name or "破邪斩",
         })
         damage = damage + bonus
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 发动复仇裁击：对 %s 追加 %d 点光耀伤害",
+        local BattleBuff = require("modules.battle_buff")
+        local buffs = BattleBuff.GetAllBuffs(target) or {}
+        for i = #buffs, 1, -1 do
+            if tonumber(buffs[i].mainType) == E_BUFF_MAIN_TYPE.GOOD then
+                table.remove(buffs, i)
+                BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：驱散 %s 的 1 个正面状态",
+                    hero.name or "Unknown",
+                    target.name or "目标"))
+                break
+            end
+        end
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：对 %s 追加 %d 点光耀伤害",
             hero.name or "Unknown",
             target.name or "目标",
             bonus))

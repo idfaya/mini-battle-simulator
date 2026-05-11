@@ -24,10 +24,10 @@ async function readLogs(page: import("playwright/test").Page) {
   return page.locator(".battle-log li").allTextContents();
 }
 
-test("rogue smoke shows sneak attack loop and subclass action", async ({ page }) => {
+test("barbarian smoke shows rage, heavy strike and berserk pipeline", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900006&enemies=910006&level=5&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900010&enemies=910003,910003,910003&level=5&seed=101001");
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
@@ -35,14 +35,14 @@ test("rogue smoke shows sneak attack loop and subclass action", async ({ page })
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("影袭处决");
+    .toContain("重击");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("触发伏击：");
+    .toContain("狂怒");
 
   const logs = await readLogs(page);
-  expect(logs.some((line) => line.includes("使用 影袭处决"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("触发伏击："))).toBeTruthy();
+  expect(logs.some((line) => line.includes("重击"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("触发被动 狂怒"))).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

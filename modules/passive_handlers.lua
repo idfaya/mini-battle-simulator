@@ -9,6 +9,7 @@ local FighterBuildPassives = require("skills.fighter_build_passives")
 local MonkBuildPassives = require("skills.monk_build_passives")
 local PaladinBuildPassives = require("skills.paladin_build_passives")
 local RangerBuildPassives = require("skills.ranger_build_passives")
+local BarbarianBuildPassives = require("skills.barbarian_build_passives")
 
 local PassiveHandlers = {}
 
@@ -389,6 +390,8 @@ PassiveHandlers.factories = {
     [80005101] = RangerBuildPassives.CreateHunterMarkPassive,
     [80005104] = RangerBuildPassives.CreateWildEndurancePassive,
     [80005108] = RangerBuildPassives.CreateExtraAttackPassive,
+    [80010101] = BarbarianBuildPassives.CreateRagePassive,
+    [80010103] = BarbarianBuildPassives.CreateBerserkPassive,
 }
 
 function PassiveHandlers.Create(classId, context)

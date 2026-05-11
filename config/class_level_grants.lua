@@ -63,6 +63,11 @@ local GRANTS = {
             statBonus = { spellDC = 1, critRate = 200 },
         },
     },
+    [10] = {
+        [5] = {
+            statBonus = { maxHp = 8, saveFort = 1 },
+        },
+    },
 }
 
 ---@param classId integer

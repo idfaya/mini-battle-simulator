@@ -43,87 +43,45 @@ local function hasRewardFeat(options, featIds)
     return false
 end
 
+local function hasRewardClass(options, classId)
+    for _, option in ipairs(options or {}) do
+        if tonumber(option.classId) == tonumber(classId) then
+            return true
+        end
+    end
+    return false
+end
+
 do
     local build = HeroBuild.CompileBuild(2, 1, {})
     assert_true(#build.featIds == 2, "Fighter Lv1 auto-grants 2 fixed feats")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "Fighter Lv1 has basic attack")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "Fighter Lv1 has second wind")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv1 has counter")
 end
 
 do
     local build = HeroBuild.CompileBuild(2, 2, {})
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv2 fixed feat grants extra attack")
+    assert_true(not hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv2 does not grant extra attack in three-tier build")
     assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "Fighter Lv2 does not grant action surge yet")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 3, {
-        FeatBuildConfig.Ids.fighter_action_surge,
-    })
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "Fighter Lv3 action surge route grants action surge")
-    assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 action surge route does not also grant guard stance")
+    local build = HeroBuild.CompileBuild(2, 3, {})
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 fixed tier grants guard stance")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv3 fixed tier grants guard counter passive")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv3 keeps counter passive")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 4, {
-        FeatBuildConfig.Ids.fighter_guard,
-        FeatBuildConfig.Ids.fighter_counter_basic,
-    })
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv4 guard route grants guard stance")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv4 guard route grants guard counter passive")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv4 guard route can add counter basic passive")
-end
-
-do
-    local build = HeroBuild.CompileBuild(2, 5, {
-        FeatBuildConfig.Ids.fighter_action_surge,
-        FeatBuildConfig.Ids.fighter_precise_attack,
-        FeatBuildConfig.Ids.fighter_sweeping_attack,
-    })
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "Fighter Lv5 offensive route keeps action surge active")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv5 offensive route grants extra attack")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_sweeping_attack), "Fighter Lv5 offensive route grants sweeping attack")
+    local build = HeroBuild.CompileBuild(2, 5, {})
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 keeps guard stance")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "Fighter Lv5 grants indomitable wind")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "SkillRuntime exports basic attack config")
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "SkillRuntime exports action surge config")
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_sweeping_attack), "SkillRuntime exports sweeping attack passive config")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "SkillRuntime exports indomitable wind passive config")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 5, {
-        FeatBuildConfig.Ids.fighter_guard,
-        FeatBuildConfig.Ids.fighter_counter_basic,
-        FeatBuildConfig.Ids.fighter_second_wind_mastery,
-    })
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 defensive route keeps guard stance active")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv5 defensive route keeps counter basic passive")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind_mastery), "Fighter Lv5 defensive route grants second wind mastery")
-end
-
-do
-    local level2Entry = ClassBuildProgression.GetLevelEntry(2, 2)
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
-        levelCap = 20,
-        teamRoster = {
-            {
-                rosterId = 1,
-                heroId = 900005,
-                classId = 2,
-                name = "Fighter",
-                level = 1,
-                currentHp = 100,
-                isDead = false,
-                feats = {},
-            },
-        },
-    })
-    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter fixed node")
-    assert_true(hasRewardFeat(rewardState.options, level2Entry and level2Entry.fixed or {}),
-        "Roguelike level-up includes fighter fixed feat cards")
-end
-
-do
-    local level3Entry = ClassBuildProgression.GetLevelEntry(2, 3)
     local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
         levelCap = 20,
         teamRoster = {
@@ -139,14 +97,30 @@ do
             },
         },
     })
-    local expectedChoices = FeatBuildConfig.GetFeatsByLevel(2, 3, level3Entry and level3Entry.choiceGroup or nil)
-    local expectedChoiceIds = {}
-    for _, def in ipairs(expectedChoices) do
-        expectedChoiceIds[#expectedChoiceIds + 1] = def.id
-    end
-    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter choice node")
-    assert_true(hasRewardFeat(rewardState.options, expectedChoiceIds),
-        "Roguelike level-up includes fighter choice-group feat cards")
+    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter fixed node")
+    assert_true(hasRewardClass(rewardState.options, 2),
+        "Roguelike level-up includes fighter class card")
+end
+
+do
+    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
+        levelCap = 20,
+        teamRoster = {
+            {
+                rosterId = 1,
+                heroId = 900005,
+                classId = 2,
+                name = "Fighter",
+                level = 4,
+                currentHp = 100,
+                isDead = false,
+                feats = ClassBuildProgression.CollectFixedFeatIds(2, 4),
+            },
+        },
+    })
+    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter high-tier fixed node")
+    assert_true(hasRewardClass(rewardState.options, 2),
+        "Roguelike level-up includes fighter high-tier class card")
 end
 
 do

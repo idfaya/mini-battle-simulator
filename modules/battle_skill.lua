@@ -648,7 +648,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     
     -- 确定技能类型
     local finalSkillType = mergedConfig.skillType or E_SKILL_TYPE_NORMAL
-    if skillType then
+    if skillType and mergedConfig.skillType == nil then
         -- Type 1=普通攻击, 2=主动技能, 3=大招, 4=被动
         if skillType == 1 then
             finalSkillType = E_SKILL_TYPE_NORMAL

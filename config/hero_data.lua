@@ -1,6 +1,7 @@
 local JSON = require("utils.json")
 local SkillConfig = require("config.skill_config")
 local ClassRoleConfig = require("config.class_role_config")
+local SkillRuntimeConfig = require("config.skill_runtime_config")
 local ClassBuildProgression = require("config.class_build_progression")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
@@ -172,6 +173,19 @@ local HERO_ROLE_TEMPLATES = {
         saveWill = { 3, 4, 5, 6, 7 },
         critRate = 800, blockRate = 300,
     },
+    [10] = { -- Barbarian 狂怒前线
+        hp = { 72, 92, 112, 132, 152 },
+        atk = { 8, 9, 10, 12, 13 },
+        def = { 3, 4, 5, 6, 7 },
+        speed = { 92, 93, 94, 95, 96 },
+        ac = { 15, 16, 17, 18, 19 },
+        hit = { 5, 6, 7, 8, 9 },
+        spellDC = { 10, 10, 11, 11, 12 },
+        saveFort = { 6, 7, 8, 9, 10 },
+        saveRef = { 2, 3, 4, 5, 6 },
+        saveWill = { 3, 4, 5, 6, 7 },
+        critRate = 600, blockRate = 800,
+    },
     default = {
         hp = { 50, 62, 74, 86, 98 },
         atk = { 6, 7, 8, 9, 10 },
@@ -200,10 +214,41 @@ local HERO_ABILITY_SCORES = {
     [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Cleric
     [900008] = { str = 10, dex = 20, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
     [900009] = { str = 20, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
+    [900010] = { str = 20, dex = 12, con = 18, int = 8,  wis = 12, cha = 10 }, -- Barbarian
 }
 
 local function clampAbility(score)
     return Ability5e.ClampAbility(score)
+end
+
+local function resolveSkillTypeFromConfigs(skillId, skillConfig)
+    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+    if runtimeEntry then
+        local runtimeData = runtimeEntry.runtimeData or {}
+        if runtimeData.skillType ~= nil then
+            return runtimeData.skillType, runtimeData.skillCost or 0
+        end
+        if runtimeEntry.runtimeKind == "passive" then
+            return E_SKILL_TYPE_PASSIVE, 0
+        end
+        if runtimeEntry.runtimeKind == "active" then
+            return E_SKILL_TYPE_ACTIVE, 0
+        end
+    end
+
+    local resolvedType = E_SKILL_TYPE_PASSIVE
+    local resolvedCost = 0
+    if skillConfig then
+        if skillConfig.Type == 1 then
+            resolvedType = E_SKILL_TYPE_NORMAL
+        elseif skillConfig.Type == 2 then
+            resolvedType = E_SKILL_TYPE_ACTIVE
+        elseif skillConfig.Type == 3 then
+            resolvedType = E_SKILL_TYPE_LIMITED
+            resolvedCost = skillConfig.Cost or 100
+        end
+    end
+    return resolvedType, resolvedCost
 end
 
 local function getAbilityMod(score)
@@ -731,14 +776,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                 end
 
                 if skillConfig and canUnlock then
-                    local skillType = E_SKILL_TYPE_PASSIVE
-                    if skillConfig.Type == 1 then
-                        skillType = E_SKILL_TYPE_NORMAL
-                    elseif skillConfig.Type == 2 then
-                        skillType = E_SKILL_TYPE_ACTIVE
-                    elseif skillConfig.Type == 3 then
-                        skillType = E_SKILL_TYPE_ULTIMATE
-                    end
+                    local skillType, skillCost = resolveSkillTypeFromConfigs(actualSkillId, skillConfig)
 
                     table.insert(skillsConfig, {
                         skillId = actualSkillId,
@@ -746,7 +784,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                         skillType = skillType,
                         level = internalLevel,
                         name = skillConfig.Name or ("Skill_" .. actualSkillId),
-                        skillCost = skillConfig.Cost or 0,
+                        skillCost = skillCost,
                     })
                 elseif canUnlock then
                     table.insert(skillsConfig, {
@@ -775,14 +813,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                 if not already then
                     local config = SkillConfig.GetSkillConfig(skillId)
                     if config then
-                        local skillType = E_SKILL_TYPE_PASSIVE
-                        if config.Type == 1 then
-                            skillType = E_SKILL_TYPE_NORMAL
-                        elseif config.Type == 2 then
-                            skillType = E_SKILL_TYPE_ACTIVE
-                        elseif config.Type == 3 then
-                            skillType = E_SKILL_TYPE_ULTIMATE
-                        end
+                        local skillType, skillCost = resolveSkillTypeFromConfigs(skillId, config)
                         local internalLevel = 1
                         if type(overrideLevels) == "table" and overrideLevels[skillId] then
                             internalLevel = math.max(1, tonumber(overrideLevels[skillId]) or 1)
@@ -793,7 +824,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                             skillType = skillType,
                             level = internalLevel,
                             name = config.Name or ("Skill_" .. skillId),
-                            skillCost = config.Cost or 0,
+                            skillCost = skillCost,
                         })
                     end
                 end

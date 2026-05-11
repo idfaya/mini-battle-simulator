@@ -18,8 +18,8 @@ function BattleHeroFactory.CreateHero(heroId, level, star)
         for _, cfg in ipairs(heroData.skillsConfig) do
             if cfg.skillType == nil then
                 cfg.skillType = E_SKILL_TYPE_NORMAL
-            elseif cfg.skillType == 3 or cfg.skillCost and cfg.skillCost > 0 then
-                cfg.skillType = E_SKILL_TYPE_ULTIMATE
+            elseif cfg.skillType == E_SKILL_TYPE_ULTIMATE then
+                cfg.skillType = E_SKILL_TYPE_LIMITED
             end
         end
     end

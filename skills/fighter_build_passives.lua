@@ -510,31 +510,43 @@ end
 function FighterBuildPassives.CreateSecondWindPassive(context)
     local self = buildContextState(context)
 
-    function self:OnDefAfterDmg(ctx)
+    function self:OnDefBeforeDmg(ctx)
         local hero = self.context and self.context.src or nil
         if not isAlive(hero) then
+            return
+        end
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local incomingDamage = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
+        if incomingDamage <= 0 then
             return
         end
         local runtime = ensureRuntime(hero)
         if runtime.secondWindUsed then
             return
         end
-        if (tonumber(hero.hp) or 0) <= 0 then
+        local maxHp = tonumber(hero.maxHp) or 1
+        if maxHp <= 0 then
             return
         end
-        if (tonumber(hero.maxHp) or 1) <= 0 then
-            return
-        end
-        if (tonumber(hero.hp) or 0) > math.floor((tonumber(hero.maxHp) or 1) * 0.5) then
+        local currentHp = tonumber(hero.hp) or 0
+        if currentHp > incomingDamage then
             return
         end
         runtime.secondWindUsed = true
-        local heal = rollDice(string.format("1d10+%d", math.max(1, tonumber(hero.level) or 1)))
-        if runtime.fighterSecondWindMastery then
-            heal = heal + rollDice("1d10")
+        local heal = math.max(1, math.floor(maxHp * 0.5))
+        extraParam.damage = 0
+        applyHeal(hero, math.max(0, heal - currentHp))
+        local BattleBuff = require("modules.battle_buff")
+        for _, buff in ipairs(BattleBuff.GetAllBuffs(hero) or {}) do
+            buff.__removeByIndomitableWind = true
         end
-        applyHeal(hero, heal)
-        publishPassiveTriggered(hero, "二次生命", "濒危回复", string.format("恢复%d生命", heal))
+        local buffs = BattleBuff.GetAllBuffs(hero) or {}
+        for i = #buffs, 1, -1 do
+            if buffs[i].__removeByIndomitableWind then
+                table.remove(buffs, i)
+            end
+        end
+        publishPassiveTriggered(hero, "不屈之风", "濒死稳固", string.format("保留%d生命并清除状态", heal))
     end
 
     return self
@@ -563,20 +575,17 @@ function FighterBuildPassives.CreateCounterBasicPassive(context)
         end
         local runtime = ensureRuntime(hero)
         local attackerRuntime = ensureRuntime(attacker)
-        local round = getRound()
-        if runtime.counterBasicRound == round or runtime.__inCounterBasic or attackerRuntime.__inCounterBasic then
+        if runtime.__inCounterBasic or attackerRuntime.__inCounterBasic then
             return
         end
-        runtime.counterBasicRound = round
         runtime.pendingCounterBasicTarget = attacker
-        publishPassiveTriggered(hero, "反击战法", "登记反击", string.format("将对 %s 发动反击", attacker.name or "目标"))
+        publishPassiveTriggered(hero, "反击", "登记反击", string.format("将对 %s 发动反击", attacker.name or "目标"))
         -- #region debug-point A:queue-counter
         publishCounterDebug("queue_counter_basic", {
             reactorId = hero.instanceId or hero.id,
             reactorName = hero.name,
             attackerId = attacker.instanceId or attacker.id,
             attackerName = attacker.name,
-            round = round,
             attackerInCounter = attackerRuntime.__inCounterBasic == true,
         })
         -- #endregion
