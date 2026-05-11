@@ -112,7 +112,7 @@ RunShopGoods.GOODS = {
         rarity = "common",
         payload = {
             effectType = "team_heal_pct",
-            value = 0.10,
+            value = 0.30,
         },
     },
     [101007] = {
