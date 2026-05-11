@@ -381,3 +381,4 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
+
