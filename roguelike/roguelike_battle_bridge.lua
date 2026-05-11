@@ -17,22 +17,6 @@ local RoguelikeBattleBridge = {}
 
 local FRONT_POSITIONS = { 2, 1, 3 }
 local BACK_POSITIONS = { 5, 4, 6 }
-local DEFAULT_PLAYER_SCALE = {
-    hp = 1.0,
-    atk = 1.0,
-    def = 1.0,
-    energyBonus = 0,
-}
-
-local DEFAULT_ENEMY_SCALE = {
-    hp = 1.0,
-    atk = 1.0,
-    def = 1.0,
-    hitDelta = 0,
-    spellDCDelta = 0,
-    saveDelta = 0,
-}
-
 local function roundInt(value)
     local v = tonumber(value) or 0
     if v >= 0 then
@@ -92,9 +76,8 @@ local function applyClassFlat(modMap, classIds, value)
 end
 
 local function buildBattleModifiers(runState, encounter)
-    local playerScale = encounter.playerScale or DEFAULT_PLAYER_SCALE
     local result = {
-        extraEnergy = tonumber(playerScale.energyBonus) or 0,
+        extraEnergy = 0,
         atkPctByClass = {},
         hpPctByClass = {},
         defPctByClass = {},
@@ -187,10 +170,9 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     end
     -- #endregion
 
-    local playerScale = encounter.playerScale or DEFAULT_PLAYER_SCALE
-    local hpScale = (tonumber(playerScale.hp) or 1.0) + (modifiers.hpPctByClass[rosterHero.classId] or 0)
-    local atkScale = (tonumber(playerScale.atk) or 1.0) + (modifiers.atkPctByClass[rosterHero.classId] or 0)
-    local defScale = (tonumber(playerScale.def) or 1.0) + (modifiers.defPctByClass[rosterHero.classId] or 0)
+    local hpScale = 1.0 + (modifiers.hpPctByClass[rosterHero.classId] or 0)
+    local atkScale = 1.0 + (modifiers.atkPctByClass[rosterHero.classId] or 0)
+    local defScale = 1.0 + (modifiers.defPctByClass[rosterHero.classId] or 0)
     local oldMaxHp = heroData.maxHp or 1
 
     heroData.maxHp = math.max(1, math.floor(oldMaxHp * hpScale))
@@ -267,17 +249,16 @@ local function buildEnemyForBattle(enemyId, level, wpType, encounter, budgetAdju
     if not enemyData then
         return nil
     end
-    local enemyScale = encounter.enemyScale or DEFAULT_ENEMY_SCALE
     local budgetHp = tonumber(budgetAdjust and budgetAdjust.hpMul) or 1.0
     local budgetAtk = tonumber(budgetAdjust and budgetAdjust.atkMul) or 1.0
     local budgetDef = tonumber(budgetAdjust and budgetAdjust.defMul) or 1.0
-    enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * (tonumber(enemyScale.hp) or 1.0) * budgetHp))
+    enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * budgetHp))
     enemyData.maxHp = enemyData.hp
-    enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * (tonumber(enemyScale.atk) or 1.0) * budgetAtk))
-    enemyData.def = math.max(0, math.floor((enemyData.def or 0) * (tonumber(enemyScale.def) or 1.0) * budgetDef))
-    enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(enemyScale.hitDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
-    enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(enemyScale.spellDCDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
-    local sd = (tonumber(enemyScale.saveDelta) or 0) + (tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0)
+    enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * budgetAtk))
+    enemyData.def = math.max(0, math.floor((enemyData.def or 0) * budgetDef))
+    enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
+    enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
+    local sd = tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0
     if sd ~= 0 then
         enemyData.saveFort = math.max(0, math.floor((enemyData.saveFort or 0) + sd))
         enemyData.saveRef = math.max(0, math.floor((enemyData.saveRef or 0) + sd))

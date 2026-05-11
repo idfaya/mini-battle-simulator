@@ -341,7 +341,7 @@ async function bootstrapRunMode(
   const runSeed = Number(params.get("seed")) || 10102;
   // Disable auto-ultimate by default in roguelike mode to keep early battles stable and reproducible.
   let autoUltimate = false;
-  let battleSpeed = 4;
+  let battleSpeed = 1;
   let runSnapshot: RunSnapshot | null = null;
   let deferredPostBattleSnapshot: RunSnapshot | null = null;
   let holdBattleResultScene = false;
@@ -402,7 +402,7 @@ async function bootstrapRunMode(
       heroCount: 3,
       enemyCount: 3,
       initialEnergy: 40,
-      speed: 4,
+      speed: 1,
     },
     autoUltimate,
     { showSetupPanel: false },

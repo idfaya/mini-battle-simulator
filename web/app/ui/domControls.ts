@@ -161,7 +161,6 @@ export function createControls(
     { value: 1, label: "x1" },
     { value: 2, label: "x2" },
     { value: 3, label: "x3" },
-    { value: 4, label: "x4" },
   ]);
 
   const readSetup = (): BattleSetup => ({
@@ -169,7 +168,7 @@ export function createControls(
     heroCount: Math.max(1, Math.min(6, Number(heroCountField.input.value) || initialSetup.heroCount)),
     enemyCount: Math.max(1, Math.min(6, Number(enemyCountField.input.value) || initialSetup.enemyCount)),
     initialEnergy: initialSetup.initialEnergy,
-    speed: Math.max(1, Math.min(4, Number(speedField.select.value) || initialSetup.speed)),
+    speed: Math.max(1, Math.min(3, Number(speedField.select.value) || initialSetup.speed)),
     heroIds: initialSetup.heroIds,
     enemyIds: initialSetup.enemyIds,
     seed: initialSetup.seed,
