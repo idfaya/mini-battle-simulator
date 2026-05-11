@@ -29,12 +29,16 @@ end
 
 local expected = {
     [910001] = { classId = 3, skillIds = { 80003011 } },
-    [910002] = { classId = 1, skillIds = { 80001011, 80001101, 80001013 } },
-    [910003] = { classId = 2, skillIds = { 80002001, 80002104, 80002101 } },
+    [910002] = { classId = 1, skillIds = { 80001011, 80001101 } },
+    [910003] = { classId = 2, skillIds = { 80002001, 80002104 } },
     [910004] = { classId = 2, skillIds = { 80002001, 80002005, 80002105 } },
-    [910005] = { classId = 7, skillIds = { 80007001, 80007002, 80007003, 80007004 } },
-    [910006] = { classId = 8, skillIds = { 80008001, 80008002, 80008003, 80008004 } },
-    [910007] = { classId = 9, skillIds = { 80009001, 80009002, 80009003, 80009004 } },
+    [910005] = { classId = 7, skillIds = { 80007001, 80007003 } },
+    [910006] = { classId = 8, skillIds = { 80008001, 80008003 } },
+    [910007] = { classId = 9, skillIds = { 80009001, 80009003 } },
+    [910008] = { classId = 5, skillIds = { 80005011 } },
+    [910009] = { classId = 6, skillIds = { 80006011 } },
+    [910010] = { classId = 4, skillIds = { 80004011, 80004102 } },
+    [910011] = { classId = 10, skillIds = { 80010011, 80010101 } },
 }
 
 for enemyId, spec in pairs(expected) do
