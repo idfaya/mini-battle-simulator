@@ -78,7 +78,6 @@ end
 local function buildBattleModifiers(runState, encounter)
     local result = {
         extraEnergy = 0,
-        atkPctByClass = {},
         hpPctByClass = {},
         defPctByClass = {},
         hitDeltaByClass = {},
@@ -97,7 +96,7 @@ local function buildBattleModifiers(runState, encounter)
         local params = equipment and equipment.params or nil
         if equipment and params then
             if equipment.effectType == "martial_weapon" or equipment.effectType == "ranged_weapon" then
-                applyClassPct(result.atkPctByClass, params.classIds, params.atkPct)
+                applyClassPct(result.damageIncreaseByClass, params.classIds, params.damagePct)
                 applyClassFlat(result.hitDeltaByClass, params.classIds, params.hitDelta)
             elseif equipment.effectType == "armor_ac" then
                 applyClassPct(result.defPctByClass, params.classIds, params.defPct)
@@ -106,7 +105,7 @@ local function buildBattleModifiers(runState, encounter)
                 applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
                 applyClassFlat(result.blockRateByClass, params.classIds, params.blockRate)
             elseif equipment.effectType == "spell_focus" then
-                applyClassPct(result.atkPctByClass, params.classIds, params.atkPct)
+                applyClassPct(result.damageIncreaseByClass, params.classIds, params.damagePct)
                 applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
             elseif equipment.effectType == "holy_symbol" then
                 applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
@@ -138,7 +137,7 @@ local function buildBattleModifiers(runState, encounter)
             end
             if contains(params.monsterTypes, monsterType) then
                 for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-                    result.atkPctByClass[hero.classId] = (result.atkPctByClass[hero.classId] or 0) + (params.value or 0)
+                    result.damageIncreaseByClass[hero.classId] = (result.damageIncreaseByClass[hero.classId] or 0) + (params.value or 0)
                 end
             end
         end
@@ -171,7 +170,6 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     -- #endregion
 
     local hpScale = 1.0 + (modifiers.hpPctByClass[rosterHero.classId] or 0)
-    local atkScale = 1.0 + (modifiers.atkPctByClass[rosterHero.classId] or 0)
     local defScale = 1.0 + (modifiers.defPctByClass[rosterHero.classId] or 0)
     local oldMaxHp = heroData.maxHp or 1
 
@@ -179,9 +177,9 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     local baseCurrentHp = tonumber(rosterHero.currentHp or oldMaxHp) or oldMaxHp
     baseCurrentHp = math.max(1, math.min(oldMaxHp, baseCurrentHp))
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp * hpScale)))
-    heroData.atk = math.max(1, math.floor((heroData.atk or 0) * atkScale))
     heroData.def = math.max(0, math.floor((heroData.def or 0) * defScale))
     heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
+    heroData.atk = heroData.hit
     heroData.ac = math.max(0, math.floor((heroData.ac or 0) + (modifiers.acDeltaByClass[rosterHero.classId] or 0)))
     heroData.spellDC = math.max(0, math.floor((heroData.spellDC or 0) + (modifiers.spellDCDeltaByClass[rosterHero.classId] or 0)))
     local saveDelta = modifiers.saveDeltaByClass[rosterHero.classId] or 0
@@ -250,13 +248,12 @@ local function buildEnemyForBattle(enemyId, level, wpType, encounter, budgetAdju
         return nil
     end
     local budgetHp = tonumber(budgetAdjust and budgetAdjust.hpMul) or 1.0
-    local budgetAtk = tonumber(budgetAdjust and budgetAdjust.atkMul) or 1.0
     local budgetDef = tonumber(budgetAdjust and budgetAdjust.defMul) or 1.0
     enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * budgetHp))
     enemyData.maxHp = enemyData.hp
-    enemyData.atk = math.max(1, math.floor((enemyData.atk or 0) * budgetAtk))
     enemyData.def = math.max(0, math.floor((enemyData.def or 0) * budgetDef))
     enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
+    enemyData.atk = enemyData.hit
     enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
     local sd = tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0
     if sd ~= 0 then

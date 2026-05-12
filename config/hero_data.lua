@@ -17,7 +17,6 @@ local Ability5e = require("modules.ability_5e")
 
 ---@class HeroRoleTemplate
 ---@field hp integer[]
----@field atk integer[]
 ---@field def integer[]
 ---@field speed integer[]
 ---@field ac integer[]
@@ -58,7 +57,6 @@ local QUALITY_NAMES = {
 local HERO_ROLE_TEMPLATES = {
     [1] = { -- A1 追击流
         hp = { 42, 54, 66, 78, 90 },
-        atk = { 8, 10, 11, 13, 15 },
         def = { 2, 3, 3, 4, 4 },
         speed = { 102, 103, 104, 105, 106 },
         ac = { 16, 17, 18, 19, 20 },
@@ -71,7 +69,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [2] = { -- Fighter 前线战士
         hp = { 64, 82, 100, 118, 136 },
-        atk = { 7, 8, 9, 10, 11 },
         def = { 4, 5, 6, 7, 8 },
         speed = { 91, 92, 93, 94, 95 },
         ac = { 18, 19, 20, 21, 22 },
@@ -84,7 +81,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [3] = { -- S1 连击流
         hp = { 48, 60, 72, 84, 96 },
-        atk = { 8, 10, 11, 12, 14 },
         def = { 2, 3, 3, 4, 4 },
         speed = { 105, 106, 107, 108, 109 },
         ac = { 17, 18, 19, 20, 21 },
@@ -97,7 +93,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [4] = { -- B1 战意流
         hp = { 68, 88, 108, 126, 145 },
-        atk = { 7, 8, 10, 11, 12 },
         def = { 3, 4, 5, 5, 6 },
         speed = { 94, 95, 96, 97, 98 },
         ac = { 16, 17, 18, 19, 20 },
@@ -110,7 +105,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [5] = { -- T1 毒爆流
         hp = { 50, 63, 76, 89, 102 },
-        atk = { 8, 9, 10, 11, 12 },
         def = { 2, 3, 3, 4, 4 },
         speed = { 98, 99, 100, 101, 102 },
         ac = { 15, 16, 17, 18, 19 },
@@ -123,7 +117,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [6] = { -- H1 圣光流
         hp = { 44, 56, 68, 80, 92 },
-        atk = { 5, 6, 7, 8, 9 },
         def = { 2, 3, 3, 4, 4 },
         speed = { 98, 99, 100, 101, 102 },
         ac = { 14, 15, 16, 16, 17 },
@@ -136,7 +129,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [7] = { -- M1 火法
         hp = { 38, 48, 58, 68, 78 },
-        atk = { 5, 6, 7, 8, 9 },
         def = { 1, 2, 2, 3, 3 },
         speed = { 100, 101, 102, 103, 104 },
         ac = { 13, 13, 14, 15, 15 },
@@ -149,7 +141,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [8] = { -- M2 冰法
         hp = { 42, 53, 64, 75, 86 },
-        atk = { 5, 6, 7, 8, 9 },
         def = { 2, 2, 3, 3, 4 },
         speed = { 98, 99, 100, 101, 102 },
         ac = { 14, 14, 15, 15, 16 },
@@ -162,7 +153,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [9] = { -- M3 雷法
         hp = { 39, 49, 59, 69, 80 },
-        atk = { 5, 6, 7, 8, 9 },
         def = { 1, 2, 2, 3, 3 },
         speed = { 101, 102, 103, 104, 105 },
         ac = { 13, 13, 14, 15, 15 },
@@ -175,7 +165,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     [10] = { -- Barbarian 狂怒前线
         hp = { 72, 92, 112, 132, 152 },
-        atk = { 8, 9, 10, 12, 13 },
         def = { 3, 4, 5, 6, 7 },
         speed = { 92, 93, 94, 95, 96 },
         ac = { 15, 16, 17, 18, 19 },
@@ -188,7 +177,6 @@ local HERO_ROLE_TEMPLATES = {
     },
     default = {
         hp = { 50, 62, 74, 86, 98 },
-        atk = { 6, 7, 8, 9, 10 },
         def = { 2, 3, 3, 4, 4 },
         speed = { 98, 99, 100, 101, 102 },
         ac = { 15, 16, 17, 18, 19 },
@@ -428,7 +416,6 @@ local function GetTemplateStats(classId, level)
     local tpl = GetRoleTemplate(classId)
     return {
         hp = GetInterpolatedTemplateValue(tpl.hp, level),
-        atk = GetInterpolatedTemplateValue(tpl.atk, level),
         def = GetInterpolatedTemplateValue(tpl.def, level),
         speed = GetInterpolatedTemplateValue(tpl.speed, level),
         ac = GetInterpolatedTemplateValue(tpl.ac, level),
@@ -656,7 +643,6 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local finalSpd = math.max(60, math.floor(template.speed))
     local finalAc = math.max(10, calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level))
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
-    local finalAtk = finalHit
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
     local finalSaveRef = dexMod + (isSaveProficient(hero.Class, "ref") and prof or 0)
@@ -665,7 +651,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     return {
         hp = finalHp,
         maxHp = finalHp,
-        atk = finalAtk,
+        atk = finalHit,
         def = finalDef,
         spd = finalSpd,
         speed = finalSpd,
@@ -854,7 +840,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         quality = attrs.quality,
         class = hero.Class,
         faction = hero.Faction,
-        atk = attrs.atk,
+        atk = attrs.hit,
         def = attrs.def,
         hp = attrs.hp,
         maxHp = attrs.maxHp,
@@ -926,7 +912,7 @@ function HeroData.CreateBattleConfig(leftHeroes, rightHeroes, maxRound, seedArra
             attribute_map = {
                 attr_array = {
                     { key = 1, value = heroData.maxHp },
-                    { key = 2, value = heroData.atk },
+                    { key = 2, value = heroData.hit },
                     { key = 3, value = heroData.def },
                     { key = 4, value = heroData.speed or 100 },
                 },
@@ -1293,7 +1279,7 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
     if final then
         builtHero.hp = final.hp or builtHero.hp
         builtHero.maxHp = final.maxHp or builtHero.maxHp
-        builtHero.atk = final.atk or builtHero.atk
+        builtHero.atk = final.hit or builtHero.atk
         builtHero.def = final.def or builtHero.def
         builtHero.ac = final.ac or builtHero.ac
         builtHero.hit = final.hit or builtHero.hit
@@ -1400,7 +1386,7 @@ function HeroData.CreateClassUnit(classId, options)
         ownedSkills = cloneArray(heroData.ownedSkills),
         skillLevels = cloneMap(heroData.skillLevels),
         buildState = heroData.buildState,
-        atk = heroData.atk,
+        atk = heroData.hit,
         def = heroData.def,
         ac = heroData.ac,
         hit = heroData.hit,

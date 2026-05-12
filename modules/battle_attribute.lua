@@ -12,7 +12,7 @@ local deadOrderCounter = 0
 -- 属性ID定义
 BattleAttribute.ATTR_ID = {
     HP = 1,         -- 生命值
-    ATK = 2,        -- 攻击力
+    ATK = 2,        -- 旧攻击槽位（内部兼容）
     DEF = 3,        -- 防御力
     SPEED = 4,      -- 速度
     CRIT_RATE = 5,  -- 暴击率
@@ -26,7 +26,7 @@ BattleAttribute.ATTR_ID = {
 -- 属性名称映射
 local ATTR_NAME_MAP = {
     [1] = "hp",
-    [2] = "atk",
+    [2] = "hit",
     [3] = "def",
     [4] = "speed",
     [5] = "critRate",
@@ -101,7 +101,6 @@ function BattleAttribute.Init(hero, attributeMap)
     hero.hp = hero.hp or maxHp
 
     -- 初始化其他基础字段
-    hero.atk = hero.attributes.base[BattleAttribute.ATTR_ID.ATK] or 0
     hero.def = hero.attributes.base[BattleAttribute.ATTR_ID.DEF] or 0
     hero.speed = hero.attributes.base[BattleAttribute.ATTR_ID.SPEED] or 0
 
@@ -323,7 +322,6 @@ function BattleAttribute.UpdateHeroAttribute(hero)
             local m = tonumber(mul) or 1.0
             hero.attributes.final[attrId] = math.max(minValue, math.floor(v * m))
         end
-        mulFinal(BattleAttribute.ATTR_ID.ATK, rp.atkMul or 1.0, 1)
         mulFinal(BattleAttribute.ATTR_ID.DEF, rp.defMul or 1.0, 0)
         mulFinal(BattleAttribute.ATTR_ID.SPEED, rp.speedMul or 1.0, 0)
     end
@@ -344,7 +342,6 @@ function BattleAttribute.UpdateHeroAttribute(hero)
     end
 
     -- 同步常用字段
-    hero.atk = hero.attributes.final[BattleAttribute.ATTR_ID.ATK] or 0
     hero.def = hero.attributes.final[BattleAttribute.ATTR_ID.DEF] or 0
     hero.speed = hero.attributes.final[BattleAttribute.ATTR_ID.SPEED] or 0
     hero.critRate = hero.attributes.final[BattleAttribute.ATTR_ID.CRIT_RATE] or 0

@@ -82,7 +82,7 @@ local function Main()
             h.wpType = i
             h.isLeft = true
             table.insert(heroes, h)
-            print(string.format("  %d. %s (HP:%d ATK:%d DEF:%d)", i, h.name or ("Hero_" .. id), h.hp or 0, h.atk or 0, h.def or 0))
+            print(string.format("  %d. %s (HP:%d HIT:%d DEF:%d)", i, h.name or ("Hero_" .. id), h.hp or 0, h.hit or h.hitRate or 0, h.def or 0))
         end
     end
 
@@ -95,7 +95,7 @@ local function Main()
             e.isLeft = false
             table.insert(enemies, e)
             local prefix = (e._monsterType == 2) and "【BOSS】" or ""
-            print(string.format("  %d. %s%s (HP:%d ATK:%d)", i, prefix, e.name or ("Enemy_" .. id), e.hp or 0, e.atk or 0))
+            print(string.format("  %d. %s%s (HP:%d HIT:%d)", i, prefix, e.name or ("Enemy_" .. id), e.hp or 0, e.hit or e.hitRate or 0))
         end
     end
 

@@ -157,7 +157,6 @@ local function CreateHero(heroData, wpType, isLeft)
         level = heroData.level or 1,
         hp = heroData.hp or heroData.curHp or 0,
         maxHp = heroData.maxHp or heroData.hp or 100,
-        atk = heroData.atk or 0,
         def = heroData.def or 0,
         speed = heroData.spd or heroData.speed or 0,
         
@@ -790,7 +789,7 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         name = "召唤物_" .. tokenId,
         modelId = tokenId,
         hp = 100,
-        atk = 10,
+        hit = 10,
         def = 5,
         speed = 50,
     }
@@ -814,14 +813,15 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         level = owner.level or 1,
         hp = tokenConfig.hp,
         maxHp = tokenConfig.hp,
-        atk = tokenConfig.atk,
         def = tokenConfig.def,
         speed = tokenConfig.speed,
         
         -- 扩展属性
         critRate = 0,
         critDamage = 150,
-        hitRate = 100,
+        -- Legacy token configs may still use `atk`; prefer `hit` as the canonical key.
+        hit = tokenConfig.hit or tokenConfig.atk or 10,
+        hitRate = tokenConfig.hit or tokenConfig.atk or 10,
         dodgeRate = 0,
         damageReduce = 0,
         damageIncrease = 0,

@@ -175,15 +175,20 @@ local function GetUnitAttr(unit, attrType)
     if not unit then
         return 0
     end
-    
+
     -- 优先检查 attrs 字段 (原工程格式)
     if unit.attrs then
         return unit.attrs[attrType] or 0
     end
-    
-    -- 优先检查直接字段 (BattleAttribute模块设置，包含所有加成)
+
+    -- 再检查 BattleAttribute 的最终属性（包含所有加成）
+    if unit.attributes and unit.attributes.final and unit.attributes.final[attrType] ~= nil then
+        return unit.attributes.final[attrType] or 0
+    end
+
+    -- 再检查直接字段
     if attrType == currentConfig.attrType.ATK then
-        return unit.atk or 0
+        return unit.hit or unit.hitRate or unit.atk or 0
     elseif attrType == currentConfig.attrType.DEF then
         return unit.def or 0
     elseif attrType == currentConfig.attrType.HP then

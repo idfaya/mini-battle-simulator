@@ -195,7 +195,7 @@ function BattleEditorCLI.GetHeroAttrTable(camp, wpType)
 
     -- 战斗属性
     table.insert(attrTable.rows, {"---", "---", "---"})
-    table.insert(attrTable.rows, {"攻击力", hero.atk or 0, "基础攻击力"})
+    table.insert(attrTable.rows, {"命中", hero.hit or hero.hitRate or 0, "攻击判定加值"})
     table.insert(attrTable.rows, {"防御力", hero.def or 0, "基础防御力"})
     table.insert(attrTable.rows, {"速度", hero.speed or 0, "行动速度"})
 

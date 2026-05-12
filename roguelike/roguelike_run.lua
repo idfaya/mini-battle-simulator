@@ -107,7 +107,6 @@ end
 
 local LEVELUP_STAT_FIELDS = {
     { key = "maxHp", label = "HP上限", format = "flat" },
-    { key = "atk", label = "攻击", format = "flat" },
     { key = "def", label = "防御", format = "flat" },
     { key = "ac", label = "护甲等级", format = "flat" },
     { key = "hit", label = "命中", format = "flat" },
@@ -141,6 +140,7 @@ local function captureUnitLevelState(unit)
     for _, field in ipairs(LEVELUP_STAT_FIELDS) do
         stats[field.key] = tonumber(unit[field.key]) or 0
     end
+    local featIds = unit.feats or unit.selectedFeatIds
     return {
         rosterId = tonumber(unit.rosterId) or 0,
         unitId = unit.unitId,
@@ -149,7 +149,7 @@ local function captureUnitLevelState(unit)
         level = tonumber(unit.level) or STARTER_LEVEL,
         promotionStage = HeroData.NormalizePromotionStage(unit.promotionStage),
         stats = stats,
-        feats = cloneArray(unit.feats),
+        feats = cloneArray(featIds),
     }
 end
 
@@ -267,7 +267,14 @@ local function buildLevelUpDetails(beforeState, afterUnit)
         if targetLevel == finalLevel then
             stepUnit = afterUnit
         else
-            stepUnit = HeroData.BuildClassUnitHeroData(beforeState.classId, targetStage, targetLevel)
+            stepUnit = HeroData.CreateClassUnit(beforeState.classId, {
+                rosterId = beforeState.rosterId,
+                unitId = beforeState.unitId,
+                promotionStage = targetStage,
+                level = targetLevel,
+                teamState = "active",
+                source = "battle_level_preview",
+            })
             if stepUnit then
                 stepUnit.rosterId = beforeState.rosterId
                 stepUnit.unitId = beforeState.unitId
