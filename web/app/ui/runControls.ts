@@ -267,8 +267,8 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
     featRow.className = "run-build-summary";
     featRow.textContent =
       levelUp.gainedFeats.length > 0
-        ? `Feat: ${levelUp.gainedFeats.map((feat) => feat.name).join(" / ")}`
-        : "Feat: 无新增";
+        ? `专长: ${levelUp.gainedFeats.map((feat) => feat.name).join(" / ")}`
+        : "专长: 无新增";
     card.append(featRow);
 
     if (levelUp.gainedFeats.length > 0) {
@@ -513,7 +513,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     for (const goods of snapshot.shopState.goods) {
       host.append(
         makeButton(
-          `${goods.goodsType} · ${goods.refId ?? goods.code ?? goods.goodsId} · ${goods.price}`,
+          `${goods.name}${goods.description ? ` · ${goods.description}` : ""} · ${goods.price}`,
           goods.sold,
           () => controls.handlers.onShopBuy(goods.goodsId),
         ),

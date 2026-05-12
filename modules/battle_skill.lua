@@ -75,6 +75,23 @@ BattleSkill.skillInstanceIdCounter = 0
 
 local InferTargetsSelections
 
+local SkillRuntimeConfig = require("config.skill_runtime_config")
+
+local function resolveSkillDisplayName(skillId, mergedConfig)
+    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+    if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
+        return runtimeEntry.name
+    end
+    if mergedConfig and mergedConfig.name and mergedConfig.name ~= "" then
+        return mergedConfig.name
+    end
+    local legacyConfig = SkillConfig.GetSkillConfig(skillId)
+    if legacyConfig and legacyConfig.Name and legacyConfig.Name ~= "" then
+        return legacyConfig.Name
+    end
+    return "Skill_" .. tostring(skillId)
+end
+
 local SPECIAL_EFFECT_TAGS = {
     [80004003] = "battle_intent_buff",
     [80004004] = "battle_intent_buff",
@@ -554,7 +571,7 @@ function BattleSkill.Init(hero, skillsConfig)
                     table.insert(skillsConfig, {
                         skillId = skillId,
                         skillType = E_SKILL_TYPE_NORMAL,
-                        name = "Skill_" .. tostring(skillId),
+                        name = resolveSkillDisplayName(skillId),
                         skillCost = 0
                     })
                 end
@@ -666,21 +683,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         isPassiveActive = true
     end
 
-    -- 确定技能名称：
-    -- 1. 优先使用九流派配置 Name
-    -- 2. 否则使用传入的 name
-    -- 3. 最后使用默认格式
-    local skillName = nil
-    local skillCfg = configModule.GetSkillConfig(skillId)
-    if skillCfg and skillCfg.Name then
-        skillName = skillCfg.Name
-    end
-    if not skillName then
-        skillName = mergedConfig.name
-    end
-    if not skillName then
-        skillName = "Skill_" .. skillId
-    end
+    local skillName = resolveSkillDisplayName(skillId, mergedConfig)
 
     local skill = {
         -- 基础信息

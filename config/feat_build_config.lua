@@ -261,7 +261,7 @@ local FEATS = {
         classId = 1,
         level = 5,
         name = "影舞者",
-        description = "获得 Uncanny Dodge；若你本回合第一次基础武器攻击未触发偷袭，则本回合下一次满足条件的偷袭额外造成 2d6 伤害。",
+        description = "获得直觉闪避；若你本回合第一次基础武器攻击未触发偷袭，则本回合下一次满足条件的偷袭额外造成 2d6 伤害。",
         choiceGroup = "rogue_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80001108 },
@@ -273,7 +273,7 @@ local FEATS = {
         classId = 1,
         level = 5,
         name = "生还者",
-        description = "获得 Uncanny Dodge；触发伤害减半后，你下一次基础武器攻击视为满足偷袭条件。",
+        description = "获得直觉闪避；触发伤害减半后，你下一次基础武器攻击视为满足偷袭条件。",
         choiceGroup = "rogue_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80001108 },

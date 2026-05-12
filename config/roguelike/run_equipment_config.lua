@@ -21,7 +21,7 @@
 
 ---@class RunEquipmentParams
 ---@field classIds integer[]|nil
----@field atkPct number|nil
+---@field damagePct number|nil
 ---@field defPct number|nil
 ---@field hitDelta integer|nil
 ---@field acDelta integer|nil
@@ -51,33 +51,33 @@ RunEquipmentConfig.EQUIPMENTS = {
     [101001] = {
         id = 101001,
         code = "longsword_plus_1",
-        name = "+1 Longsword",
+        name = "+1 长剑",
         rarity = "common",
         slot = "weapon",
         effectType = "martial_weapon",
         params = {
             classIds = { 2, 4 },
-            atkPct = 0.08,
+            damagePct = 0.08,
             hitDelta = 1,
         },
     },
     [101002] = {
         id = 101002,
         code = "shortbow_plus_1",
-        name = "+1 Shortbow",
+        name = "+1 短弓",
         rarity = "common",
         slot = "weapon",
         effectType = "ranged_weapon",
         params = {
             classIds = { 1, 5 },
-            atkPct = 0.08,
+            damagePct = 0.08,
             hitDelta = 1,
         },
     },
     [101003] = {
         id = 101003,
         code = "chain_mail",
-        name = "Chain Mail",
+        name = "锁子甲",
         rarity = "rare",
         slot = "armor",
         effectType = "armor_ac",
@@ -90,7 +90,7 @@ RunEquipmentConfig.EQUIPMENTS = {
     [101004] = {
         id = 101004,
         code = "shield_plus_1",
-        name = "+1 Shield",
+        name = "+1 盾牌",
         rarity = "rare",
         slot = "shield",
         effectType = "shield_ac",
@@ -103,20 +103,20 @@ RunEquipmentConfig.EQUIPMENTS = {
     [101005] = {
         id = 101005,
         code = "arcane_focus_plus_1",
-        name = "+1 Arcane Focus",
+        name = "+1 奥术法器",
         rarity = "boss",
         slot = "focus",
         effectType = "spell_focus",
         params = {
             classIds = { 7, 8, 9 },
-            atkPct = 0.06,
+            damagePct = 0.06,
             spellDCDelta = 1,
         },
     },
     [101006] = {
         id = 101006,
         code = "holy_symbol_plus_1",
-        name = "+1 Holy Symbol",
+        name = "+1 圣徽",
         rarity = "boss",
         slot = "focus",
         effectType = "holy_symbol",
@@ -129,7 +129,7 @@ RunEquipmentConfig.EQUIPMENTS = {
     [101007] = {
         id = 101007,
         code = "cloak_of_resistance",
-        name = "Cloak of Resistance",
+        name = "抗性斗篷",
         rarity = "rare",
         slot = "accessory",
         effectType = "saving_throw_charm",

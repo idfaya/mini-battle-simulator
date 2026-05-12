@@ -172,6 +172,8 @@ export type ShopGoodsState = {
   goodsType: string;
   refId?: number;
   code?: string;
+  name: string;
+  description?: string;
   price: number;
   rarity: string;
   sold: boolean;

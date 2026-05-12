@@ -20,7 +20,7 @@
 ---@field classIds integer[]|nil
 ---@field monsterTypes integer[]|nil
 ---@field hpPct number|nil
----@field atkPct number|nil
+---@field damagePct number|nil
 ---@field defPct number|nil
 ---@field value number|nil
 ---@field rounds integer|nil
@@ -51,7 +51,7 @@ RunBlessingConfig.BLESSINGS = {
     [101001] = {
         id = 101001,
         code = "frontline_discipline",
-        name = "Frontline Discipline",
+        name = "前线军纪",
         rarity = "common",
         scope = "class",
         effectType = "class_stat_pct",
@@ -64,7 +64,7 @@ RunBlessingConfig.BLESSINGS = {
     [101002] = {
         id = 101002,
         code = "burst_rhythm",
-        name = "Burst Rhythm",
+        name = "爆发节奏",
         rarity = "common",
         scope = "team",
         effectType = "turn_start_energy",
@@ -76,7 +76,7 @@ RunBlessingConfig.BLESSINGS = {
     [101003] = {
         id = 101003,
         code = "holy_reserve",
-        name = "Holy Reserve",
+        name = "神圣储备",
         rarity = "rare",
         scope = "class",
         effectType = "class_heal_bonus_pct",
@@ -89,7 +89,7 @@ RunBlessingConfig.BLESSINGS = {
     [101004] = {
         id = 101004,
         code = "venom_spark",
-        name = "Venom Spark",
+        name = "毒火余烬",
         rarity = "rare",
         scope = "class",
         effectType = "class_dot_damage_pct",
@@ -101,7 +101,7 @@ RunBlessingConfig.BLESSINGS = {
     [101005] = {
         id = 101005,
         code = "pursuit_instinct",
-        name = "Pursuit Instinct",
+        name = "追猎本能",
         rarity = "rare",
         scope = "class",
         effectType = "extra_follow_up_trigger",
@@ -113,7 +113,7 @@ RunBlessingConfig.BLESSINGS = {
     [101006] = {
         id = 101006,
         code = "elite_hunter",
-        name = "Elite Hunter",
+        name = "精英猎手",
         rarity = "boss",
         scope = "team",
         effectType = "damage_pct_vs_monster_type",
@@ -125,7 +125,7 @@ RunBlessingConfig.BLESSINGS = {
     [101007] = {
         id = 101007,
         code = "winter_breath",
-        name = "Winter Breath",
+        name = "寒冬吐息",
         rarity = "boss",
         scope = "team",
         effectType = "battle_start_apply_shield_and_resist",

@@ -64,6 +64,12 @@ export class RunStore {
         featName: option.featName,
         label: option.label,
       })),
+      shopGoods: (snapshot.shopState?.goods ?? []).map((goods) => ({
+        goodsId: goods.goodsId,
+        name: goods.name,
+        description: goods.description,
+        price: goods.price,
+      })),
     });
     // #endregion
     const logs = [...this.state.logs];

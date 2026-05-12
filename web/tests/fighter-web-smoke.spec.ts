@@ -112,15 +112,15 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
-    .toContain("战士 触发被动 反击：登记反击 将对 Orc 发动反击");
+    .toContain("战士 触发被动 反击：登记反击 将对 兽人 发动反击");
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
     .toContain("战士 使用 基础武器攻击");
 
   const logs = await page.locator(".battle-log li").allTextContents();
-  const attackIndex = logs.findIndex((line) => line.includes("Orc 使用 基础武器攻击"));
-  const queueIndex = logs.findIndex((line) => line.includes("战士 触发被动 反击：登记反击 将对 Orc 发动反击"));
-  const resultIndex = logs.findIndex((line) => line.includes("Orc 的 基础武器攻击 对 战士"));
+  const attackIndex = logs.findIndex((line) => line.includes("兽人 使用 基础武器攻击"));
+  const queueIndex = logs.findIndex((line) => line.includes("战士 触发被动 反击：登记反击 将对 兽人 发动反击"));
+  const resultIndex = logs.findIndex((line) => line.includes("兽人 的 基础武器攻击 对 战士"));
   const counterIndex = logs.findIndex((line) => line.includes("战士 使用 基础武器攻击"));
 
   expect(attackIndex).toBeGreaterThanOrEqual(0);

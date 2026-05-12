@@ -108,7 +108,7 @@ local function buildWaveGroupFromTemplate(rng, template, waveIndex, waveCount)
 
     local groupId = RunEnemyGroup.RegisterRuntimeGroup({
         code = string.format("%s_wave_%d", template.code or "runtime_wave", waveIndex),
-        name = string.format("%s Wave %d", template.name or "Runtime Wave", waveIndex),
+        name = string.format("%s第%d波", template.name or "运行时波次", waveIndex),
         front = front,
         back = back,
         elite = {},

@@ -161,6 +161,9 @@ const BATTLEFIELD_BOTTOM_SAFE_Y = 0;
 const COMPACT_BATTLEFIELD_BOTTOM_SAFE_Y = 12;
 const TEAM_ROW_GAP = 26;
 const TEAM_CENTER_GAP = 44;
+const COUNTER_HOLD_MATCH_WINDOW_MS = 1400;
+const COUNTER_QUEUE_HOLD_MS = 1400;
+const COUNTER_REACTION_HOLD_MS = 360;
 
 export class BattleScene {
   private floatingTexts: Array<FloatingText & { unitId: string; offsetX: number; offsetY: number }> = [];
@@ -1164,7 +1167,7 @@ export class BattleScene {
         }
         const passiveUnit = layouts.find((layout) => layout.unit.id === event.heroId);
         this.queueUnitPulse(event.heroId, now, this.resolveElementStyle(this.resolveElementTheme("", event.skillName, passiveUnit?.unit.classId ?? 0)), {
-          durationMs: event.skillName === "Rage" || event.skillName === "Berserk" ? 760 : 620,
+          durationMs: event.skillName === "Rage" || event.skillName === "Berserk" || event.skillName === "狂怒" || event.skillName === "狂暴" ? 760 : 620,
           label: event.skillName,
         });
         continue;
@@ -1299,12 +1302,12 @@ export class BattleScene {
       const recentClash = this.findRecentMeleeClash(attacker.unit.id, primaryTarget.unit.id, now);
 
       if (pendingExtraAttackUntil >= now && recentClash) {
-        recentClash.hitMoments = [0.34, 0.56];
-        recentClash.durationMs = Math.max(recentClash.durationMs, 460);
+        recentClash.hitMoments = [0.32, 0.7];
+        recentClash.durationMs = Math.max(recentClash.durationMs, 620);
         recentClash.precise = recentClash.precise || preciseTargetId === primaryTarget.unit.id;
         if (recentClash.precise) {
           this.queueImpactBurst(primaryTarget.unit.id, now, {
-            delayMs: 210,
+            delayMs: 320,
             durationMs: 260,
             color: "rgba(255, 209, 102, 0.28)",
             ringColor: "rgba(255, 244, 179, 0.9)",
@@ -1325,7 +1328,7 @@ export class BattleScene {
           style: this.resolveMeleeStyle(event.effect, event.skillName, attacker.unit.classId),
         };
         this.meleeClashes.push(clash);
-        this.extendCounterHoldForReaction(attacker.unit.id, now + clash.durationMs + 120);
+        this.extendCounterHoldForReaction(attacker.unit.id, now + clash.baseDurationMs);
         if (clash.precise) {
           this.queueImpactBurst(primaryTarget.unit.id, now, {
             delayMs: 150,
@@ -1497,11 +1500,11 @@ export class BattleScene {
       if (clash.attackerId === reactorId) {
         continue;
       }
-      if (now - clash.startedAt > 700) {
+      if (now - clash.startedAt > COUNTER_HOLD_MATCH_WINDOW_MS) {
         break;
       }
       if (clash.targetIds.includes(reactorId)) {
-        const holdUntil = now + 700;
+        const holdUntil = now + COUNTER_QUEUE_HOLD_MS;
         clash.counterReactorId = reactorId;
         clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
         clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
@@ -1514,7 +1517,7 @@ export class BattleScene {
       if (!sharesTeam) {
         continue;
       }
-      const holdUntil = now + 700;
+      const holdUntil = now + COUNTER_QUEUE_HOLD_MS;
       clash.counterReactorId = reactorId;
       clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
       clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
@@ -1528,8 +1531,8 @@ export class BattleScene {
       if (clash.counterReactorId !== reactorId) {
         continue;
       }
-      clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
-      clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
+      clash.holdUntil = holdUntil;
+      clash.durationMs = Math.max(clash.baseDurationMs, holdUntil - clash.startedAt + 240);
       return;
     }
   }
@@ -1556,10 +1559,11 @@ export class BattleScene {
       hitCount >= 2
         ? [
             { progress: 0, distance: 0 },
-            { progress: 0.28, distance: maxPush },
-            { progress: 0.40, distance: maxPush * 0.8 },
-            { progress: 0.56, distance: maxPush },
-            { progress: 0.7, distance: maxPush * 0.92 },
+            { progress: 0.26, distance: maxPush },
+            { progress: 0.4, distance: maxPush * 0.62 },
+            { progress: 0.56, distance: maxPush * 0.82 },
+            { progress: 0.7, distance: maxPush },
+            { progress: 0.82, distance: maxPush * 0.9 },
             { progress: 1, distance: 0 },
           ]
         : [

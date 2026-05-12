@@ -40,7 +40,7 @@ const mockUnit: UnitState = {
   actionBar: 0,
   actionBarMax: 1000,
   ultimateReady: false,
-  ultimateSkillName: "Burst",
+  ultimateSkillName: "爆发",
 };
 
 test("floating text styles cover damage critical heal and miss", () => {

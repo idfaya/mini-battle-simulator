@@ -1063,13 +1063,15 @@ local function SelectAvailableSkill(hero)
                 -- 新格式: {skillId = xxx, level = yyy}
                 skillId = skillData.skillId
                 skillType = E_SKILL_TYPE_NORMAL
-                skillName = "Skill_" .. tostring(skillId)
+                local runtimeSkill = require("config.skill_runtime_config").Get(skillId)
+                skillName = (runtimeSkill and runtimeSkill.name) or ("Skill_" .. tostring(skillId))
                 skillCost = 0
             else
                 -- 旧格式: 数字ID
                 skillId = skillData
                 skillType = E_SKILL_TYPE_NORMAL
-                skillName = "Skill_" .. tostring(skillId)
+                local runtimeSkill = require("config.skill_runtime_config").Get(skillId)
+                skillName = (runtimeSkill and runtimeSkill.name) or ("Skill_" .. tostring(skillId))
                 skillCost = 0
             end
             table.insert(skillsConfig, {

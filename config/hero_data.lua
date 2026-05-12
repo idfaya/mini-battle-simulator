@@ -251,6 +251,17 @@ local function resolveSkillTypeFromConfigs(skillId, skillConfig)
     return resolvedType, resolvedCost
 end
 
+local function resolveSkillDisplayName(skillId, skillConfig)
+    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+    if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
+        return runtimeEntry.name
+    end
+    if skillConfig and skillConfig.Name and skillConfig.Name ~= "" then
+        return skillConfig.Name
+    end
+    return "Skill_" .. tostring(skillId)
+end
+
 local function getAbilityMod(score)
     return Ability5e.GetAbilityMod(score)
 end
@@ -641,11 +652,11 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local hitDie = getClassHitDie(hero.Class)
     local prof = getProficiencyBonus(level)
     local finalHp = calculate5eHp(level, hitDie, conMod)
-    local finalAtk = math.max(1, math.floor(template.atk))
     local finalDef = math.max(0, math.floor(template.def))
     local finalSpd = math.max(60, math.floor(template.speed))
     local finalAc = math.max(10, calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level))
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
+    local finalAtk = finalHit
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
     local finalSaveRef = dexMod + (isSaveProficient(hero.Class, "ref") and prof or 0)
@@ -714,14 +725,16 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         for key, delta in pairs(buildState.statMods) do
             local numDelta = tonumber(delta) or 0
             if numDelta ~= 0 then
-                if key == "maxHp" then
+                local resolvedKey = (key == "atk") and "hit" or key
+                if resolvedKey == "maxHp" then
                     attrs.maxHp = math.max(1, (attrs.maxHp or 1) + numDelta)
                     attrs.hp = math.max(1, math.min(attrs.maxHp, (attrs.hp or attrs.maxHp) + numDelta))
                 else
-                    attrs[key] = (tonumber(attrs[key]) or 0) + numDelta
+                    attrs[resolvedKey] = (tonumber(attrs[resolvedKey]) or 0) + numDelta
                 end
             end
         end
+        attrs.atk = attrs.hit or attrs.atk
     end
 
     local skillsConfig = {}
@@ -783,7 +796,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                         classId = classId,
                         skillType = skillType,
                         level = internalLevel,
-                        name = skillConfig.Name or ("Skill_" .. actualSkillId),
+                        name = resolveSkillDisplayName(actualSkillId, skillConfig),
                         skillCost = skillCost,
                     })
                 elseif canUnlock then
@@ -823,7 +836,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                             classId = config.ClassID,
                             skillType = skillType,
                             level = internalLevel,
-                            name = config.Name or ("Skill_" .. skillId),
+                            name = resolveSkillDisplayName(skillId, config),
                             skillCost = skillCost,
                         })
                     end
@@ -988,6 +1001,10 @@ local function addStat(target, key, delta)
     if not delta or delta == 0 then
         return
     end
+    if key == "atk" then
+        -- 5e single-source offense: fold legacy atk bonuses into hit.
+        key = "hit"
+    end
     target[key] = (target[key] or 0) + delta
 end
 
@@ -1100,6 +1117,9 @@ function HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
                 end
             end
         end
+    end
+    if final.hit ~= nil then
+        final.atk = final.hit
     end
     return final
 end

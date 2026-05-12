@@ -110,7 +110,7 @@ local function serializeEquipments(equipmentIds)
         local equipment = RunEquipmentConfig.GetEquipment(equipmentId)
         result[#result + 1] = {
             equipmentId = equipmentId,
-            name = equipment and equipment.name or ("Equipment " .. tostring(equipmentId)),
+            name = equipment and equipment.name or ("装备 " .. tostring(equipmentId)),
             rarity = equipment and equipment.rarity or "common",
             code = equipment and equipment.code or "",
         }
@@ -124,7 +124,7 @@ local function serializeBlessings(blessingIds)
         local blessing = RunBlessingConfig.GetBlessing(blessingId)
         result[#result + 1] = {
             blessingId = blessingId,
-            name = blessing and blessing.name or ("Blessing " .. tostring(blessingId)),
+            name = blessing and blessing.name or ("祝福 " .. tostring(blessingId)),
             rarity = blessing and blessing.rarity or "common",
             code = blessing and blessing.code or "",
         }

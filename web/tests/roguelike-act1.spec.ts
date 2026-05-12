@@ -207,6 +207,17 @@ async function getRunPhase(page: import("playwright/test").Page) {
   });
 }
 
+async function applyRewardChoice(page: import("playwright/test").Page, rewardIndex: number) {
+  await page.evaluate(async (selectedRewardIndex) => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        chooseReward: (index: number) => Promise<{ accepted?: boolean }>;
+      };
+    };
+    await runtime.__miniBattleHost?.chooseReward(selectedRewardIndex);
+  }, rewardIndex + 1);
+}
+
 test("roguelike act1 boots into map and can finish the chapter flow", async ({ page }) => {
   test.setTimeout(180000);
   const pageErrors: string[] = [];
@@ -317,12 +328,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
         await expect(title).toBeVisible({ timeout: 15000 });
       }
       const rewardIndex = await chooseRewardIndex(page);
-      const rewardCard = page.locator(".run-info-panel .reward-card").nth(rewardIndex);
-      if (await rewardCard.isVisible().catch(() => false)) {
-        await rewardCard.click();
-      } else {
-        await page.locator(".run-info-panel button").nth(rewardIndex).click();
-      }
+      await applyRewardChoice(page, rewardIndex);
       await autoPromoteBench(page);
     }
   };

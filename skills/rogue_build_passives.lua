@@ -360,7 +360,7 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
         end
         runtime.rogueUncannyRound = round
         extraParam.damage = math.max(0, math.floor(damage * 0.5))
-        BuildPassiveCommon.PublishPassiveTriggered(hero, "Uncanny Dodge", "首次受击减半", string.format("%d -> %d", damage, extraParam.damage))
+        BuildPassiveCommon.PublishPassiveTriggered(hero, "直觉闪避", "首次受击减半", string.format("%d -> %d", damage, extraParam.damage))
         if hasSkill(hero, IDS.rogue_survivor) then
             runtime.rogueForcedSneakCharges = (tonumber(runtime.rogueForcedSneakCharges) or 0) + 1
             runtime.rogueForcedSneakLabel = "生还者"

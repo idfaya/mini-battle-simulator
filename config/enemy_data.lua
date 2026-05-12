@@ -14,7 +14,6 @@ local Ability5e = require("modules.ability_5e")
 
 ---@class EnemyRoleTemplate
 ---@field hp integer[]
----@field atk integer[]
 ---@field def integer[]
 ---@field speed integer[]
 ---@field ac integer[]
@@ -33,9 +32,6 @@ local Ability5e = require("modules.ability_5e")
 ---@field role string
 
 ---@class MonsterTypeTemplate
----@field hpMul number
----@field atkMul number
----@field defMul number
 ---@field acDelta integer
 ---@field hitDelta integer
 ---@field spellDCDelta integer
@@ -50,9 +46,9 @@ local skillConfigInited = false
 
 ---@type table<integer, string>
 local MONSTER_TYPE_NAMES = {
-    [0] = "Normal",
-    [1] = "Elite",
-    [2] = "BOSS",
+    [0] = "普通",
+    [1] = "精英",
+    [2] = "Boss",
 }
 
 ---@type table<integer, EnemyChallengeMeta>
@@ -67,26 +63,27 @@ local ENEMY_CR_META = {
 }
 
 -- True 5e-style enemy templates.
--- Base role template is picked by class, then monster type applies a clean modifier.
+-- Base role template is picked by class, then monster type only applies light
+-- combat identity deltas (AC / hit / DC / saves / speed), not hp/atk/def scalars.
 ---@type table<integer|string, EnemyRoleTemplate>
 local ENEMY_ROLE_TEMPLATES = {
-    [1] = { hp = { 38, 48, 58, 70, 82 }, atk = { 7, 8, 9, 10, 11 }, def = { 2, 3, 3, 4, 4 }, speed = { 101, 102, 103, 104, 105 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 4, 5, 5 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 800, blockRate = 400 },
-    [2] = { hp = { 52, 66, 80, 94, 108 }, atk = { 6, 7, 8, 9, 10 }, def = { 3, 4, 5, 6, 7 }, speed = { 92, 93, 94, 95, 96 }, ac = { 17, 18, 19, 20, 21 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 300, blockRate = 1600 },
-    [3] = { hp = { 44, 56, 68, 80, 92 }, atk = { 7, 8, 9, 10, 12 }, def = { 2, 3, 3, 4, 4 }, speed = { 104, 105, 106, 107, 108 }, ac = { 16, 17, 18, 19, 20 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 700, blockRate = 400 },
-    [4] = { hp = { 56, 72, 88, 104, 120 }, atk = { 6, 7, 8, 10, 11 }, def = { 3, 4, 4, 5, 6 }, speed = { 94, 95, 96, 97, 98 }, ac = { 16, 17, 18, 19, 20 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 900 },
-    [5] = { hp = { 46, 58, 70, 82, 94 }, atk = { 7, 8, 9, 10, 11 }, def = { 2, 3, 3, 4, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 500, blockRate = 700 },
-    [6] = { hp = { 42, 52, 62, 72, 82 }, atk = { 4, 5, 6, 7, 8 }, def = { 2, 2, 3, 3, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 15, 15, 16, 17 }, hit = { 3, 4, 4, 5, 6 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 300, blockRate = 400, healBonus = 800 },
-    [7] = { hp = { 36, 46, 56, 66, 76 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 99, 100, 101, 102, 103 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 500, blockRate = 300 },
-    [8] = { hp = { 40, 50, 60, 70, 80 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 14, 15, 15, 16 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 400, blockRate = 400 },
-    [9] = { hp = { 37, 47, 57, 67, 77 }, atk = { 4, 5, 6, 7, 8 }, def = { 1, 2, 2, 3, 3 }, speed = { 100, 101, 102, 103, 104 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 700, blockRate = 300 },
-    default = { hp = { 42, 52, 62, 72, 82 }, atk = { 5, 6, 7, 8, 9 }, def = { 2, 2, 3, 3, 4 }, speed = { 98, 99, 100, 101, 102 }, ac = { 15, 16, 17, 18, 19 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 500 },
+    [1] = { hp = { 38, 48, 58, 70, 82 }, def = { 2, 3, 3, 4, 4 }, speed = { 101, 102, 103, 104, 105 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 4, 5, 5 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 800, blockRate = 400 },
+    [2] = { hp = { 52, 66, 80, 94, 108 }, def = { 3, 4, 5, 6, 7 }, speed = { 92, 93, 94, 95, 96 }, ac = { 17, 18, 19, 20, 21 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 300, blockRate = 1600 },
+    [3] = { hp = { 44, 56, 68, 80, 92 }, def = { 2, 3, 3, 4, 4 }, speed = { 104, 105, 106, 107, 108 }, ac = { 16, 17, 18, 19, 20 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 700, blockRate = 400 },
+    [4] = { hp = { 56, 72, 88, 104, 120 }, def = { 3, 4, 4, 5, 6 }, speed = { 94, 95, 96, 97, 98 }, ac = { 16, 17, 18, 19, 20 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 900 },
+    [5] = { hp = { 46, 58, 70, 82, 94 }, def = { 2, 3, 3, 4, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 500, blockRate = 700 },
+    [6] = { hp = { 42, 52, 62, 72, 82 }, def = { 2, 2, 3, 3, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 15, 15, 16, 17 }, hit = { 3, 4, 4, 5, 6 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 300, blockRate = 400, healBonus = 800 },
+    [7] = { hp = { 36, 46, 56, 66, 76 }, def = { 1, 2, 2, 3, 3 }, speed = { 99, 100, 101, 102, 103 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 500, blockRate = 300 },
+    [8] = { hp = { 40, 50, 60, 70, 80 }, def = { 1, 2, 2, 3, 3 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 14, 15, 15, 16 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 400, blockRate = 400 },
+    [9] = { hp = { 37, 47, 57, 67, 77 }, def = { 1, 2, 2, 3, 3 }, speed = { 100, 101, 102, 103, 104 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 700, blockRate = 300 },
+    default = { hp = { 42, 52, 62, 72, 82 }, def = { 2, 2, 3, 3, 4 }, speed = { 98, 99, 100, 101, 102 }, ac = { 15, 16, 17, 18, 19 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 500 },
 }
 
 ---@type table<integer, MonsterTypeTemplate>
 local MONSTER_TYPE_TEMPLATES = {
-    [0] = { hpMul = 0.58, atkMul = 1.00, defMul = 0.95, acDelta = -4, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
-    [1] = { hpMul = 0.80, atkMul = 1.10, defMul = 1.00, acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
-    [2] = { hpMul = 1.08, atkMul = 1.22, defMul = 1.10, acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
+    [0] = { acDelta = -4, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
+    [1] = { acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
+    [2] = { acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
 }
 
 local function GetConfigFilePath(fileName)
@@ -163,6 +160,17 @@ local function resolveSkillTypeFromConfigs(skillId, skillConfig)
         end
     end
     return resolvedType, resolvedCost
+end
+
+local function resolveSkillDisplayName(skillId, skillConfig)
+    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
+    if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
+        return runtimeEntry.name
+    end
+    if skillConfig and skillConfig.Name and skillConfig.Name ~= "" then
+        return skillConfig.Name
+    end
+    return "Skill_" .. tostring(skillId)
 end
 
 local ENEMY_LEVEL_MAX = 20
@@ -279,7 +287,6 @@ end
 local function GetBaseTemplateStats(classId, level)
     local tpl = GetRoleTemplate(classId)
     return {
-        atk = GetInterpolatedTemplateValue(tpl.atk, level),
         def = GetInterpolatedTemplateValue(tpl.def, level),
         speed = GetInterpolatedTemplateValue(tpl.speed, level),
         critRate = tpl.critRate or 0,
@@ -308,12 +315,12 @@ local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
     local prof = getProficiencyBonus(level)
 
     return {
-        hp = math.max(1, math.floor(calculate5eHp(level, hitDie, conMod) * mt.hpMul)),
-        atk = math.max(1, math.floor(base.atk * mt.atkMul)),
-        def = math.max(0, math.floor(base.def * mt.defMul)),
+        hp = math.max(1, math.floor(calculate5eHp(level, hitDie, conMod))),
+        def = math.max(0, math.floor(base.def)),
         speed = math.max(60, math.floor(base.speed + mt.speedDelta)),
         ac = math.max(10, math.floor(calculateArmorClass(classId, dexMod, conMod) + mt.acDelta)),
         hit = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + mt.hitDelta)),
+        atk = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + mt.hitDelta)),
         spellDC = math.max(10, math.floor(8 + prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod) + mt.spellDCDelta)),
         saveFort = math.max(0, math.floor(conMod + (isSaveProficient(classId, "fort") and prof or 0) + mt.saveDelta)),
         saveRef = math.max(0, math.floor(dexMod + (isSaveProficient(classId, "ref") and prof or 0) + mt.saveDelta)),
@@ -446,7 +453,7 @@ function EnemyData.GetClassName(class)
 end
 
 function EnemyData.GetMonsterTypeName(monsterType)
-    return MONSTER_TYPE_NAMES[monsterType] or "Unknown"
+    return MONSTER_TYPE_NAMES[monsterType] or "未知"
 end
 
 function EnemyData.GetChallengeMeta(enemyId)
@@ -544,7 +551,7 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         table.insert(skillsConfig, {
             skillId = skillId,
             skillType = skillType,
-            name = "Skill_" .. skillId,
+            name = resolveSkillDisplayName(skillId, skillConfig),
             skillCost = skillCost,
         })
     end

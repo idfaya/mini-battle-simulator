@@ -1,4 +1,6 @@
 local RunShopGoods = require("config.roguelike.run_shop_goods")
+local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
+local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeShop = {}
@@ -38,6 +40,33 @@ local function reviveOne(runState, healPct)
     return false
 end
 
+local function resolveShopGoodsDisplay(item)
+    if not item then
+        return nil, ""
+    end
+    if item.goodsType == "equipment" then
+        local equipment = RunEquipmentConfig.GetEquipment(item.refId)
+        return equipment and equipment.name or ("装备 " .. tostring(item.refId or item.id)), equipment and equipment.code or ""
+    end
+    if item.goodsType == "blessing" then
+        local blessing = RunBlessingConfig.GetBlessing(item.refId)
+        return blessing and blessing.name or ("祝福 " .. tostring(item.refId or item.id)), blessing and blessing.code or ""
+    end
+    if item.goodsType == "service" then
+        if item.code == "team_heal_30" then
+            return "队伍治疗", "全队恢复 30% 生命"
+        end
+        if item.code == "revive_one_40" then
+            return "战地复苏", "复活 1 名阵亡单位并恢复 20% 生命"
+        end
+        if item.code == "remove_one_curse" then
+            return "净化仪式", "移除 1 个负面诅咒"
+        end
+        return "服务", item.code or ""
+    end
+    return tostring(item.goodsType or "商品"), item.code or ""
+end
+
 function RoguelikeShop.GetShop(shopId)
     return RunShopGoods.GetShop(shopId)
 end
@@ -56,11 +85,14 @@ function RoguelikeShop.BuildShopState(runState, shopId)
     for _, goodsId in ipairs(shop.stock or {}) do
         local item = RoguelikeShop.GetGoods(goodsId)
         if item then
+            local name, description = resolveShopGoodsDisplay(item)
             goods[#goods + 1] = {
                 goodsId = goodsId,
                 goodsType = item.goodsType,
                 refId = item.refId,
                 code = item.code,
+                name = name,
+                description = description,
                 price = item.price or 0,
                 rarity = item.rarity or "common",
                 sold = (runState.shopSoldMap or {})[goodsId] == true,

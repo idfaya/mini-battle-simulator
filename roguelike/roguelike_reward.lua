@@ -289,11 +289,11 @@ local function buildLabel(entry)
     end
     if entry.rewardType == "equipment" then
         local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
-        return equipment and equipment.name or ("Equipment " .. tostring(entry.refId))
+        return equipment and equipment.name or ("装备 " .. tostring(entry.refId))
     end
     if entry.rewardType == "blessing" then
         local blessing = RunBlessingConfig.GetBlessing(entry.refId)
-        return blessing and blessing.name or ("Blessing " .. tostring(entry.refId))
+        return blessing and blessing.name or ("祝福 " .. tostring(entry.refId))
     end
     if entry.rewardType == "recruit" then
         return "招募 " .. HeroData.GetHeroName(entry.refId)
