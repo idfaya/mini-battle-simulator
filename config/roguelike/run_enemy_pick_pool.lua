@@ -18,17 +18,17 @@ RunEnemyPickPool.POOLS = {
     [701001] = {
         id = 701001,
         entries = {
-            { enemyId = 910001, weight = 40 },
-            { enemyId = 910002, weight = 45 },
-            { enemyId = 910004, weight = 15 },
+            { enemyId = 910001, weight = 65 },
+            { enemyId = 910002, weight = 30 },
+            { enemyId = 910004, weight = 5 },
         },
     },
     [701002] = {
         id = 701002,
         entries = {
-            { enemyId = 910001, weight = 50 },
-            { enemyId = 910002, weight = 40 },
-            { enemyId = 910004, weight = 10 },
+            { enemyId = 910001, weight = 72 },
+            { enemyId = 910002, weight = 25 },
+            { enemyId = 910004, weight = 3 },
         },
     },
     [701003] = {
@@ -65,15 +65,15 @@ RunEnemyPickPool.POOLS = {
     [701007] = {
         id = 701007,
         entries = {
-            { enemyId = 910001, weight = 75 },
-            { enemyId = 910002, weight = 25 },
+            { enemyId = 910001, weight = 92 },
+            { enemyId = 910002, weight = 8 },
         },
     },
     [701008] = {
         id = 701008,
         entries = {
-            { enemyId = 910001, weight = 65 },
-            { enemyId = 910002, weight = 35 },
+            { enemyId = 910001, weight = 88 },
+            { enemyId = 910002, weight = 12 },
         },
     },
     [701201] = {

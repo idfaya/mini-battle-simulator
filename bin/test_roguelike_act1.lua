@@ -67,6 +67,11 @@ end
 local function runBattleUntilResolved(maxSteps)
     local snapshot = Run.GetSnapshot()
     for _ = 1, maxSteps do
+        -- If any unit can cast an offensive limited-use skill, do it immediately to reduce wipe risk.
+        local heroId = findReadyHero(snapshot)
+        if heroId then
+            Run.QueueBattleCommand({ type = "cast_ultimate", heroId = heroId })
+        end
         Run.Tick(800)
         snapshot = Run.GetSnapshot()
         if snapshot.phase ~= "battle" then
@@ -83,17 +88,10 @@ local function choosePathAndEnter(nodeId)
     assert(ok, "enter node failed: " .. tostring(reason))
 end
 
-local function assertEncounterScalesStay5eStyle()
+local function assertEncounterScalesRemoved()
     for encounterId, encounter in pairs(RunEncounterGroup.ENCOUNTERS or {}) do
-        local scale = encounter.enemyScale or {}
-        for _, key in ipairs({ "hp", "atk", "def" }) do
-            local value = tonumber(scale[key]) or 1
-            assert(value >= 0.90 and value <= 1.10, string.format("encounter %s enemyScale.%s should stay within 5e-style bounds", tostring(encounterId), key))
-        end
-        local hitDelta = math.abs(tonumber(scale.hitDelta) or 0)
-        local spellDCDelta = math.abs(tonumber(scale.spellDCDelta) or 0)
-        assert(hitDelta <= 1, string.format("encounter %s hitDelta should be a light modifier", tostring(encounterId)))
-        assert(spellDCDelta <= 1, string.format("encounter %s spellDCDelta should be a light modifier", tostring(encounterId)))
+        assert(encounter.playerScale == nil, string.format("encounter %s should not define playerScale", tostring(encounterId)))
+        assert(encounter.enemyScale == nil, string.format("encounter %s should not define enemyScale", tostring(encounterId)))
     end
 end
 
@@ -366,7 +364,7 @@ local function chooseNextNode(snapshot, routeState)
     return pickByTypes({ "event", "shop", "battle_normal", "battle_elite", "recruit", "boss" }) or bestNode
 end
 
-assertEncounterScalesStay5eStyle()
+assertEncounterScalesRemoved()
 
 math.randomseed(10102)
 
