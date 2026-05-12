@@ -75,7 +75,7 @@ local function applyClassFlat(modMap, classIds, value)
     end
 end
 
-local function buildBattleModifiers(runState, encounter)
+local function buildBattleModifiers(runState, battleProfile)
     local result = {
         extraEnergy = 0,
         hpPctByClass = {},
@@ -130,9 +130,9 @@ local function buildBattleModifiers(runState, encounter)
             applyClassPct(result.damageIncreaseByClass, params.classIds, params.value)
         elseif blessing and blessing.effectType == "damage_pct_vs_monster_type" then
             local monsterType = 0
-            if encounter.kind == "elite" then
+            if battleProfile.kind == "elite" then
                 monsterType = 1
-            elseif encounter.kind == "boss" then
+            elseif battleProfile.kind == "boss" then
                 monsterType = 2
             end
             if contains(params.monsterTypes, monsterType) then
@@ -146,7 +146,7 @@ local function buildBattleModifiers(runState, encounter)
     return result
 end
 
-local function buildHeroForBattle(rosterHero, modifiers, encounter)
+local function buildHeroForBattle(rosterHero, modifiers)
     local heroData = HeroData.ConvertClassUnitToHeroData(rosterHero)
     if not heroData then
         return nil
@@ -205,8 +205,8 @@ local function buildHeroForBattle(rosterHero, modifiers, encounter)
     return heroData
 end
 
-local function buildEncounterBudgetAdjust(runState, encounterLike, aliveCount)
-    local budget = encounterLike and encounterLike.budget
+local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
+    local budget = battleProfileLike and battleProfileLike.budget
     if not budget then
         return {
             hpMul = 1.0,
@@ -220,11 +220,11 @@ local function buildEncounterBudgetAdjust(runState, encounterLike, aliveCount)
     end
 
     local enemyMetas = {}
-    for _, enemyId in ipairs(encounterLike.enemyIds or {}) do
+    for _, enemyId in ipairs(battleProfileLike.enemyIds or {}) do
         enemyMetas[#enemyMetas + 1] = EnemyData.GetChallengeMeta(enemyId)
     end
     local report = RunEncounterBudget.BuildReport(
-        tonumber(runState and runState.partyLevel) or tonumber(encounterLike.level) or 1,
+        tonumber(runState and runState.partyLevel) or tonumber(battleProfileLike.level) or 1,
         aliveCount,
         enemyMetas,
         budget.difficulty or "deadly",
@@ -242,7 +242,7 @@ local function buildEncounterBudgetAdjust(runState, encounterLike, aliveCount)
     }
 end
 
-local function buildEnemyForBattle(enemyId, level, wpType, encounter, budgetAdjust)
+local function buildEnemyForBattle(enemyId, level, wpType, budgetAdjust)
     local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
     if not enemyData then
         return nil
@@ -331,7 +331,7 @@ local function pickInitialEnemyIds(battle)
     return enemyIds
 end
 
-local function buildReserveEnemies(battle, level, encounter, budgetAdjust)
+local function buildReserveEnemies(battle, level, budgetAdjust)
     local reserve = {}
     if not battle then
         return reserve
@@ -341,7 +341,7 @@ local function buildReserveEnemies(battle, level, encounter, budgetAdjust)
         local groupEnemyIds = {}
         appendEnemyGroupIds(groupEnemyIds, waveGroupIds[waveIndex])
         for _, enemyId in ipairs(groupEnemyIds) do
-            local enemyData = buildEnemyForBattle(enemyId, level, 0, encounter, budgetAdjust)
+            local enemyData = buildEnemyForBattle(enemyId, level, 0, budgetAdjust)
             if enemyData then
                 enemyData.wpType = 0
                 reserve[#reserve + 1] = enemyData
@@ -364,13 +364,13 @@ local function resolveBattleBossId(battle)
     return tonumber(opening and opening.boss) or nil
 end
 
-local function buildDeterministicSeedArray(runState, encounterOrBattle)
+local function buildDeterministicSeedArray(runState, battleProfileOrBattle)
     -- Deterministic battle RNG:
     -- - Keeps roguelike flow stable for tests and avoids flaky outcomes caused by wall-clock seeds.
-    -- - Still varies by node/encounter so different nodes don't share identical RNG.
+    -- - Still varies by node/battle so different nodes don't share identical RNG.
     local chapterId = tonumber(runState and runState.chapterId) or 0
     local nodeId = tonumber(runState and runState.currentNodeId) or 0
-    local battleId = tonumber(encounterOrBattle and encounterOrBattle.id) or 0
+    local battleId = tonumber(battleProfileOrBattle and battleProfileOrBattle.id) or 0
     local base = (chapterId * 1000003 + nodeId * 10007 + battleId * 131 + 12345) % 2147483647
     if base <= 0 then
         base = 123456789
@@ -383,14 +383,14 @@ local function buildDeterministicSeedArray(runState, encounterOrBattle)
     }
 end
 
-local function buildBattleConfig(runState, battle, encounter)
+local function buildBattleConfig(runState, battle, battleProfile)
     local teamRoster = RoguelikeRoster.GetTeamUnits(runState)
     assignWpTypes(teamRoster)
-    local modifiers = buildBattleModifiers(runState, encounter)
+    local modifiers = buildBattleModifiers(runState, battleProfile)
     local teamLeft = {}
     for _, rosterHero in ipairs(teamRoster) do
         if not rosterHero.isDead and (rosterHero.currentHp or 0) > 0 then
-            local heroData = buildHeroForBattle(rosterHero, modifiers, encounter)
+            local heroData = buildHeroForBattle(rosterHero, modifiers)
             if heroData then
                 teamLeft[#teamLeft + 1] = heroData
             end
@@ -398,35 +398,35 @@ local function buildBattleConfig(runState, battle, encounter)
     end
 
     local teamRight = {}
-    local encounterForBudget = {
-        -- Use the full encounter footprint so reserve waves still contribute to overall pressure.
-        -- The final scalar is intentionally clamped in buildEncounterBudgetAdjust.
+    local battleProfileForBudget = {
+        -- Use the full battle footprint so reserve waves still contribute to overall pressure.
+        -- The final scalar is intentionally clamped in buildBattleBudgetAdjust.
         enemyIds = flattenBattleEnemyIds(battle),
-        budget = encounter and encounter.budget or nil,
-        level = tonumber(encounter and encounter.level) or tonumber(runState and runState.partyLevel) or 1,
+        budget = battleProfile and battleProfile.budget or nil,
+        level = tonumber(battleProfile and battleProfile.level) or tonumber(runState and runState.partyLevel) or 1,
     }
-    local budgetAdjust = buildEncounterBudgetAdjust(runState, encounterForBudget, #teamLeft)
-    runState.currentEncounterBudget = budgetAdjust.report
+    local budgetAdjust = buildBattleBudgetAdjust(runState, battleProfileForBudget, #teamLeft)
+    runState.currentBattleBudget = budgetAdjust.report
 
     -- Keep enemy level close to the party's recommended level.
-    -- Encounter entries still define "intended" pacing (encounter.level), but we cap how far
+    -- Battle profiles still define "intended" pacing (battleProfile.level), but we cap how far
     -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
-    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(encounter and encounter.level) or 1
-    local baseLevel = tonumber(encounter and encounter.level) or partyLevel
+    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(battleProfile and battleProfile.level) or 1
+    local baseLevel = tonumber(battleProfile and battleProfile.level) or partyLevel
     local kindOffset = 0
-    local encounterKind = encounter and encounter.kind or battle.kind
-    if encounterKind == "elite" then
+    local battleKind = battleProfile and battleProfile.kind or battle.kind
+    if battleKind == "elite" then
         kindOffset = 1
-    elseif encounterKind == "boss" then
+    elseif battleKind == "boss" then
         kindOffset = 2
     end
     local minEnemyLevel = partyLevel - 1
-    if encounterKind == "normal" or encounterKind == "event_battle" then
+    if battleKind == "normal" or battleKind == "event_battle" then
         -- Normal fights keep density for atmosphere; allow level to sit up to 4 below party
         -- so balance can be tuned by stats instead of reducing unit count.
         minEnemyLevel = partyLevel - 4
-    elseif encounterKind == "boss" then
-        -- Boss still stays above normal pressure, but should honor encounter level tuning.
+    elseif battleKind == "boss" then
+        -- Boss still stays above normal pressure, but should honor battle profile level tuning.
         minEnemyLevel = partyLevel - 3
     end
     local effectiveEnemyLevel = clamp(baseLevel, math.max(1, minEnemyLevel), partyLevel + 1 + kindOffset)
@@ -434,7 +434,7 @@ local function buildBattleConfig(runState, battle, encounter)
     local openingEnemyIds = pickInitialEnemyIds(battle)
     for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, encounter, budgetAdjust)
+        local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end
@@ -450,15 +450,15 @@ local function buildBattleConfig(runState, battle, encounter)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
-        enemyReserve = buildReserveEnemies(battle, effectiveEnemyLevel, encounter, budgetAdjust),
+        enemyReserve = buildReserveEnemies(battle, effectiveEnemyLevel, budgetAdjust),
         refreshTurns = tonumber(battle and battle.refreshTurns) or 0,
         refreshOnClear = battle and battle.refreshOnClear == true,
         spawnOrder = battle and battle.spawnOrder or nil,
         winRule = battle and battle.winRule or nil,
         loseRule = battle and battle.loseRule or nil,
         bossId = resolveBattleBossId(battle),
-        seedArray = buildDeterministicSeedArray(runState, encounter or battle),
-        initialEnergy = (encounter and encounter.initialEnergy) or 40,
+        seedArray = buildDeterministicSeedArray(runState, battleProfile or battle),
+        initialEnergy = (battleProfile and battleProfile.initialEnergy) or 40,
         disableDefaultRenderer = true,
     }, modifiers
 end
@@ -505,8 +505,8 @@ local function applyPostBattleRest(runState)
     end
 end
 
-function RoguelikeBattleBridge.StartBattle(runState, battle, encounter)
-    local config, modifiers, reason = buildBattleConfig(runState, battle, encounter)
+function RoguelikeBattleBridge.StartBattle(runState, battle, battleProfile)
+    local config, modifiers, reason = buildBattleConfig(runState, battle, battleProfile)
     if not config then
         return false, reason
     end
@@ -545,7 +545,7 @@ function RoguelikeBattleBridge.GetSnapshot()
     return BattleRuntime.getSnapshot()
 end
 
-function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
+function RoguelikeBattleBridge.ResolveBattle(runState, battle, battleProfile)
     local snapshot = RoguelikeBattleBridge.GetSnapshot()
     if not snapshot or not snapshot.result then
         return nil
@@ -595,8 +595,8 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, encounter)
     end
 
     local won = snapshot.result.winner == "left"
-    local minGold = (((encounter or {}).gold or {}).min) or 0
-    local maxGold = (((encounter or {}).gold or {}).max) or minGold
+    local minGold = (((battleProfile or {}).gold or {}).min) or 0
+    local maxGold = (((battleProfile or {}).gold or {}).max) or minGold
     local earnedGold = won and math.random(minGold, maxGold) or 0
     local modifiers = runState.currentBattleModifiers or {}
     if won then

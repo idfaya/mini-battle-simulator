@@ -40,7 +40,6 @@ local triggerTime2Friend = {
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendCasterBuff] = E_PASSIVE_SKILL_TRIGGER_TIME.CasterBuff,
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendReceiveBuff] = E_PASSIVE_SKILL_TRIGGER_TIME.ReceiveBuff,
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendHpChg] = E_PASSIVE_SKILL_TRIGGER_TIME.HpChg,
-    [E_PASSIVE_SKILL_TRIGGER_TIME.FriendUltimateAtkStart] = E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart,
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendPayHp] = E_PASSIVE_SKILL_TRIGGER_TIME.PayHp,
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendDying] = E_PASSIVE_SKILL_TRIGGER_TIME.Dying,
     [E_PASSIVE_SKILL_TRIGGER_TIME.FriendAfterHeal] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal,
@@ -49,7 +48,6 @@ local triggerTime2Friend = {
 
 -- 敌方触发时机映射
 local triggerTime2Enemy = {
-    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyUltimateAtkStart] = E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart,
     [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyDefBeforeDotDmgCalc] = E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmgCalc,
     [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyDefAfterBurnDmg] = E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterBurnDmg,
     [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyTurnBegin] = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
@@ -83,10 +81,7 @@ local triggerLimitConfig = {
     [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDotDmg] = 30,
     [E_PASSIVE_SKILL_TRIGGER_TIME.AtkAfterHeal] = 30,
     [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal] = 30,
-    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart] = 10,
-    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkFinish] = 10,
     [E_PASSIVE_SKILL_TRIGGER_TIME.HpChg] = 30,
-    [E_PASSIVE_SKILL_TRIGGER_TIME.EnemyUltimateAtkStart] = 10,
     [E_PASSIVE_SKILL_TRIGGER_TIME.CriticalRateChg] = 30,
     [E_PASSIVE_SKILL_TRIGGER_TIME.DmgMakeDeath] = 10,
     [E_PASSIVE_SKILL_TRIGGER_TIME.DmgCauseDeath] = 10,
@@ -113,7 +108,6 @@ local triggerLimitConfig = {
     [E_PASSIVE_SKILL_TRIGGER_TIME.AtkBeforeDmgBeforeShield] = 30,
     [E_PASSIVE_SKILL_TRIGGER_TIME.DefBeforeDmgBeforeShield] = 30,
     [E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterRecover] = 30,
-    [E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStartU3] = 10,
     [E_PASSIVE_SKILL_TRIGGER_TIME.BeforeBattleEnd] = 10,
     [E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnEndActionForceUpdated] = 10,
 }
@@ -537,14 +531,6 @@ function BattlePassiveSkill.RunSkillOnBuffDel(hero)
     RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.BuffChg)
 end
 
-function BattlePassiveSkill.RunSkillOnUltimateAtkStart(hero, extraParam)
-    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStart, extraParam)
-end
-
-function BattlePassiveSkill.RunSkillOnUltimateAtkFinish(hero)
-    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkFinish)
-end
-
 function BattlePassiveSkill.RunSkillOnDefAfterHeal(hero, extraParam)
     RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.DefAfterHeal, extraParam)
 end
@@ -667,10 +653,6 @@ end
 
 function BattlePassiveSkill.RunSkillOnCollectAtkFinish(hero)
     RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.CollectAtkFinish)
-end
-
-function BattlePassiveSkill.RunSkillOnUltimateAtkU3(hero, extraParam)
-    RunDelegates(hero, E_PASSIVE_SKILL_TRIGGER_TIME.UltimateAtkStartU3, extraParam)
 end
 
 function BattlePassiveSkill.RunSkillOnSelfTurnEndActionForceUpdated(hero)

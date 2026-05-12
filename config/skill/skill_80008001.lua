@@ -13,7 +13,6 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "ice_arrow_hit",
                 target = t,
-                damageRate = 9000,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "ice" } },
                     { tag = "apply_freeze", phase = "post", param = { turns = 0, slowPct = 3000 } },

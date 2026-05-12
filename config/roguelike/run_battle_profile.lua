@@ -1,25 +1,25 @@
----@alias RunEncounterBudgetDifficulty
+---@alias RunBattleProfileBudgetDifficulty
 ---| "easy"
 ---| "medium"
 ---| "hard"
 ---| "deadly"
 
----@class RunEncounterGoldRange
+---@class RunBattleProfileGoldRange
 ---@field min integer
 ---@field max integer
 
----@class RunEncounterBudget
----@field difficulty RunEncounterBudgetDifficulty
+---@class RunBattleProfileBudget
+---@field difficulty RunBattleProfileBudgetDifficulty
 ---@field pressureFactor number
 
----@class RunEncounterEliteBonus
+---@class RunBattleProfileEliteBonus
 ---@field equipmentRoll integer
 ---@field rewardRarityBonus integer
 
----@class RunEncounterBoss
+---@class RunBattleProfileBoss
 ---@field phaseGroupId integer
 
----@class RunEncounterEntry
+---@class RunBattleProfileEntry
 ---@field id integer
 ---@field kind string
 ---@field chapterId integer
@@ -27,29 +27,29 @@
 ---@field level integer
 ---@field initialEnergy integer
 ---@field speed number
----@field gold RunEncounterGoldRange
----@field budget RunEncounterBudget
----@field eliteBonus RunEncounterEliteBonus|nil
----@field boss RunEncounterBoss|nil
+---@field gold RunBattleProfileGoldRange
+---@field budget RunBattleProfileBudget
+---@field eliteBonus RunBattleProfileEliteBonus|nil
+---@field boss RunBattleProfileBoss|nil
 
----@class RunEncounterGroupModule
----@field ENCOUNTERS table<integer, RunEncounterEntry>
----@field GetEncounter fun(encounterId: integer): RunEncounterEntry|nil
+---@class RunBattleProfileModule
+---@field BATTLE_PROFILES table<integer, RunBattleProfileEntry>
+---@field GetBattleProfile fun(battleId: integer): RunBattleProfileEntry|nil
 
----@type RunEncounterGroupModule
-local RunEncounterGroup = {}
+---@type RunBattleProfileModule
+local RunBattleProfile = {}
 
--- Encounter = one battle setup for roguelike node.
--- Enemy composition comes from battle wave groups/templates, not static encounter enemyIds.
+-- Battle profile = one battle meta/setup entry for a roguelike node.
+-- Enemy composition comes from battle wave groups/templates, not static battle enemy ids.
 --
 -- 难度模型（2026-05-11 收敛）：
 --   * 压强由 `budget.difficulty` + `budget.pressureFactor` 主导（见 run_encounter_budget.lua），
 --     通过 BuildReport → gap 计算 hpMul/atkMul/defMul/hitDelta/spellDCDelta/saveDelta。
---   * 遭遇表不再使用 `playerScale / enemyScale`。
---   * 遭遇表也不再配置 `enemyCount / enemyIds`，这些由 battle template → wave group 生成链决定。
---   * 如果遭遇过强，优先调整 CR 组合、怪物数量、遭遇等级或 budget，不再靠额外 scale 修正。
----@type table<integer, RunEncounterEntry>
-RunEncounterGroup.ENCOUNTERS = {
+--   * battle profile 不再使用 `playerScale / enemyScale`。
+--   * battle profile 也不再配置 `enemyCount / enemyIds`，这些由 battle template → wave group 生成链决定。
+--   * 如果战斗过强，优先调整 CR 组合、怪物数量、battle profile 等级或 budget，不再靠额外 scale 修正。
+---@type table<integer, RunBattleProfileEntry>
+RunBattleProfile.BATTLE_PROFILES = {
     -- Normal battles (chapter 1 baseline)
     [101001] = {
         id = 101001,
@@ -154,8 +154,8 @@ RunEncounterGroup.ENCOUNTERS = {
     },
 }
 
-function RunEncounterGroup.GetEncounter(encounterId)
-    return RunEncounterGroup.ENCOUNTERS[encounterId]
+function RunBattleProfile.GetBattleProfile(battleId)
+    return RunBattleProfile.BATTLE_PROFILES[battleId]
 end
 
-return RunEncounterGroup
+return RunBattleProfile

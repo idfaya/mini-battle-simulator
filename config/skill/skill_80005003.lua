@@ -13,7 +13,6 @@ function skill_80005003.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80005003_execute",
                 targetRef = "selected",
-                damageRate = 7000 + math.max(0, tier - 1) * 500,
                 tags = {
                     { tag = "select_random_enemies", phase = "pre", param = { count = 3 + math.max(0, tier - 1) } },
                     { tag = "apply_poison", phase = "post", param = { layers = tier >= 3 and 3 or 2 } },

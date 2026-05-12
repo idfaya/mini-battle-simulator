@@ -920,9 +920,6 @@ local function TriggerBattleEnd(winner, reason)
         onBattleEndCallback(battleResult)
     end
 
-    -- 发布战斗结束事件（旧版兼容）
-    BattleEvent.Publish("BattleEnd", battleResult)
-    
     -- 触发可视化战斗结束事件
     BattleEvent.Publish(BattleVisualEvents.BATTLE_ENDED, {
         eventType = BattleVisualEvents.BATTLE_ENDED,
@@ -1021,11 +1018,6 @@ function BattleMain.Start(beginState, onBattleEnd)
         lastUpdateTime = SafeClock()
     end)
 
-    -- 发布战斗开始事件（旧版兼容）
-    runStage("publish_battle_start", function()
-        BattleEvent.Publish("BattleStart", battleBeginState)
-    end)
-    
     -- 触发可视化战斗开始事件
     runStage("publish_visual_battle_started", function()
         BattleEvent.Publish(BattleVisualEvents.BATTLE_STARTED, {

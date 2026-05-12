@@ -1,8 +1,7 @@
 local RunBattleConfig = require("config.roguelike.run_battle_config")
-local RunEncounterGroup = require("config.roguelike.run_encounter_group")
+local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunBattlePool = require("config.roguelike.run_battle_pool")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
-local RunEncounterPool = require("config.roguelike.run_encounter_pool")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RoguelikeEnemyGenerator = require("roguelike.roguelike_enemy_generator")
 
@@ -68,18 +67,18 @@ local function buildSeed(runState, node, salt)
     return baseSeed * 1009 + chapterId * 9176 + nodeId * 131 + (salt or 0)
 end
 
-local function resolveEncounter(encounterPoolId, seed)
-    local pool = RunEncounterPool.GetPool(encounterPoolId)
-    if not pool then
-        return nil, "encounter_pool_not_found"
+local function resolveBattleProfile(template, seed)
+    local entries = template and template.battleEntries or nil
+    if not entries or #entries <= 0 then
+        return nil, "battle_entries_not_found"
     end
     local rng = makeRng(seed)
-    local picked = rng:weightedPick(pool.entries or {})
-    local encounter = RunEncounterGroup.GetEncounter(picked and picked.encounterId)
-    if not encounter then
-        return nil, "encounter_not_found"
+    local picked = rng:weightedPick(entries)
+    local battleProfile = RunBattleProfile.GetBattleProfile(picked and picked.battleId)
+    if not battleProfile then
+        return nil, "battle_profile_not_found"
     end
-    return cloneTable(encounter)
+    return cloneTable(battleProfile)
 end
 
 function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
@@ -89,11 +88,11 @@ function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
 
     if tonumber(node.battleId) then
         local battle = RunBattleConfig.GetBattle(tonumber(node.battleId))
-        local encounter = RunEncounterGroup.GetEncounter(tonumber(node.battleId))
-        if not battle or not encounter then
+        local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(node.battleId))
+        if not battle or not battleProfile then
             return nil, nil, "battle_not_found"
         end
-        return cloneTable(battle), cloneTable(encounter)
+        return cloneTable(battle), cloneTable(battleProfile)
     end
 
     local pool = RunBattlePool.GetPool(tonumber(node.battlePoolId))
@@ -108,9 +107,9 @@ function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
         return nil, nil, "battle_template_not_found"
     end
 
-    local encounter, encounterReason = resolveEncounter(template.encounterPoolId, buildSeed(runState, node, 2))
-    if not encounter then
-        return nil, nil, encounterReason
+    local battleProfile, battleProfileReason = resolveBattleProfile(template, buildSeed(runState, node, 2))
+    if not battleProfile then
+        return nil, nil, battleProfileReason
     end
 
     local waveCountRng = makeRng(buildSeed(runState, node, 3))
@@ -135,7 +134,7 @@ function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
         bossId = template.bossEnemyId or generated.bossEnemyId,
     }
 
-    return battle, encounter
+    return battle, battleProfile
 end
 
 return RoguelikeBattleResolver

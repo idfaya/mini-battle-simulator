@@ -6,7 +6,7 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local Run = require("roguelike.roguelike_run")
 local BattleFormation = require("modules.battle_formation")
-local RunEncounterGroup = require("config.roguelike.run_encounter_group")
+local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local ClassRoleConfig = require("config.class_role_config")
 local HeroData = require("config.hero_data")
 
@@ -89,9 +89,9 @@ local function choosePathAndEnter(nodeId)
 end
 
 local function assertEncounterScalesRemoved()
-    for encounterId, encounter in pairs(RunEncounterGroup.ENCOUNTERS or {}) do
-        assert(encounter.playerScale == nil, string.format("encounter %s should not define playerScale", tostring(encounterId)))
-        assert(encounter.enemyScale == nil, string.format("encounter %s should not define enemyScale", tostring(encounterId)))
+    for battleId, battleProfile in pairs(RunBattleProfile.BATTLE_PROFILES or {}) do
+        assert(battleProfile.playerScale == nil, string.format("battle %s should not define playerScale", tostring(battleId)))
+        assert(battleProfile.enemyScale == nil, string.format("battle %s should not define enemyScale", tostring(battleId)))
     end
 end
 

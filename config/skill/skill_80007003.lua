@@ -12,7 +12,6 @@ function skill_80007003.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80007003_execute",
                 targetRef = "selected",
-                damageRate = 9000,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "fire" } },
                     { tag = "sorcerer_burn_settlement", phase = "both", param = { bonusDice = "1d8", turns = 2 } },

@@ -1,4 +1,4 @@
-﻿﻿﻿# MiniBattle 战斗系统总纲 V1.1
+﻿﻿﻿﻿# MiniBattle 战斗系统总纲 V1.1
 
 ## 0. 文档定位
 
@@ -149,9 +149,9 @@
 
 | 术语 | 定义 |
 | --- | --- |
-| `normal_battle` | 普通战节点 |
-| `elite_battle` | 精英战节点 |
-| `boss_battle` | Boss 战节点 |
+| `battle_normal` | 普通战节点 |
+| `battle_elite` | 精英战节点 |
+| `boss` | Boss 战节点 |
 | `recruit` | 招募节点 |
 | `shop` | 商店节点 |
 | `event` | 事件节点 |
@@ -187,9 +187,9 @@
 - `圣物` → 统一为 `装备`
 - `升级` 在涉及重复获得同职业时 → 必须改为 `进阶`
 - `火法 / 火法+ / 炎术师 / 灾厄法师` 这类具象职业演化示例 → 一律不写入总纲与 Class 稿
-- `3 波敌人` / `第 1 波 / 第 2 波` → 统一改为 `开场敌军 + 后备池增援`
-- `battle_normal / battle_elite / boss` → 统一为 `normal_battle / elite_battle / boss_battle`
-- `encounterId`（作为节点到战斗的对外字段）→ 统一为 `battle_id`
+- `normal_battle / elite_battle / boss_battle` → 统一为 `battle_normal / battle_elite / boss`
+- `开场敌军 + 后备池增援`（用于描述实际多波结构时）→ 统一按 `波 / 第 2 波 / 第 3 波` 表达
+- `encounterId / battleId`（作为节点到战斗的对外字段）→ 统一为 `battle_id`
 
 ---
 
@@ -242,7 +242,7 @@
 
 - 1 张章节地图（Act 1）
 - 2 条主路线：`safe` / `high_pressure`
-- 7 类节点：`normal_battle / elite_battle / boss_battle / recruit / shop / event / camp`
+- 7 类节点：`battle_normal / battle_elite / boss / recruit / shop / event / camp`
 - 物理 6 职业 + 法系 4 职业（详见 `class_promotion_design.md`）
 - 每个职业低 / 中 / 高三阶技能包
 - 战斗后经验升级 + 固定恢复 + 条件触发职业卡三选一
@@ -272,7 +272,7 @@ minibattle_combat_design_document_v_1.md  ← 规则源
 ```text
 固定 3 前排 + 3 后排
 自动回合制
-开场敌军 + 后备池增援
+按波次刷新敌军（支持第 2 波 / 第 3 波）
 战斗后固定恢复
 条件触发职业卡三选一（新职业单位 / 同职业进阶 / 挂起进阶）
 职业阶段 low → mid → high

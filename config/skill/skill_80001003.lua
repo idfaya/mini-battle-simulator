@@ -19,7 +19,6 @@ local DEF = {
             op = "damage",
             effect = "skill_80001003_execute",
             targetRef = "selected",
-            damageRate = 16000,
             tags = {
                 { tag = "select_lowest_hp_enemy", phase = "pre" },
                 { tag = "pursuit_on_kill", phase = "post" },

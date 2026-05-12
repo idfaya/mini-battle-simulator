@@ -145,7 +145,7 @@ local function chooseEquipmentId(maxTier)
     return pool[math.random(1, #pool)]
 end
 
-local function rollBattleEquipmentId(nodeType, encounter)
+local function rollBattleEquipmentId(nodeType, battleProfile)
     local resolvedNodeType = tostring(nodeType or "")
     if resolvedNodeType == "battle_normal" then
         if math.random() > 0.35 then
@@ -156,7 +156,7 @@ local function rollBattleEquipmentId(nodeType, encounter)
         return chooseEquipmentId(maxTier)
     end
     if resolvedNodeType == "battle_elite" then
-        local rarityBonus = math.max(0, tonumber(encounter and encounter.eliteBonus and encounter.eliteBonus.rewardRarityBonus) or 0)
+        local rarityBonus = math.max(0, tonumber(battleProfile and battleProfile.eliteBonus and battleProfile.eliteBonus.rewardRarityBonus) or 0)
         local roll = math.random()
         local rareThreshold = math.min(0.75, 0.30 + rarityBonus * 0.10)
         local bossThreshold = math.min(0.35, math.max(0, (rarityBonus - 1) * 0.10))
@@ -634,8 +634,8 @@ function RoguelikeReward.ResolvePendingPromotion(runState, unit, source)
     return true
 end
 
-function RoguelikeReward.RollBattleEquipmentDrop(nodeType, encounter)
-    return rollBattleEquipmentId(nodeType, encounter)
+function RoguelikeReward.RollBattleEquipmentDrop(nodeType, battleProfile)
+    return rollBattleEquipmentId(nodeType, battleProfile)
 end
 
 function RoguelikeReward.GetPromotionRequiredLevel(targetStage)

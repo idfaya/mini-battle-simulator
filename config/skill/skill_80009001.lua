@@ -12,7 +12,6 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80009001_execute",
                 targetRef = "selected",
-                damageRate = 9000,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },
                     { tag = "apply_static_mark", phase = "post", param = { turns = 2 } },

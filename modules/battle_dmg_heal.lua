@@ -189,10 +189,7 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
             BattleSkill.OnDamagedInterrupt(target, actualDamage)
         end
     end
-    
-    -- 触发旧版伤害事件（用于 BattleDisplay 战斗日志）
-    BattleEvent.Publish("Damage", target, damage, false)
-    
+
     -- 触发可视化伤害事件
     local BattleVisualEvents = require("ui.battle_visual_events")
     BattleEvent.Publish(BattleVisualEvents.DAMAGE_DEALT, BattleVisualEvents.BuildDamageDealt(

@@ -585,18 +585,6 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
-    SkillEffectRegistry.Register("set_damage_rate_passive", function(ctx, frameCopy, _, spec)
-        local BattleSkill = require("modules.battle_skill")
-        local p = type(spec) == "table" and spec.param or {}
-        local base = tonumber(p and p.base) or 0
-        local key = p and p.key
-        if type(key) ~= "string" then
-            return nil
-        end
-        frameCopy.damageRate = BattleSkill.GetPassiveAdjustedRate(ctx.hero, base, key)
-        return { damageRate = frameCopy.damageRate }
-    end)
-
     SkillEffectRegistry.Register("set_damage_kind", function(_, frameCopy, _, spec)
         local p = type(spec) == "table" and spec.param or {}
         local kind = p and p.kind

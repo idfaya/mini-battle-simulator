@@ -1,3 +1,7 @@
+---@class RunBattleTemplateBattleEntry
+---@field battleId integer
+---@field weight integer
+
 ---@class RunBattleTemplateEntry
 ---@field id integer
 ---@field code string
@@ -11,7 +15,7 @@
 ---@field spawnOrder string
 ---@field winRule string
 ---@field loseRule string
----@field encounterPoolId integer
+---@field battleEntries RunBattleTemplateBattleEntry[]
 ---@field waveGroupPoolId integer
 ---@field bossRequired boolean|nil
 ---@field bossEnemyId integer|nil
@@ -38,7 +42,9 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301001,
+        battleEntries = {
+            { battleId = 101001, weight = 100 },
+        },
         waveGroupPoolId = 401001,
     },
     [201002] = {
@@ -54,7 +60,11 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301002,
+        battleEntries = {
+            { battleId = 101002, weight = 60 },
+            { battleId = 101003, weight = 25 },
+            { battleId = 101104, weight = 15 },
+        },
         waveGroupPoolId = 401002,
     },
     [201003] = {
@@ -70,7 +80,9 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301003,
+        battleEntries = {
+            { battleId = 101104, weight = 100 },
+        },
         waveGroupPoolId = 401003,
     },
     [201101] = {
@@ -86,7 +98,9 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301101,
+        battleEntries = {
+            { battleId = 101101, weight = 100 },
+        },
         waveGroupPoolId = 401101,
     },
     [201102] = {
@@ -102,7 +116,10 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301102,
+        battleEntries = {
+            { battleId = 101101, weight = 35 },
+            { battleId = 101102, weight = 65 },
+        },
         waveGroupPoolId = 401102,
     },
     [201201] = {
@@ -118,7 +135,9 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "boss_dead",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301201,
+        battleEntries = {
+            { battleId = 101201, weight = 100 },
+        },
         waveGroupPoolId = 401201,
         bossRequired = true,
         bossEnemyId = 910006,
@@ -136,7 +155,9 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301001,
+        battleEntries = {
+            { battleId = 101001, weight = 100 },
+        },
         waveGroupPoolId = 401001,
     },
     [201302] = {
@@ -152,7 +173,11 @@ RunBattleTemplate.TEMPLATES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        encounterPoolId = 301002,
+        battleEntries = {
+            { battleId = 101002, weight = 60 },
+            { battleId = 101003, weight = 25 },
+            { battleId = 101104, weight = 15 },
+        },
         waveGroupPoolId = 401002,
     },
 }

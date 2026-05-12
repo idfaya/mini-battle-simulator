@@ -221,10 +221,7 @@ function BattleBuff.Add(caster, target, buffConfig)
         
         -- 触发添加时效果
         BattleBuff.ProcessBuffEffect(newBuff, target, E_BUFF_TIMING.ON_ADD)
-        
-        -- 发布Buff添加事件（旧版兼容）
-        BattleEvent.Publish("BUFF_ADDED", caster, target, newBuff)
-        
+
         -- 触发可视化Buff添加事件
         BattleEvent.Publish(BattleVisualEvents.BUFF_ADDED, BattleVisualEvents.BuildBuffEvent(
             BattleVisualEvents.BUFF_ADDED, caster, target, newBuff))
@@ -250,10 +247,7 @@ local function RemoveBuffById(target, buffId)
         if buff.id == buffId then
             -- 触发移除时效果
             BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
-            
-            -- 发布Buff移除事件（旧版兼容）
-            BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
-            
+
             -- 触发可视化Buff移除事件
             BattleEvent.Publish(BattleVisualEvents.BUFF_REMOVED, BattleVisualEvents.BuildBuffEvent(
                 BattleVisualEvents.BUFF_REMOVED, buff.caster, target, buff))
@@ -286,10 +280,7 @@ function BattleBuff.DelBuffByMainType(target, mainType)
         if buff.mainType == mainType then
             -- 触发移除时效果
             BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
-            
-            -- 发布Buff移除事件
-            BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
-            
+
             table.remove(buffList, i)
             removedCount = removedCount + 1
             Logger.Debug(string.format("BattleBuff.DelBuffByMainType: 移除Buff [%s] 主类型=%d", 
@@ -323,10 +314,7 @@ function BattleBuff.DelBuffBySubType(target, subType, count)
         if buff.subType == subType then
             -- 触发移除时效果
             BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
-            
-            -- 发布Buff移除事件
-            BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
-            
+
             table.remove(buffList, i)
             removedCount = removedCount + 1
             Logger.Debug(string.format("BattleBuff.DelBuffBySubType: 移除Buff [%s] 子类型=%d", 
@@ -359,7 +347,6 @@ function BattleBuff.DelBuffByBuffIdAndCaster(target, buffId, caster, count)
         local buff = buffList[i]
         if buff.buffId == buffId and buff.caster == caster then
             BattleBuff.ProcessBuffEffect(buff, target, E_BUFF_TIMING.ON_REMOVE)
-            BattleEvent.Publish("BUFF_REMOVED", buff.caster, target, buff)
             BattleEvent.Publish(BattleVisualEvents.BUFF_REMOVED, BattleVisualEvents.BuildBuffEvent(
                 BattleVisualEvents.BUFF_REMOVED, buff.caster, target, buff))
             BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))
@@ -620,7 +607,6 @@ function BattleBuff.ClearAllBuffs(hero)
     -- 触发所有Buff的移除效果
     for _, buff in ipairs(buffList) do
         BattleBuff.ProcessBuffEffect(buff, hero, E_BUFF_TIMING.ON_REMOVE)
-        BattleEvent.Publish("BUFF_REMOVED", buff.caster, hero, buff)
     end
     
     local key = GetHeroBuffKey(hero)
@@ -640,7 +626,6 @@ function BattleBuff.RemoveAllDebuffs(hero)
         local buff = buffList[i]
         if buff.mainType == E_BUFF_MAIN_TYPE.BAD or buff.mainType == E_BUFF_MAIN_TYPE.CONTROL then
             BattleBuff.ProcessBuffEffect(buff, hero, E_BUFF_TIMING.ON_REMOVE)
-            BattleEvent.Publish("BUFF_REMOVED", buff.caster, hero, buff)
             table.remove(buffList, i)
             removed = removed + 1
         end

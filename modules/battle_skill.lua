@@ -7,22 +7,22 @@
 ---   [1] 初始化 & 缓存         (行 ~55..75)      InitModule / skillConfigCache / skillLuaCache
 ---   [2] 伤害/治疗结算         (行 ~170..440)    GetPhysicalDamageDice / GetSpellDamageDice
 ---                                               ApplyUnifiedDamageScale / ResolveScaledDamage
----                                               CalculateDamage / CalculateHeal / OnDamagedInterrupt
+---                                               CalculateHealDice / OnDamagedInterrupt
 ---   [3] 专注状态（**本文件仅保留转发**，实现见）：
 ---          → skills/battle_skill_concentration.lua
 ---             IsConcentrationBuff / SetConcentration / ClearConcentration
 ---   [4] 技能实例生命周期       (行 ~500..1050)   Init / CreateSkillInstance / MergeSkillConfig
 ---                                               GetSkillCurCoolDown / ReduceCoolDown
 ---                                               CastSmallSkill / StartSkillCastInSeq / CastSkillInSeq
----   [5] 默认攻击 & 伤害倍率    (行 ~1050..1310)  ExecuteDefaultAttack* / CalculateDamageWithRate
+---   [5] 默认攻击                (行 ~1050..1310)  ExecuteDefaultAttackWithPassive
 ---   [6] Buff 挂载 & 条件       (行 ~1310..1710)  ApplyBuffFromSkill / LoadBuffConfig
 ---                                               CheckSkillCondition / CheckSingleCondition
 ---   [7] 目标选择               (行 ~1710..1990)  SelectTarget / ExpandAreaTargets / GetChainTargets
 ---                                               SelectEnemyTargets / SelectAllyTargets / SelectAllTargets
 ---   [8] 技能配置加载/查询       (行 ~1990..2140)  GetSkillConfig / LoadSkillConfigFromFile / LoadSkillLua
 ---                                               TriggerSkillCastEvent / GetHeroSkills / GetSkillsByType
----   [9] 额外效果（Combo/Pursuit）(行 ~2140..2270) ProcessComboEffect / GetPassiveAdjustedRate
----                                                ApplyDamageKindBonus / ProcessPursuitEffect
+---   [9] 额外效果（Combo/Pursuit）(行 ~2140..2270) ProcessComboEffect / GetPassiveAdjustedChance
+---                                                ProcessPursuitEffect
 ---   [10] 辅助选择 & 状态施加（**本文件仅保留转发**，实现见）：
 ---          → skills/battle_skill_target_helper.lua
 ---             SelectLowestHpEnemy / SelectLowestHpAlly
@@ -148,16 +148,6 @@ local function ApplyClassDiceScalar(hero, rawDamage, isSpell)
     local scalars = isSpell and ClassRhythmConfig.spellDiceScalarByClass or ClassRhythmConfig.physicalDiceScalarByClass
     local scalar = scalars and tonumber(scalars[classId]) or 1
     local value = math.max(0, math.floor(tonumber(rawDamage) or 0))
-    if value <= 0 or scalar == 1 then
-        return value
-    end
-    return math.max(0, math.floor(value * scalar))
-end
-
-local function ApplyClassDamageRateScalar(hero, damageRate)
-    local classId = GetClassId(hero)
-    local scalar = tonumber(ClassRhythmConfig.damageRateScalarByClass and ClassRhythmConfig.damageRateScalarByClass[classId]) or 1
-    local value = tonumber(damageRate) or 0
     if value <= 0 or scalar == 1 then
         return value
     end
@@ -344,7 +334,6 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     opts = opts or {}
     local skill = opts.skill
     local meta = NormalizeDamageMeta(attacker, opts)
-    local damageRate = tonumber(opts.damageRate) or 10000
     local diceScale = (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
     local damageKind = opts.damageKind or ((meta and meta.kind == "spell") and "spell" or "direct")
     local ignoreNatRules = (defender and defender.__ignoreNatRules == true) or (attacker and attacker.__ignoreNatRules == true)
@@ -353,10 +342,6 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         damageKind = damageKind,
         damage = 0,
     }
-    -- 5e dice-first: skill damage is defined by dice. We keep damageRate for legacy callers,
-    -- but default behavior is to ignore it unless explicitly requested.
-    local useRate = opts.useRate == true
-    damageRate = ApplyClassDamageRateScalar(attacker, damageRate)
 
     if opts.skipCheck == true then
         local diceExpr = opts.damageDice or (meta and meta.damageDice) or "1d4"
@@ -371,9 +356,6 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         }
         if opts.noClassScalar ~= true then
             rolled = ApplyClassDiceScalar(attacker, rolled, meta and meta.kind == "spell")
-        end
-        if useRate and damageRate > 0 then
-            rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
         end
         rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
         result.damage = BattleSkill.ApplyUnifiedDamageScale(attacker, defender, ApplyRhythmDamageScalar(rolled), damageKind)
@@ -432,9 +414,6 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         end
         result.damageRoll = damageRoll
         rolled = ApplyClassDiceScalar(attacker, rolled, true)
-        if useRate and damageRate > 0 then
-            rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
-        end
         rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
         result.damage = BattleSkill.ApplyUnifiedDamageScale(attacker, defender, ApplyRhythmDamageScalar(rolled), damageKind)
         return result
@@ -493,9 +472,6 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     }
     rolled = ApplyClassDiceScalar(attacker, rolled, false)
     rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
-    if useRate and damageRate > 0 then
-        rolled = math.floor((tonumber(rolled) or 0) * damageRate / 10000)
-    end
     rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
     result.damage = BattleSkill.ApplyUnifiedDamageScale(attacker, defender, ApplyRhythmDamageScalar(rolled), damageKind)
     return result
@@ -711,8 +687,6 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         targetsSelections = mergedConfig.targetsSelections or TargetsSelections_Default,
 
         -- 技能效果配置
-        damageData = mergedConfig.damageData,
-        healData = mergedConfig.healData,
         buffData = mergedConfig.buffData,
         energyData = mergedConfig.energyData,
 
@@ -735,11 +709,6 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     if skill.skillConfig then
         if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.skillConfig.CoolDownR or 0) > 0 then
             skill.maxCoolDown = skill.skillConfig.CoolDownR
-        end
-        if not skill.damageData and skill.skillConfig.SkillParam and skill.skillConfig.SkillParam[1] then
-            skill.damageData = {
-                damageRate = skill.skillConfig.SkillParam[1] / 100
-            }
         end
     end
 
@@ -1244,179 +1213,104 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
         return 0
     end
 
-    local BattleAttribute = require("modules.battle_attribute")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
 
     -- Dice-first: default attacks rely on dice/meta, not damageRate/healRate multipliers.
-    local Skill5eMeta = require("config.skill_5e_meta")
-    local meta = Skill5eMeta.Get(skill and skill.skillId or 0) or {}
-    local isHealSkill = skill and skill.healData and true or false
-    local healDice = meta.healDice or "1d8+1"
-
     local totalDamage = 0
     local energyStats = hero.__energyCastStats
 
     -- 对每个目标执行效果
     for _, target in ipairs(targets) do
         if target and not target.isDead then
-            if isHealSkill then
-                -- 执行治疗
-                local healAmount = BattleSkill.CalculateHealDice(hero, target, healDice)
-                
-                -- 使用 ApplyHeal 应用治疗（会触发事件）
-                local BattleDmgHeal = require("modules.battle_dmg_heal")
-                BattleDmgHeal.ApplyHeal(target, healAmount, hero)
-                if healAmount > 0 and energyStats then
-                    energyStats.successfulHits = (energyStats.successfulHits or 0) + 1
-                end
-                
-                Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 治疗 %d 点生命",
-                    hero.name or "Unknown",
-                    target.name or "Unknown",
-                    healAmount))
-            else
-                local BuildPassiveCommon = require("skills.build_passive_common")
-                local damageResult = BattleSkill.ResolveScaledDamage(hero, target, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill))
-                local damage = tonumber(damageResult and damageResult.damage) or 0
-                local damageContext = {
-                    attacker = hero,
-                    target = target,
-                    damage = damage,
-                }
-                
-                BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
-                BuildPassiveCommon.ApplyTeamProtections(target, {
-                    attacker = hero,
-                    damageContext = damageContext,
-                    skill = skill,
-                })
-                damage = math.max(0, math.floor(damageContext.damage or damage))
-                if damage > 0 then
-                    damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
-                end
-                totalDamage = totalDamage + damage
-                
-                -- 使用 ApplyDamage 应用伤害（会触发事件）
-                local BattleDmgHeal = require("modules.battle_dmg_heal")
-                if damage > 0 then
-                    BattleDmgHeal.ApplyDamage(target, damage, hero, {
-                        isCrit = damageResult and damageResult.isCrit or false,
-                        isDodged = damageResult and damageResult.isDodged or false,
-                        isBlocked = damageResult and damageResult.isBlock or false,
-                        skillId = skill and skill.skillId or nil,
-                        skillName = skill and skill.name or nil,
-                        damageKind = "direct",
-                        attackRoll = damageResult and damageResult.hit or nil,
-                        saveRoll = damageResult and damageResult.save or nil,
-                        damageRoll = damageResult and damageResult.damageRoll or nil,
-                    })
-                else
-                    -- Log miss/save for readability (design goal: readable outcomes).
-                    if damageResult and damageResult.hit and damageResult.hit.hit == false then
-                        Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
-                            hero.name or "Unknown",
-                            target.name or "Unknown",
-                            damageResult.hit.roll or 0,
-                            damageResult.hit.total or 0,
-                            damageResult.hit.targetAC or 0))
-                        BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
-                            BattleVisualEvents.MISS,
-                            hero,
-                            target,
-                            {
-                                skillId = skill and skill.skillId or nil,
-                                skillName = skill and skill.name or nil,
-                                attackRoll = damageResult.hit,
-                            }))
-                    elseif damageResult and damageResult.save then
-                        Logger.Log(string.format("[SAVE] %s 对 %s 豁免%s (roll=%d total=%d vs DC=%d)",
-                            target.name or "Unknown",
-                            hero.name or "Unknown",
-                            (damageResult.save.success and "成功" or "失败"),
-                            damageResult.save.roll or 0,
-                            damageResult.save.total or 0,
-                            damageResult.save.dc or 0))
-                    end
-                end
+            local BuildPassiveCommon = require("skills.build_passive_common")
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, target, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill))
+            local damage = tonumber(damageResult and damageResult.damage) or 0
+            local damageContext = {
+                attacker = hero,
+                target = target,
+                damage = damage,
+            }
 
-                Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
-                    hero.name or "Unknown",
-                    target.name or "Unknown",
-                    damage))
-                
-                -- 触发目标受击后被动技能 (DefAfterDmg)
-                BattlePassiveSkill.RunSkillOnDefAfterDmg(target, {attacker = hero, damage = damage})
-                
-                -- 触发伤害相关Buff
-                BattleSkill.TriggerDamageBuffs(hero, target, damage)
-                
-                -- 检查是否击杀
-                if target.isDead or target.hp <= 0 then
-                    -- 触发击杀被动技能 (DmgMakeKill)
-                    BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
+            BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
+            BuildPassiveCommon.ApplyTeamProtections(target, {
+                attacker = hero,
+                damageContext = damageContext,
+                skill = skill,
+            })
+            damage = math.max(0, math.floor(damageContext.damage or damage))
+            if damage > 0 then
+                damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
+            end
+            totalDamage = totalDamage + damage
+
+            -- 使用 ApplyDamage 应用伤害（会触发事件）
+            local BattleDmgHeal = require("modules.battle_dmg_heal")
+            if damage > 0 then
+                BattleDmgHeal.ApplyDamage(target, damage, hero, {
+                    isCrit = damageResult and damageResult.isCrit or false,
+                    isDodged = damageResult and damageResult.isDodged or false,
+                    isBlocked = damageResult and damageResult.isBlock or false,
+                    skillId = skill and skill.skillId or nil,
+                    skillName = skill and skill.name or nil,
+                    damageKind = "direct",
+                    attackRoll = damageResult and damageResult.hit or nil,
+                    saveRoll = damageResult and damageResult.save or nil,
+                    damageRoll = damageResult and damageResult.damageRoll or nil,
+                })
+            else
+                -- Log miss/save for readability (design goal: readable outcomes).
+                if damageResult and damageResult.hit and damageResult.hit.hit == false then
+                    Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
+                        hero.name or "Unknown",
+                        target.name or "Unknown",
+                        damageResult.hit.roll or 0,
+                        damageResult.hit.total or 0,
+                        damageResult.hit.targetAC or 0))
+                    BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                        BattleVisualEvents.MISS,
+                        hero,
+                        target,
+                        {
+                            skillId = skill and skill.skillId or nil,
+                            skillName = skill and skill.name or nil,
+                            attackRoll = damageResult.hit,
+                        }))
+                elseif damageResult and damageResult.save then
+                    Logger.Log(string.format("[SAVE] %s 对 %s 豁免%s (roll=%d total=%d vs DC=%d)",
+                        target.name or "Unknown",
+                        hero.name or "Unknown",
+                        (damageResult.save.success and "成功" or "失败"),
+                        damageResult.save.roll or 0,
+                        damageResult.save.total or 0,
+                        damageResult.save.dc or 0))
                 end
-                BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
             end
-        end
-    end
-    
-    -- 触发技能附加Buff
-    if spellConfig and spellConfig.launchBuff and spellConfig.launchBuff.AssociateBuff then
-        local buffId = spellConfig.launchBuff.AssociateBuff
-        if buffId and buffId > 0 then
-            for _, target in ipairs(targets) do
-                BattleSkill.ApplyBuffFromSkill(hero, target, buffId, skill)
+
+            if damage > 0 and energyStats then
+                energyStats.successfulHits = (energyStats.successfulHits or 0) + 1
             end
+
+            Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
+                hero.name or "Unknown",
+                target.name or "Unknown",
+                damage))
+
+            -- 触发目标受击后被动技能 (DefAfterDmg)
+            BattlePassiveSkill.RunSkillOnDefAfterDmg(target, {attacker = hero, damage = damage})
+
+            -- 触发伤害相关Buff
+            BattleSkill.TriggerDamageBuffs(hero, target, damage)
+
+            -- 检查是否击杀
+            if target.isDead or target.hp <= 0 then
+                -- 触发击杀被动技能 (DmgMakeKill)
+                BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
+            end
+            BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
         end
     end
 
     return totalDamage
-end
-
---- 执行默认普通攻击（向后兼容）
----@param hero table 攻击者
----@param targets table 目标列表
----@param skill table 技能对象
-function BattleSkill.ExecuteDefaultAttack(hero, targets, skill)
-    BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
-end
-
---- 计算伤害
----@param attacker table 攻击者
----@param defender table 防御者
----@param spellConfig table 技能配置
----@return number 伤害值
-function BattleSkill.CalculateDamage(attacker, defender, spellConfig)
-    local damageRate = 10000  -- 默认100%（万分比）
-    if spellConfig and spellConfig.Trigger and spellConfig.Trigger.damageData then
-        damageRate = spellConfig.Trigger.damageData.damageRate or 10000
-    end
-    local damageResult = BattleSkill.ResolveScaledDamage(attacker, defender, {
-        damageRate = damageRate,
-    })
-
-    if damageResult and damageResult.isCrit then
-        Logger.Log(string.format("[CalculateDamage] 暴击! 伤害: %d", damageResult.damage or 0))
-    end
-
-    return damageResult.damage, damageResult
-end
-
---- 使用指定倍率计算伤害
----@param attacker table 攻击者
----@param defender table 防御者
----@param damageRate number 伤害倍率（万分比）
----@return number 伤害值
-function BattleSkill.CalculateDamageWithRate(attacker, defender, damageRate)
-    local damageResult = BattleSkill.ResolveScaledDamage(attacker, defender, {
-        damageRate = damageRate,
-    })
-
-    if damageResult and damageResult.isCrit then
-        Logger.Log(string.format("[CalculateDamageWithRate] 暴击! 伤害: %d", damageResult.damage or 0))
-    end
-
-    return damageResult.damage, damageResult
 end
 
 local function ApplyUnifiedHealModifiers(healer, rawHeal)
@@ -1452,27 +1346,6 @@ local function ApplyUnifiedHealModifiers(healer, rawHeal)
     end
 
     return math.max(1, healAmount)
-end
-
---- 计算治疗量
----@param healer table 治疗者
----@param target table 目标
----@param healRate number 治疗倍率（万分比，按目标最大生命值计算）
----@return number 治疗量
-function BattleSkill.CalculateHeal(healer, target, healRate)
-    local maxHp = target and target.maxHp or 0
-    if maxHp <= 0 then
-        return 0
-    end
-
-    local base = math.floor(maxHp * (tonumber(healRate) or 0) / 10000)
-    local healAmount = ApplyUnifiedHealModifiers(healer, base)
-    Logger.Log(string.format("[CalculateHeal] %s 治疗 %s: base(MaxHp%%)=%d, 最终=%d",
-        healer.name or "Unknown",
-        target.name or "Unknown",
-        base,
-        healAmount))
-    return healAmount
 end
 
 --- 使用治疗骰计算治疗量（5e风格）
@@ -2268,14 +2141,8 @@ end
 ---@param skill table 技能对象
 ---@param targets table 目标列表
 function BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
-    -- 触发技能释放事件，通知其他系统（旧版兼容）
-    local target = targets and targets[1] or nil
-    if target then
-        BattleEvent.Publish("SkillCast", hero, target, skill.name or "未知技能")
-    end
-    
     -- 触发可视化技能释放开始事件
-    BattleEvent.Publish(BattleVisualEvents.SKILL_CAST_STARTED, 
+    BattleEvent.Publish(BattleVisualEvents.SKILL_CAST_STARTED,
         BattleVisualEvents.BuildSkillCastEvent(BattleVisualEvents.SKILL_CAST_STARTED, hero, skill, targets))
 end
 
@@ -2390,15 +2257,6 @@ function BattleSkill.ProcessComboEffect(hero, targets, skill)
     return 0
 end
 
-function BattleSkill.GetPassiveAdjustedRate(hero, baseRate, passiveKey)
-    local BattlePassiveSkill = require("modules.battle_passive_skill")
-    local bonusPct = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
-    if bonusPct <= 0 then
-        return baseRate
-    end
-    return math.floor(baseRate * (10000 + bonusPct) / 10000)
-end
-
 function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local bonusChance = BattlePassiveSkill.GetPassiveValue(hero, passiveKey, 0)
@@ -2410,22 +2268,6 @@ function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
         return 10000
     end
     return finalChance
-end
-
-function BattleSkill.ApplyDamageKindBonus(attacker, defender, damageRate, damageKind)
-    if type(damageKind) ~= "string" or damageKind == "" then
-        return damageRate
-    end
-
-    -- Fire affinity: +15% fire damage (design: "火焰亲和 法伤+15%燃烧")
-    if damageKind == "fire" then
-        local BattleBuff = require("modules.battle_buff")
-        if BattleBuff.GetBuffBySubType(attacker, 870002) then
-            return math.floor((tonumber(damageRate) or 0) * 1.15)
-        end
-    end
-
-    return damageRate
 end
 
 --- 处理追击效果（A1 追击流）

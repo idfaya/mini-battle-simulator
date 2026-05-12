@@ -14,7 +14,7 @@ function skill_80004001.BuildTimeline(hero, targets, skill)
         id = 80004001,
         frames = {
             { frame = 0, op = "cast", effect = "skill_80004001_cast", targetRef = "selected" },
-            { frame = 24, op = "damage", effect = "skill_80004001_execute", targetRef = "selected", damageRate = 11000 + math.max(0, tier - 1) * 750, tags = tags },
+            { frame = 24, op = "damage", effect = "skill_80004001_execute", targetRef = "selected", tags = tags },
             { frame = 36, op = "effect", effect = "skill_80004001_end", targetRef = "selected" },
         },
     })

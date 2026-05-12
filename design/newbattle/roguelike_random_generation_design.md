@@ -133,8 +133,8 @@ Roguelike 随机生成统一分为三层：
 
 ### 4.5 节点类型约束
 
-- 第 1 层固定 `normal_battle`。
-- 最后一层固定 `boss_battle`。
+- 第 1 层固定 `battle_normal`。
+- 最后一层固定 `boss`。
 - Boss 前 1~2 层不出现 `recruit`。
 - `camp` 不允许连续两层出现。
 - `shop` 与 `camp` 不允许同时高度密集，避免中后段资源断档或过饱和。

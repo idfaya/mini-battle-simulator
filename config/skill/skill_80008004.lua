@@ -12,7 +12,6 @@ function skill_80008004.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80008004_execute",
                 targetRef = "selected",
-                damageRate = 8500,
                 tags = {
                     { tag = "set_targets_all_alive_enemies", phase = "pre" },
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "ice" } },

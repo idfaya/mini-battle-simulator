@@ -16,7 +16,6 @@
 ---@class RunEventResult
 ---@field gold integer|nil
 ---@field battleId integer|nil
----@field encounterId integer|nil
 ---@field rewardGroupId integer|nil
 ---@field value number|nil
 ---@field blessingId integer|nil

@@ -368,38 +368,6 @@ function BattleFormula.CalcDamage(attacker, defender, skillDamageRate, damageTyp
     }
 end
 
---- 计算治疗量
---- @param caster table 施法者数据 { attrs = {ATK, ...} }
---- @param target table 目标数据
---- @param healRate number 治疗倍率 (万分比，如 5000 表示 50%)
---- @return number 治疗量
-function BattleFormula.CalcHeal(caster, target, healRate)
-    -- 确保已初始化
-    if not currentConfig then
-        BattleFormula.Init(BattleFormula.FORMULA_TYPE.STANDARD)
-    end
-    
-    -- 参数默认值
-    healRate = healRate or 10000
-    
-    -- 获取施法者攻击力作为治疗基础
-    local atk = GetUnitAttr(caster, currentConfig.attrType.ATK)
-    
-    -- 基础治疗量 = 攻击力 * 治疗倍率 / 10000
-    local baseHeal = atk * healRate / 10000
-    
-    -- 应用治疗加成 (如果有)
-    local finalHeal = baseHeal
-    if caster and caster.healBonus then
-        finalHeal = finalHeal * (1 + caster.healBonus / 10000)
-    end
-    
-    -- 确保最小治疗量
-    finalHeal = math.max(finalHeal, 1)
-    
-    return math.floor(finalHeal)
-end
-
 --- 获取当前配置
 --- @return table 当前配置
 function BattleFormula.GetConfig()

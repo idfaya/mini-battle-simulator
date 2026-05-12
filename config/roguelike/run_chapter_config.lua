@@ -1,12 +1,6 @@
 ---@alias RunChapterMapVision
 ---| "node_type_only"
 
----@class RunChapterEncounterPools
----@field normal integer[]
----@field elite integer[]
----@field boss integer[]
----@field eventBattle integer[]
-
 ---@class RunChapterClearRewards
 ---@field gold integer
 ---@field healPct number
@@ -34,7 +28,6 @@
 ---@field mapVision RunChapterMapVision
 ---@field mapGenProfileId integer|nil
 ---@field routeBlueprint table<integer, integer[]>
----@field encounterPools RunChapterEncounterPools
 ---@field shopId integer
 ---@field campId integer
 ---@field chapterClearRewards RunChapterClearRewards
@@ -74,12 +67,6 @@ RunChapterConfig.CHAPTERS = {
             [6] = { 101012, 101013 },
             [7] = { 101010 },
             [8] = { 101011 },
-        },
-        encounterPools = {
-            normal = { 101001, 101002, 101003 },
-            elite = { 101101, 101102 },
-            boss = { 101201 },
-            eventBattle = { 101103, 101104 },
         },
         shopId = 101001,
         campId = 101001,

@@ -14,7 +14,6 @@ function skill_80007001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "fire_bolt_hit",
                 target = t,
-                damageRate = 9000,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "fire" } },
                     { tag = "apply_burn_refresh_only", phase = "post", param = { turns = 2 } },

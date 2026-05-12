@@ -302,7 +302,6 @@ do
     icePassive:OnBattleBegin({})
     assert_true((hero.passiveRuntime or {}).iceDamageBonusPct == 1000, "IceAffinity writes damage bonus runtime state")
     assert_true((hero.passiveRuntime or {}).iceFreezeChanceBonus == 1000, "IceAffinity writes freeze chance runtime state")
-    assert_true(BattleSkill.GetPassiveAdjustedRate(hero, 10000, "iceDamageBonusPct") == 11000, "IceAffinity increases ice damage by 10%")
     assert_true(BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChanceBonus") == 6000, "IceAffinity increases freeze chance by 10%")
 
     local oldRandom = math.random

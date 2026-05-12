@@ -19,7 +19,6 @@ local DEF = {
             op = "damage",
             effect = "skill_80001001_execute",
             targetRef = "selected",
-            damageRate = 12000,
             tags = {
                 -- +20% crit rate (design: "+20%暴击率")
                 { tag = "crit_rate_bonus", phase = "pre", param = { amount = 2000 } },

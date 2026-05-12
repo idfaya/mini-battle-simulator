@@ -56,16 +56,16 @@
 | `id` | string | 唯一值 | 规则编号 |
 | `floor` | integer | 正整数 | 层级 |
 | `route_style` | enum | `safe` / `high_pressure` / `any` | 路线风格 |
-| `allow_normal_battle` | boolean | `true` / `false` | 是否允许普通战 |
-| `allow_elite_battle` | boolean | `true` / `false` | 是否允许精英战 |
-| `allow_boss_battle` | boolean | `true` / `false` | 是否允许 Boss |
+| `allow_battle_normal` | boolean | `true` / `false` | 是否允许普通战 |
+| `allow_battle_elite` | boolean | `true` / `false` | 是否允许精英战 |
+| `allow_boss` | boolean | `true` / `false` | 是否允许 Boss |
 | `allow_recruit` | boolean | `true` / `false` | 是否允许招募 |
 | `allow_shop` | boolean | `true` / `false` | 是否允许商店 |
 | `allow_event` | boolean | `true` / `false` | 是否允许事件 |
 | `allow_camp` | boolean | `true` / `false` | 是否允许营地 |
-| `weight_normal_battle` | integer | `0+` | 普通战权重 |
-| `weight_elite_battle` | integer | `0+` | 精英战权重 |
-| `weight_boss_battle` | integer | `0+` | Boss 权重 |
+| `weight_battle_normal` | integer | `0+` | 普通战权重 |
+| `weight_battle_elite` | integer | `0+` | 精英战权重 |
+| `weight_boss` | integer | `0+` | Boss 权重 |
 | `weight_recruit` | integer | `0+` | 招募权重 |
 | `weight_shop` | integer | `0+` | 商店权重 |
 | `weight_event` | integer | `0+` | 事件权重 |
@@ -93,10 +93,10 @@
 | 字段 | 类型 | 取值 | 说明 |
 | --- | --- | --- | --- |
 | `id` | string | 唯一值 | 规则编号 |
-| `min_normal_battle` | integer | `0+` | 最少普通战节点数 |
-| `max_normal_battle` | integer | `0+` | 最多普通战节点数 |
-| `min_elite_battle` | integer | `0+` | 最少精英战节点数 |
-| `max_elite_battle` | integer | `0+` | 最多精英战节点数 |
+| `min_battle_normal` | integer | `0+` | 最少普通战节点数 |
+| `max_battle_normal` | integer | `0+` | 最多普通战节点数 |
+| `min_battle_elite` | integer | `0+` | 最少精英战节点数 |
+| `max_battle_elite` | integer | `0+` | 最多精英战节点数 |
 | `min_recruit` | integer | `0+` | 最少招募节点数 |
 | `max_recruit` | integer | `0+` | 最多招募节点数 |
 | `min_shop` | integer | `0+` | 最少商店节点数 |
@@ -136,7 +136,7 @@
 | `act` | string | 所属章节 |
 | `floor` | integer | 所在层级 |
 | `lane` | integer | 所在列 |
-| `type` | enum | `normal_battle` / `elite_battle` / `boss_battle` / `recruit` / `shop` / `event` / `camp` |
+| `type` | enum | `battle_normal` / `battle_elite` / `boss` / `recruit` / `shop` / `event` / `camp` |
 | `route_style` | enum | `safe` / `high_pressure` |
 | `content_pool_id` | string | 内容池入口编号 |
 | `title_visibility` | enum | `hidden` / `node_type_only` / `full` |
@@ -224,10 +224,10 @@ floor8 = 1
 
 ```text
 id = act1_constraint_rule_01
-min_normal_battle = 4
-max_normal_battle = 5
-min_elite_battle = 1
-max_elite_battle = 2
+min_battle_normal = 4
+max_battle_normal = 5
+min_battle_elite = 1
+max_battle_elite = 2
 min_recruit = 1
 max_recruit = 2
 min_shop = 1

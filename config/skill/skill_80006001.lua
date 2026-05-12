@@ -11,7 +11,6 @@ local DEF = {
             op = "damage",
             effect = "skill_80006001_execute",
             targetRef = "selected",
-            damageRate = 10500,
             tags = {
                 { tag = "cleric_radiant_strike", phase = "post" },
             },

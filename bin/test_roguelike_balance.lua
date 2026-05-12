@@ -627,7 +627,7 @@ local function resolveBattle(config, debugBattle)
             route = debugBattle.routeName,
             nodeId = debugBattle.nodeId,
             title = debugBattle.title,
-            encounterId = debugBattle.battleId or debugBattle.encounterId,
+            battleId = debugBattle.battleId,
             beforeHp = lastBattleHp,
             beforeMaxHp = lastBattleMaxHp,
             beforeAlive = lastBattleAlive,

@@ -75,7 +75,7 @@
 | --- | --- | --- |
 | `id` | string | 节点编号 |
 | `act` | string | 所属章节 |
-| `type` | enum | `normal_battle` / `elite_battle` / `boss_battle` / `recruit` / `shop` / `event` / `camp` |
+| `type` | enum | `battle_normal` / `battle_elite` / `boss` / `recruit` / `shop` / `event` / `camp` |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` |
 | `battle_id` | string | 固定图模式下绑定的战斗编号，非战斗节点为空 |
 | `battle_pool_id` | string | 随机图模式下绑定的战斗池编号，非战斗节点为空 |

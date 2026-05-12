@@ -7,7 +7,7 @@ local RoguelikeCamp = require("roguelike.roguelike_camp")
 local RoguelikeSnapshot = require("roguelike.roguelike_snapshot")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RunBattleConfig = require("config.roguelike.run_battle_config")
-local RunEncounterGroup = require("config.roguelike.run_encounter_group")
+local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
 local FeatConfig = require("config.feat_config")
@@ -332,8 +332,8 @@ local function shouldOpenBattleClassCardReward(node)
     return node.nodeType == "battle_elite" or node.nodeType == "boss"
 end
 
-local function grantBattleEquipmentDrop(node, encounter)
-    local equipmentId = RoguelikeReward.RollBattleEquipmentDrop(node and node.nodeType or nil, encounter)
+local function grantBattleEquipmentDrop(node, battleProfile)
+    local equipmentId = RoguelikeReward.RollBattleEquipmentDrop(node and node.nodeType or nil, battleProfile)
     if not equipmentId then
         return nil
     end
@@ -342,7 +342,7 @@ local function grantBattleEquipmentDrop(node, encounter)
     return equipmentId
 end
 
-local function grantBattleLoot(node, encounter)
+local function grantBattleLoot(node, battleProfile)
     if not node then
         return 0
     end
@@ -350,11 +350,11 @@ local function grantBattleLoot(node, encounter)
     if node.nodeType == "battle_normal" then
         rollCount = 1
     elseif node.nodeType == "battle_elite" then
-        rollCount = math.max(1, tonumber(encounter and encounter.eliteBonus and encounter.eliteBonus.equipmentRoll) or 1)
+        rollCount = math.max(1, tonumber(battleProfile and battleProfile.eliteBonus and battleProfile.eliteBonus.equipmentRoll) or 1)
     end
     local dropCount = 0
     for _ = 1, rollCount do
-        if grantBattleEquipmentDrop(node, encounter) then
+        if grantBattleEquipmentDrop(node, battleProfile) then
             dropCount = dropCount + 1
         end
     end
@@ -499,9 +499,8 @@ local function resetRunState()
         shopSoldMap = {},
         pendingRecruitHeroId = nil,
         maxHeroCount = 5,
-        battleEncounterId = nil,
+        currentBattleId = nil,
         currentBattleConfig = nil,
-        currentEncounterConfig = nil,
         lastBattleSummary = nil,
         mapState = nil,
         seed = nil,
@@ -538,11 +537,11 @@ local function enterNode(nodeId)
     state.lastBattleSummary = nil
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
-        local battle, encounter, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
-        if not battle or not encounter then
+        local battle, battleProfile, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
+        if not battle or not battleProfile then
             return false, resolveReason or "battle_not_found"
         end
-        local ok, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
+        local ok, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, battle, battleProfile)
         if not ok then
             state.phase = "failed"
             state.chapterResult = { success = false, reason = tostring(snapshotOrReason or "battle_init_failed") }
@@ -550,9 +549,8 @@ local function enterNode(nodeId)
         end
         cachedBattleSnapshot = snapshotOrReason
         state.phase = "battle"
-        state.battleEncounterId = tonumber(encounter and encounter.id) or tonumber(battle and battle.id)
+        state.currentBattleId = tonumber(battleProfile and battleProfile.id) or tonumber(battle and battle.id)
         state.currentBattleConfig = battle
-        state.currentEncounterConfig = encounter
         return true
     end
 
@@ -619,9 +617,8 @@ local function leaveNodeBackToMap()
     state.campState = nil
     cachedBattleSnapshot = nil
     state.phase = "map"
-    state.battleEncounterId = nil
+    state.currentBattleId = nil
     state.currentBattleConfig = nil
-    state.currentEncounterConfig = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end
@@ -764,8 +761,8 @@ function RoguelikeRun.Tick(deltaMs)
     cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
     local resolved = RoguelikeBattleBridge.ResolveBattle(
         state,
-        state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.battleEncounterId)),
-        state.currentEncounterConfig or RunEncounterGroup.GetEncounter(tonumber(state.battleEncounterId))
+        state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId)),
+        RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
     )
     if resolved then
         if evaluateFailureIfNoAlive() then
@@ -774,10 +771,10 @@ function RoguelikeRun.Tick(deltaMs)
 
         if resolved.won then
             local node = getNode(state.currentNodeId)
-            local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.battleEncounterId))
-            local encounter = state.currentEncounterConfig or RunEncounterGroup.GetEncounter(tonumber(state.battleEncounterId))
+            local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId))
+            local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
             local levelUpDetails = grantBattleExp(battle)
-            local equipmentDropCount = grantBattleLoot(node, encounter)
+            local equipmentDropCount = grantBattleLoot(node, battleProfile)
             recalcRecommendedLevel()
             mergeLastBattleSummary({
                 expReward = state.lastBattleExpReward or 0,
@@ -899,18 +896,17 @@ function RoguelikeRun.ChooseEventOption(optionId)
     end
     if result.kind == "battle" then
         state.phase = "battle"
-        local battleId = tonumber(result.battleId or result.encounterId)
+        local battleId = tonumber(result.battleId)
         local battle = RunBattleConfig.GetBattle(battleId)
         if not battle then
             state.phase = "failed"
             state.chapterResult = { success = false, reason = "event_battle_not_found" }
             return false, "event_battle_not_found"
         end
-        state.battleEncounterId = battleId
-        local encounter = RunEncounterGroup.GetEncounter(battleId)
+        state.currentBattleId = battleId
+        local battleProfile = RunBattleProfile.GetBattleProfile(battleId)
         state.currentBattleConfig = battle
-        state.currentEncounterConfig = encounter
-        local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, battle, encounter)
+        local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, battle, battleProfile)
         if not ok2 then
             state.phase = "failed"
             state.chapterResult = { success = false, reason = tostring(reason2 or "event_battle_failed") }

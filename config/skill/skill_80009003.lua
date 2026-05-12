@@ -42,7 +42,6 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
             op = "chain_damage",
             effect = "chain_lightning_arc",
             target = chainTarget,
-            damageRate = hitIndex == 1 and 9000 or 7000,
             chainIndex = hitIndex,
             tags = {
                 { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },

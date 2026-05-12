@@ -19,7 +19,6 @@ function skill_80003001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80003001_execute",
                 targetRef = "selected",
-                damageRate = 11000 + math.max(0, tier - 1) * 500,
                 tags = tags,
             },
             { frame = 36, op = "effect", effect = "skill_80003001_end", targetRef = "selected" },

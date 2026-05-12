@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | `id` | string | 唯一值 | 节点编号 |
 | `act` | string | 章节编号 | 所属章节 |
-| `type` | enum | `normal_battle` / `elite_battle` / `boss_battle` / `recruit` / `shop` / `event` / `camp` | 节点类型 |
+| `type` | enum | `battle_normal` / `battle_elite` / `boss` / `recruit` / `shop` / `event` / `camp` | 节点类型 |
 | `route` | enum | `safe` / `high_pressure` / `boss_path` | 路线档位 |
 | `layer` | integer | 正整数 | 所在层级 |
 | `battle_id` | string | 战斗编号或空 | 固定图模式战斗节点入口 |
@@ -23,31 +23,31 @@
 
 ## 2. 节点类型模板
 
-### 2.1 normal_battle
+### 2.1 battle_normal
 
 | 字段 | 推荐值 |
 | --- | --- |
-| `type` | `normal_battle` |
+| `type` | `battle_normal` |
 | `battle_id` | 固定图模式必填 |
 | `battle_pool_id` | 随机图模式必填 |
 | `reward_gold` | `1~2` |
 | `reward_equip_count` | `0~1` |
 
-### 2.2 elite_battle
+### 2.2 battle_elite
 
 | 字段 | 推荐值 |
 | --- | --- |
-| `type` | `elite_battle` |
+| `type` | `battle_elite` |
 | `battle_id` | 固定图模式必填 |
 | `battle_pool_id` | 随机图模式必填 |
 | `reward_gold` | `2~4` |
 | `reward_equip_count` | `1` |
 
-### 2.3 boss_battle
+### 2.3 boss
 
 | 字段 | 推荐值 |
 | --- | --- |
-| `type` | `boss_battle` |
+| `type` | `boss` |
 | `battle_id` | 固定图模式必填 |
 | `battle_pool_id` | 随机图模式必填 |
 | `route` | `boss_path` |
@@ -117,7 +117,7 @@ roguelike_node_parameter_table.id
 ### 3.2 战斗到职业卡
 
 ```text
-normal_battle / elite_battle
+battle_normal / battle_elite
 → 战斗胜利
 → 固定恢复
 → 职业卡三选一
@@ -172,7 +172,7 @@ L6 Boss
 ```text
 id = act1_start_01
 act = act1
-type = normal_battle
+type = battle_normal
 route = safe
 layer = 1
 battle_id = act1_normal_01
@@ -206,7 +206,7 @@ next_nodes = act1_safe_03
 ```text
 id = act1_high_02
 act = act1
-type = elite_battle
+type = battle_elite
 route = high_pressure
 layer = 2
 battle_id = act1_elite_01
@@ -257,7 +257,7 @@ next_nodes = act1_merge_04
 ```text
 id = act1_merge_04
 act = act1
-type = normal_battle
+type = battle_normal
 route = safe
 layer = 4
 battle_id = act1_normal_02
@@ -291,7 +291,7 @@ next_nodes = act1_boss_06
 ```text
 id = act1_elite_05
 act = act1
-type = elite_battle
+type = battle_elite
 route = high_pressure
 layer = 5
 battle_id = act1_elite_02
@@ -308,7 +308,7 @@ next_nodes = act1_boss_06
 ```text
 id = act1_boss_06
 act = act1
-type = boss_battle
+type = boss
 route = boss_path
 layer = 6
 battle_id = act1_boss_01

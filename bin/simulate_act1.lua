@@ -91,7 +91,7 @@ for _, nodeId in ipairs(ROUTE) do
         snapshot = Run.GetSnapshot()
     end
     local hpPct, alive, dead, totalHp, totalMaxHp = teamStats(snapshot)
-    local budget = snapshot.currentEncounterBudget or {}
+    local budget = snapshot.currentBattleBudget or {}
     print(string.format(
         "node=%d phase=%s ticks=%d round=%d battleHp=%.1f%% (%d/%d) -> %.1f%% (%d/%d) rosterHp=%.1f%% (%d/%d) alive=%d dead=%d budget=%s x%.2f adj=%s/%s",
         nodeId,
