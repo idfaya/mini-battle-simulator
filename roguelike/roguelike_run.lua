@@ -10,6 +10,7 @@ local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
+local ClassRoleConfig = require("config.class_role_config")
 local FeatConfig = require("config.feat_config")
 local FeatBuildConfig = require("config.feat_build_config")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
@@ -22,6 +23,8 @@ local STARTER_LEVEL = 1
 -- 5e growth: no star progression.
 local STARTER_STAR = 1
 local CHAPTER_LEVEL_CAP = 10
+local DEFAULT_STARTER_TEAM_SIZE = 4
+local DEFAULT_STARTER_FRONT_COUNT = 2
 local LEVEL_EXP_THRESHOLDS = {
     [1] = 0,
     [2] = 8,
@@ -132,6 +135,16 @@ local function resolveFeatEntry(featId)
     return FeatBuildConfig.GetFeat(featId) or FeatConfig.GetFeat(featId)
 end
 
+local function resolveOwnedFeatIds(unitOrState)
+    if type(unitOrState) ~= "table" then
+        return {}
+    end
+    if type(unitOrState.buildState) == "table" and type(unitOrState.buildState.featIds) == "table" then
+        return cloneArray(unitOrState.buildState.featIds)
+    end
+    return cloneArray(unitOrState.feats or unitOrState.selectedFeatIds)
+end
+
 local function captureUnitLevelState(unit)
     if type(unit) ~= "table" then
         return nil
@@ -140,7 +153,6 @@ local function captureUnitLevelState(unit)
     for _, field in ipairs(LEVELUP_STAT_FIELDS) do
         stats[field.key] = tonumber(unit[field.key]) or 0
     end
-    local featIds = unit.feats or unit.selectedFeatIds
     return {
         rosterId = tonumber(unit.rosterId) or 0,
         unitId = unit.unitId,
@@ -149,7 +161,7 @@ local function captureUnitLevelState(unit)
         level = tonumber(unit.level) or STARTER_LEVEL,
         promotionStage = HeroData.NormalizePromotionStage(unit.promotionStage),
         stats = stats,
-        feats = cloneArray(featIds),
+        feats = resolveOwnedFeatIds(unit),
     }
 end
 
@@ -177,10 +189,10 @@ end
 local function buildLevelUpFeatChanges(beforeState, afterUnit)
     local result = {}
     local ownedBefore = {}
-    for _, featId in ipairs(beforeState and beforeState.feats or {}) do
+    for _, featId in ipairs(resolveOwnedFeatIds(beforeState)) do
         ownedBefore[tonumber(featId) or 0] = true
     end
-    for _, featId in ipairs(afterUnit and afterUnit.feats or {}) do
+    for _, featId in ipairs(resolveOwnedFeatIds(afterUnit)) do
         local id = tonumber(featId) or 0
         if id > 0 and not ownedBefore[id] then
             local feat = resolveFeatEntry(id)
@@ -470,6 +482,63 @@ local function buildStarterRoster(runState, heroIds)
     return roster
 end
 
+local function shuffleArray(list)
+    for index = #list, 2, -1 do
+        local swapIndex = math.random(1, index)
+        list[index], list[swapIndex] = list[swapIndex], list[index]
+    end
+    return list
+end
+
+local function buildRandomStarterHeroIds()
+    local frontPool = {}
+    local backPool = {}
+    for _, classId in ipairs(HeroData.GetAllClassIds() or {}) do
+        local heroId = tonumber(HeroData.GetRepresentativeHeroId(classId)) or 0
+        if heroId > 0 then
+            if ClassRoleConfig.PreferFrontRow(classId) then
+                frontPool[#frontPool + 1] = heroId
+            else
+                backPool[#backPool + 1] = heroId
+            end
+        end
+    end
+
+    shuffleArray(frontPool)
+    shuffleArray(backPool)
+
+    local picked = {}
+    for index = 1, math.min(DEFAULT_STARTER_FRONT_COUNT, #frontPool) do
+        picked[#picked + 1] = frontPool[index]
+    end
+    for index = 1, math.min(DEFAULT_STARTER_TEAM_SIZE - #picked, #backPool) do
+        picked[#picked + 1] = backPool[index]
+    end
+
+    if #picked < DEFAULT_STARTER_TEAM_SIZE then
+        local seen = {}
+        for _, heroId in ipairs(picked) do
+            seen[heroId] = true
+        end
+        local fallbackPool = {}
+        for _, hero in ipairs(HeroData.GetPlayableHeroes() or {}) do
+            local heroId = tonumber(hero and hero.AllyID) or 0
+            if heroId > 0 and not seen[heroId] then
+                fallbackPool[#fallbackPool + 1] = heroId
+            end
+        end
+        shuffleArray(fallbackPool)
+        for _, heroId in ipairs(fallbackPool) do
+            picked[#picked + 1] = heroId
+            if #picked >= DEFAULT_STARTER_TEAM_SIZE then
+                break
+            end
+        end
+    end
+
+    return picked
+end
+
 local function resetRunState()
     return {
         phase = "map",
@@ -707,7 +776,10 @@ function RoguelikeRun.StartRun(config)
         state.mapState = mapState
     end
 
-    local starterHeroIds = (config or {}).starterHeroIds or { 900005, 900001, 900007, 900002 }
+    local starterHeroIds = cloneArray((config or {}).starterHeroIds)
+    if #starterHeroIds == 0 then
+        starterHeroIds = buildRandomStarterHeroIds()
+    end
     state.ownedUnits = buildStarterRoster(state, starterHeroIds)
     RoguelikeRoster.RefreshLegacyViews(state)
     refreshAvailableNodes()

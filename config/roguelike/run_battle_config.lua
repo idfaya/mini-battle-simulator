@@ -128,7 +128,7 @@ RunBattleConfig.BATTLES = {
         refreshTurns = 0,
         refreshOnClear = true,
         spawnOrder = "back_first_then_front",
-        winRule = "boss_dead",
+        winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         bossId = 910007,
     },

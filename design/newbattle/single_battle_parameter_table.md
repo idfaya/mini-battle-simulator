@@ -14,7 +14,7 @@
 | `refresh_turns` | integer | `0~2` | 波次刷新间隔；`0` 表示仅清场后刷下一波 |
 | `refresh_on_clear` | boolean | `true` / `false` | 清场立刷 |
 | `spawn_order` | enum | `back_first_then_front` | 补位顺序 |
-| `win_rule` | enum | `reserve_empty_and_board_clear` / `boss_dead` | 胜利条件 |
+| `win_rule` | enum | `reserve_empty_and_board_clear` | 胜利条件，Boss 战也必须清场 |
 | `lose_rule` | enum | `all_hero_dead` | 失败条件 |
 | `boss_id` | string | Boss 编号或空 | Boss 主体 |
 | `boss_phase_count` | integer | `0~3` | Boss 阶段数 |
@@ -105,7 +105,7 @@
 | `refresh_turns` | `0` |
 | `refresh_on_clear` | `true` |
 | `spawn_order` | `back_first_then_front` |
-| `win_rule` | `boss_dead` |
+| `win_rule` | `reserve_empty_and_board_clear` |
 | `lose_rule` | `all_hero_dead` |
 | `boss_id` | 必填 |
 | `boss_phase_count` | `1~3` |
@@ -203,7 +203,7 @@ exp_reward = 60
 refresh_turns = 0
 refresh_on_clear = true
 spawn_order = back_first_then_front
-win_rule = boss_dead
+win_rule = reserve_empty_and_board_clear
 lose_rule = all_hero_dead
 boss_id = graveyard_lord
 boss_phase_count = 3

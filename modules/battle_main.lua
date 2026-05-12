@@ -895,14 +895,9 @@ local function CheckBattleEnd()
     rightAlive = BattleFormation.GetAliveHeroCount(false)
 
     if flow then
-        if flow.winRule == "boss_dead" then
-            if not HasAliveBossOnBoard() and not HasBossInReserve() then
-                return true, "left", "Boss 已被击败"
-            end
-            return false, nil, nil
-        end
-
-        if flow.winRule == "reserve_empty_and_board_clear" then
+        -- `boss_dead` is kept as legacy input, but boss battles now use the same
+        -- clear-all-enemies rule as other battles.
+        if flow.winRule == "boss_dead" or flow.winRule == "reserve_empty_and_board_clear" then
             if rightAlive == 0 and reserveRemaining == 0 then
                 return true, "left", "右侧战场已清空且无后备敌人"
             end

@@ -338,7 +338,10 @@ async function bootstrapRunMode(
   isActive: () => boolean,
   params: URLSearchParams,
 ) {
-  const runSeed = Number(params.get("seed")) || 10102;
+  const pinnedRunSeed = Number(params.get("seed"));
+  const hasPinnedRunSeed = Number.isFinite(pinnedRunSeed) && pinnedRunSeed > 0;
+  const allocateRunSeed = () => Math.max(1, Math.floor(Date.now() % 2147483647));
+  let runSeed = hasPinnedRunSeed ? pinnedRunSeed : allocateRunSeed();
   // Disable auto-ultimate by default in roguelike mode to keep early battles stable and reproducible.
   let autoUltimate = false;
   let battleSpeed = 1;
@@ -454,11 +457,14 @@ async function bootstrapRunMode(
       syncRunSnapshot(await host.getRunSnapshot());
     },
     onRestart: async () => {
-      syncRunSnapshot(await host.restartRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002], seed: runSeed }));
+      if (!hasPinnedRunSeed) {
+        runSeed = allocateRunSeed();
+      }
+      syncRunSnapshot(await host.restartRun({ chapterId: 101, seed: runSeed }));
     },
   });
 
-  syncRunSnapshot(await host.startRun({ chapterId: 101, starterHeroIds: [900005, 900001, 900007, 900002], seed: runSeed }));
+  syncRunSnapshot(await host.startRun({ chapterId: 101, seed: runSeed }));
 
   let rafId: number | null = null;
   registerCleanup(() => {

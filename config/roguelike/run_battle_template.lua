@@ -133,7 +133,7 @@ RunBattleTemplate.TEMPLATES = {
         refreshTurns = 0,
         refreshOnClear = true,
         spawnOrder = "back_first_then_front",
-        winRule = "boss_dead",
+        winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         battleEntries = {
             { battleId = 101201, weight = 100 },

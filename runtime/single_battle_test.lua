@@ -13,7 +13,7 @@ local DEFAULT_CONFIG = {
 }
 
 local REINFORCEMENT_REASON = "右侧战场已清空且无后备敌人"
-local BOSS_DEAD_REASON = "Boss 已被击败"
+local BOSS_CLEAR_REASON = "右侧战场已清空且无后备敌人"
 
 local function cloneArray(input)
     local result = {}
@@ -209,22 +209,22 @@ function SingleBattleTest.RunScenarioAssertions()
         },
         refreshOnClear = false,
         refreshTurns = 0,
-        winRule = "boss_dead",
+        winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         bossId = 910007,
         initialEnergy = 100,
     }
     local bossResult = runRuntime(bossConfig, { maxSteps = 2500 })
     local bossSnapshot = bossResult.snapshot
-    assert(bossSnapshot.result ~= nil, "boss_dead scenario should complete")
-    assert(bossSnapshot.result.winner == "left", "boss_dead scenario should be won by left team")
-    assert(bossSnapshot.result.reason == BOSS_DEAD_REASON, "boss_dead scenario should end immediately after boss dies")
-    assert((tonumber(bossSnapshot.reserveRemaining) or 0) > 0, "boss_dead scenario should finish before reserve is exhausted")
-    print(string.format("boss_dead: ok (reserveRemaining=%d)", tonumber(bossSnapshot.reserveRemaining) or 0))
+    assert(bossSnapshot.result ~= nil, "boss clear scenario should complete")
+    assert(bossSnapshot.result.winner == "left", "boss clear scenario should be won by left team")
+    assert(bossSnapshot.result.reason == BOSS_CLEAR_REASON, "boss clear scenario should end only after all enemies die")
+    assert((tonumber(bossSnapshot.reserveRemaining) or 0) == 0, "boss clear scenario should consume all reserve enemies")
+    print(string.format("boss_clear: ok (reserveRemaining=%d)", tonumber(bossSnapshot.reserveRemaining) or 0))
 
     return {
         reinforcement = shallowCopy(reinforcementResult),
-        bossDead = shallowCopy(bossResult),
+        bossClear = shallowCopy(bossResult),
     }
 end
 

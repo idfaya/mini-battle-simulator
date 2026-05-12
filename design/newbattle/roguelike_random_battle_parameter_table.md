@@ -51,7 +51,7 @@
 | `refresh_turns` | integer | `0~3` | 波次刷新间隔；`0` 表示仅清场后进入下一波 |
 | `refresh_on_clear` | boolean | `true` / `false` | 清场是否立刷 |
 | `spawn_order` | enum | `back_first_then_front` / `front_first_then_back` | 补位顺序 |
-| `win_rule` | enum | `reserve_empty_and_board_clear` / `boss_dead` | 胜利条件 |
+| `win_rule` | enum | `reserve_empty_and_board_clear` | 胜利条件，Boss 战也必须清场 |
 | `lose_rule` | enum | `all_hero_dead` | 失败条件 |
 | `boss_required` | boolean | `true` / `false` | 是否必须有 Boss 本体 |
 | `boss_phase_group_id` | string | 编号或空 | Boss 阶段组 |
@@ -244,7 +244,7 @@
 | `boss_wave_min` | integer | `1+` | Boss 最早出现波次 |
 | `boss_wave_max` | integer | `1+` | Boss 最晚出现波次 |
 | `boss_must_last` | boolean | `true` / `false` | Boss 是否必须最后出场 |
-| `win_rule_override` | enum | `boss_dead` 或空 | 特殊胜利条件 |
+| `win_rule_override` | enum | 空 | 预留字段，当前不启用特殊胜利条件 |
 
 ---
 
@@ -429,7 +429,7 @@ wave_count_max = 3
 refresh_turns = 0
 refresh_on_clear = true
 spawn_order = back_first_then_front
-win_rule = boss_dead
+win_rule = reserve_empty_and_board_clear
 lose_rule = all_hero_dead
 boss_required = true
 boss_phase_group_id = act1_boss_phase_group_01
