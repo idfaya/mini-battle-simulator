@@ -230,7 +230,6 @@ end
 
 function FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)
     local attacker = extraParam and extraParam.attacker or nil
-    local damageContext = extraParam and extraParam.damageContext or nil
     if not isAlive(defender) or not isAlive(attacker) then
         return
     end
@@ -238,15 +237,6 @@ function FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)
     local guard, runtime = getGuardProtector(defender)
     if not guard or not runtime then
         return
-    end
-
-    if damageContext and (tonumber(damageContext.damage) or 0) > 0 then
-        local damageBefore = math.max(0, math.floor(tonumber(damageContext.damage) or 0))
-        local reduction = math.min(damageBefore, getProficiencyBonus(guard))
-        if reduction > 0 then
-            damageContext.damage = damageBefore - reduction
-            publishPassiveTriggered(guard, "护卫架势", "护卫减伤", string.format("为 %s 抵消 %d 伤害", defender.name or "目标", reduction))
-        end
     end
 
     FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)

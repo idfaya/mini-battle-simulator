@@ -395,6 +395,22 @@ local function GetTargetMissingHpRatio(target)
     return math.max(0, (maxHp - hp) / maxHp)
 end
 
+local function IsPureHealExecution(executionType)
+    return executionType == "healing_word"
+        or executionType == "life_prayer"
+        or executionType == "lay_on_hands"
+end
+
+local function HasInjuredAlly(hero)
+    local BattleFormation = require("modules.battle_formation")
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if ally and ally.isAlive and not ally.isDead and GetTargetMissingHpRatio(ally) > 0 then
+            return true
+        end
+    end
+    return false
+end
+
 local function IsSupportCastTarget(castTarget)
     return castTarget == E_CAST_TARGET.Self
         or castTarget == E_CAST_TARGET.Alias
@@ -479,6 +495,11 @@ local function BuildSkillCandidate(hero, skill, opts)
 
     local previewTargets = BattleSkill.SelectTarget(hero, skill) or {}
     if #previewTargets == 0 then
+        return nil
+    end
+
+    local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
+    if IsPureHealExecution(executionType) and not HasInjuredAlly(hero) then
         return nil
     end
 

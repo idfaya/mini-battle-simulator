@@ -233,7 +233,7 @@ do
         attacker = rangedAttacker,
         damageContext = rangedDamageContext,
     })
-    assert_true(rangedDamageContext.damage == 5, "guard stance reduces incoming damage by proficiency bonus")
+    assert_true(rangedDamageContext.damage == 7, "guard stance no longer reduces incoming damage")
     assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "guard counter ignores ranged attackers")
 
     local meleeDamageContext = { damage = 7 }
@@ -241,7 +241,7 @@ do
         attacker = meleeAttacker,
         damageContext = meleeDamageContext,
     })
-    assert_true(meleeDamageContext.damage == 5, "guard stance reduction also protects self")
+    assert_true(meleeDamageContext.damage == 7, "guard stance self-protection is AC only")
     assert_true(guard.passiveRuntime.pendingGuardCounterTarget == meleeAttacker, "guard counter queues for melee attackers after protection")
 
     BattleFormation.GetFriendTeam = oldGetFriendTeam
