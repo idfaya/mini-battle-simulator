@@ -242,6 +242,50 @@ local function buildLevelUpDetail(beforeState, afterUnit)
     }
 end
 
+local function buildLevelUpDetails(beforeState, afterUnit)
+    if not beforeState or not afterUnit then
+        return {}
+    end
+    local finalLevel = tonumber(afterUnit.level) or STARTER_LEVEL
+    local finalStage = HeroData.NormalizePromotionStage(afterUnit.promotionStage)
+    local currentState = deepCopyTable(beforeState)
+    local details = {}
+    for targetLevel = (tonumber(beforeState.level) or STARTER_LEVEL) + 1, finalLevel do
+        local targetStage = currentState.promotionStage
+        if targetStage == "low"
+            and (finalStage == "mid" or finalStage == "high")
+            and targetLevel >= HeroData.GetPromotionStageLevel("mid") then
+            targetStage = "mid"
+        end
+        if targetStage == "mid"
+            and finalStage == "high"
+            and targetLevel >= HeroData.GetPromotionStageLevel("high") then
+            targetStage = "high"
+        end
+
+        local stepUnit
+        if targetLevel == finalLevel then
+            stepUnit = afterUnit
+        else
+            stepUnit = HeroData.BuildClassUnitHeroData(beforeState.classId, targetStage, targetLevel)
+            if stepUnit then
+                stepUnit.rosterId = beforeState.rosterId
+                stepUnit.unitId = beforeState.unitId
+                stepUnit.name = beforeState.heroName
+            end
+        end
+
+        if stepUnit then
+            local detail = buildLevelUpDetail(currentState, stepUnit)
+            if detail then
+                details[#details + 1] = detail
+                currentState = captureUnitLevelState(stepUnit) or currentState
+            end
+        end
+    end
+    return details
+end
+
 local function mergeLastBattleSummary(fields)
     state.lastBattleSummary = state.lastBattleSummary or {}
     for key, value in pairs(fields or {}) do
@@ -332,8 +376,7 @@ local function grantBattleExp(battle)
             recipients = recipients + 1
             if newLevel > oldLevel then
                 leveledUnits[#leveledUnits + 1] = unit.unitId or unit.name or tostring(unit.rosterId)
-                local detail = buildLevelUpDetail(beforeState, unit)
-                if detail then
+                for _, detail in ipairs(buildLevelUpDetails(beforeState, unit)) do
                     levelUpDetails[#levelUpDetails + 1] = detail
                 end
             end

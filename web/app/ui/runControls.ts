@@ -190,6 +190,7 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
   if (!summary || summary.won !== true) {
     return;
   }
+  const levelUpUnitCount = new Set((summary.levelUps ?? []).map((item) => item.rosterId)).size;
 
   const section = document.createElement("section");
   section.className = "run-info-section run-battle-summary-section";
@@ -204,7 +205,7 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
   stats.innerHTML = `
     <div class="setup-field run-compact-field"><span>获得经验</span><strong>${summary.expReward ?? 0}</strong></div>
     <div class="setup-field run-compact-field"><span>获得金币</span><strong>${summary.earnedGold ?? 0}</strong></div>
-    <div class="setup-field run-compact-field"><span>升级人数</span><strong>${summary.levelUps?.length ?? 0}</strong></div>
+    <div class="setup-field run-compact-field"><span>升级人数</span><strong>${levelUpUnitCount}</strong></div>
     <div class="setup-field run-compact-field"><span>掉落装备</span><strong>${summary.equipmentDropCount ?? 0}</strong></div>
   `;
   section.append(stats);
