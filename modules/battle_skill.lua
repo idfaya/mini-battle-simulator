@@ -933,7 +933,8 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     end
 end
 
-local function PrepareSkillCast(hero, target, skillId)
+local function PrepareSkillCast(hero, target, skillId, opts)
+    opts = opts or {}
     if not hero then
         Logger.LogError("[BattleSkill.CastSkillInSeq] hero is nil")
         return nil
@@ -968,7 +969,14 @@ local function PrepareSkillCast(hero, target, skillId)
         end
     end
 
-    local targets = target and { target } or BattleSkill.SelectTarget(hero, skill)
+    local targets = nil
+    if type(opts.resolvedTargets) == "table" and #opts.resolvedTargets > 0 then
+        targets = opts.resolvedTargets
+    elseif target then
+        targets = { target }
+    else
+        targets = BattleSkill.SelectTarget(hero, skill)
+    end
     if not targets or #targets == 0 then
         Logger.LogWarning("[BattleSkill.CastSkillInSeq] No valid targets for skill: " .. tostring(skillId))
         return nil
@@ -1082,7 +1090,7 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         return false
     end
 
-    local skill, targets = PrepareSkillCast(hero, target, skillId)
+    local skill, targets = PrepareSkillCast(hero, target, skillId, opts)
     if not skill then
         if type(onComplete) == "function" then
             onComplete(false, { totalDamage = 0, succeeded = false })

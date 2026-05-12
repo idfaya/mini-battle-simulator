@@ -330,6 +330,189 @@ local function PublishEnemyActionTrace(stage, hero, extra)
 end
 -- #endregion
 
+local function BuildOrderedAvailableSkills(hero, availableSkills)
+    local ordered = {}
+    local orderBySkillId = {}
+    local seen = {}
+
+    for index, skill in ipairs(hero and hero.skills or {}) do
+        if skill and skill.skillId ~= nil then
+            orderBySkillId[tonumber(skill.skillId) or skill.skillId] = index
+        end
+    end
+
+    for skillId, skill in pairs(availableSkills or {}) do
+        if skill then
+            local numericSkillId = tonumber(skillId) or tonumber(skill.skillId) or 0
+            local dedupeKey = tostring(numericSkillId)
+            if not seen[dedupeKey] then
+                seen[dedupeKey] = true
+                table.insert(ordered, {
+                    skill = skill,
+                    orderIndex = orderBySkillId[numericSkillId] or math.huge,
+                    skillId = numericSkillId,
+                })
+            end
+        end
+    end
+
+    table.sort(ordered, function(a, b)
+        if a.orderIndex ~= b.orderIndex then
+            return a.orderIndex < b.orderIndex
+        end
+        return a.skillId < b.skillId
+    end)
+
+    return ordered
+end
+
+local function SummarizeTargetInjury(targets)
+    local injuredCount = 0
+    local missingHpRatio = 0
+
+    for _, unit in ipairs(targets or {}) do
+        if unit and unit.isAlive and not unit.isDead then
+            local maxHp = math.max(1, tonumber(unit.maxHp) or tonumber(unit.hp) or 1)
+            local hp = math.max(0, tonumber(unit.hp) or maxHp)
+            local missingRatio = math.max(0, (maxHp - hp) / maxHp)
+            if missingRatio > 0 then
+                injuredCount = injuredCount + 1
+                missingHpRatio = missingHpRatio + missingRatio
+            end
+        end
+    end
+
+    return injuredCount, missingHpRatio
+end
+
+local function GetTargetMissingHpRatio(target)
+    if not target then
+        return 0
+    end
+
+    local maxHp = math.max(1, tonumber(target.maxHp) or tonumber(target.hp) or 1)
+    local hp = math.max(0, tonumber(target.hp) or maxHp)
+    return math.max(0, (maxHp - hp) / maxHp)
+end
+
+local function IsSupportCastTarget(castTarget)
+    return castTarget == E_CAST_TARGET.Self
+        or castTarget == E_CAST_TARGET.Alias
+        or castTarget == E_CAST_TARGET.AlliesExcludeSelf
+        or castTarget == E_CAST_TARGET.AliasPos
+end
+
+local function ScoreSkillCandidate(hero, skill, previewTargets)
+    local score = 0
+    local targetsSelections = skill.targetsSelections or {}
+    local castTarget = targetsSelections.castTarget or skill.castTarget or E_CAST_TARGET.Enemy
+    local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
+    local targetCount = #previewTargets
+    local primaryTarget = previewTargets[1]
+
+    if skill.skillType == E_SKILL_TYPE_LIMITED then
+        score = score + 300
+    elseif skill.skillType == E_SKILL_TYPE_ACTIVE then
+        score = score + 200
+    elseif skill.skillType == E_SKILL_TYPE_NORMAL then
+        score = score + 100
+    end
+
+    if IsSupportCastTarget(castTarget) then
+        local injuredCount, allyMissingHpRatio = SummarizeTargetInjury(previewTargets)
+        score = score + injuredCount * 20
+        score = score + math.floor(allyMissingHpRatio * 100)
+        if executionType == "healing_word" or executionType == "life_prayer" then
+            score = score + 40
+        elseif executionType == "guardian_aura" or executionType == "harmonize" then
+            score = score + 20
+        end
+    else
+        score = score + targetCount * 15
+        score = score + math.floor(GetTargetMissingHpRatio(primaryTarget) * 80)
+        if targetsSelections.preferLowestHp or targetsSelections.lowestHpFirst or targetsSelections.pickLowestHp then
+            score = score + 25
+        end
+        if targetsSelections.measureType == E_MEASURE_TYPE.AOE then
+            score = score + math.max(0, targetCount - 1) * 20
+        elseif targetsSelections.measureType == E_MEASURE_TYPE.Muti then
+            score = score + math.max(0, targetCount - 1) * 12
+        end
+    end
+
+    if tonumber(skill.maxCoolDown) and tonumber(skill.maxCoolDown) > 0 then
+        score = score + math.min(tonumber(skill.maxCoolDown) or 0, 6)
+    end
+
+    return score
+end
+
+local function BuildSkillCandidate(hero, skill, opts)
+    opts = opts or {}
+    if not hero or not skill or not skill.skillId then
+        return nil
+    end
+
+    if not BattleSkill.CheckSkillCondition(hero, skill) then
+        return nil
+    end
+
+    local skillId = skill.skillId
+    local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
+    if cd > 0 then
+        return nil
+    end
+
+    if skill.skillType == E_SKILL_TYPE_LIMITED then
+        local maxCharges = tonumber(hero.ultimateChargesMax) or 1
+        local charges = tonumber(hero.ultimateCharges)
+        if charges == nil then
+            charges = maxCharges
+        end
+        if charges <= 0 then
+            return nil
+        end
+        if opts.requireLimitedGate and not BattleEnergy.CanCastUltimate(hero, skill) then
+            return nil
+        end
+    end
+
+    local previewTargets = BattleSkill.SelectTarget(hero, skill) or {}
+    if #previewTargets == 0 then
+        return nil
+    end
+
+    return {
+        skill = skill,
+        skillId = skillId,
+        previewTargets = previewTargets,
+        score = ScoreSkillCandidate(hero, skill, previewTargets),
+    }
+end
+
+local function PickBestSkillCandidate(hero, orderedSkills, skillType, opts)
+    local bestCandidate = nil
+
+    for _, entry in ipairs(orderedSkills or {}) do
+        local skill = entry.skill
+        if skill and skill.skillType == skillType then
+            local candidate = BuildSkillCandidate(hero, skill, opts)
+            if candidate then
+                candidate.orderIndex = entry.orderIndex
+                local shouldReplace = bestCandidate == nil
+                    or candidate.score > bestCandidate.score
+                    or (candidate.score == bestCandidate.score and candidate.orderIndex < bestCandidate.orderIndex)
+                    or (candidate.score == bestCandidate.score and candidate.orderIndex == bestCandidate.orderIndex and candidate.skillId < bestCandidate.skillId)
+                if shouldReplace then
+                    bestCandidate = candidate
+                end
+            end
+        end
+    end
+
+    return bestCandidate
+end
+
 local function BuildRoundParticipants()
     local participants = {}
     for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
@@ -859,9 +1042,10 @@ function BattleMain.Start(beginState, onBattleEnd)
     Logger.Log("BattleMain.Start - 战斗初始化完成，进入战斗状态")
 end
 
---- 选择可用技能（玩家侧大招由外部指令触发；敌方 AI 可自动释放大招）
+--- 选择可用技能（玩家侧 limited 技能由外部指令触发；AI 按优先级和目标价值自动选技）
 ---@param hero table 英雄对象
----@return table 技能对象
+---@return table|nil skill
+---@return table|nil previewTargets
 local function SelectAvailableSkill(hero)
     -- 优先使用 skillsConfig（包含完整的技能配置信息）
     local skillsConfig = hero.skillsConfig
@@ -899,105 +1083,96 @@ local function SelectAvailableSkill(hero)
     
     -- 从 hero.skillData.skillInstances 中获取实际可用的技能
     local availableSkills = hero.skillData and hero.skillData.skillInstances or {}
+    local orderedSkills = BuildOrderedAvailableSkills(hero, availableSkills)
     PublishEnemyActionTrace("enemy_select_skill_begin", hero, {
-        skillCount = (function()
-            local count = 0
-            for _ in pairs(availableSkills) do
-                count = count + 1
-            end
-            return count
-        end)(),
+        skillCount = #orderedSkills,
     })
 
     local heroId = GetHeroBattleId(hero)
     local queuedUltimate = heroId and queuedUltimateByHero[tostring(heroId)]
     if hero and hero.isLeft and queuedUltimate then
-        for skillId, skill in pairs(availableSkills) do
-            if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
-                local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-                local charges = tonumber(hero.ultimateCharges)
-                local maxCharges = tonumber(hero.ultimateChargesMax) or 1
-                if charges == nil then
-                    charges = maxCharges
-                end
-                queuedUltimateByHero[tostring(heroId)] = nil
-                if cd == 0 and charges > 0 then
-                    Logger.Log(string.format("[SelectAvailableSkill] %s 使用已排队大招: %s",
-                        hero.name or "Unknown", skill.name or tostring(skillId)))
-                    return skill
-                end
-                break
-            end
+        local queuedCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_LIMITED, {
+            requireLimitedGate = false,
+        })
+        queuedUltimateByHero[tostring(heroId)] = nil
+        if queuedCandidate then
+            Logger.Log(string.format("[SelectAvailableSkill] %s 使用已排队限次数技能: %s (score=%d)",
+                hero.name or "Unknown",
+                queuedCandidate.skill.name or tostring(queuedCandidate.skillId),
+                queuedCandidate.score))
+            return queuedCandidate.skill, queuedCandidate.previewTargets
         end
     end
 
-    -- Enemy AI auto-casts ultimate when ready. Player side still uses manual/auto queue.
+    -- Enemy AI auto-casts limited skills when ready. Player side still uses manual/auto queue.
     if hero and not hero.isLeft then
-        for skillId, skill in pairs(availableSkills) do
-            if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
-                local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-                if cd == 0 and BattleEnergy.CanCastUltimate(hero, skill) then
-                    Logger.Log(string.format("[SelectAvailableSkill] %s 敌方自动选择大招: %s",
-                        hero.name or "Unknown", skill.name or tostring(skillId)))
-                    PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
-                        reason = "ultimate",
-                        skillId = skillId,
-                        skillName = skill.name,
-                        skillType = skill.skillType,
-                        cooldown = cd,
-                    })
-                    return skill
-                end
-            end
-        end
-    end
-    
-    -- 如果没有可用的大招，检查主动技能（不耗能量，有CD冷却）
-    for skillId, skill in pairs(availableSkills) do
-        if skill and skill.skillType == E_SKILL_TYPE_ACTIVE then
-            local cd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-            if cd == 0 then
-                Logger.Log(string.format("[SelectAvailableSkill] %s 选择主动技能: %s (CD:%d/%d)",
-                    hero.name or "Unknown", skill.name or tostring(skillId),
-                    cd, skill.maxCoolDown or 0))
-                PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
-                    reason = "active",
-                    skillId = skillId,
-                    skillName = skill.name,
-                    skillType = skill.skillType,
-                    cooldown = cd,
-                })
-                return skill
-            else
-                Logger.Log(string.format("[SelectAvailableSkill] %s 主动技能冷却中: %s (剩余CD:%d)",
-                    hero.name or "Unknown", skill.name or tostring(skillId), cd))
-            end
-        end
-    end
-    
-    -- 如果没有可用的大招和主动技能，使用普通攻击
-    for skillId, skill in pairs(availableSkills) do
-        if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
+        local limitedCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_LIMITED, {
+            requireLimitedGate = true,
+        })
+        if limitedCandidate then
+            Logger.Log(string.format("[SelectAvailableSkill] %s 敌方自动选择限次数技能: %s (score=%d)",
+                hero.name or "Unknown",
+                limitedCandidate.skill.name or tostring(limitedCandidate.skillId),
+                limitedCandidate.score))
             PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
-                reason = "normal",
-                skillId = skillId,
-                skillName = skill.name,
-                skillType = skill.skillType,
+                reason = "limited",
+                skillId = limitedCandidate.skillId,
+                skillName = limitedCandidate.skill.name,
+                skillType = limitedCandidate.skill.skillType,
+                cooldown = BattleSkill.GetSkillCurCoolDown(hero, limitedCandidate.skillId),
+                score = limitedCandidate.score,
+                targetCount = #limitedCandidate.previewTargets,
             })
-            return skill
+            return limitedCandidate.skill, limitedCandidate.previewTargets
         end
+    end
+    
+    -- 如果没有可用的限次数技能，检查主动技能（不耗能量，有CD冷却）
+    local activeCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_ACTIVE, {})
+    if activeCandidate then
+        Logger.Log(string.format("[SelectAvailableSkill] %s 选择主动技能: %s (score=%d, targets=%d)",
+            hero.name or "Unknown",
+            activeCandidate.skill.name or tostring(activeCandidate.skillId),
+            activeCandidate.score,
+            #activeCandidate.previewTargets))
+        PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+            reason = "active",
+            skillId = activeCandidate.skillId,
+            skillName = activeCandidate.skill.name,
+            skillType = activeCandidate.skill.skillType,
+            cooldown = BattleSkill.GetSkillCurCoolDown(hero, activeCandidate.skillId),
+            score = activeCandidate.score,
+            targetCount = #activeCandidate.previewTargets,
+        })
+        return activeCandidate.skill, activeCandidate.previewTargets
+    end
+    
+    -- 如果没有可用的高优先级技能，使用普通攻击
+    local normalCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_NORMAL, {})
+    if normalCandidate then
+        PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
+            reason = "normal",
+            skillId = normalCandidate.skillId,
+            skillName = normalCandidate.skill.name,
+            skillType = normalCandidate.skill.skillType,
+            score = normalCandidate.score,
+            targetCount = #normalCandidate.previewTargets,
+        })
+        return normalCandidate.skill, normalCandidate.previewTargets
     end
     
     -- 默认返回第一个可用技能
-    for _, skill in pairs(availableSkills) do
-        if skill then
+    for _, entry in ipairs(orderedSkills) do
+        local skill = entry.skill
+        local candidate = skill and BuildSkillCandidate(hero, skill, {}) or nil
+        if candidate then
             PublishEnemyActionTrace("enemy_select_skill_pick", hero, {
                 reason = "fallback",
                 skillId = skill.skillId,
                 skillName = skill.name,
                 skillType = skill.skillType,
             })
-            return skill
+            return candidate.skill, candidate.previewTargets
         end
     end
 
@@ -1093,7 +1268,7 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
     end
 
     -- 智能选择可用技能
-    local skill = SelectAvailableSkill(hero)
+    local skill, previewTargets = SelectAvailableSkill(hero)
     if not skill then
         Logger.LogWarning(string.format("[ExecuteHeroAction] %s 没有可用技能，跳过行动", hero.name or "Unknown"))
         PublishEnemyActionTrace("enemy_execute_no_skill", hero, {})
@@ -1101,71 +1276,71 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
     end
     
     if skill and skill.skillId then
-        -- 获取随机敌人作为目标
-        -- region debug-point enemy-no-damage-target
-        local targetId = BattleFormation.GetRandomEnemyInstanceId(hero)
+        previewTargets = previewTargets or {}
+        local primaryTarget = previewTargets[1]
+        local targetId = primaryTarget and (primaryTarget.instanceId or primaryTarget.id) or nil
         PublishEnemyActionTrace("enemy_execute_target", hero, {
             skillId = skill.skillId,
             skillName = skill.name,
             targetId = targetId,
+            targetCount = #previewTargets,
         })
-        Logger.Log(string.format("[DBG enemy-no-damage target] actor=%s actorId=%s isLeft=%s targetId=%s",
-            tostring(hero.name), tostring(hero.instanceId), tostring(hero.isLeft), tostring(targetId)))
-        -- endregion debug-point enemy-no-damage-target
-        if targetId then
-            local target = BattleFormation.FindHeroByInstanceId(targetId)
-            if target then
-                PublishEnemyActionTrace("enemy_execute_target_resolved", hero, {
-                    skillId = skill.skillId,
-                    skillName = skill.name,
-                    targetId = targetId,
-                    targetName = target.name,
-                    targetIsLeft = target.isLeft,
-                    targetHp = target.hp,
-                })
-                -- region debug-point enemy-no-damage-target-resolved
-                Logger.Log(string.format("[DBG enemy-no-damage target-resolved] actor=%s actorLeft=%s target=%s targetLeft=%s",
-                    tostring(hero.name), tostring(hero.isLeft), tostring(target.name), tostring(target.isLeft)))
-                -- endregion debug-point enemy-no-damage-target-resolved
-                Logger.Log(string.format("[行动]   %s 对 %s 使用技能 [%s]", 
-                    hero.name or "Unknown", 
-                    target.name or "Unknown", 
-                    skill.name or tostring(skill.skillId)))
-                
-                -- 执行技能
-                local started = BattleSkill.StartSkillCastInSeq(hero, target, skill.skillId, function(success, result)
-                    if actionState then
-                        actionState.timelineSucceeded = success
-                        actionState.timelineResult = result
-                        actionState.completed = true
-                    end
-                end)
-                PublishEnemyActionTrace("enemy_execute_start_skill", hero, {
-                    skillId = skill.skillId,
-                    skillName = skill.name,
-                    targetId = targetId,
-                    targetName = target.name,
-                    started = started,
-                })
-                if started then
-                    if actionState then
-                        actionState.waitingForTimeline = true
-                    end
-                    return true
-                end
-                PublishEnemyActionTrace("enemy_execute_start_failed", hero, {
-                    skillId = skill.skillId,
-                    skillName = skill.name,
-                    targetId = targetId,
-                    targetName = target.name,
-                })
-            end
-        else
+        Logger.Log(string.format("[DBG enemy-target-preview] actor=%s actorId=%s isLeft=%s targetId=%s targetCount=%d",
+            tostring(hero.name), tostring(hero.instanceId), tostring(hero.isLeft), tostring(targetId), #previewTargets))
+        if not primaryTarget then
             PublishEnemyActionTrace("enemy_execute_no_target", hero, {
                 skillId = skill.skillId,
                 skillName = skill.name,
             })
+            return false
         end
+
+        PublishEnemyActionTrace("enemy_execute_target_resolved", hero, {
+            skillId = skill.skillId,
+            skillName = skill.name,
+            targetId = targetId,
+            targetName = primaryTarget.name,
+            targetIsLeft = primaryTarget.isLeft,
+            targetHp = primaryTarget.hp,
+            targetCount = #previewTargets,
+        })
+        Logger.Log(string.format("[行动]   %s 对 %s 使用技能 [%s] (previewTargets=%d)",
+            hero.name or "Unknown",
+            primaryTarget.name or "Unknown",
+            skill.name or tostring(skill.skillId),
+            #previewTargets))
+
+        -- 执行技能，目标交还给技能系统按 targetsSelections 决定
+        local started = BattleSkill.StartSkillCastInSeq(hero, nil, skill.skillId, function(success, result)
+            if actionState then
+                actionState.timelineSucceeded = success
+                actionState.timelineResult = result
+                actionState.completed = true
+            end
+        end, {
+            resolvedTargets = previewTargets,
+        })
+        PublishEnemyActionTrace("enemy_execute_start_skill", hero, {
+            skillId = skill.skillId,
+            skillName = skill.name,
+            targetId = targetId,
+            targetName = primaryTarget.name,
+            targetCount = #previewTargets,
+            started = started,
+        })
+        if started then
+            if actionState then
+                actionState.waitingForTimeline = true
+            end
+            return true
+        end
+        PublishEnemyActionTrace("enemy_execute_start_failed", hero, {
+            skillId = skill.skillId,
+            skillName = skill.name,
+            targetId = targetId,
+            targetName = primaryTarget.name,
+            targetCount = #previewTargets,
+        })
     end
 
     return false
