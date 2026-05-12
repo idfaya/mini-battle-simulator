@@ -305,6 +305,14 @@ local function calculateArmorClass(classId, dexMod, conMod, wisMod, level)
     })
 end
 
+local function applyClassArmorFloor(classId, templateAc, calculatedAc)
+    local classNum = tonumber(classId) or 0
+    if classNum == 4 or classNum == 6 then
+        return math.max(math.floor(templateAc or 0), math.floor(calculatedAc or 0))
+    end
+    return math.floor(calculatedAc or 0)
+end
+
 local function OpenConfigFile(fileName)
     local paths = {
         "config/" .. fileName,
@@ -641,7 +649,8 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local finalHp = calculate5eHp(level, hitDie, conMod)
     local finalDef = math.max(0, math.floor(template.def))
     local finalSpd = math.max(60, math.floor(template.speed))
-    local finalAc = math.max(10, calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level))
+    local baseAc = calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level)
+    local finalAc = math.max(10, applyClassArmorFloor(hero.Class, template.ac, baseAc))
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
