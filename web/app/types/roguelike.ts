@@ -118,6 +118,12 @@ export type BattleLevelUpFeatGain = {
   description: string;
 };
 
+export type BattleLevelUpSkillCard = {
+  skillId: number;
+  name: string;
+  runtimeKind: "active" | "passive";
+};
+
 export type BattleLevelUpSummary = {
   rosterId: number;
   unitId?: string;
@@ -129,6 +135,7 @@ export type BattleLevelUpSummary = {
   promotionStageAfter?: "low" | "mid" | "high";
   statChanges: BattleLevelUpStatChange[];
   gainedFeats: BattleLevelUpFeatGain[];
+  gainedSkillCards?: BattleLevelUpSkillCard[];
 };
 
 export type LastBattleSummary = {

@@ -191,33 +191,37 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
     return;
   }
 
+  const section = document.createElement("section");
+  section.className = "run-info-section run-battle-summary-section";
+
   const title = document.createElement("div");
   title.className = "panel-title";
-  title.textContent = "战斗结算";
-  host.append(title);
+  title.textContent = "升级奖励";
+  section.append(title);
 
   const stats = document.createElement("div");
-  stats.className = "setup-grid";
+  stats.className = "setup-grid run-compact-grid";
   stats.innerHTML = `
-    <div class="setup-field"><span>获得经验</span><strong>${summary.expReward ?? 0}</strong></div>
-    <div class="setup-field"><span>获得金币</span><strong>${summary.earnedGold ?? 0}</strong></div>
-    <div class="setup-field"><span>升级人数</span><strong>${summary.levelUps?.length ?? 0}</strong></div>
-    <div class="setup-field"><span>掉落装备</span><strong>${summary.equipmentDropCount ?? 0}</strong></div>
+    <div class="setup-field run-compact-field"><span>获得经验</span><strong>${summary.expReward ?? 0}</strong></div>
+    <div class="setup-field run-compact-field"><span>获得金币</span><strong>${summary.earnedGold ?? 0}</strong></div>
+    <div class="setup-field run-compact-field"><span>升级人数</span><strong>${summary.levelUps?.length ?? 0}</strong></div>
+    <div class="setup-field run-compact-field"><span>掉落装备</span><strong>${summary.equipmentDropCount ?? 0}</strong></div>
   `;
-  host.append(stats);
+  section.append(stats);
 
   if ((summary.levelUps?.length ?? 0) <= 0) {
     const empty = document.createElement("div");
     empty.className = "run-roster-meta";
     empty.textContent = "本场没有单位升级";
-    host.append(empty);
+    section.append(empty);
+    host.append(section);
     return;
   }
 
   const levelTitle = document.createElement("div");
   levelTitle.className = "panel-title";
   levelTitle.textContent = "升级效果";
-  host.append(levelTitle);
+  section.append(levelTitle);
 
   const levelList = document.createElement("div");
   levelList.className = "run-team-summary";
@@ -229,9 +233,25 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
     header.className = "run-roster-meta";
     const promotionChanged = levelUp.promotionStageBefore !== levelUp.promotionStageAfter;
     header.textContent = promotionChanged
-      ? `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter} · ${formatPromotionStage(levelUp.promotionStageBefore)} -> ${formatPromotionStage(levelUp.promotionStageAfter)}`
+      ? `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`
       : `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`;
     card.append(header);
+
+    if (promotionChanged) {
+      const promotionRow = document.createElement("div");
+      promotionRow.className = "run-build-summary";
+      promotionRow.textContent = `进阶: ${formatPromotionStage(levelUp.promotionStageBefore)} -> ${formatPromotionStage(levelUp.promotionStageAfter)}`;
+      card.append(promotionRow);
+    }
+
+    const skillCards = levelUp.gainedSkillCards ?? [];
+    const skillRow = document.createElement("div");
+    skillRow.className = "run-build-summary";
+    skillRow.textContent =
+      skillCards.length > 0
+        ? `新技能卡: ${skillCards.map((skill) => `${skill.runtimeKind === "passive" ? "被动" : "主动"}·${skill.name}`).join(" / ")}`
+        : "新技能卡: 无新增";
+    card.append(skillRow);
 
     const statText =
       levelUp.statChanges.length > 0
@@ -261,7 +281,8 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
 
     levelList.append(card);
   }
-  host.append(levelList);
+  section.append(levelList);
+  host.append(section);
 }
 
 function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
@@ -368,25 +389,28 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
-  // 资源概览
+  renderBattleSummary(host, snapshot);
+
+  const generalSection = document.createElement("section");
+  generalSection.className = "run-info-section run-general-info-section";
+
   const chapter = document.createElement("div");
   chapter.className = "panel-title";
-  chapter.textContent = `第一章 · 节点 ${snapshot.currentNodeId ?? "-"}`;
-  host.append(chapter);
+  chapter.textContent = `普通信息 · 第一章 / 节点 ${snapshot.currentNodeId ?? "-"}`;
+  generalSection.append(chapter);
 
   const stats = document.createElement("div");
-  stats.className = "setup-grid";
+  stats.className = "setup-grid run-compact-grid";
   stats.innerHTML = `
-    <div class="setup-field"><span>队伍等级</span><strong>Lv.${snapshot.partyLevel}</strong></div>
-    <div class="setup-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
-    <div class="setup-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
-    <div class="setup-field"><span>食物</span><strong>${snapshot.food}</strong></div>
-    <div class="setup-field"><span>装备</span><strong>${snapshot.equipments.length}</strong></div>
-    <div class="setup-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
+    <div class="setup-field run-compact-field"><span>队伍等级</span><strong>Lv.${snapshot.partyLevel}</strong></div>
+    <div class="setup-field run-compact-field"><span>升级进度</span><strong>${snapshot.nextLevelExp > 0 ? `${snapshot.levelProgressExp}/${snapshot.nextLevelExp}` : "已满级"}</strong></div>
+    <div class="setup-field run-compact-field"><span>金币</span><strong>${snapshot.gold}</strong></div>
+    <div class="setup-field run-compact-field"><span>食物</span><strong>${snapshot.food}</strong></div>
+    <div class="setup-field run-compact-field"><span>装备</span><strong>${snapshot.equipments.length}</strong></div>
+    <div class="setup-field run-compact-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
   `;
-  host.append(stats);
-
-  renderBattleSummary(host, snapshot);
+  generalSection.append(stats);
+  host.append(generalSection);
 
   // 阶段性交互
   if (snapshot.phase === "event" && snapshot.eventState) {

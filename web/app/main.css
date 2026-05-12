@@ -216,6 +216,10 @@ body {
   overflow: auto;
 }
 
+.run-info-panel {
+  align-content: start;
+}
+
 .ult-panel,
 .global-actions {
   display: grid;
@@ -256,11 +260,35 @@ body {
   gap: 10px;
 }
 
+.run-compact-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .setup-field {
   display: grid;
   gap: 6px;
   font-size: 12px;
   color: #d9e2ec;
+}
+
+.run-compact-field {
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(23, 63, 95, 0.34);
+}
+
+.run-compact-field span {
+  color: #9fb3c8;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.run-compact-field strong {
+  font-size: 13px;
+  line-height: 1.15;
 }
 
 .setup-field input,
@@ -400,6 +428,20 @@ body {
   color: #c7d7ea;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.run-info-section {
+  display: grid;
+  gap: 8px;
+}
+
+.run-battle-summary-section {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.run-general-info-section {
+  gap: 6px;
 }
 
 /* Roguelike reward cards (battle_levelup) */
@@ -683,6 +725,23 @@ body {
 
   .setup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .run-compact-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .run-compact-field {
+    padding: 6px 8px;
+  }
+
+  .run-compact-field span {
+    font-size: 10px;
+  }
+
+  .run-compact-field strong {
+    font-size: 12px;
   }
 
   .setup-field input,

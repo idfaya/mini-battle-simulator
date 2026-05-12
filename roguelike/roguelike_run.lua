@@ -12,6 +12,7 @@ local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
 local FeatConfig = require("config.feat_config")
 local FeatBuildConfig = require("config.feat_build_config")
+local SkillRuntimeConfig = require("config.skill_runtime_config")
 local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
 
 local RoguelikeRun = {}
@@ -193,10 +194,39 @@ local function buildLevelUpFeatChanges(beforeState, afterUnit)
     return result
 end
 
+local function buildLevelUpSkillCardsFromFeats(gainedFeats)
+    local cards = {}
+    local seen = {}
+    for _, featGain in ipairs(gainedFeats or {}) do
+        local feat = resolveFeatEntry(featGain.featId)
+        for _, effect in ipairs((feat and feat.effects) or {}) do
+            local skillId = nil
+            if effect.type == "grant_skill" then
+                skillId = tonumber(effect.skill) or 0
+            elseif effect.type == "replace_skill" then
+                skillId = tonumber(effect.newSkill) or 0
+            end
+            if skillId and skillId > 0 and not seen[skillId] then
+                seen[skillId] = true
+                local skill = SkillRuntimeConfig.Get(skillId)
+                if skill and skill.hidden ~= true then
+                    cards[#cards + 1] = {
+                        skillId = skillId,
+                        name = skill.name or ("Skill " .. tostring(skillId)),
+                        runtimeKind = skill.runtimeKind or "active",
+                    }
+                end
+            end
+        end
+    end
+    return cards
+end
+
 local function buildLevelUpDetail(beforeState, afterUnit)
     if not beforeState or not afterUnit then
         return nil
     end
+    local gainedFeats = buildLevelUpFeatChanges(beforeState, afterUnit)
     return {
         rosterId = beforeState.rosterId,
         unitId = beforeState.unitId,
@@ -207,7 +237,8 @@ local function buildLevelUpDetail(beforeState, afterUnit)
         promotionStageBefore = beforeState.promotionStage,
         promotionStageAfter = HeroData.NormalizePromotionStage(afterUnit.promotionStage),
         statChanges = buildLevelUpStatChanges(beforeState, afterUnit),
-        gainedFeats = buildLevelUpFeatChanges(beforeState, afterUnit),
+        gainedFeats = gainedFeats,
+        gainedSkillCards = buildLevelUpSkillCardsFromFeats(gainedFeats),
     }
 end
 
