@@ -138,7 +138,7 @@ export type AnimationEvent =
       type: "combat_cue";
       heroId: string;
       targetId: string;
-      cue: "precise_attack";
+      cue: "precise_attack" | "counter_queue" | "guard_counter_queue";
     }
   | {
       type: "timeline_started";

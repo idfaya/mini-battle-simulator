@@ -31,6 +31,36 @@ function findLineIndex(logs: string[], matcher: (line: string) => boolean, start
   return -1;
 }
 
+async function waitForReactionOverlap(page: import("playwright/test").Page, kind: "counter" | "guard") {
+  return page.evaluate(async (reactionKind: "counter" | "guard") => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          observedCounterOverlapKeys?: string[];
+          observedGuardCounterOverlapKeys?: string[];
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return false;
+    }
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await sleep(40);
+      const state = renderer.getBattleDebugState();
+      const overlaps =
+        reactionKind === "guard"
+          ? (state.observedGuardCounterOverlapKeys?.length ?? 0)
+          : (state.observedCounterOverlapKeys?.length ?? 0);
+      if (overlaps > 0) {
+        return true;
+      }
+    }
+    return false;
+  }, kind);
+}
+
 test("fighter web flow shows guard stance in the three-tier build", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
@@ -118,10 +148,10 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
     .toContain("战士 使用 基础武器攻击");
 
   const logs = await page.locator(".battle-log li").allTextContents();
-  const attackIndex = logs.findIndex((line) => line.includes("兽人 使用 基础武器攻击"));
-  const queueIndex = logs.findIndex((line) => line.includes("战士 触发被动 反击：登记反击 将对 兽人 发动反击"));
-  const resultIndex = logs.findIndex((line) => line.includes("兽人 的 基础武器攻击 对 战士"));
-  const counterIndex = logs.findIndex((line) => line.includes("战士 使用 基础武器攻击"));
+  const attackIndex = findLineIndex(logs, (line) => line.includes("兽人 使用 基础武器攻击"));
+  const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击 将对 兽人 发动反击"));
+  const resultIndex = findLineIndex(logs, (line) => line.includes("兽人 的 基础武器攻击 对 战士"), queueIndex + 1);
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), resultIndex + 1);
 
   expect(attackIndex).toBeGreaterThanOrEqual(0);
   expect(queueIndex).toBeGreaterThan(attackIndex);
@@ -131,6 +161,50 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
   await page.screenshot({ path: "test-results/fighter-counter-queued-log.png", fullPage: true });
+});
+
+test("fighter counter attack starts before the enemy returns to base position", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003&level=4&fighterFeats=2100302,2100402&seed=101001");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("战士 触发被动 反击：登记反击");
+
+  expect(await waitForReactionOverlap(page, "counter")).toBe(true);
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击"));
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
+  expect(queueIndex).toBeGreaterThanOrEqual(0);
+  expect(counterIndex).toBeGreaterThan(queueIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("fighter guard counter starts before the enemy returns to base position", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910003,910003,910003&level=3&seed=100003");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("战士 触发被动 护卫架势：登记护卫反击");
+
+  expect(await waitForReactionOverlap(page, "guard")).toBe(true);
+
+  const logs = await page.locator(".battle-log li").allTextContents();
+  const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
+  expect(queueIndex).toBeGreaterThanOrEqual(0);
+  expect(counterIndex).toBeGreaterThan(queueIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
 
 test("fighter high tier keeps indomitable wind in the build", async ({ page }) => {

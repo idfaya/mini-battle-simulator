@@ -161,6 +161,29 @@ export class BattleStore {
           source: event.payload.source,
           data: event.payload.data,
         });
+        const stage = String(event.payload.stage ?? "");
+        const debugData =
+          typeof event.payload.data === "object" && event.payload.data !== null
+            ? (event.payload.data as Record<string, unknown>)
+            : null;
+        const reactorId = String(debugData?.reactorId ?? "");
+        const guardId = String(debugData?.guardId ?? "");
+        const attackerId = String(debugData?.attackerId ?? "");
+        if (stage === "queue_counter_basic" && reactorId !== "" && attackerId !== "") {
+          animations.push({
+            type: "combat_cue",
+            heroId: reactorId,
+            targetId: attackerId,
+            cue: "counter_queue",
+          });
+        } else if (stage === "queue_guard_counter" && guardId !== "" && attackerId !== "") {
+          animations.push({
+            type: "combat_cue",
+            heroId: guardId,
+            targetId: attackerId,
+            cue: "guard_counter_queue",
+          });
+        }
       }
       // #endregion
       switch (event.type) {
