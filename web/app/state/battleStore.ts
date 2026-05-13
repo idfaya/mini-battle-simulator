@@ -290,6 +290,9 @@ export class BattleStore {
             frameIndex: Number(event.payload.frameIndex ?? 0),
             op: String(event.payload.op ?? ""),
             effect: String(event.payload.effect ?? ""),
+            buffId: event.payload.buffId !== undefined ? Number(event.payload.buffId) : undefined,
+            statusEffect: event.payload.statusEffect !== undefined ? String(event.payload.statusEffect) : undefined,
+            effectValue: event.payload.effectValue !== undefined ? Number(event.payload.effectValue) : undefined,
             targetIds: Array.isArray(event.payload.targets)
               ? event.payload.targets
                   .map((target) =>

@@ -158,6 +158,9 @@ export type AnimationEvent =
       op: string;
       effect: string;
       targetIds: string[];
+      buffId?: number;
+      statusEffect?: string;
+      effectValue?: number;
     }
   | {
       type: "timeline_completed";

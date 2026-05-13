@@ -1305,25 +1305,30 @@ export class BattleScene {
     const friendlyTargets = event.targetIds
       .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
       .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team === attacker.unit.team));
+    const isBuffSupportFrame = this.isBuffSupportFrame(event);
 
-    // Support skills often target allies (heal/aura/revive) and would otherwise show only numbers/bursts.
-    // Render a lightweight projectile to allies for better readability without touching combat logic.
+    // Buff support frames only need an on-target flash; do not fake a travelling orb to allies.
+    // Other support frames keep the lightweight projectile cue for readability.
     if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
       if (event.op !== "cast") {
         for (const target of friendlyTargets) {
-          this.projectiles.push({
-            id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
-            attackerId: attacker.unit.id,
-            targetId: target.unit.id,
-            startedAt: now,
-            durationMs: 300,
-            style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
-          });
+          if (!isBuffSupportFrame) {
+            this.projectiles.push({
+              id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
+              attackerId: attacker.unit.id,
+              targetId: target.unit.id,
+              startedAt: now,
+              durationMs: 300,
+              style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
+            });
+          }
           this.queueUnitPulse(target.unit.id, now + 90, style, {
             durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
           });
         }
-        this.lastProjectileAtByCaster.set(attacker.unit.id, now);
+        if (!isBuffSupportFrame) {
+          this.lastProjectileAtByCaster.set(attacker.unit.id, now);
+        }
       }
       return;
     }
@@ -1697,6 +1702,10 @@ export class BattleScene {
   private looksLikeProjectileEffect(effect: string) {
     const normalized = String(effect ?? "").toLowerCase();
     return /projectile|fire|ball|ice|arrow|bolt|orb|arc|lightning|missile|shard/.test(normalized);
+  }
+
+  private isBuffSupportFrame(event: Extract<AnimationEvent, { type: "timeline_frame" }>) {
+    return event.buffId !== undefined || (event.statusEffect ?? "") !== "";
   }
 
   private looksLikeMeleeHitEffect(effect: string) {
