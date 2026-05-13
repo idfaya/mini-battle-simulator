@@ -205,6 +205,105 @@ do
 end
 
 do
+    local defender = new_unit(9304, "CounterDefender")
+    local guard = new_unit(9305, "GuardFighter")
+    local attacker = new_unit(9306, "SharedAttacker")
+    local counterPassive = FighterBuildPassives.CreateCounterBasicPassive({ src = defender })
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldCastSmallSkill = BattleSkill.CastSmallSkill
+    local oldGetCurRound = BattleLogic.GetCurRound
+    local oldGetAllHeroes = BattleFormation.GetAllHeroes
+    local castOrder = {}
+
+    attacker.class = 2
+    defender.passiveRuntime = {}
+    guard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    guard.passiveRuntime = {
+        guardStanceActive = true,
+        guardCounterUsed = false,
+    }
+
+    BattleLogic.GetCurRound = function() return 1 end
+    BattleFormation.GetFriendTeam = function(unit)
+        if unit == defender then
+            return { defender, guard }
+        end
+        return { guard, defender }
+    end
+    BattleFormation.GetAllHeroes = function()
+        return { guard, defender, attacker }
+    end
+    BattleSkill.CastSmallSkill = function(hero)
+        table.insert(castOrder, hero.name)
+        return true
+    end
+
+    counterPassive:OnDefBeforeDmg({ data = { extraParam = { attacker = attacker, damage = 0 } } })
+    FighterBuildPassives.TryTriggerGuardCounter(defender, { attacker = attacker })
+    FighterBuildPassives.ResolveQueuedReactions(attacker)
+
+    assert_true(#castOrder == 2, "shared attacker resolves both counter and guard reactions")
+    assert_true(castOrder[1] == "CounterDefender", "shared attacker resolves counter reaction before guard reaction")
+    assert_true(castOrder[2] == "GuardFighter", "shared attacker resolves guard reaction after counter reaction")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    BattleLogic.GetCurRound = oldGetCurRound
+    BattleFormation.GetAllHeroes = oldGetAllHeroes
+end
+
+do
+    local firstDefender = new_unit(9307, "FirstProtected")
+    local secondDefender = new_unit(9308, "SecondProtected")
+    local firstGuard = new_unit(9309, "FirstGuard")
+    local secondGuard = new_unit(9310, "SecondGuard")
+    local attacker = new_unit(9311, "SharedGuardAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldCastSmallSkill = BattleSkill.CastSmallSkill
+    local oldGetAllHeroes = BattleFormation.GetAllHeroes
+    local castOrder = {}
+
+    attacker.class = 2
+    firstGuard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    secondGuard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    firstGuard.passiveRuntime = {
+        guardStanceActive = true,
+        guardCounterUsed = false,
+    }
+    secondGuard.passiveRuntime = {
+        guardStanceActive = true,
+        guardCounterUsed = false,
+    }
+
+    BattleFormation.GetFriendTeam = function()
+        return { firstDefender, secondDefender, firstGuard, secondGuard }
+    end
+    BattleFormation.GetAllHeroes = function()
+        return { firstDefender, secondDefender, firstGuard, secondGuard, attacker }
+    end
+    BattleSkill.CastSmallSkill = function(hero)
+        table.insert(castOrder, hero.name)
+        return true
+    end
+
+    FighterBuildPassives.TryTriggerGuardCounter(firstDefender, { attacker = attacker })
+    FighterBuildPassives.TryTriggerGuardCounter(secondDefender, { attacker = attacker })
+    FighterBuildPassives.ResolveQueuedReactions(attacker)
+
+    assert_true(#castOrder == 1, "one attack can queue at most one guard reaction")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    BattleFormation.GetAllHeroes = oldGetAllHeroes
+end
+
+do
     local guard = new_unit(9311, "GuardOwner")
     local ally = new_unit(9312, "GuardAlly")
     local meleeAttacker = new_unit(9313, "GuardMelee")

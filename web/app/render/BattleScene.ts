@@ -1,6 +1,16 @@
 import { createFloatingText, drawFloatingText, type FloatingText } from "./animations";
 import type { BattleStoreState } from "../state/battleStore";
 import type { ActionOrderState, AnimationEvent, UnitState } from "../types/battle";
+import {
+  applyPendingReactionHoldsToClash,
+  createReactionHoldIntent,
+  extendReactionHoldForReactor,
+  prunePendingReactionHolds,
+  tryAttachReactionHold,
+  type ReactionCueKind,
+  type ReactionHoldBinding,
+  type ReactionHoldIntent,
+} from "./pendingReactionHolds";
 
 type FormationSide = "player" | "enemy";
 type FormationRow = "front" | "back";
@@ -57,9 +67,7 @@ type MeleeClash = {
   precise: boolean;
   style: MeleeStyle;
   holdUntil?: number;
-  counterReactorId?: string;
-  counterSourceId?: string;
-  counterCueKind?: "counter" | "guard";
+  reactionBindings?: ReactionHoldBinding[];
 };
 
 type ElementStyle = {
@@ -94,14 +102,6 @@ type ProjectileAnimation = {
   startedAt: number;
   durationMs: number;
   style: ProjectileStyle;
-};
-
-type PendingReactionHold = {
-  reactorId: string;
-  sourceAttackerId: string;
-  cueKind: "counter" | "guard";
-  queuedAt: number;
-  until: number;
 };
 
 type AoeAnimation = {
@@ -193,7 +193,7 @@ export class BattleScene {
   private lastProjectileAtByCaster = new Map<string, number>();
   private pendingExtraAttackUntilByHero = new Map<string, number>();
   private pendingPreciseTargetsByHero = new Map<string, { until: number; targetId: string }>();
-  private pendingReactionHolds: PendingReactionHold[] = [];
+  private pendingReactionHolds: ReactionHoldIntent[] = [];
   private actionOrderRound: number | null = null;
   private actionOrderRosterKey = "";
   private actionOrderIds: string[] = [];
@@ -1429,7 +1429,7 @@ export class BattleScene {
         this.pendingPreciseTargetsByHero.delete(heroId);
       }
     }
-    this.pendingReactionHolds = this.pendingReactionHolds.filter((item) => item.until >= now);
+    this.pendingReactionHolds = prunePendingReactionHolds(this.pendingReactionHolds, now);
   }
 
   private findRecentMeleeClash(attackerId: string, targetId: string, now: number) {
@@ -1537,52 +1537,28 @@ export class BattleScene {
     sourceAttackerId: string,
     layouts: UnitLayout[],
     now: number,
-    cueKind: "counter" | "guard",
+    cueKind: ReactionCueKind,
   ) {
-    const reactor = layouts.find((layout) => layout.unit.id === reactorId);
-    const reactorTeam = reactor?.unit.team ?? "";
-    for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
-      const clash = this.meleeClashes[index];
-      if (clash.attackerId === reactorId) {
-        continue;
-      }
-      if (now - clash.startedAt > COUNTER_HOLD_MATCH_WINDOW_MS) {
-        break;
-      }
-      if (clash.targetIds.includes(reactorId)) {
-        if (sourceAttackerId !== "" && clash.attackerId !== sourceAttackerId) {
-          continue;
-        }
-        const holdUntil = now + COUNTER_QUEUE_HOLD_MS;
-        clash.counterReactorId = reactorId;
-        clash.counterSourceId = clash.attackerId;
-        clash.counterCueKind = cueKind;
-        clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
-        clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
-        return true;
-      }
-      if (cueKind !== "guard" && sourceAttackerId !== "") {
-        continue;
-      }
-      if (!reactorTeam) {
-        continue;
-      }
-      if (cueKind === "guard" && sourceAttackerId !== "" && clash.attackerId !== sourceAttackerId) {
-        continue;
-      }
-      const sharesTeam = clash.targetIds.some((targetId) => layouts.find((layout) => layout.unit.id === targetId)?.unit.team === reactorTeam);
-      if (!sharesTeam) {
-        continue;
-      }
-      const holdUntil = now + COUNTER_QUEUE_HOLD_MS;
-      clash.counterReactorId = reactorId;
-      clash.counterSourceId = clash.attackerId;
-      clash.counterCueKind = cueKind;
-      clash.holdUntil = Math.max(clash.holdUntil ?? 0, holdUntil);
-      clash.durationMs = Math.max(clash.durationMs, holdUntil - clash.startedAt + 240);
-      return true;
+    const reactorTeam = layouts.find((layout) => layout.unit.id === reactorId)?.unit.team ?? "";
+    const intent = createReactionHoldIntent(reactorId, sourceAttackerId, reactorTeam, cueKind, now, COUNTER_HOLD_MATCH_WINDOW_MS);
+    const matched = tryAttachReactionHold(
+      this.meleeClashes,
+      intent,
+      (unitId) => layouts.find((layout) => layout.unit.id === unitId)?.unit.team ?? "",
+      now,
+      COUNTER_HOLD_MATCH_WINDOW_MS,
+      COUNTER_QUEUE_HOLD_MS,
+    );
+    if (!matched) {
+      return false;
     }
-    return false;
+    for (const clash of this.meleeClashes) {
+      if (!clash.holdUntil) {
+        continue;
+      }
+      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + 240);
+    }
+    return true;
   }
 
   private queueOrDeferCounterHold(
@@ -1590,52 +1566,40 @@ export class BattleScene {
     sourceAttackerId: string,
     layouts: UnitLayout[],
     now: number,
-    cueKind: "counter" | "guard",
+    cueKind: ReactionCueKind,
   ) {
     if (this.queueCounterHold(reactorId, sourceAttackerId, layouts, now, cueKind)) {
       return;
     }
-    this.pendingReactionHolds.push({
-      reactorId,
-      sourceAttackerId,
-      cueKind,
-      queuedAt: now,
-      until: now + COUNTER_HOLD_MATCH_WINDOW_MS,
-    });
+    const reactorTeam = layouts.find((layout) => layout.unit.id === reactorId)?.unit.team ?? "";
+    this.pendingReactionHolds.push(
+      createReactionHoldIntent(reactorId, sourceAttackerId, reactorTeam, cueKind, now, COUNTER_HOLD_MATCH_WINDOW_MS),
+    );
   }
 
   private applyPendingReactionHoldToClash(clash: MeleeClash, layouts: UnitLayout[], now: number) {
-    for (let index = 0; index < this.pendingReactionHolds.length; index += 1) {
-      const pending = this.pendingReactionHolds[index];
-      if (pending.until < now || pending.sourceAttackerId !== clash.attackerId) {
-        continue;
-      }
-      const matched = this.queueCounterHold(
-        pending.reactorId,
-        pending.sourceAttackerId,
-        layouts,
-        now,
-        pending.cueKind,
-      );
-      if (!matched) {
-        continue;
-      }
-      this.pendingReactionHolds.splice(index, 1);
-      return;
+    this.pendingReactionHolds = applyPendingReactionHoldsToClash(
+      this.pendingReactionHolds,
+      clash,
+      (unitId) => layouts.find((layout) => layout.unit.id === unitId)?.unit.team ?? "",
+      now,
+      COUNTER_QUEUE_HOLD_MS,
+    );
+    if (clash.holdUntil) {
+      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + 240);
     }
   }
 
   private extendCounterHoldForReaction(reactorId: string, sourceAttackerId: string, holdUntil: number) {
+    if (!extendReactionHoldForReactor(this.meleeClashes, reactorId, sourceAttackerId, holdUntil)) {
+      return;
+    }
     for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
       const clash = this.meleeClashes[index];
-      if (clash.counterReactorId !== reactorId) {
+      if (!clash.reactionBindings?.some((binding) => binding.reactorId === reactorId)) {
         continue;
       }
-      if (sourceAttackerId !== "" && clash.counterSourceId && clash.counterSourceId !== sourceAttackerId) {
-        continue;
-      }
-      clash.holdUntil = holdUntil;
-      clash.durationMs = Math.max(clash.baseDurationMs, holdUntil - clash.startedAt + 240);
+      clash.durationMs = Math.max(clash.baseDurationMs, (clash.holdUntil ?? holdUntil) - clash.startedAt + 240);
       return;
     }
   }
@@ -2293,25 +2257,28 @@ export class BattleScene {
     }
     const layoutById = new Map(layouts.map((layout) => [layout.unit.id, layout]));
     for (const sourceClash of this.meleeClashes) {
-      const reactorId = sourceClash.counterReactorId ?? "";
-      const sourceId = sourceClash.counterSourceId ?? "";
-      if (reactorId === "" || sourceId === "") {
-        continue;
-      }
-      const hasActiveCounterClash = this.meleeClashes.some(
-        (clash) => clash.attackerId === reactorId && clash.targetIds.includes(sourceId),
-      );
-      if (!hasActiveCounterClash) {
-        continue;
-      }
-      const sourceLayout = layoutById.get(sourceId);
-      if (!sourceLayout) {
-        continue;
-      }
-      const displacement = Math.hypot(sourceLayout.x - sourceLayout.baseX, sourceLayout.y - sourceLayout.baseY);
-      if (displacement > 8) {
+      for (const binding of sourceClash.reactionBindings ?? []) {
+        const reactorId = binding.reactorId;
+        const sourceId = binding.sourceAttackerId;
+        if (reactorId === "" || sourceId === "") {
+          continue;
+        }
+        const hasActiveCounterClash = this.meleeClashes.some(
+          (clash) => clash.attackerId === reactorId && clash.targetIds.includes(sourceId),
+        );
+        if (!hasActiveCounterClash) {
+          continue;
+        }
+        const sourceLayout = layoutById.get(sourceId);
+        if (!sourceLayout) {
+          continue;
+        }
+        const displacement = Math.hypot(sourceLayout.x - sourceLayout.baseX, sourceLayout.y - sourceLayout.baseY);
+        if (displacement <= 8) {
+          continue;
+        }
         const key = `${reactorId}->${sourceId}`;
-        if (sourceClash.counterCueKind === "guard") {
+        if (binding.cueKind === "guard") {
           this.observedGuardCounterOverlapKeys.add(key);
         } else {
           this.observedCounterOverlapKeys.add(key);
@@ -2334,9 +2301,13 @@ export class BattleScene {
       meleeClashes: this.meleeClashes.map((clash) => ({
         attackerId: clash.attackerId,
         targetIds: [...clash.targetIds],
-        counterReactorId: clash.counterReactorId ?? "",
-        counterSourceId: clash.counterSourceId ?? "",
-        counterCueKind: clash.counterCueKind ?? "",
+        reactionBindings: (clash.reactionBindings ?? []).map((binding) => ({
+          reactorId: binding.reactorId,
+          sourceAttackerId: binding.sourceAttackerId,
+          cueKind: binding.cueKind,
+          holdUntil: binding.holdUntil,
+          queuedAt: binding.queuedAt,
+        })),
         holdUntil: clash.holdUntil ?? 0,
         startedAt: clash.startedAt,
         durationMs: clash.durationMs,

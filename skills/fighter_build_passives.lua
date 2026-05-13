@@ -417,6 +417,10 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     if not isAlive(defender) or not isAlive(attacker) or not isMeleeUnit(attacker) then
         return
     end
+    local attackerRuntime = ensureRuntime(attacker)
+    if attackerRuntime.pendingGuardReactionQueued then
+        return
+    end
 
     local guard, runtime = eachGuardCandidate(defender, function(unit, unitRuntime)
         return (not unitRuntime.guardCounterUsed) and (not unitRuntime.__inGuardCounter)
@@ -426,6 +430,7 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     end
 
     runtime.guardCounterUsed = true
+    attackerRuntime.pendingGuardReactionQueued = true
     runtime.pendingGuardCounterTarget = attacker
     publishPassiveTriggered(guard, "护卫架势", "登记护卫反击", string.format("将对 %s 发动护卫反击", attacker.name or "目标"))
     -- #region debug-point B:queue-guard
@@ -446,47 +451,58 @@ function FighterBuildPassives.ResolveQueuedReactions(attacker)
     end
     local BattleFormation = require("modules.battle_formation")
     local BattleSkill = require("modules.battle_skill")
+    ensureRuntime(attacker).pendingGuardReactionQueued = false
+    local queuedCounters = {}
+    local queuedGuards = {}
     for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
         if isAlive(hero) then
             local runtime = ensureRuntime(hero)
             if runtime.pendingCounterBasicTarget and sameUnit(runtime.pendingCounterBasicTarget, attacker) then
                 local target = runtime.pendingCounterBasicTarget
                 runtime.pendingCounterBasicTarget = nil
-                -- #region debug-point D:resolve-counter
-                publishCounterDebug("resolve_counter_basic", {
-                    reactorId = hero.instanceId or hero.id,
-                    reactorName = hero.name,
-                    attackerId = attacker.instanceId or attacker.id,
-                    attackerName = attacker.name,
-                    targetAlive = isAlive(target),
-                    inCounter = runtime.__inCounterBasic == true,
-                })
-                -- #endregion
-                if isAlive(target) and not runtime.__inCounterBasic then
-                    runtime.__inCounterBasic = true
-                    BattleSkill.CastSmallSkill(hero, target)
-                    runtime.__inCounterBasic = false
-                end
+                table.insert(queuedCounters, { hero = hero, runtime = runtime, target = target })
             end
             if runtime.pendingGuardCounterTarget and sameUnit(runtime.pendingGuardCounterTarget, attacker) then
                 local target = runtime.pendingGuardCounterTarget
                 runtime.pendingGuardCounterTarget = nil
-                -- #region debug-point D:resolve-guard
-                publishCounterDebug("resolve_guard_counter", {
-                    reactorId = hero.instanceId or hero.id,
-                    reactorName = hero.name,
-                    attackerId = attacker.instanceId or attacker.id,
-                    attackerName = attacker.name,
-                    targetAlive = isAlive(target),
-                    inGuard = runtime.__inGuardCounter == true,
-                })
-                -- #endregion
-                if isAlive(target) and not runtime.__inGuardCounter then
-                    runtime.__inGuardCounter = true
-                    BattleSkill.CastSmallSkill(hero, target)
-                    runtime.__inGuardCounter = false
-                end
+                table.insert(queuedGuards, { hero = hero, runtime = runtime, target = target })
             end
+        end
+    end
+
+    for _, entry in ipairs(queuedCounters) do
+        -- #region debug-point D:resolve-counter
+        publishCounterDebug("resolve_counter_basic", {
+            reactorId = entry.hero.instanceId or entry.hero.id,
+            reactorName = entry.hero.name,
+            attackerId = attacker.instanceId or attacker.id,
+            attackerName = attacker.name,
+            targetAlive = isAlive(entry.target),
+            inCounter = entry.runtime.__inCounterBasic == true,
+        })
+        -- #endregion
+        if isAlive(entry.target) and not entry.runtime.__inCounterBasic then
+            entry.runtime.__inCounterBasic = true
+            BattleSkill.CastSmallSkill(entry.hero, entry.target)
+            entry.runtime.__inCounterBasic = false
+        end
+    end
+
+    for _, entry in ipairs(queuedGuards) do
+        -- #region debug-point D:resolve-guard
+        publishCounterDebug("resolve_guard_counter", {
+            reactorId = entry.hero.instanceId or entry.hero.id,
+            reactorName = entry.hero.name,
+            attackerId = attacker.instanceId or attacker.id,
+            attackerName = attacker.name,
+            targetAlive = isAlive(entry.target),
+            inGuard = entry.runtime.__inGuardCounter == true,
+        })
+        -- #endregion
+        if isAlive(entry.target) and not entry.runtime.__inGuardCounter then
+            entry.runtime.__inGuardCounter = true
+            BattleSkill.CastSmallSkill(entry.hero, entry.target)
+            entry.runtime.__inGuardCounter = false
         end
     end
 end
