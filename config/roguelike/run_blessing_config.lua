@@ -8,32 +8,30 @@
 ---| "team"
 
 ---@alias RunBlessingEffectType
----| "class_stat_pct"
----| "turn_start_energy"
----| "class_heal_bonus_pct"
----| "class_dot_damage_pct"
----| "extra_follow_up_trigger"
----| "damage_pct_vs_monster_type"
----| "battle_start_apply_shield_and_resist"
+---| "battle_rounds_hit_and_save"
+---| "battle_start_temp_hp"
+---| "class_healing_bonus"
+---| "class_ac"
+---| "class_damage_reduce"
+---| "class_spell_protection"
 
 ---@class RunBlessingParams
 ---@field classIds integer[]|nil
 ---@field monsterTypes integer[]|nil
----@field hpPct number|nil
----@field damagePct number|nil
----@field defPct number|nil
----@field value number|nil
+---@field hitDelta integer|nil
+---@field tempHp integer|nil
+---@field acDelta integer|nil
+---@field saveDelta integer|nil
+---@field damageReduce integer|nil
+---@field spellDamageReduce integer|nil
+---@field healingBonus integer|nil
 ---@field rounds integer|nil
----@field amount integer|nil
----@field overhealShieldPct number|nil
----@field perRoundLimit integer|nil
----@field shieldPct number|nil
----@field controlResistPct number|nil
 
 ---@class RunBlessingEntry
 ---@field id integer
 ---@field code string
 ---@field name string
+---@field description string
 ---@field rarity RunBlessingRarity
 ---@field scope RunBlessingScope
 ---@field effectType RunBlessingEffectType
@@ -50,88 +48,81 @@ local RunBlessingConfig = {}
 RunBlessingConfig.BLESSINGS = {
     [101001] = {
         id = 101001,
-        code = "frontline_discipline",
-        name = "前线军纪",
+        code = "bless",
+        name = "祝圣",
+        description = "前 3 回合：全队命中 +1、全豁免 +1。",
         rarity = "common",
-        scope = "class",
-        effectType = "class_stat_pct",
+        scope = "team",
+        effectType = "battle_rounds_hit_and_save",
         params = {
-            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-            hpPct = 0.18,
-            defPct = 0.16,
+            rounds = 3,
+            hitDelta = 1,
+            saveDelta = 1,
         },
     },
     [101002] = {
         id = 101002,
-        code = "burst_rhythm",
-        name = "爆发节奏",
+        code = "aid",
+        name = "援助术",
+        description = "战斗开始时：全队获得 5 点临时生命。",
         rarity = "common",
         scope = "team",
-        effectType = "turn_start_energy",
+        effectType = "battle_start_temp_hp",
         params = {
-            rounds = 3,
-            amount = 12,
+            tempHp = 5,
         },
     },
     [101003] = {
         id = 101003,
-        code = "holy_reserve",
-        name = "神圣储备",
+        code = "healing_grace",
+        name = "治疗恩典",
+        description = "圣武士、牧师的治疗额外 +2。",
         rarity = "rare",
         scope = "class",
-        effectType = "class_heal_bonus_pct",
+        effectType = "class_healing_bonus",
         params = {
-            classIds = { 6 },
-            value = 0.20,
-            overhealShieldPct = 0.25,
+            classIds = { 4, 6 },
+            healingBonus = 2,
         },
     },
     [101004] = {
         id = 101004,
-        code = "venom_spark",
-        name = "毒火余烬",
+        code = "shield_of_faith",
+        name = "信仰护盾",
+        description = "战士、武僧、圣武士、野蛮人 AC +1。",
         rarity = "rare",
         scope = "class",
-        effectType = "class_dot_damage_pct",
+        effectType = "class_ac",
         params = {
-            classIds = { 5, 7, 8, 9 },
-            value = 0.35,
+            classIds = { 2, 3, 4, 10 },
+            acDelta = 1,
         },
     },
     [101005] = {
         id = 101005,
-        code = "pursuit_instinct",
-        name = "追猎本能",
+        code = "stoneskin_prayer",
+        name = "石肤祷言",
+        description = "战士、武僧、圣武士、野蛮人固定减伤 +2。",
         rarity = "rare",
         scope = "class",
-        effectType = "extra_follow_up_trigger",
+        effectType = "class_damage_reduce",
         params = {
-            classIds = { 1, 3 },
-            perRoundLimit = 1,
+            classIds = { 2, 3, 4, 10 },
+            damageReduce = 2,
         },
     },
     [101006] = {
         id = 101006,
-        code = "elite_hunter",
-        name = "精英猎手",
+        code = "spell_ward",
+        name = "法术防护",
+        description = "全队豁免 +1，额外获得 2 点法术减伤。",
         rarity = "boss",
         scope = "team",
-        effectType = "damage_pct_vs_monster_type",
+        effectType = "class_spell_protection",
         params = {
-            monsterTypes = { 1, 2 },
-            value = 0.12,
-        },
-    },
-    [101007] = {
-        id = 101007,
-        code = "winter_breath",
-        name = "寒冬吐息",
-        rarity = "boss",
-        scope = "team",
-        effectType = "battle_start_apply_shield_and_resist",
-        params = {
-            shieldPct = 0.08,
-            controlResistPct = 0.18,
+            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+            saveDelta = 1,
+            spellDamageReduce = 2,
         },
     },
 }

@@ -308,7 +308,7 @@ local function buildDescription(entry)
     end
     if entry.rewardType == "blessing" then
         local blessing = RunBlessingConfig.GetBlessing(entry.refId)
-        return blessing and blessing.code or ""
+        return blessing and blessing.description or ""
     end
     if entry.rewardType == "recruit" then
         return HeroData.GetClassName((HeroData.GetHeroInfo(entry.refId) or {}).Class or 0)

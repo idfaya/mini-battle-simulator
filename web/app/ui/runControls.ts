@@ -411,6 +411,37 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     <div class="setup-field run-compact-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
   `;
   generalSection.append(stats);
+
+  if (snapshot.blessings.length > 0) {
+    const blessingSection = document.createElement("div");
+    blessingSection.className = "run-blessing-list";
+    snapshot.blessings.forEach((blessing) => {
+      const card = document.createElement("div");
+      card.className = `run-blessing-card run-blessing-card--${blessing.rarity ?? "common"}`;
+
+      const header = document.createElement("div");
+      header.className = "run-blessing-card__header";
+
+      const name = document.createElement("div");
+      name.className = "run-blessing-card__name";
+      name.textContent = blessing.name;
+
+      const rarity = document.createElement("div");
+      rarity.className = "run-blessing-card__rarity";
+      rarity.textContent =
+        blessing.rarity === "boss" ? "Boss" : blessing.rarity === "rare" ? "Rare" : "Common";
+
+      const desc = document.createElement("div");
+      desc.className = "run-blessing-card__desc";
+      desc.textContent = blessing.description ?? blessing.code ?? "";
+
+      header.append(name, rarity);
+      card.append(header, desc);
+      blessingSection.append(card);
+    });
+    generalSection.append(blessingSection);
+  }
+
   host.append(generalSection);
 
   // 阶段性交互

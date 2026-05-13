@@ -38,24 +38,24 @@ RunCampConfig.CAMPS = {
         id = 101001,
         chapterId = 101,
         code = "campfire_shrine",
-        name = "Campfire Shrine",
+        name = "营火圣所",
         actions = {
             {
                 id = 1,
-                label = "Rescue",
+                label = "救援祈祷",
                 effectType = "revive_full_rest",
             },
             {
                 id = 2,
-                label = "Sharpen",
+                label = "接受祝圣",
                 effectType = "grant_blessing",
                 params = {
-                    blessingId = 101002,
+                    blessingId = 101001,
                 },
             },
             {
                 id = 3,
-                label = "Revive",
+                label = "复苏祷言",
                 effectType = "revive_one",
                 params = {
                     healPct = 0.25,

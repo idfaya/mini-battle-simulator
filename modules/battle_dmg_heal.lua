@@ -141,8 +141,29 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     end
 
     params = params or {}
+    local incomingDamage = math.max(0, math.floor(tonumber(damage) or 0))
+    local reducedDamage = incomingDamage
+    local flatReduce = math.max(0, math.floor(tonumber(target.damageReduce) or 0))
+    if flatReduce > 0 then
+        reducedDamage = math.max(0, reducedDamage - flatReduce)
+    end
+    local damageKind = tostring(params.damageKind or "direct")
+    if damageKind == "spell" then
+        local spellReduce = math.max(0, math.floor(tonumber(target.spellDamageReduce) or 0))
+        if spellReduce > 0 then
+            reducedDamage = math.max(0, reducedDamage - spellReduce)
+        end
+    end
+
+    local tempHpBefore = math.max(0, math.floor(tonumber(target.tempHp) or 0))
+    local absorbedByTempHp = math.min(tempHpBefore, reducedDamage)
+    if absorbedByTempHp > 0 then
+        target.tempHp = tempHpBefore - absorbedByTempHp
+        reducedDamage = reducedDamage - absorbedByTempHp
+    end
+
     local curHp = BattleAttribute.GetHeroCurHp(target)
-    local newHp = math.max(0, curHp - damage)
+    local newHp = math.max(0, curHp - reducedDamage)
     local actualDamage = math.max(0, curHp - newHp)
 
     -- region debug-point enemy-no-damage-apply
@@ -151,14 +172,14 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
         tostring(attacker and attacker.isLeft),
         tostring(target and target.name),
         tostring(target and target.isLeft),
-        tonumber(damage) or 0,
+        reducedDamage,
         tonumber(curHp) or 0,
         tonumber(newHp) or 0))
     -- endregion debug-point enemy-no-damage-apply
 
     BattleAttribute.SetHpByVal(target, newHp)
     if attacker and attacker.__scriptDamageAccumulator ~= nil then
-        attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + damage
+        attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + reducedDamage
     end
     if actualDamage > 0 and attacker then
         local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
@@ -193,7 +214,7 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     -- 触发可视化伤害事件
     local BattleVisualEvents = require("ui.battle_visual_events")
     BattleEvent.Publish(BattleVisualEvents.DAMAGE_DEALT, BattleVisualEvents.BuildDamageDealt(
-        attacker, target, damage, {
+        attacker, target, reducedDamage, {
             damageType = params.damageType or 1,
             isCrit = params.isCrit or false,
             isDodged = params.isDodged or false,

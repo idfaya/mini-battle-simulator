@@ -107,6 +107,7 @@ function BattleVisualEvents.BuildHeroStateChanged(hero)
         team = hero.isLeft and "left" or "right",
         hp = hero.hp or 0,
         maxHp = hero.maxHp or 100,
+        tempHp = hero.tempHp or 0,
         energy = hero.curEnergy or hero.energy or 0,
         maxEnergy = hero.maxEnergy or 100,
         energyType = hero.energyType,

@@ -444,6 +444,57 @@ body {
   gap: 6px;
 }
 
+.run-blessing-list {
+  display: grid;
+  gap: 8px;
+}
+
+.run-blessing-card {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.run-blessing-card--common {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.run-blessing-card--rare {
+  border-color: rgba(120, 199, 255, 0.4);
+}
+
+.run-blessing-card--boss {
+  border-color: rgba(255, 214, 102, 0.48);
+}
+
+.run-blessing-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.run-blessing-card__name {
+  font-weight: 800;
+  color: #f8f9fa;
+}
+
+.run-blessing-card__rarity {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-blessing-card__desc {
+  font-size: 12px;
+  color: #d9e2ec;
+  line-height: 1.4;
+}
+
 /* Roguelike reward cards (battle_levelup) */
 .reward-card-grid {
   display: grid;

@@ -17,6 +17,7 @@ export type UnitState = {
   classIcon: string;
   hp: number;
   maxHp: number;
+  tempHp?: number;
   speed: number;
   initiativeRoll: number;
   initiativeMod: number;

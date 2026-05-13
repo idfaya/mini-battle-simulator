@@ -63,12 +63,6 @@ local function assignWpTypes(teamRoster)
     end
 end
 
-local function applyClassPct(modMap, classIds, value)
-    for _, classId in ipairs(classIds or {}) do
-        modMap[classId] = (modMap[classId] or 0) + (tonumber(value) or 0)
-    end
-end
-
 local function applyClassFlat(modMap, classIds, value)
     for _, classId in ipairs(classIds or {}) do
         modMap[classId] = (modMap[classId] or 0) + (tonumber(value) or 0)
@@ -77,16 +71,18 @@ end
 
 local function buildBattleModifiers(runState, battleProfile)
     local result = {
-        extraEnergy = 0,
-        hpPctByClass = {},
-        defPctByClass = {},
+        battleRoundsHitDelta = 0,
+        battleRoundsSaveDelta = 0,
+        battleRounds = 0,
+        battleStartTempHp = 0,
         hitDeltaByClass = {},
         acDeltaByClass = {},
         spellDCDeltaByClass = {},
         saveDeltaByClass = {},
         weaponDamageBonusByClass = {},
-        damageIncreaseByClass = {},
-        healBonusByClass = {},
+        healingFlatBonusByClass = {},
+        damageReduceByClass = {},
+        spellDamageReduceByClass = {},
         bonusGold = 0,
         postBattleHealPct = 0,
     }
@@ -116,27 +112,21 @@ local function buildBattleModifiers(runState, battleProfile)
     for _, blessingId in ipairs(runState.blessingIds or {}) do
         local blessing = resolveBlessing(blessingId)
         local params = blessing and blessing.params or nil
-        if blessing and blessing.effectType == "class_stat_pct" then
-            applyClassPct(result.hpPctByClass, params.classIds, params.hpPct)
-            applyClassPct(result.defPctByClass, params.classIds, params.defPct)
-        elseif blessing and blessing.effectType == "turn_start_energy" then
-            result.extraEnergy = result.extraEnergy + (params.amount or 0)
-        elseif blessing and blessing.effectType == "class_heal_bonus_pct" then
-            applyClassPct(result.healBonusByClass, params.classIds, params.value)
-        elseif blessing and blessing.effectType == "class_dot_damage_pct" then
-            applyClassPct(result.damageIncreaseByClass, params.classIds, params.value)
-        elseif blessing and blessing.effectType == "damage_pct_vs_monster_type" then
-            local monsterType = 0
-            if battleProfile.kind == "elite" then
-                monsterType = 1
-            elseif battleProfile.kind == "boss" then
-                monsterType = 2
-            end
-            if contains(params.monsterTypes, monsterType) then
-                for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-                    result.damageIncreaseByClass[hero.classId] = (result.damageIncreaseByClass[hero.classId] or 0) + (params.value or 0)
-                end
-            end
+        if blessing and blessing.effectType == "battle_rounds_hit_and_save" then
+            result.battleRoundsHitDelta = result.battleRoundsHitDelta + (tonumber(params.hitDelta) or 0)
+            result.battleRoundsSaveDelta = result.battleRoundsSaveDelta + (tonumber(params.saveDelta) or 0)
+            result.battleRounds = math.max(result.battleRounds, tonumber(params.rounds) or 0)
+        elseif blessing and blessing.effectType == "battle_start_temp_hp" then
+            result.battleStartTempHp = result.battleStartTempHp + (tonumber(params.tempHp) or 0)
+        elseif blessing and blessing.effectType == "class_healing_bonus" then
+            applyClassFlat(result.healingFlatBonusByClass, params.classIds, params.healingBonus)
+        elseif blessing and blessing.effectType == "class_ac" then
+            applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
+        elseif blessing and blessing.effectType == "class_damage_reduce" then
+            applyClassFlat(result.damageReduceByClass, params.classIds, params.damageReduce)
+        elseif blessing and blessing.effectType == "class_spell_protection" then
+            applyClassFlat(result.saveDeltaByClass, params.classIds, params.saveDelta)
+            applyClassFlat(result.spellDamageReduceByClass, params.classIds, params.spellDamageReduce)
         end
     end
 
@@ -166,15 +156,13 @@ local function buildHeroForBattle(rosterHero, modifiers)
     end
     -- #endregion
 
-    local hpScale = 1.0 + (modifiers.hpPctByClass[rosterHero.classId] or 0)
-    local defScale = 1.0 + (modifiers.defPctByClass[rosterHero.classId] or 0)
     local oldMaxHp = heroData.maxHp or 1
 
-    heroData.maxHp = math.max(1, math.floor(oldMaxHp * hpScale))
+    heroData.maxHp = math.max(1, math.floor(oldMaxHp))
     local baseCurrentHp = tonumber(rosterHero.currentHp or oldMaxHp) or oldMaxHp
     baseCurrentHp = math.max(1, math.min(oldMaxHp, baseCurrentHp))
-    heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp * hpScale)))
-    heroData.def = math.max(0, math.floor((heroData.def or 0) * defScale))
+    heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp)))
+    heroData.def = math.max(0, math.floor((heroData.def or 0)))
     heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
     heroData.atk = heroData.hit
     heroData.ac = math.max(0, math.floor((heroData.ac or 0) + (modifiers.acDeltaByClass[rosterHero.classId] or 0)))
@@ -185,9 +173,13 @@ local function buildHeroForBattle(rosterHero, modifiers)
         heroData.saveRef = math.max(0, math.floor((heroData.saveRef or 0) + saveDelta))
         heroData.saveWill = math.max(0, math.floor((heroData.saveWill or 0) + saveDelta))
     end
-    heroData.damageIncrease = math.max(0, math.floor((heroData.damageIncrease or 0) + ((modifiers.damageIncreaseByClass[rosterHero.classId] or 0) * 10000)))
-    heroData.healBonus = math.max(0, math.floor((heroData.healBonus or 0) + ((modifiers.healBonusByClass[rosterHero.classId] or 0) * 10000)))
-    heroData.weaponDamageBonus = math.max(0, math.floor((heroData.weaponDamageBonus or 0) + (modifiers.weaponDamageBonusByClass[rosterHero.classId] or 0)))
+    heroData.healingFlatBonus = math.max(0, math.floor((heroData.healingFlatBonus or 0) + (modifiers.healingFlatBonusByClass[rosterHero.classId] or 0)))
+    heroData.damageReduce = math.max(0, math.floor((heroData.damageReduce or 0) + (modifiers.damageReduceByClass[rosterHero.classId] or 0)))
+    heroData.spellDamageReduce = math.max(0, math.floor((heroData.spellDamageReduce or 0) + (modifiers.spellDamageReduceByClass[rosterHero.classId] or 0)))
+    heroData.tempHp = math.max(0, math.floor((heroData.tempHp or 0) + (tonumber(modifiers.battleStartTempHp) or 0)))
+    heroData.blessBattleRoundsHitDelta = math.max(0, math.floor(tonumber(modifiers.battleRoundsHitDelta) or 0))
+    heroData.blessBattleRoundsSaveDelta = math.max(0, math.floor(tonumber(modifiers.battleRoundsSaveDelta) or 0))
+    heroData.blessBattleRounds = math.max(0, math.floor(tonumber(modifiers.battleRounds) or 0))
     heroData.wpType = rosterHero.wpType or 1
     heroData.id = rosterHero.heroId
     heroData.ultimateChargesMax = tonumber(rosterHero.ultimateChargesMax) or 1

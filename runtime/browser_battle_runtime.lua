@@ -250,6 +250,7 @@ local function serializeHero(hero)
         classIcon = ClassRoleConfig.GetIcon(classId),
         hp = hero.hp or 0,
         maxHp = hero.maxHp or 0,
+        tempHp = hero.tempHp or 0,
         -- 5e-style debug stats (shown in web status panel)
         speed = hero.speed or hero.spd or 0,
         initiativeRoll = initiative.roll or 0,

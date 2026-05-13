@@ -127,6 +127,7 @@ local function serializeBlessings(blessingIds)
             name = blessing and blessing.name or ("祝福 " .. tostring(blessingId)),
             rarity = blessing and blessing.rarity or "common",
             code = blessing and blessing.code or "",
+            description = blessing and blessing.description or "",
         }
     end
     return result

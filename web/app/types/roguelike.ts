@@ -73,6 +73,7 @@ export type BlessingState = {
   name: string;
   rarity: string;
   code: string;
+  description?: string;
 };
 
 export type RewardOption = {

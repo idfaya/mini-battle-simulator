@@ -50,7 +50,7 @@ local function resolveShopGoodsDisplay(item)
     end
     if item.goodsType == "blessing" then
         local blessing = RunBlessingConfig.GetBlessing(item.refId)
-        return blessing and blessing.name or ("祝福 " .. tostring(item.refId or item.id)), blessing and blessing.code or ""
+        return blessing and blessing.name or ("祝福 " .. tostring(item.refId or item.id)), blessing and blessing.description or ""
     end
     if item.goodsType == "service" then
         if item.code == "team_heal_30" then

@@ -169,7 +169,13 @@ local function CreateHero(heroData, wpType, isLeft)
         damageReduce = heroData.damageReduce or 0,
         damageIncrease = heroData.damageIncrease or 0,
         healBonus = heroData.healBonus or 0,
+        healingFlatBonus = heroData.healingFlatBonus or 0,
+        spellDamageReduce = heroData.spellDamageReduce or 0,
+        tempHp = heroData.tempHp or 0,
         weaponDamageBonus = heroData.weaponDamageBonus or 0,
+        blessBattleRoundsHitDelta = heroData.blessBattleRoundsHitDelta or 0,
+        blessBattleRoundsSaveDelta = heroData.blessBattleRoundsSaveDelta or 0,
+        blessBattleRounds = heroData.blessBattleRounds or 0,
         blockRate = heroData.blockRate or 0,
         ac = heroData.ac or 10,
         spellDC = heroData.spellDC or 10,
@@ -826,6 +832,8 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         dodgeRate = 0,
         damageReduce = 0,
         damageIncrease = 0,
+        spellDamageReduce = 0,
+        tempHp = 0,
         
         -- 技能相关
         skills = {},

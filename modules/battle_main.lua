@@ -309,6 +309,39 @@ local function GetHeroBattleId(hero)
     return hero.instanceId or hero.id
 end
 
+local function applyBlessRoundDelta(hero, sign)
+    if not hero then
+        return
+    end
+    local hitDelta = math.max(0, math.floor(tonumber(hero.blessBattleRoundsHitDelta) or 0)) * sign
+    local saveDelta = math.max(0, math.floor(tonumber(hero.blessBattleRoundsSaveDelta) or 0)) * sign
+    if hitDelta ~= 0 then
+        hero.hit = math.max(0, math.floor((hero.hit or 0) + hitDelta))
+        hero.atk = hero.hit
+    end
+    if saveDelta ~= 0 then
+        hero.saveFort = math.max(0, math.floor((hero.saveFort or 0) + saveDelta))
+        hero.saveRef = math.max(0, math.floor((hero.saveRef or 0) + saveDelta))
+        hero.saveWill = math.max(0, math.floor((hero.saveWill or 0) + saveDelta))
+    end
+end
+
+local function refreshBattleRoundBlessings()
+    local teamLeft = BattleFormation.GetTeams()
+    for _, hero in ipairs(teamLeft or {}) do
+        local blessRounds = math.max(0, math.floor(tonumber(hero and hero.blessBattleRounds) or 0))
+        local shouldApply = blessRounds > 0 and currentRound > 0 and currentRound <= blessRounds
+        local isApplied = hero and hero.__blessBattleRoundsApplied == true or false
+        if shouldApply and not isApplied then
+            applyBlessRoundDelta(hero, 1)
+            hero.__blessBattleRoundsApplied = true
+        elseif isApplied and not shouldApply then
+            applyBlessRoundDelta(hero, -1)
+            hero.__blessBattleRoundsApplied = false
+        end
+    end
+end
+
 -- #region debug-point F:enemy-action-trace
 local function PublishEnemyActionTrace(stage, hero, extra)
     if not hero or hero.isLeft then
@@ -664,6 +697,7 @@ local function StartNextCombatRound()
     currentRound = currentRound + 1
     roundParticipants = BuildRoundParticipants()
     roundActed = {}
+    refreshBattleRoundBlessings()
 end
 
 local function EnsureCombatRound(hero)

@@ -50,12 +50,12 @@ RunEventConfig.EVENTS = {
         id = 101001,
         chapterId = 101,
         code = "broken_caravan",
-        title = "Broken Caravan",
+        title = "破损商队",
         kind = "choice",
         options = {
             {
                 id = 1,
-                label = "Salvage the crates",
+                label = "搜寻残存货箱",
                 resultType = "grant_gold",
                 result = {
                     gold = 55,
@@ -63,7 +63,7 @@ RunEventConfig.EVENTS = {
             },
             {
                 id = 2,
-                label = "Escort the medic",
+                label = "护送随行医者并接受祝福",
                 costType = "gold",
                 costValue = 25,
                 resultType = "grant_blessing",
@@ -73,7 +73,7 @@ RunEventConfig.EVENTS = {
             },
             {
                 id = 3,
-                label = "Chase the raiders",
+                label = "追击劫掠者",
                 resultType = "trigger_battle",
                 result = {
                     battleId = 101103,
@@ -86,12 +86,12 @@ RunEventConfig.EVENTS = {
         id = 101002,
         chapterId = 101,
         code = "ember_shrine",
-        title = "Ember Shrine",
+        title = "余烬圣坛",
         kind = "choice",
         options = {
             {
                 id = 1,
-                label = "Pray for recovery",
+                label = "祈求康复",
                 resultType = "team_heal_pct",
                 result = {
                     value = 0.30,
@@ -99,7 +99,7 @@ RunEventConfig.EVENTS = {
             },
             {
                 id = 2,
-                label = "Offer blood for strength",
+                label = "献上鲜血祈求石肤",
                 costType = "current_hp_pct",
                 costValue = 0.15,
                 resultType = "grant_blessing",
@@ -109,7 +109,7 @@ RunEventConfig.EVENTS = {
             },
             {
                 id = 3,
-                label = "Open the sealed vault",
+                label = "开启封印祭室",
                 resultType = "trigger_battle",
                 result = {
                     battleId = 101104,
