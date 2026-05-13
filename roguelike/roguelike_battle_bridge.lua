@@ -84,7 +84,7 @@ local function buildBattleModifiers(runState, battleProfile)
         acDeltaByClass = {},
         spellDCDeltaByClass = {},
         saveDeltaByClass = {},
-        blockRateByClass = {},
+        weaponDamageBonusByClass = {},
         damageIncreaseByClass = {},
         healBonusByClass = {},
         bonusGold = 0,
@@ -96,21 +96,18 @@ local function buildBattleModifiers(runState, battleProfile)
         local params = equipment and equipment.params or nil
         if equipment and params then
             if equipment.effectType == "martial_weapon" or equipment.effectType == "ranged_weapon" then
-                applyClassPct(result.damageIncreaseByClass, params.classIds, params.damagePct)
                 applyClassFlat(result.hitDeltaByClass, params.classIds, params.hitDelta)
+                applyClassFlat(result.weaponDamageBonusByClass, params.classIds, params.weaponDamageBonus)
             elseif equipment.effectType == "armor_ac" then
-                applyClassPct(result.defPctByClass, params.classIds, params.defPct)
                 applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
             elseif equipment.effectType == "shield_ac" then
                 applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
-                applyClassFlat(result.blockRateByClass, params.classIds, params.blockRate)
             elseif equipment.effectType == "spell_focus" then
-                applyClassPct(result.damageIncreaseByClass, params.classIds, params.damagePct)
                 applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
             elseif equipment.effectType == "holy_symbol" then
                 applyClassFlat(result.spellDCDeltaByClass, params.classIds, params.spellDCDelta)
-                applyClassPct(result.healBonusByClass, params.classIds, params.healBonusPct)
             elseif equipment.effectType == "saving_throw_charm" then
+                applyClassFlat(result.acDeltaByClass, params.classIds, params.acDelta)
                 applyClassFlat(result.saveDeltaByClass, params.classIds, params.saveDelta)
             end
         end
@@ -188,9 +185,9 @@ local function buildHeroForBattle(rosterHero, modifiers)
         heroData.saveRef = math.max(0, math.floor((heroData.saveRef or 0) + saveDelta))
         heroData.saveWill = math.max(0, math.floor((heroData.saveWill or 0) + saveDelta))
     end
-    heroData.blockRate = math.max(0, math.floor((heroData.blockRate or 0) + (modifiers.blockRateByClass[rosterHero.classId] or 0)))
     heroData.damageIncrease = math.max(0, math.floor((heroData.damageIncrease or 0) + ((modifiers.damageIncreaseByClass[rosterHero.classId] or 0) * 10000)))
     heroData.healBonus = math.max(0, math.floor((heroData.healBonus or 0) + ((modifiers.healBonusByClass[rosterHero.classId] or 0) * 10000)))
+    heroData.weaponDamageBonus = math.max(0, math.floor((heroData.weaponDamageBonus or 0) + (modifiers.weaponDamageBonusByClass[rosterHero.classId] or 0)))
     heroData.wpType = rosterHero.wpType or 1
     heroData.id = rosterHero.heroId
     heroData.ultimateChargesMax = tonumber(rosterHero.ultimateChargesMax) or 1

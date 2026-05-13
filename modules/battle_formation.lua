@@ -169,6 +169,7 @@ local function CreateHero(heroData, wpType, isLeft)
         damageReduce = heroData.damageReduce or 0,
         damageIncrease = heroData.damageIncrease or 0,
         healBonus = heroData.healBonus or 0,
+        weaponDamageBonus = heroData.weaponDamageBonus or 0,
         blockRate = heroData.blockRate or 0,
         ac = heroData.ac or 10,
         spellDC = heroData.spellDC or 10,

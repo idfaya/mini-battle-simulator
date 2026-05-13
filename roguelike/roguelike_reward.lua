@@ -125,11 +125,11 @@ local function isPromotionUnlocked(unit, targetStage)
     return getCurrentLevel(unit) >= getPromotionRequiredLevel(targetStage)
 end
 
-local function collectEquipmentPool(maxTier)
+local function collectEquipmentPoolByTier(targetTier)
     local pool = {}
     for equipmentId, equipment in pairs(RunEquipmentConfig.EQUIPMENTS or {}) do
         local rarityTier = EQUIPMENT_RARITY_TIER[tostring(equipment and equipment.rarity or "common")] or 1
-        if rarityTier <= maxTier then
+        if rarityTier == targetTier then
             pool[#pool + 1] = tonumber(equipmentId)
         end
     end
@@ -137,8 +137,8 @@ local function collectEquipmentPool(maxTier)
     return pool
 end
 
-local function chooseEquipmentId(maxTier)
-    local pool = collectEquipmentPool(maxTier)
+local function chooseEquipmentIdByTier(targetTier)
+    local pool = collectEquipmentPoolByTier(targetTier)
     if #pool <= 0 then
         return nil
     end
@@ -152,8 +152,8 @@ local function rollBattleEquipmentId(nodeType, battleProfile)
             return nil
         end
         local rareChance = 0.20
-        local maxTier = math.random() <= rareChance and 2 or 1
-        return chooseEquipmentId(maxTier)
+        local targetTier = math.random() <= rareChance and 2 or 1
+        return chooseEquipmentIdByTier(targetTier)
     end
     if resolvedNodeType == "battle_elite" then
         local rarityBonus = math.max(0, tonumber(battleProfile and battleProfile.eliteBonus and battleProfile.eliteBonus.rewardRarityBonus) or 0)
@@ -161,12 +161,12 @@ local function rollBattleEquipmentId(nodeType, battleProfile)
         local rareThreshold = math.min(0.75, 0.30 + rarityBonus * 0.10)
         local bossThreshold = math.min(0.35, math.max(0, (rarityBonus - 1) * 0.10))
         if roll <= bossThreshold then
-            return chooseEquipmentId(3)
+            return chooseEquipmentIdByTier(3)
         end
         if roll <= (bossThreshold + rareThreshold) then
-            return chooseEquipmentId(2)
+            return chooseEquipmentIdByTier(2)
         end
-        return chooseEquipmentId(1)
+        return chooseEquipmentIdByTier(1)
     end
     return nil
 end

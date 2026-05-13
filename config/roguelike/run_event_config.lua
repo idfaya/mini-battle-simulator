@@ -122,12 +122,12 @@ RunEventConfig.EVENTS = {
         id = 101003,
         chapterId = 101,
         code = "sealed_armory",
-        title = "Sealed Armory",
+        title = "封印军械库",
         kind = "choice",
         options = {
             {
                 id = 1,
-                label = "Pay the wardens",
+                label = "向守卫缴纳金币",
                 costType = "gold",
                 costValue = 60,
                 resultType = "grant_equipment",
@@ -137,7 +137,7 @@ RunEventConfig.EVENTS = {
             },
             {
                 id = 2,
-                label = "Break the seals",
+                label = "强行破除封印",
                 costType = "hp_pct",
                 costValue = 0.20,
                 resultType = "grant_equipment",

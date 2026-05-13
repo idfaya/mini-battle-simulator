@@ -21,14 +21,11 @@
 
 ---@class RunEquipmentParams
 ---@field classIds integer[]|nil
----@field damagePct number|nil
----@field defPct number|nil
 ---@field hitDelta integer|nil
 ---@field acDelta integer|nil
 ---@field spellDCDelta integer|nil
----@field healBonusPct number|nil
 ---@field saveDelta integer|nil
----@field blockRate integer|nil
+---@field weaponDamageBonus integer|nil
 
 ---@class RunEquipmentEntry
 ---@field id integer
@@ -46,45 +43,48 @@
 ---@type RunEquipmentConfigModule
 local RunEquipmentConfig = {}
 
+-- 5e standard equipment set for roguelike run.
+-- Equipment config is expressed in 5e-like semantics:
+-- hitDelta / acDelta / saveDelta / spellDCDelta / weaponDamageBonus.
+
 ---@type table<integer, RunEquipmentEntry>
 RunEquipmentConfig.EQUIPMENTS = {
     [101001] = {
         id = 101001,
+        code = "cloak_of_protection",
+        name = "防护披风",
+        rarity = "common",
+        slot = "accessory",
+        effectType = "saving_throw_charm",
+        params = {
+            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+            acDelta = 1,
+            saveDelta = 1,
+        },
+    },
+    [101002] = {
+        id = 101002,
         code = "longsword_plus_1",
         name = "+1 长剑",
         rarity = "common",
         slot = "weapon",
         effectType = "martial_weapon",
         params = {
-            classIds = { 2, 4 },
-            damagePct = 0.08,
+            classIds = { 2, 4, 10 },
             hitDelta = 1,
-        },
-    },
-    [101002] = {
-        id = 101002,
-        code = "shortbow_plus_1",
-        name = "+1 短弓",
-        rarity = "common",
-        slot = "weapon",
-        effectType = "ranged_weapon",
-        params = {
-            classIds = { 1, 5 },
-            damagePct = 0.08,
-            hitDelta = 1,
+            weaponDamageBonus = 1,
         },
     },
     [101003] = {
         id = 101003,
-        code = "chain_mail",
-        name = "锁子甲",
+        code = "chain_mail_plus_1",
+        name = "+1 锁子甲",
         rarity = "rare",
         slot = "armor",
         effectType = "armor_ac",
         params = {
             classIds = { 2, 4 },
             acDelta = 1,
-            defPct = 0.08,
         },
     },
     [101004] = {
@@ -97,45 +97,55 @@ RunEquipmentConfig.EQUIPMENTS = {
         params = {
             classIds = { 2, 4, 6 },
             acDelta = 1,
-            blockRate = 400,
         },
     },
     [101005] = {
         id = 101005,
-        code = "arcane_focus_plus_1",
-        name = "+1 奥术法器",
-        rarity = "boss",
-        slot = "focus",
-        effectType = "spell_focus",
+        code = "shortbow_plus_1",
+        name = "+1 短弓",
+        rarity = "rare",
+        slot = "weapon",
+        effectType = "ranged_weapon",
         params = {
-            classIds = { 7, 8, 9 },
-            damagePct = 0.06,
-            spellDCDelta = 1,
+            classIds = { 1, 5 },
+            hitDelta = 1,
+            weaponDamageBonus = 1,
         },
     },
     [101006] = {
         id = 101006,
-        code = "holy_symbol_plus_1",
-        name = "+1 圣徽",
-        rarity = "boss",
+        code = "wand_of_the_war_mage_plus_1",
+        name = "战法师魔杖 +1",
+        rarity = "rare",
         slot = "focus",
-        effectType = "holy_symbol",
+        effectType = "spell_focus",
         params = {
-            classIds = { 6, 4 },
+            classIds = { 7, 8, 9 },
             spellDCDelta = 1,
-            healBonusPct = 0.12,
         },
     },
     [101007] = {
         id = 101007,
-        code = "cloak_of_resistance",
-        name = "抗性斗篷",
-        rarity = "rare",
-        slot = "accessory",
-        effectType = "saving_throw_charm",
+        code = "rod_of_the_pact_keeper_plus_1",
+        name = "契约守护者法杖 +1",
+        rarity = "boss",
+        slot = "focus",
+        effectType = "spell_focus",
         params = {
-            classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9 },
-            saveDelta = 1,
+            classIds = { 9 },
+            spellDCDelta = 1,
+        },
+    },
+    [101008] = {
+        id = 101008,
+        code = "amulet_of_the_devout_plus_1",
+        name = "虔信护符 +1",
+        rarity = "boss",
+        slot = "focus",
+        effectType = "holy_symbol",
+        params = {
+            classIds = { 4, 6 },
+            spellDCDelta = 1,
         },
     },
 }

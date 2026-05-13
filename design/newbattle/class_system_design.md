@@ -91,9 +91,7 @@
 | `wis` | integer | 感知 |
 | `cha` | integer | 魅力 |
 | `skill_package_id` | string | 当前技能包编号 |
-| `equip_weapon` | string | 武器槽内容 |
-| `equip_armor` | string | 防具槽内容 |
-| `equip_accessory` | string | 饰品槽内容 |
+| `run_equipment_effects` | derived | 由 Run 级全局装备池在战斗前桥接得到，不作为逐角色持久化字段 |
 
 补充约定：
 
@@ -480,33 +478,35 @@ Class
 
 ## 10. 装备系统
 
-### 10.1 装备槽
+### 10.1 当前装备模型
 
-每个 Class 单位统一持有以下装备槽：
+当前版本不为 Class 单位提供逐角色装备槽。
 
-- `equip_weapon`
-- `equip_armor`
-- `equip_accessory`
+装备统一采用 `Run 级全局被动装备池`：
+
+- Run 持有装备列表
+- 装备通过职业过滤对符合条件的 Class 单位生效
+- 生效时机为进入战斗前的统一桥接
 
 ### 10.2 装备效果类型
 
 装备统一通过以下方式作用于 Class 单位：
 
 - 修改属性
-- 修改技能
-- 追加战斗标签
+- 修改命中 / AC / 豁免 / Spell DC
+- 提供武器额外伤害
 
 ### 10.3 装备与职业关系
 
-- 装备附着在 Class 单位上。
-- 进阶不移除装备。
-- 转职后重新校验装备适配性。
+- 装备不附着在单个 Class 单位上。
+- Class 单位进阶不改变 Run 已持有装备列表。
+- 生效时只校验当前职业是否命中装备 `classIds`。
 
 ### 10.4 装备结算时机
 
 - 进入战斗前结算装备效果。
-- 离开战斗后保留装备状态。
-- 在 Run 节点之间允许调整装备归属。
+- 离开战斗后保留 Run 装备持有状态。
+- Run 节点之间不存在“调整装备归属”操作。
 
 ---
 
@@ -597,9 +597,7 @@ Run 层至少保留以下字段：
 | `current_hp` | integer | 当前生命 |
 | `battle_slot` | enum | `front` / `back` / `none` |
 | `skill_package_id` | string | 当前技能包编号 |
-| `equip_weapon` | string | 武器槽 |
-| `equip_armor` | string | 防具槽 |
-| `equip_accessory` | string | 饰品槽 |
+| `run_equipment_effects` | derived | 战斗前由 Run 全局装备池桥接得到 |
 
 ---
 

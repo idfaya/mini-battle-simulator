@@ -205,6 +205,21 @@ local function ApplyPhysicalAbilityMod(hero, rawDamage, meta, opts)
     return math.max(0, base + abilityMod)
 end
 
+local function ApplyWeaponDamageBonus(attacker, rawDamage, meta)
+    local value = math.max(0, math.floor(tonumber(rawDamage) or 0))
+    if value <= 0 then
+        return value
+    end
+    if meta and meta.kind ~= "physical" then
+        return value
+    end
+    local bonus = math.max(0, math.floor(tonumber(attacker and attacker.weaponDamageBonus) or 0))
+    if bonus <= 0 then
+        return value
+    end
+    return math.max(0, value + bonus)
+end
+
 local function JoinDiceParts(a, b)
     a = tostring(a or ""):gsub("^%s+", ""):gsub("%s+$", "")
     b = tostring(b or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -472,6 +487,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     }
     rolled = ApplyClassDiceScalar(attacker, rolled, false)
     rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
+    rolled = ApplyWeaponDamageBonus(attacker, rolled, meta)
     rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
     result.damage = BattleSkill.ApplyUnifiedDamageScale(attacker, defender, ApplyRhythmDamageScalar(rolled), damageKind)
     return result
