@@ -188,6 +188,19 @@ do
 end
 
 do
+    local hero = new_unit(9203, "CounterHeroAgainstGuard")
+    local attacker = new_unit(9204, "GuardSourceAttacker")
+    local passive = FighterBuildPassives.CreateCounterBasicPassive({ src = hero })
+
+    attacker.class = 2
+    attacker.passiveRuntime = { __inGuardCounter = true }
+    hero.passiveRuntime = {}
+
+    passive:OnDefBeforeDmg({ data = { extraParam = { attacker = attacker, damage = 0 } } })
+    assert_true(hero.passiveRuntime.pendingCounterBasicTarget == nil, "counter basic ignores attacks coming from guard reactions")
+end
+
+do
     local defender = new_unit(9301, "GuardDefender")
     local guard = new_unit(9302, "GuardFighter")
     local attacker = new_unit(9303, "GuardAttacker")
@@ -232,9 +245,38 @@ do
 end
 
 do
-    local defender = new_unit(9304, "CounterDefender")
-    local guard = new_unit(9305, "GuardFighter")
-    local attacker = new_unit(9306, "SharedAttacker")
+    local defender = new_unit(9304, "GuardDefenderAgainstCounter")
+    local guard = new_unit(9305, "GuardFighterAgainstCounter")
+    local attacker = new_unit(9306, "CounterSourceAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+
+    attacker.class = 2
+    attacker.passiveRuntime = { __inCounterBasic = true }
+    guard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    guard.passiveRuntime = {
+        guardStanceActive = true,
+        guardCounterUsed = false,
+    }
+
+    BattleFormation.GetFriendTeam = function(unit)
+        if unit == defender then
+            return { defender, guard }
+        end
+        return { guard, defender }
+    end
+
+    FighterBuildPassives.TryTriggerGuardCounter(defender, { attacker = attacker })
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "guard counter ignores attacks coming from counter reactions")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local defender = new_unit(9312, "CounterDefender")
+    local guard = new_unit(9313, "GuardFighter")
+    local attacker = new_unit(9314, "SharedAttacker")
     local counterPassive = FighterBuildPassives.CreateCounterBasicPassive({ src = defender })
     local oldGetFriendTeam = BattleFormation.GetFriendTeam
     local oldCastSmallSkill = BattleSkill.CastSmallSkill
@@ -282,11 +324,11 @@ do
 end
 
 do
-    local firstDefender = new_unit(9307, "FirstProtected")
-    local secondDefender = new_unit(9308, "SecondProtected")
-    local firstGuard = new_unit(9309, "FirstGuard")
-    local secondGuard = new_unit(9310, "SecondGuard")
-    local attacker = new_unit(9311, "SharedGuardAttacker")
+    local firstDefender = new_unit(9315, "FirstProtected")
+    local secondDefender = new_unit(9316, "SecondProtected")
+    local firstGuard = new_unit(9317, "FirstGuard")
+    local secondGuard = new_unit(9318, "SecondGuard")
+    local attacker = new_unit(9319, "SharedGuardAttacker")
     local oldGetFriendTeam = BattleFormation.GetFriendTeam
     local oldCastSmallSkill = BattleSkill.CastSmallSkill
     local oldGetAllHeroes = BattleFormation.GetAllHeroes
@@ -351,7 +393,7 @@ do
         return { guard, ally }
     end
 
-    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(guard, meleeAttacker) == 2, "guard stance grants AC bonus to self")
+    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(guard, meleeAttacker) == 0, "guard stance does not grant AC bonus to self")
     assert_true(FighterBuildPassives.GetGuardStanceAcBonus(ally, meleeAttacker) == 2, "guard stance grants AC bonus to allies")
 
     local rangedDamageContext = { damage = 7 }
@@ -367,8 +409,8 @@ do
         attacker = meleeAttacker,
         damageContext = meleeDamageContext,
     })
-    assert_true(meleeDamageContext.damage == 7, "guard stance self-protection is AC only")
-    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == meleeAttacker, "guard counter queues for melee attackers after protection")
+    assert_true(meleeDamageContext.damage == 7, "guard stance does not modify self damage directly")
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "guard stance does not guard the owner themself")
 
     BattleFormation.GetFriendTeam = oldGetFriendTeam
 end

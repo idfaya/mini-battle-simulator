@@ -149,12 +149,16 @@ local function eachGuardCandidate(defender, callback)
     if not isAlive(defender) or type(callback) ~= "function" then
         return nil, nil
     end
+    local defenderId = tonumber(defender.instanceId or defender.id) or 0
     local inspected = {}
     local function visit(unit)
         if not unit then
             return nil, nil
         end
         local unitId = tonumber(unit.instanceId or unit.id) or 0
+        if unitId == defenderId then
+            return nil, nil
+        end
         if inspected[unitId] then
             return nil, nil
         end
@@ -169,11 +173,6 @@ local function eachGuardCandidate(defender, callback)
             end
         end
         return nil, nil
-    end
-
-    local guard, runtime, result = visit(defender)
-    if guard then
-        return guard, runtime, result
     end
 
     local BattleFormation = require("modules.battle_formation")
@@ -419,6 +418,9 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
         return
     end
     local attackerRuntime = ensureRuntime(attacker)
+    if attackerRuntime.__inCounterBasic or attackerRuntime.__inGuardCounter then
+        return
+    end
     if attackerRuntime.pendingGuardReactionQueued then
         return
     end
@@ -582,7 +584,7 @@ function FighterBuildPassives.CreateCounterBasicPassive(context)
         end
         local runtime = ensureRuntime(hero)
         local attackerRuntime = ensureRuntime(attacker)
-        if runtime.__inCounterBasic or attackerRuntime.__inCounterBasic then
+        if runtime.__inCounterBasic or attackerRuntime.__inCounterBasic or attackerRuntime.__inGuardCounter then
             return
         end
         runtime.pendingCounterBasicTarget = attacker
