@@ -54,6 +54,9 @@ local Ability5e = require("modules.ability_5e")
 ---@class BattleSkill
 local BattleSkill = {}
 
+local CLERIC_BASIC_HEAL_HP_RATIO = 0.75
+local CLERIC_BASIC_HEAL_MISSING_RATIO = 0.20
+
 -- 提前注册到 package.loaded，防止子模块 require("modules.battle_skill") 时拿到 nil。
 -- 子模块对 BattleSkill 仅懒调用其方法，此时加载完成即可获得完整表。
 package.loaded["modules.battle_skill"] = BattleSkill
@@ -1693,6 +1696,22 @@ local function ShouldPreferAllyIfInjured(targetsSelections)
         or targetsSelections.dualHolyLight == true
 end
 
+local function PickLowestHpInjuredAlly(hero)
+    local ally = BattleSkill.SelectLowestHpAlly(hero)
+    if not ally then
+        return nil, 1, 0
+    end
+    local maxHp = math.max(1, tonumber(ally.maxHp) or tonumber(ally.hp) or 1)
+    local hp = math.max(0, tonumber(ally.hp) or maxHp)
+    local hpRatio = hp / maxHp
+    return ally, hpRatio, math.max(0, 1 - hpRatio)
+end
+
+local function ShouldPreferDualHolyLightAlly(hero)
+    local _, hpRatio, missingRatio = PickLowestHpInjuredAlly(hero)
+    return hpRatio <= CLERIC_BASIC_HEAL_HP_RATIO or missingRatio >= CLERIC_BASIC_HEAL_MISSING_RATIO
+end
+
 local function SortTargetsByLowestHp(targets)
     local sorted = {}
     for index, target in ipairs(targets or {}) do
@@ -1812,7 +1831,9 @@ function BattleSkill.SelectTarget(hero, skill)
     end
 
     local targets = {}
-    local targetsSelections = skill.targetsSelections or skill.config and skill.config.targetsSelections
+    local targetsSelections = skill.targetsSelections
+        or skill.config and skill.config.targetsSelections
+        or skill.config and skill.config.runtimeData and skill.config.runtimeData.targetsSelections
 
     if not targetsSelections then
         Logger.LogWarning("[BattleSkill.SelectTarget] No targetsSelections config for skill: " .. tostring(skill.skillId))
@@ -1822,11 +1843,16 @@ function BattleSkill.SelectTarget(hero, skill)
     local castTarget = targetsSelections.castTarget or E_CAST_TARGET.Enemy
 
     if ShouldPreferAllyIfInjured(targetsSelections) then
+        if targetsSelections.dualHolyLight == true and not ShouldPreferDualHolyLightAlly(hero) then
+            goto continue_select_target
+        end
         local ally = BattleSkill.SelectLowestHpAlly(hero)
         if ally then
             return { ally }
         end
     end
+
+    ::continue_select_target::
 
     -- 根据目标类型选择目标
     if castTarget == E_CAST_TARGET.Self then

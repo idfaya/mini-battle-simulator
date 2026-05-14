@@ -17,6 +17,9 @@ end
 require("core.battle_enum")
 local BattleEvent = require("core.battle_event")
 local BattleBuff = require("modules.battle_buff")
+local BattleFormation = require("modules.battle_formation")
+local BattleMain = require("modules.battle_main")
+local BattleSkill = require("modules.battle_skill")
 local BuildPassiveCommon = require("skills.build_passive_common")
 local ClericBuildPassives = require("skills.cleric_build_passives")
 local FeatBuildConfig = require("config.feat_build_config")
@@ -321,6 +324,90 @@ do
 
     BattleSkill.CastSmallSkillWithResult = oldCastSmallSkill
     BuildPassiveCommon.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
+end
+
+do
+    BattleFormation.OnFinal()
+
+    local cleric = new_unit(7601, "AutoCleric")
+    local ally = new_unit(7602, "FrontAlly")
+    local enemy = new_unit(7603, "EnemyDummy")
+    cleric.class = 6
+    cleric.wpType = 4
+    ally.class = 2
+    ally.wpType = 1
+    enemy.class = 2
+    enemy.wpType = 1
+    enemy.isLeft = false
+    cleric.skills = {}
+    cleric.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(6, 1, {}))
+
+    BattleFormation.Init({
+        teamLeft = { cleric, ally },
+        teamRight = { enemy },
+    })
+    local battleCleric = BattleFormation.FindHeroByCampAndPos(true, 4)
+    local battleAlly = BattleFormation.FindHeroByCampAndPos(true, 1)
+    BattleSkill.Init(battleCleric, battleCleric.skillsConfig)
+
+    battleAlly.hp = 82
+    local holySkill = battleCleric.skillData.skillInstances[SkillRuntimeConfig.Ids.cleric_basic_spell]
+    local healthyTargets = BattleSkill.SelectTarget(battleCleric, holySkill)
+    assert_true(#healthyTargets == 1 and healthyTargets[1].isLeft == false, "holy spark keeps attacking enemies when allies are only lightly scratched")
+
+    battleAlly.hp = 72
+    local injuredTargets = BattleSkill.SelectTarget(battleCleric, holySkill)
+    assert_true(#injuredTargets == 1 and injuredTargets[1].isLeft == true, "holy spark switches to healing when lowest ally drops below heal threshold")
+
+    BattleFormation.OnFinal()
+end
+
+do
+    BattleFormation.OnFinal()
+
+    local cleric = new_unit(7701, "DecisionCleric")
+    local allyA = new_unit(7702, "TankAlly")
+    local allyB = new_unit(7703, "BacklineAlly")
+    local enemy = new_unit(7704, "EnemyTarget")
+    cleric.class = 6
+    cleric.wpType = 4
+    allyA.class = 2
+    allyA.wpType = 1
+    allyB.class = 8
+    allyB.wpType = 5
+    enemy.class = 2
+    enemy.wpType = 1
+    enemy.isLeft = false
+    cleric.skills = {}
+    cleric.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(6, 5, {}))
+
+    BattleFormation.Init({
+        teamLeft = { cleric, allyA, allyB },
+        teamRight = { enemy },
+    })
+    local battleCleric = BattleFormation.FindHeroByCampAndPos(true, 4)
+    local battleAllyA = BattleFormation.FindHeroByCampAndPos(true, 1)
+    local battleAllyB = BattleFormation.FindHeroByCampAndPos(true, 5)
+    BattleSkill.Init(battleCleric, battleCleric.skillsConfig)
+
+    battleAllyA.hp = 72
+    battleAllyA.maxHp = 100
+    battleAllyB.hp = 100
+    battleAllyB.maxHp = 100
+    local mildSkill, mildTargets = BattleMain.DebugSelectAvailableSkill(battleCleric)
+    assert_true(mildSkill and mildSkill.skillId == SkillRuntimeConfig.Ids.cleric_basic_spell, "cleric saves healing word for real danger and uses holy spark on moderate injuries")
+    assert_true(#(mildTargets or {}) == 1 and mildTargets[1].isLeft == true, "moderate injury makes holy spark target the ally for healing")
+
+    battleAllyA.hp = 50
+    local emergencySkill = BattleMain.DebugSelectAvailableSkill(battleCleric)
+    assert_true(emergencySkill and emergencySkill.skillId == SkillRuntimeConfig.Ids.cleric_healing_word, "cleric uses healing word when the lowest ally is in danger")
+
+    battleAllyA.hp = 74
+    battleAllyB.hp = 77
+    local pressureSkill = BattleMain.DebugSelectAvailableSkill(battleCleric)
+    assert_true(pressureSkill and pressureSkill.skillId == SkillRuntimeConfig.Ids.cleric_sanctuary_prayer, "cleric uses sanctuary prayer when multiple allies are pressured")
+
+    BattleFormation.OnFinal()
 end
 
 log("Cleric build pipeline tests passed.")

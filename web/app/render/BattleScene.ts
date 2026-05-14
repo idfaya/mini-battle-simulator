@@ -1725,9 +1725,8 @@ export class BattleScene {
   }
 
   private isMeleeUnit(unit: UnitState) {
-    // Web-only heuristic: Ranger (class 5) looks/feels ranged in this prototype,
-    // while healer (class 6) and barbarian (class 10) still read as melee.
-    return (unit.classId >= 1 && unit.classId <= 4) || unit.classId === 6 || unit.classId === 10;
+    // Match runtime class roles: 1..4 and 10 are melee/frontline, while ranger/cleric/casters stay ranged.
+    return (unit.classId >= 1 && unit.classId <= 4) || unit.classId === 10;
   }
 
   private isDamageLikeOp(op: string) {
@@ -2339,6 +2338,7 @@ export class BattleScene {
       entranceActiveCount: this.entranceAnimations.size,
       deathStartedCount: this.deathStartedCount,
       deathActiveCount: this.deathAnimations.size,
+      projectileCount: this.projectiles.length,
       observedFloatingTextKinds: [...this.observedFloatingTextKinds],
       observedCounterOverlapKeys: [...this.observedCounterOverlapKeys],
       observedGuardCounterOverlapKeys: [...this.observedGuardCounterOverlapKeys],

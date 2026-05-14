@@ -25,6 +25,13 @@ local EnemyData = require("config.enemy_data")
 ---@class BattleMain
 local BattleMain = {}
 
+local CLERIC_BASIC_HEAL_HP_RATIO = 0.75
+local CLERIC_HEALING_WORD_HP_RATIO = 0.55
+local CLERIC_HEALING_WORD_MISSING_RATIO = 0.30
+local CLERIC_SANCTUARY_MULTI_HP_RATIO = 0.78
+local CLERIC_SANCTUARY_MULTI_COUNT = 2
+local CLERIC_SANCTUARY_FRONTLINE_HP_RATIO = 0.62
+
 -- ==================== 状态变量 ====================
 
 -- 战斗是否正在运行
@@ -444,6 +451,73 @@ local function HasInjuredAlly(hero)
     return false
 end
 
+local function GetTargetHpRatio(target)
+    if not target then
+        return 1
+    end
+
+    local maxHp = math.max(1, tonumber(target.maxHp) or tonumber(target.hp) or 1)
+    local hp = math.max(0, tonumber(target.hp) or maxHp)
+    return hp / maxHp
+end
+
+local function GetLowestInjuredAlly(hero)
+    local BattleFormation = require("modules.battle_formation")
+    local picked = nil
+    local pickedRatio = 1
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if ally and ally.isAlive and not ally.isDead and GetTargetMissingHpRatio(ally) > 0 then
+            local hpRatio = GetTargetHpRatio(ally)
+            if hpRatio < pickedRatio then
+                picked = ally
+                pickedRatio = hpRatio
+            end
+        end
+    end
+    return picked, pickedRatio, math.max(0, 1 - pickedRatio)
+end
+
+local function CountAlliesBelowHpRatio(hero, threshold)
+    local BattleFormation = require("modules.battle_formation")
+    local count = 0
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if ally and ally.isAlive and not ally.isDead and GetTargetHpRatio(ally) <= threshold then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function HasFrontlinePressure(hero, threshold)
+    local BattleFormation = require("modules.battle_formation")
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if ally and ally.isAlive and not ally.isDead then
+            local wpType = tonumber(ally.wpType) or 0
+            if wpType > 0 and wpType <= 3 and GetTargetHpRatio(ally) <= threshold then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ShouldHolySparkHeal(hero)
+    local _, hpRatio, missingRatio = GetLowestInjuredAlly(hero)
+    return hpRatio <= CLERIC_BASIC_HEAL_HP_RATIO or missingRatio >= (1 - CLERIC_BASIC_HEAL_HP_RATIO)
+end
+
+local function ShouldCastHealingWord(hero)
+    local _, hpRatio, missingRatio = GetLowestInjuredAlly(hero)
+    return hpRatio <= CLERIC_HEALING_WORD_HP_RATIO or missingRatio >= CLERIC_HEALING_WORD_MISSING_RATIO
+end
+
+local function ShouldCastSanctuaryPrayer(hero)
+    local pressuredCount = CountAlliesBelowHpRatio(hero, CLERIC_SANCTUARY_MULTI_HP_RATIO)
+    local injuredCount = CountAlliesBelowHpRatio(hero, 0.99)
+    return pressuredCount >= CLERIC_SANCTUARY_MULTI_COUNT
+        or (HasFrontlinePressure(hero, CLERIC_SANCTUARY_FRONTLINE_HP_RATIO) and injuredCount >= CLERIC_SANCTUARY_MULTI_COUNT)
+end
+
 local function IsSupportCastTarget(castTarget)
     return castTarget == E_CAST_TARGET.Self
         or castTarget == E_CAST_TARGET.Alias
@@ -453,7 +527,10 @@ end
 
 local function ScoreSkillCandidate(hero, skill, previewTargets)
     local score = 0
-    local targetsSelections = skill.targetsSelections or {}
+    local targetsSelections = skill.targetsSelections
+        or skill.config and skill.config.targetsSelections
+        or skill.config and skill.config.runtimeData and skill.config.runtimeData.targetsSelections
+        or {}
     local castTarget = targetsSelections.castTarget or skill.castTarget or E_CAST_TARGET.Enemy
     local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
     local targetCount = #previewTargets
@@ -475,6 +552,8 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
             score = score + 40
         elseif executionType == "guardian_aura" or executionType == "harmonize" then
             score = score + 20
+        elseif executionType == "sanctuary_prayer" then
+            score = score + 45
         end
     else
         score = score + targetCount * 15
@@ -486,6 +565,25 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
             score = score + math.max(0, targetCount - 1) * 20
         elseif targetsSelections.measureType == E_MEASURE_TYPE.Muti then
             score = score + math.max(0, targetCount - 1) * 12
+        end
+    end
+
+    if executionType == "cleric_basic_spell" and primaryTarget and primaryTarget.isLeft == hero.isLeft then
+        local missingRatio = GetTargetMissingHpRatio(primaryTarget)
+        score = score + 35 + math.floor(missingRatio * 120)
+        if GetTargetHpRatio(primaryTarget) <= CLERIC_HEALING_WORD_HP_RATIO then
+            score = score + 20
+        end
+    elseif executionType == "healing_word" then
+        local missingRatio = GetTargetMissingHpRatio(primaryTarget)
+        score = score + 60 + math.floor(missingRatio * 140)
+        if GetTargetHpRatio(primaryTarget) <= 0.35 then
+            score = score + 80
+        end
+    elseif executionType == "sanctuary_prayer" then
+        score = score + CountAlliesBelowHpRatio(hero, CLERIC_SANCTUARY_MULTI_HP_RATIO) * 30
+        if HasFrontlinePressure(hero, CLERIC_SANCTUARY_FRONTLINE_HP_RATIO) then
+            score = score + 70
         end
     end
 
@@ -533,6 +631,15 @@ local function BuildSkillCandidate(hero, skill, opts)
 
     local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
     if IsPureHealExecution(executionType) and not HasInjuredAlly(hero) then
+        return nil
+    end
+    if executionType == "cleric_basic_spell" and not ShouldHolySparkHeal(hero) and previewTargets[1] and previewTargets[1].isLeft == hero.isLeft then
+        return nil
+    end
+    if executionType == "healing_word" and not ShouldCastHealingWord(hero) then
+        return nil
+    end
+    if executionType == "sanctuary_prayer" and not ShouldCastSanctuaryPrayer(hero) then
         return nil
     end
 
@@ -1627,6 +1734,10 @@ function BattleMain.GetBattleFlowState()
         spawnOrder = flow.spawnOrder or "back_first_then_front",
         totalSpawned = tonumber(flow.totalSpawned) or 0,
     }
+end
+
+function BattleMain.DebugSelectAvailableSkill(hero)
+    return SelectAvailableSkill(hero)
 end
 
 return BattleMain
