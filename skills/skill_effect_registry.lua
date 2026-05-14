@@ -480,10 +480,13 @@ function SkillEffectRegistry.RegisterBuiltins()
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 0
         local slowPct = tonumber(p and p.slowPct) or 0
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
                 -- Hard control: if the target saved against this spell frame, do not apply.
-                if frameCopy.__savedTargets and frameCopy.__savedTargets[t.instanceId] then
+                if frameCopy.__savedTargets and frameCopy.__savedTargets[targetId] then
                     -- skip
                 else
                     BattleSkill.ApplyFreeze(t, turns, slowPct, ctx.hero)
@@ -779,8 +782,11 @@ function SkillEffectRegistry.RegisterBuiltins()
         if buffId <= 0 then
             return nil
         end
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
                 BattleSkill.ApplyBuffFromSkill(ctx.hero, t, buffId, ctx.skill)
             end
         end
@@ -937,11 +943,11 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("paladin_lay_on_hands", function(ctx, frameCopy)
         local PaladinBuildPassives = require("skills.paladin_build_passives")
-        local effectValue = PaladinBuildPassives.PerformLayOnHands(ctx.hero, frameCopy.target, ctx.skill)
+        local effectValue, healedTarget = PaladinBuildPassives.PerformLayOnHands(ctx.hero, frameCopy.target, ctx.skill)
         return {
             effectValue = effectValue,
             healAmount = effectValue,
-            targets = { ctx.hero },
+            targets = healedTarget and { healedTarget } or {},
         }
     end)
 

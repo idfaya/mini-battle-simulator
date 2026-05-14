@@ -2,8 +2,9 @@ local SkillRuntimeConfig = require("config.skill_runtime_config")
 local BattleEvent = require("core.battle_event")
 
 local FighterBuildPassives = {}
-
 local IDS = SkillRuntimeConfig.Ids
+
+local GUARD_STANCE_BUFF_ID = 890004
 
 local function ensureRuntime(hero)
     if not hero then
@@ -64,7 +65,7 @@ end
 -- #endregion
 
 local function isAlive(unit)
-    return unit and not unit.isDead
+    return unit and not unit.isDead and (unit.isAlive ~= false) and (tonumber(unit.hp) or 0) > 0
 end
 
 local function isMeleeUnit(unit)
@@ -124,17 +125,23 @@ function FighterBuildPassives.HasSignatureMastery(hero)
 end
 
 function FighterBuildPassives.ActivateGuardStance(hero)
+    local BattleSkill = require("modules.battle_skill")
     local runtime = ensureRuntime(hero)
     runtime.guardStanceActive = true
     runtime.guardCounterUsed = false
     runtime.guardStanceRound = getRound()
+    BattleSkill.ApplyBuffFromSkill(hero, hero, GUARD_STANCE_BUFF_ID, nil, {
+        duration = 1,
+    })
 end
 
 function FighterBuildPassives.ClearGuardStance(hero)
+    local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
     runtime.guardStanceActive = false
     runtime.guardCounterUsed = false
     runtime.guardStanceRound = nil
+    BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARD_STANCE_BUFF_ID, hero, 1)
 end
 
 local function eachGuardCandidate(defender, callback)

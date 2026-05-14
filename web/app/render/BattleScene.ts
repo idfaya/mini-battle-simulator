@@ -925,6 +925,42 @@ export class BattleScene {
   }
 
   private getBuffIconStyle(buffId: number, name: string) {
+    if (buffId === 890002) {
+      return { label: "怒", fill: "#5f2a2a", stroke: "#ff8a65" };
+    }
+    if (buffId === 890003) {
+      return { label: "狂", fill: "#6b1f1f", stroke: "#ffd166" };
+    }
+    if (buffId === 890004) {
+      return { label: "护", fill: "#29445f", stroke: "#91c9ff" };
+    }
+    if (buffId === 890005) {
+      return { label: "印", fill: "#355c3a", stroke: "#80ed99" };
+    }
+    if (buffId === 890006) {
+      return { label: "域", fill: "#3a315f", stroke: "#c8b6ff" };
+    }
+    if (buffId === 890007) {
+      return { label: "望", fill: "#29445f", stroke: "#4cc9f0" };
+    }
+    if (buffId === 890008) {
+      return { label: "灵", fill: "#4e342e", stroke: "#ffcc80" };
+    }
+    if (buffId === 890009) {
+      return { label: "圣", fill: "#5b4b1f", stroke: "#ffe082" };
+    }
+    if (buffId === 890010) {
+      return { label: "忍", fill: "#355c3a", stroke: "#a5d6a7" };
+    }
+    if (buffId === 890011) {
+      return { label: "恩", fill: "#3a315f", stroke: "#d0bfff" };
+    }
+    if (buffId === 890012) {
+      return { label: "佑", fill: "#5b4b1f", stroke: "#ffe082" };
+    }
+    if (buffId === 890013) {
+      return { label: "甲", fill: "#4e342e", stroke: "#bcaaa4" };
+    }
     const id = Math.floor((Number(buffId) || 0) / 10000);
     if (id === 82) {
       return { label: "嘲", fill: "#3b5b7a", stroke: "#91c9ff" };
@@ -1312,7 +1348,8 @@ export class BattleScene {
     if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
       if (event.op !== "cast") {
         for (const target of friendlyTargets) {
-          if (!isBuffSupportFrame) {
+          const shouldTravelFromCaster = !isBuffSupportFrame && target.unit.id !== attacker.unit.id;
+          if (shouldTravelFromCaster) {
             this.projectiles.push({
               id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
               attackerId: attacker.unit.id,
@@ -1326,7 +1363,7 @@ export class BattleScene {
             durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
           });
         }
-        if (!isBuffSupportFrame) {
+        if (!isBuffSupportFrame && friendlyTargets.some((target) => target.unit.id !== attacker.unit.id)) {
           this.lastProjectileAtByCaster.set(attacker.unit.id, now);
         }
       }

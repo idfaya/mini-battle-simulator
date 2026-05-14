@@ -6,6 +6,10 @@ local PaladinBuildPassives = {}
 local IDS = SkillRuntimeConfig.Ids
 local POISON_BUFF_SUBTYPE = 850001
 local BURN_BUFF_SUBTYPE = 870001
+local GUARDIAN_AURA_BUFF_ID = 890008
+local SANCTUARY_KNIGHT_BUFF_ID = 890009
+local SHELTER_PRAYER_BUFF_ID = 890012
+local HEAVY_ARMOR_PRAYER_BUFF_ID = 890013
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -34,6 +38,27 @@ local function buildContextState(context)
     }
 end
 
+local function syncPermanentBuff(hero, buffId, enabled)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not hero then
+        return
+    end
+    local buff = BattleBuff.GetBuff(hero, buffId)
+    if not enabled then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, buffId, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, buffId, nil, {
+            duration = 99,
+            isPermanent = true,
+        })
+    end
+end
+
 local function eachFriendlyPaladin(defender, callback)
     if not isAlive(defender) or type(callback) ~= "function" then
         return nil
@@ -54,9 +79,12 @@ local function eachFriendlyPaladin(defender, callback)
 end
 
 local function clearTurnStates(hero)
+    local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
     runtime.guardianAuraActive = false
     runtime.sanctuaryKnightActive = false
+    BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARDIAN_AURA_BUFF_ID, hero, 1)
+    BattleBuff.DelBuffByBuffIdAndCaster(hero, SANCTUARY_KNIGHT_BUFF_ID, hero, 1)
 end
 
 function PaladinBuildPassives.AugmentBasicAttackResolveOpts(hero, target, opts, runtime)
@@ -78,9 +106,13 @@ function PaladinBuildPassives.AugmentBasicAttackResolveOpts(hero, target, opts, 
 end
 
 function PaladinBuildPassives.ActivateGuardianAura(hero)
+    local BattleSkill = require("modules.battle_skill")
     local runtime = ensureRuntime(hero)
     runtime.guardianAuraActive = true
     runtime.guardianAuraRound = getRound()
+    BattleSkill.ApplyBuffFromSkill(hero, hero, GUARDIAN_AURA_BUFF_ID, nil, {
+        duration = 1,
+    })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 展开守护灵光：我方全体获得 AC 加成和首次受击减伤",
         hero and hero.name or "Unknown"))
 end
@@ -132,7 +164,7 @@ end
 function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
     local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero
     if not isAlive(ally) then
-        return 0
+        return 0, nil
     end
     local BattleBuff = require("modules.battle_buff")
     local healDice = "2d8+4"
@@ -150,7 +182,7 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
         hero and hero.name or "Unknown",
         ally.name or "目标",
         amount))
-    return amount
+    return amount, ally
 end
 
 function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
@@ -191,11 +223,15 @@ function PaladinBuildPassives.CreateDivineSmitePassive(context)
     local self = buildContextState(context)
 
     function self:OnBattleBegin()
-        clearTurnStates(self.context and self.context.src)
+        local hero = self.context and self.context.src or nil
+        clearTurnStates(hero)
+        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_shelter_prayer))
     end
 
     function self:OnSelfTurnBegin()
-        clearTurnStates(self.context and self.context.src)
+        local hero = self.context and self.context.src or nil
+        clearTurnStates(hero)
+        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_shelter_prayer))
     end
 
     function self:OnNormalAtkFinish(ctx)
@@ -241,6 +277,19 @@ end
 function PaladinBuildPassives.CreateHeavyArmorPrayerPassive(context)
     local self = buildContextState(context)
 
+    local function syncSelf()
+        local hero = self.context and self.context.src or nil
+        syncPermanentBuff(hero, HEAVY_ARMOR_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_heavy_armor_prayer))
+    end
+
+    function self:OnBattleBegin()
+        syncSelf()
+    end
+
+    function self:OnSelfTurnBegin()
+        syncSelf()
+    end
+
     function self:OnDefBeforeDmg(ctx)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
@@ -279,7 +328,11 @@ function PaladinBuildPassives.CreateExtraAttackPassive(context)
                     heal))
             end
             if hasSkill(hero, IDS.paladin_sanctuary_knight) then
+                local BattleSkill = require("modules.battle_skill")
                 runtime.sanctuaryKnightActive = true
+                BattleSkill.ApplyBuffFromSkill(hero, hero, SANCTUARY_KNIGHT_BUFF_ID, nil, {
+                    duration = 1,
+                })
                 BuildPassiveCommon.PublishCombatLog(string.format("%s 触发圣域圣骑：我方前排直到下回合开始 AC +1",
                     hero.name or "Unknown"))
             end

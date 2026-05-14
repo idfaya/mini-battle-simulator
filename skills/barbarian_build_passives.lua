@@ -6,6 +6,8 @@ local BarbarianBuildPassives = {}
 local IDS = SkillRuntimeConfig.Ids
 local MAX_RAGE_STACKS = 5
 local BERSERK_DURATION_ROUNDS = 2
+local RAGE_BUFF_ID = 890002
+local BERSERK_BUFF_ID = 890003
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -29,6 +31,62 @@ local function buildContextState(context)
     }
 end
 
+local function syncRageBuff(hero)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not hero then
+        return
+    end
+    local runtime = ensureRuntime(hero)
+    local stacks = math.max(0, math.floor(tonumber(runtime.barbarianRageStacks) or 0))
+    local buff = BattleBuff.GetBuff(hero, RAGE_BUFF_ID)
+    if stacks <= 0 then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, RAGE_BUFF_ID, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, RAGE_BUFF_ID, nil, {
+            initialStack = stacks,
+            maxStack = MAX_RAGE_STACKS,
+            duration = 99,
+            isPermanent = true,
+        })
+        buff = BattleBuff.GetBuff(hero, RAGE_BUFF_ID)
+    end
+    if buff then
+        buff.stackCount = stacks
+    end
+end
+
+local function syncBerserkBuff(hero)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not hero then
+        return
+    end
+    local runtime = ensureRuntime(hero)
+    local remain = math.max(0, (tonumber(runtime.barbarianBerserkUntilRound) or -1) - getRound() + 1)
+    local buff = BattleBuff.GetBuff(hero, BERSERK_BUFF_ID)
+    if remain <= 0 then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, BERSERK_BUFF_ID, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, BERSERK_BUFF_ID, nil, {
+            duration = remain,
+        })
+        buff = BattleBuff.GetBuff(hero, BERSERK_BUFF_ID)
+    end
+    if buff then
+        buff.duration = remain
+        buff.maxDuration = math.max(tonumber(buff.maxDuration) or 0, remain)
+    end
+end
+
 function BarbarianBuildPassives.IsBerserkActive(hero)
     local runtime = ensureRuntime(hero)
     return (tonumber(runtime.barbarianBerserkUntilRound) or -1) >= getRound()
@@ -42,6 +100,7 @@ function BarbarianBuildPassives.AddRage(hero, amount, reason)
     local before = math.max(0, math.floor(tonumber(runtime.barbarianRageStacks) or 0))
     local after = math.min(MAX_RAGE_STACKS, before + math.max(1, math.floor(tonumber(amount) or 1)))
     runtime.barbarianRageStacks = after
+    syncRageBuff(hero)
     if after > before then
         BuildPassiveCommon.PublishPassiveTriggered(hero, "狂怒", reason or "积累狂怒", string.format("%d/%d", after, MAX_RAGE_STACKS))
     end
@@ -65,6 +124,8 @@ function BarbarianBuildPassives.TryActivateBerserk(hero)
     runtime.barbarianBerserkUsed = true
     runtime.barbarianRageStacks = 0
     runtime.barbarianBerserkUntilRound = getRound() + BERSERK_DURATION_ROUNDS - 1
+    syncRageBuff(hero)
+    syncBerserkBuff(hero)
     BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", BERSERK_DURATION_ROUNDS))
     return true
 end
@@ -169,10 +230,14 @@ function BarbarianBuildPassives.CreateBerserkPassive(context)
         local runtime = ensureRuntime(self.context and self.context.src)
         runtime.barbarianBerserkUsed = false
         runtime.barbarianBerserkUntilRound = nil
+        runtime.barbarianRageStacks = 0
+        syncRageBuff(self.context and self.context.src)
+        syncBerserkBuff(self.context and self.context.src)
     end
 
     function self:OnSelfTurnBegin()
         BarbarianBuildPassives.TryActivateBerserk(self.context and self.context.src)
+        syncBerserkBuff(self.context and self.context.src)
     end
 
     function self:OnDefBeforeDmg(ctx)

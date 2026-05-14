@@ -5,6 +5,8 @@ local RangerBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
 local RESTRAINED_PROXY_BUFF_ID = 880002
+local HUNTER_MARK_BUFF_ID = 890005
+local WILD_ENDURANCE_BUFF_ID = 890010
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -37,6 +39,30 @@ local function buildContextState(context)
     return {
         context = context,
     }
+end
+
+local function syncWildEnduranceBuff(hero)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not isAlive(hero) then
+        return
+    end
+    if not hasSkill(hero, IDS.ranger_wild_endurance) and not hasSkill(hero, IDS.ranger_survival_mastery) then
+        return
+    end
+    local runtime = ensureRuntime(hero)
+    local round = getRound()
+    local used = runtime.rangerReduceRound == round
+    local buff = BattleBuff.GetBuff(hero, WILD_ENDURANCE_BUFF_ID)
+    if used then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, WILD_ENDURANCE_BUFF_ID, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, WILD_ENDURANCE_BUFF_ID, nil, { duration = 1 })
+    end
 end
 
 local function applyMarkedBonusDamage(hero, target)
@@ -89,15 +115,19 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
         return
     end
     local BattleFormation = require("modules.battle_formation")
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
     local sourceId = tonumber(hero.instanceId or hero.id) or 0
     for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
         local marks = getMarkTable(enemy)
         marks[sourceId] = nil
+        BattleBuff.DelBuffByBuffIdAndCaster(enemy, HUNTER_MARK_BUFF_ID, hero)
     end
     local marks = getMarkTable(target)
     marks[sourceId] = {
         expireRound = getRound() + 1,
     }
+    BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, { duration = 2 })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记",
         hero.name or "Unknown",
         target.name or "目标"))
@@ -158,6 +188,7 @@ local function applyFirstHitReduction(hero, label)
         return 0
     end
     runtime.rangerReduceRound = round
+    syncWildEnduranceBuff(hero)
     local reduction = BuildPassiveCommon.RollDice(diceExpr)
     if reduction > 0 then
         BuildPassiveCommon.PublishPassiveTriggered(hero, label or "野外坚忍", "首次受击减伤", string.format("减免 %d 伤害", reduction))
@@ -286,6 +317,22 @@ end
 function RangerBuildPassives.CreateWildEndurancePassive(context)
     local self = buildContextState(context)
 
+    function self:OnBattleBegin()
+        local hero = self.context and self.context.src or nil
+        local runtime = ensureRuntime(hero)
+        runtime.rangerReduceRound = nil
+        syncWildEnduranceBuff(hero)
+    end
+
+    function self:OnSelfTurnBegin()
+        local hero = self.context and self.context.src or nil
+        local runtime = ensureRuntime(hero)
+        if runtime then
+            runtime.rangerReduceRound = nil
+        end
+        syncWildEnduranceBuff(hero)
+    end
+
     function self:OnDefBeforeDmg(ctx)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
@@ -296,6 +343,7 @@ function RangerBuildPassives.CreateWildEndurancePassive(context)
         if reduction > 0 then
             extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
         end
+        syncWildEnduranceBuff(hero)
     end
 
     return self

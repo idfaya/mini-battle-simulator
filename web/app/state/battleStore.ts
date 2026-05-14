@@ -123,6 +123,18 @@ export class BattleStore {
     return this.state;
   }
 
+  resetBattleState() {
+    this.pendingCastResults.clear();
+    this.state = {
+      ...this.state,
+      log: [],
+      animations: [],
+      flashUntil: 0,
+      banner: null,
+    };
+    this.emit();
+  }
+
   setSnapshot(snapshot: BattleSnapshot) {
     this.state = { ...this.state, snapshot };
     this.emit();
@@ -188,6 +200,11 @@ export class BattleStore {
       // #endregion
       switch (event.type) {
         case "battle_started":
+          this.pendingCastResults.clear();
+          log.length = 0;
+          animations.length = 0;
+          flashUntil = 0;
+          banner = null;
           appendLog("战斗开始");
           break;
         case "combat_log":

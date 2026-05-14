@@ -4,6 +4,9 @@ local BuildPassiveCommon = require("skills.build_passive_common")
 local ClericBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
+local SANCTUARY_BUFF_ID = 890006
+local WATCH_BISHOP_BUFF_ID = 890007
+local SHELTER_PRAYER_BUFF_ID = 890011
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -19,6 +22,51 @@ end
 
 local function getRound()
     return BuildPassiveCommon.GetRound()
+end
+
+local function syncTimedBuff(hero, buffId, expireRound)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not hero then
+        return
+    end
+    local remain = math.max(0, (tonumber(expireRound) or -1) - getRound() + 1)
+    local buff = BattleBuff.GetBuff(hero, buffId)
+    if remain <= 0 then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, buffId, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, buffId, nil, { duration = remain })
+        buff = BattleBuff.GetBuff(hero, buffId)
+    end
+    if buff then
+        buff.duration = remain
+        buff.maxDuration = math.max(tonumber(buff.maxDuration) or 0, remain)
+    end
+end
+
+local function syncPermanentBuff(hero, buffId, enabled)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleSkill = require("modules.battle_skill")
+    if not hero then
+        return
+    end
+    local buff = BattleBuff.GetBuff(hero, buffId)
+    if not enabled then
+        if buff then
+            BattleBuff.DelBuffByBuffIdAndCaster(hero, buffId, hero, 1)
+        end
+        return
+    end
+    if not buff then
+        BattleSkill.ApplyBuffFromSkill(hero, hero, buffId, nil, {
+            duration = 99,
+            isPermanent = true,
+        })
+    end
 end
 
 local function didSpellConnect(damageResult)
@@ -127,6 +175,7 @@ local function applyBasicSpellPostHit(hero, target)
         end
         if hasSkill(hero, IDS.cleric_watch_bishop) then
             runtime.clericWatchBishopExpireRound = round + 1
+            syncTimedBuff(hero, WATCH_BISHOP_BUFF_ID, runtime.clericWatchBishopExpireRound)
             BuildPassiveCommon.PublishCombatLog(string.format("%s 触发守望主教：前排友军 AC +1 持续到下回合开始",
                 hero.name or "Unknown"))
         end
@@ -209,24 +258,27 @@ end
 
 function ClericBuildPassives.PerformHealingWord(hero, skill)
     if not isAlive(hero) then
-        return 0
+        return 0, nil
     end
     local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
     if not isAlive(ally) then
-        return 0
+        return 0, nil
     end
-    return applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1, skill and skill.skillId or IDS.cleric_healing_word, skill and skill.name or "治愈之言")
+    local amount = applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1, skill and skill.skillId or IDS.cleric_healing_word, skill and skill.name or "治愈之言")
+    return amount, ally
 end
 
 function ClericBuildPassives.PerformLifePrayer(hero, skill)
     if not isAlive(hero) then
-        return 0
+        return 0, {}
     end
     local total = 0
+    local healedTargets = {}
     for _, ally in ipairs(pickLowestHpAllies(hero, 2)) do
         total = total + applyHealAmount(hero, ally, "1d8", 4, skill and skill.skillId or IDS.cleric_life_prayer, skill and skill.name or "群愈祷言")
+        healedTargets[#healedTargets + 1] = ally
     end
-    return total
+    return total, healedTargets
 end
 
 function ClericBuildPassives.PerformHolyVerdict(hero, target, skill)
@@ -251,6 +303,7 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill)
     local runtime = ensureRuntime(hero)
     runtime.clericSanctuaryExpireRound = getRound() + 2
     runtime.clericSanctuaryProtectedTargets = {}
+    syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
     BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：我方全体获得圣域护持",
         hero.name or "Unknown",
         skill and skill.name or "圣域祷言"))
@@ -332,6 +385,27 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
             end
         end
     end
+end
+
+function ClericBuildPassives.CreateShelterPrayerPassive(context)
+    local self = {
+        context = context,
+    }
+
+    local function syncSelf()
+        local hero = self.context and self.context.src or nil
+        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.cleric_shelter_prayer))
+    end
+
+    function self:OnBattleBegin()
+        syncSelf()
+    end
+
+    function self:OnSelfTurnBegin()
+        syncSelf()
+    end
+
+    return self
 end
 
 return ClericBuildPassives

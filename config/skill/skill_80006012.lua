@@ -8,12 +8,12 @@ function skill_80006012.BuildTimeline(hero, targets, skill)
             frame = 18,
             op = "effect",
             effect = "cleric_healing_word_execute",
-            targetRef = "self",
+            targetRef = "selected",
             execute = function()
-                local healAmount = ClericBuildPassives.PerformHealingWord(hero, skill)
+                local healAmount, target = ClericBuildPassives.PerformHealingWord(hero, skill)
                 return {
                     healAmount = healAmount,
-                    targets = { hero },
+                    targets = target and { target } or {},
                 }
             end,
         },
