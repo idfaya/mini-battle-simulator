@@ -242,6 +242,8 @@ export class BattleStore {
             skillName: String(event.payload.skillName ?? ""),
             value: Number(event.payload.damage ?? 0),
             critical: Boolean(event.payload.isCrit),
+            basicAttack: Boolean(event.payload.isBasicAttack),
+            preferSkillColor: Boolean(event.payload.preferSkillColor),
           });
           break;
         case "heal_received":

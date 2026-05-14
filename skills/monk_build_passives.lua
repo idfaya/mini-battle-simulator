@@ -198,8 +198,13 @@ end
 function MonkBuildPassives.CreateSwiftStepPassive(context)
     local self = buildContextState(context)
 
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).ignoreFrontProtection = true
+    function self:OnSelfTurnBegin()
+        local hero = self.context and self.context.src or nil
+        if not isAlive(hero) then
+            return
+        end
+        BuildPassiveCommon.AppendPendingBasicAttackHitBonus(hero, 1, "疾风技")
+        BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, "1d4")
     end
 
     return self

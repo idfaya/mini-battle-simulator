@@ -221,6 +221,7 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
             isBlocked = params.isBlocked or false,
             skillId = params.skillId,
             skillName = params.skillName,
+            preferSkillColor = params.preferSkillColor or false,
             attackRoll = params.attackRoll,
             saveRoll = params.saveRoll,
             damageRoll = params.damageRoll,

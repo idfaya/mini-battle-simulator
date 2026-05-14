@@ -312,7 +312,7 @@ end
 
 local function getSanctuaryAcBonus(source)
     local runtime = ensureRuntime(source)
-    if (tonumber(runtime.clericSanctuaryExpireRound) or 0) < getRound() then
+    if (tonumber(runtime.clericSanctuaryExpireRound) or -1) < getRound() then
         return 0
     end
     local bonus = 1
@@ -355,12 +355,11 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
         if isAlive(ally) then
             local runtime = ensureRuntime(ally)
             local round = getRound()
-            local defenderId = tonumber(defender.instanceId or defender.id) or 0
             local bestReduction = 0
             local bestLabel = nil
-            runtime.clericShelterProtectedTargets = runtime.clericShelterProtectedTargets or {}
-            if hasSkill(ally, IDS.cleric_shelter_prayer) and runtime.clericShelterProtectedTargets[defenderId] ~= round then
-                runtime.clericShelterProtectedTargets[defenderId] = round
+            local defenderId = tonumber(defender.instanceId or defender.id) or 0
+            if hasSkill(ally, IDS.cleric_shelter_prayer) and runtime.clericShelterProtectedRound ~= round then
+                runtime.clericShelterProtectedRound = round
                 bestReduction = BuildPassiveCommon.RollDice("1d6")
                 bestLabel = "神恩庇护"
             end

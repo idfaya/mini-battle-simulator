@@ -195,9 +195,9 @@ local OVERRIDES = {
     [80002005] = {
         kind = "auto",
         role = "护卫架势",
-        notes = "护卫路线代表动作。CD3，进入持续到下回合开始的护卫窗口；期间你和友军被攻击时获得 AC+2；若攻击者为近战单位，则在其攻击结算后发动 1 次护卫反击。",
+        notes = "护卫路线代表动作。CD3，进入持续到下回合开始的护卫窗口；期间友军被攻击时获得 AC+2；若攻击者为近战单位，则在其攻击结算后发动 1 次护卫反击。自己不能护卫自己。",
         tierNotes = {
-            [1] = "标准版：开启 AC+2 与近战护卫反击窗口。",
+            [1] = "标准版：开启友军 AC+2 与近战护卫反击窗口。",
         },
     },
     [80002101] = {
@@ -571,14 +571,10 @@ local OVERRIDES = {
 
     -- Wizard (Ice)
     [80008001] = {
-        kind = "spell",
-        saveType = "ref",
-        isAOE = false,
-        hardControl = false,
-        onSaveSuccess = "half",
+        kind = "auto",
         damageDice = "1d8",
         role = "寒霜射线",
-        notes = "法师基础冰霜法术。命中后通过寒霜迟滞施加减速。",
+        notes = "法师基础冰霜法术攻击。命中后通过寒霜迟滞施加减速。",
     },
     [80008003] = {
         kind = "spell",
@@ -608,13 +604,10 @@ local OVERRIDES = {
 
     -- Warlock / Thunder caster
     [80009001] = {
-        kind = "spell",
-        saveType = "ref",
-        isAOE = false,
-        onSaveSuccess = "half",
+        kind = "auto",
         damageDice = "1d10",
         role = "邪能冲击",
-        notes = "邪术师基础雷电法术。命中后通过静电印记标记目标。",
+        notes = "邪术师基础雷电法术攻击。命中后通过静电印记标记目标。",
     },
     [80009003] = {
         kind = "spell",

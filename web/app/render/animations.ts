@@ -22,20 +22,30 @@ export function createFloatingText(event: AnimationEvent, unit: UnitState | unde
   }
 
   if (event.type === "damage") {
+    const isCritical = event.critical;
+    const isSkillColored = event.preferSkillColor === true;
+    const isBasicAttack = event.basicAttack === true && !isSkillColored;
+    const color = isCritical ? "#ff5a5f" : isBasicAttack ? "#f8f9fa" : "#ffd166";
+    const outlineColor = isCritical
+      ? "rgba(72, 10, 16, 0.94)"
+      : isBasicAttack
+        ? "rgba(20, 24, 34, 0.92)"
+        : "rgba(62, 36, 8, 0.92)";
+    const glowColor = isCritical ? "rgba(255, 90, 95, 0.42)" : null;
     return {
       text: event.value > 0 ? String(event.value) : "0",
-      kind: event.critical ? "critical" : "damage",
-      color: event.critical ? "#ffe08a" : "#ffb36b",
-      outlineColor: event.critical ? "rgba(58, 20, 10, 0.92)" : "rgba(42, 18, 10, 0.9)",
+      kind: isCritical ? "critical" : "damage",
+      color,
+      outlineColor,
       createdAt: now,
-      lifetimeMs: event.critical ? 780 : 620,
-      fontSize: event.critical ? 30 : 22,
-      startScale: event.critical ? 1.22 : 1.08,
+      lifetimeMs: isCritical ? 780 : 620,
+      fontSize: isCritical ? 30 : 22,
+      startScale: isCritical ? 1.22 : 1.08,
       endScale: 1,
-      riseY: event.critical ? 30 : 22,
-      driftX: event.critical ? 4 : 2,
+      riseY: isCritical ? 30 : 22,
+      driftX: isCritical ? 4 : 2,
       rotationFrom: 0,
-      glowColor: event.critical ? "rgba(255, 184, 77, 0.45)" : null,
+      glowColor,
     };
   }
 

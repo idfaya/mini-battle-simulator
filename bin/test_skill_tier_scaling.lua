@@ -172,6 +172,68 @@ do
     BattleFormula.RollHit = oldRollHit
 end
 
+-- Test 5c: Wizard frost ray resolves via spell attack instead of save
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local BattleFormula = require("core.battle_formula")
+    local skillLua = require("config.skill.skill_80008001")
+    local hero = new_unit(3661, "FrostMage")
+    local target = new_unit(3662, "FrostDummy")
+    local oldRollSave = BattleFormula.RollSave
+    local oldRollHit = BattleFormula.RollHit
+    local saveCalls = 0
+    local hitCalls = 0
+
+    BattleFormula.RollSave = function(...)
+        saveCalls = saveCalls + 1
+        return oldRollSave(...)
+    end
+    BattleFormula.RollHit = function(...)
+        hitCalls = hitCalls + 1
+        return oldRollHit(...)
+    end
+
+    local skill = { skillId = 80008001, name = "Frost Ray", level = 1 }
+    local ok = SkillTimeline.Execute(hero, { target }, skill, skillLua.BuildTimeline(hero, { target }, skill))
+    assert_true(ok, "Frost Ray attack-based execute ok")
+    assert_true(hitCalls == 1, "Frost Ray resolves via attack roll")
+    assert_true(saveCalls == 0, "Frost Ray no longer resolves via save check")
+
+    BattleFormula.RollSave = oldRollSave
+    BattleFormula.RollHit = oldRollHit
+end
+
+-- Test 5d: Warlock eldritch blast resolves via spell attack instead of save
+do
+    local SkillTimeline = require("core.skill_timeline")
+    local BattleFormula = require("core.battle_formula")
+    local skillLua = require("config.skill.skill_80009001")
+    local hero = new_unit(3671, "Warlock")
+    local target = new_unit(3672, "BlastDummy")
+    local oldRollSave = BattleFormula.RollSave
+    local oldRollHit = BattleFormula.RollHit
+    local saveCalls = 0
+    local hitCalls = 0
+
+    BattleFormula.RollSave = function(...)
+        saveCalls = saveCalls + 1
+        return oldRollSave(...)
+    end
+    BattleFormula.RollHit = function(...)
+        hitCalls = hitCalls + 1
+        return oldRollHit(...)
+    end
+
+    local skill = { skillId = 80009001, name = "Eldritch Blast", level = 1 }
+    local ok = SkillTimeline.Execute(hero, { target }, skill, skillLua.BuildTimeline(hero, { target }, skill))
+    assert_true(ok, "Eldritch Blast attack-based execute ok")
+    assert_true(hitCalls == 1, "Eldritch Blast resolves via attack roll")
+    assert_true(saveCalls == 0, "Eldritch Blast no longer resolves via save check")
+
+    BattleFormula.RollSave = oldRollSave
+    BattleFormula.RollHit = oldRollHit
+end
+
 -- Test 6: Wizard blizzard (80008004) uses slow settlement instead of random freeze
 do
     local skillLua = require("config.skill.skill_80008004")

@@ -123,6 +123,8 @@ export type AnimationEvent =
       skillName: string;
       value: number;
       critical: boolean;
+      basicAttack?: boolean;
+      preferSkillColor?: boolean;
     }
   | { type: "heal"; heroId: string; value: number }
   | { type: "miss"; heroId: string; text: string }

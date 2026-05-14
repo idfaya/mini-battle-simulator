@@ -116,6 +116,7 @@ local function applyDirectBonusDamage(hero, target, diceExpr, meta)
             damageKind = (meta and meta.damageKind) or "direct",
             skillId = meta and meta.skillId or nil,
             skillName = meta and meta.skillName or nil,
+            preferSkillColor = meta and ((meta.preferSkillColor == true) or meta.skillId ~= nil or meta.skillName ~= nil) or false,
         })
     end
     return damage

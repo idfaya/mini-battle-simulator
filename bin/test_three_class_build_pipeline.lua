@@ -19,6 +19,7 @@ local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
 local HeroData = require("config.hero_data")
+local MonkBuildPassives = require("skills.monk_build_passives")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -75,6 +76,23 @@ do
     })
     assert_true(rangerHero and rangerHero.buildState ~= nil, "HeroData generic build compile works for ranger")
     assert_true(hasSkill(rangerHero.skillsConfig, SkillRuntimeConfig.Ids.ranger_hunter_shot), "HeroData exports ranger build active")
+end
+
+do
+    local hero = {
+        id = 9101,
+        instanceId = 9101,
+        name = "SwiftMonk",
+        hp = 100,
+        maxHp = 100,
+        isDead = false,
+        isAlive = true,
+        passiveRuntime = {},
+    }
+    local passive = MonkBuildPassives.CreateSwiftStepPassive({ src = hero })
+    passive:OnSelfTurnBegin()
+    assert_true(hero.passiveRuntime.pendingBasicAttackHitBonus == 1, "Monk swift step grants first attack hit bonus")
+    assert_true(hero.passiveRuntime.pendingBasicAttackBonusDice == "1d4", "Monk swift step grants first attack bonus damage die")
 end
 
 log("Three-class build pipeline tests passed.")

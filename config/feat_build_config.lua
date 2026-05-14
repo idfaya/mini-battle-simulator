@@ -360,7 +360,7 @@ local FEATS = {
         classId = 6,
         level = 5,
         name = "圣域祷言",
-        description = "获得圣域祷言，CD5，持续 2 回合；我方全体 AC +1，且每个友军每回合第一次受到的伤害减少 1d6。",
+        description = "获得圣域祷言，CD3，持续 2 回合；我方全体 AC +1，且每个友军每回合第一次受到的伤害减少 1d6。",
         effects = {
             { type = "grant_skill", skill = 80006015 },
         },
@@ -641,7 +641,7 @@ local FEATS = {
         classId = 2,
         level = 3,
         name = "护卫",
-        description = "获得护卫架势，CD3，持续到你下回合开始；期间你和友军被攻击时获得 AC+2；若攻击者为近战单位，你会在其攻击结算后对其发动 1 次基础武器攻击。",
+        description = "获得护卫架势，CD3，持续到你下回合开始；期间友军被攻击时获得 AC+2；若攻击者为近战单位，你会在其攻击结算后对其发动 1 次基础武器攻击。自己不能护卫自己。",
         choiceGroup = "fighter_lv3_active",
         effects = {
             { type = "grant_skill", skill = 80002005 },
@@ -740,13 +740,10 @@ local FEATS = {
         classId = 3,
         level = 2,
         name = "疾风技",
-        description = "你的徒手打击、震劲掌和影步连打都可无视前排保护。",
+        description = "每回合第一次徒手打击、震劲掌或影步连打获得命中 +1；若命中，额外造成 1d4 伤害。",
         choiceGroup = "monk_lv2_basic",
         effects = {
             { type = "grant_skill", skill = 80003104 },
-            { type = "modify_skill", skill = 80003011, add = { runtimeData = { targetsSelections = { ignoreFrontProtection = true } } } },
-            { type = "modify_skill", skill = 80003013, add = { runtimeData = { targetsSelections = { ignoreFrontProtection = true } } } },
-            { type = "modify_skill", skill = 80003014, add = { runtimeData = { targetsSelections = { ignoreFrontProtection = true } } } },
         },
     },
     [FeatBuildConfig.Ids.monk_open_hand] = {

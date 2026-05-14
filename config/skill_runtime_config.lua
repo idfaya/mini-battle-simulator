@@ -821,8 +821,8 @@ local SKILLS = {
         name = "疾风技",
         hidden = true,
         cooldown = 0,
-        trigger = "ignore_front_protection",
-        execution = { type = "ignore_front_protection" },
+        trigger = "first_attack_focus",
+        execution = { type = "first_attack_focus" },
         tags = tags("monk", "mobility"),
     },
     [SkillRuntimeConfig.Ids.monk_body_mastery] = {

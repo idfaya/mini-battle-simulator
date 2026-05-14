@@ -152,6 +152,8 @@ do
 
     local acBonus = ClericBuildPassives.GetAuraAcBonus(defender, nil)
     assert_true(acBonus >= 2, "sanctuary mastery grants stacked AC bonus on front ally")
+    cleric.passiveRuntime.clericSanctuaryExpireRound = -1
+    cleric.passiveRuntime.clericSanctuaryProtectedTargets = {}
 
     local oldRollDice = BuildPassiveCommon.RollDice
     BuildPassiveCommon.RollDice = function(dice)
@@ -161,6 +163,13 @@ do
     local damageContext = { damage = 20 }
     ClericBuildPassives.ApplyClericProtections(defender, { damageContext = damageContext })
     assert_true(damageContext.damage <= 14, "cleric protections reduce incoming damage")
+
+    local secondDefender = new_unit(7203, "BackAlly")
+    secondDefender.class = 8
+    secondDefender.wpType = 5
+    local secondDamageContext = { damage = 20 }
+    ClericBuildPassives.ApplyClericProtections(secondDefender, { damageContext = secondDamageContext })
+    assert_true(secondDamageContext.damage == 20, "cleric shelter prayer is shared once per round across allies")
 
     BuildPassiveCommon.RollDice = oldRollDice
     BattleFormation.GetFriendTeam = oldGetFriendTeam

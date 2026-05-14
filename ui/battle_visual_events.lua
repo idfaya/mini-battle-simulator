@@ -129,6 +129,14 @@ end
 ---@return table 事件数据
 function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
     params = params or {}
+    local isBasicAttack = false
+    local preferSkillColor = params.preferSkillColor == true
+    if params.skillId ~= nil then
+        local ok, SkillRuntimeConfig = pcall(require, "config.skill_runtime_config")
+        if ok and SkillRuntimeConfig and SkillRuntimeConfig.IsBasicAttackSkill then
+            isBasicAttack = SkillRuntimeConfig.IsBasicAttackSkill(params.skillId) == true
+        end
+    end
     return {
         eventType = BattleVisualEvents.DAMAGE_DEALT,
         attackerId = attacker and (attacker.instanceId or attacker.id),
@@ -142,6 +150,8 @@ function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
         damageType = params.damageType or 1,
         skillId = params.skillId,
         skillName = params.skillName,
+        isBasicAttack = isBasicAttack,
+        preferSkillColor = preferSkillColor,
         attackRoll = params.attackRoll,
         saveRoll = params.saveRoll,
         damageRoll = params.damageRoll,

@@ -226,8 +226,8 @@ local PassiveDefs = {
     [80003104] = {
         triggers = {
             {
-                luaFuncName = "OnBattleBegin",
-                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.BattleBegin,
+                luaFuncName = "OnSelfTurnBegin",
+                triggerTime = E_PASSIVE_SKILL_TRIGGER_TIME.SelfTurnBegin,
             },
         },
     },

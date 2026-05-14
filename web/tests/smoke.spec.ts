@@ -43,9 +43,13 @@ const mockUnit: UnitState = {
   ultimateSkillName: "爆发",
 };
 
-test("floating text styles cover damage critical heal and miss", () => {
+test("floating text styles cover basic white skill yellow crit red heal and miss", () => {
   const now = 1000;
-  const cases: Array<{ event: AnimationEvent; expectedKind: "damage" | "critical" | "heal" | "miss" }> = [
+  const cases: Array<{
+    event: AnimationEvent;
+    expectedKind: "damage" | "critical" | "heal" | "miss";
+    expectedColor?: string;
+  }> = [
     {
       event: {
         type: "damage",
@@ -54,8 +58,37 @@ test("floating text styles cover damage critical heal and miss", () => {
         skillName: "",
         value: 18,
         critical: false,
+        basicAttack: true,
       },
       expectedKind: "damage",
+      expectedColor: "#f8f9fa",
+    },
+    {
+      event: {
+        type: "damage",
+        heroId: "target",
+        attackerId: "hero-1",
+        skillName: "火球术",
+        value: 24,
+        critical: false,
+        basicAttack: false,
+      },
+      expectedKind: "damage",
+      expectedColor: "#ffd166",
+    },
+    {
+      event: {
+        type: "damage",
+        heroId: "target",
+        attackerId: "hero-1",
+        skillName: "伏击",
+        value: 12,
+        critical: false,
+        basicAttack: true,
+        preferSkillColor: true,
+      },
+      expectedKind: "damage",
+      expectedColor: "#ffd166",
     },
     {
       event: {
@@ -65,8 +98,10 @@ test("floating text styles cover damage critical heal and miss", () => {
         skillName: "",
         value: 42,
         critical: true,
+        basicAttack: true,
       },
       expectedKind: "critical",
+      expectedColor: "#ff5a5f",
     },
     {
       event: {
@@ -89,6 +124,9 @@ test("floating text styles cover damage critical heal and miss", () => {
   for (const testCase of cases) {
     const text = createFloatingText(testCase.event, mockUnit, now);
     expect(text?.kind).toBe(testCase.expectedKind);
+    if (testCase.expectedColor) {
+      expect(text?.color).toBe(testCase.expectedColor);
+    }
   }
 });
 
