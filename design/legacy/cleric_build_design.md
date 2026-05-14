@@ -2,7 +2,7 @@
 
 ## 设计目标
 
-- 本文档记录 `牧师（神术）` 的职业设计，并以 `design/newbattle/caster_class_core_skill_design.md` 为规则源。
+- 本文档记录 `牧师（神术）` 的职业设计，并以 `design/caster_class_core_skill_design.md` 为规则源。
 - 牧师成长统一由 `Feat` 承载，不引入完整法术位、长期光环、专注中断或复杂治疗列表。
 - 牧师主轴是 `神圣火花 -> 神恩庇护 -> 治愈之言 -> 圣域祷言`，重点表达减伤托底、关键抬血和团队稳场。
 - 本文档使用三阶子职业结构：`low / mid / high`。

@@ -2,7 +2,7 @@
 
 ## 设计目标
 
-- 本文档记录 `法师（冰）` 的职业设计，并以 `design/newbattle/caster_class_core_skill_design.md` 为规则源。
+- 本文档记录 `法师（冰）` 的职业设计，并以 `design/caster_class_core_skill_design.md` 为规则源。
 - 法师成长统一由 `Feat` 承载，不引入完整法术书、法术位恢复、长期专注槽或复杂区域状态机。
 - 法师主轴是 `寒霜射线 -> 寒霜迟滞 -> 冻结新星 -> 暴风雪`，重点表达控速、冻结和行动顺序压制。
 - 本文档使用三阶子职业结构：`low / mid / high`。

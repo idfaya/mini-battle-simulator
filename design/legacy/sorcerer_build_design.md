@@ -2,7 +2,7 @@
 
 ## 设计目标
 
-- 本文档记录 `术士（火）` 的职业设计，并以 `design/newbattle/caster_class_core_skill_design.md` 为规则源。
+- 本文档记录 `术士（火）` 的职业设计，并以 `design/caster_class_core_skill_design.md` 为规则源。
 - 术士成长统一由 `Feat` 承载，不引入完整法术位、血脉资源条或复杂 DOT 叠层系统。
 - 术士主轴是 `火焰弹 -> 余烬点燃 -> 灰烬爆燃 -> 烈焰风暴`，重点表达点燃铺垫和条件爆发。
 - 本文档使用三阶子职业结构：`low / mid / high`。

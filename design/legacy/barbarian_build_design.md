@@ -2,7 +2,7 @@
 
 ## 规则源
 
-- 本文档记录 `野蛮人（狂怒）` 的职业设计，并以 `design/newbattle/physical_class_core_skill_design.md` 为规则源。
+- 本文档记录 `野蛮人（狂怒）` 的职业设计，并以 `design/physical_class_core_skill_design.md` 为规则源。
 - 职业成长按 `low / mid / high` 三阶子职业结构实现。
 
 ## 三阶结构

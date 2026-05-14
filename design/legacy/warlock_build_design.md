@@ -2,7 +2,7 @@
 
 ## 设计目标
 
-- 本文档记录 `邪术师（雷）` 的职业设计，并以 `design/newbattle/caster_class_core_skill_design.md` 为规则源。
+- 本文档记录 `邪术师（雷）` 的职业设计，并以 `design/caster_class_core_skill_design.md` 为规则源。
 - 邪术师成长统一由 `Feat` 承载，不引入完整法术位、召唤物、契约武器切换或复杂长链施法状态机。
 - 邪术师主轴是 `邪能冲击 -> 静电印记 -> 雷链 -> 雷暴`，重点表达短时印记、连锁弹射和印记兑现。
 - 本文档使用三阶子职业结构：`low / mid / high`。

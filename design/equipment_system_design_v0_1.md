@@ -643,10 +643,10 @@ Boss 奖励应从 `boss` 专属池中独立结算，避免与普通池混用。
 
 本次已同步以下文档，保证口径一致：
 
-- `roguelike_gameplay_design.md`
 - `roguelike_run_system_design.md`
 - `class_system_design.md`
 - `class_promotion_design.md`
+- `implementation_guidelines.md`
 
 ## 20. 结论
 

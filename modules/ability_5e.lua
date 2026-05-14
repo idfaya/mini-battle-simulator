@@ -6,7 +6,7 @@
 --   * getAttackAbilityMod / getSpellAbilityMod / calculateArmorClass / isSaveProficient
 --   * getClassHitDie / getHitDieAvg / calculate5eHp / getProficiencyBonus
 --
--- Design source: design/newbattle/class_system_design.md §4.
+-- Design source: design/class_system_design.md §4.
 --
 -- classId map:
 --   1 Rogue | 2 Fighter | 3 Monk | 4 Paladin | 5 Ranger

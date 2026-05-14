@@ -2,7 +2,7 @@
 
 ## 规则源
 
-- 本文档记录 `武僧（体术）` 的职业设计，并以 `design/newbattle/physical_class_core_skill_design.md` 为规则源。
+- 本文档记录 `武僧（体术）` 的职业设计，并以 `design/physical_class_core_skill_design.md` 为规则源。
 - 当前职业成长按 `low / mid / high` 三阶子职业结构实现，不再采用旧 `Lv2/Lv4` 分支选择。
 
 ## 三阶结构
