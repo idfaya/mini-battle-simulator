@@ -70,75 +70,36 @@ local function ExecuteOp(ctx, frameCopy)
                 local isSpell = meta and meta.kind == "spell"
 
                 if isSpell then
-                    local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
-                    local saveType = (type(frameCopy.saveType) == "string" and frameCopy.saveType ~= "" and frameCopy.saveType) or (meta and meta.saveType) or "ref"
-
-                    local saveBonus = 0
-                    if saveType == "fort" then
-                        saveBonus = tonumber(target.saveFort) or 0
-                    elseif saveType == "will" then
-                        saveBonus = tonumber(target.saveWill) or 0
-                    else
-                        saveBonus = tonumber(target.saveRef) or 0
-                    end
-
-                    local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {
-                        ignoreNatRules = (target.__ignoreNatRules == true) or (ctx.hero and ctx.hero.__ignoreNatRules == true),
-                    })
-                    hitMetaByTarget[target.instanceId] = { save = saveResult, saveType = saveType, dc = dc }
-                    if saveResult.success then
-                        savedTargets[target.instanceId] = true
-                    end
-
-                    local diceExpr = frameCopy.damageDice
-                        or (meta and meta.damageDice)
-                        or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(ctx.hero, ctx.skill, meta and meta.isAOE, resolvedKind))
-                        or "1d6+3"
-                    local rolled = 0
-                    local damageRoll = nil
-                    if not saveResult.success then
-                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
-                        rolled = diceTotal * diceScale
-                        damageRoll = {
-                            expr = diceExpr,
-                            total = diceTotal,
-                            scaledTotal = rolled,
-                            parts = diceDetail and diceDetail.parts or {},
-                            crit = false,
-                        }
-                    else
-                        local successMode = (type(frameCopy.onSaveSuccess) == "string" and frameCopy.onSaveSuccess ~= "" and frameCopy.onSaveSuccess)
-                            or (meta and meta.onSaveSuccess)
-                            or "half"
-                        local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = false })
-                        local full = diceTotal * diceScale
-                        damageRoll = {
-                            expr = diceExpr,
-                            total = diceTotal,
-                            scaledTotal = full,
-                            parts = diceDetail and diceDetail.parts or {},
-                            crit = false,
-                        }
-                        if successMode == "half" then
-                            rolled = math.floor(full / 2)
-                        else
-                            rolled = 0
+                    local effectiveMeta = meta
+                    if frameCopy.saveType or frameCopy.onSaveSuccess then
+                        effectiveMeta = ShallowClone(meta or {})
+                        if type(frameCopy.saveType) == "string" and frameCopy.saveType ~= "" then
+                            effectiveMeta.saveType = frameCopy.saveType
+                        end
+                        if type(frameCopy.onSaveSuccess) == "string" and frameCopy.onSaveSuccess ~= "" then
+                            effectiveMeta.onSaveSuccess = frameCopy.onSaveSuccess
                         end
                     end
-                    dmg = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(ctx.hero, target, rolled, resolvedKind) or rolled
+                    local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
+                        skill = ctx.skill,
+                        meta = effectiveMeta,
+                        damageKind = resolvedKind,
+                        damageDice = frameCopy.damageDice,
+                    })
+                    local saveResult = damageResult and damageResult.save or nil
+                    hitMetaByTarget[target.instanceId] = { save = saveResult, saveType = saveType, dc = dc }
+                    if saveResult and saveResult.success then
+                        savedTargets[target.instanceId] = true
+                    end
+                    local saveType = (effectiveMeta and effectiveMeta.saveType) or "ref"
+                    local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
+                    local damageRoll = damageResult and damageResult.damageRoll or nil
+                    dmg = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0))
                     if hitMetaByTarget[target.instanceId] then
                         hitMetaByTarget[target.instanceId].damage = dmg
                         hitMetaByTarget[target.instanceId].damageRoll = damageRoll
                     end
                 else
-                    local guardTargetAC = nil
-                    local ok, BuildPassiveCommon = pcall(require, "skills.build_passive_common")
-                    if ok and BuildPassiveCommon and BuildPassiveCommon.GetDefenderAcBonus then
-                        local guardAcBonus = tonumber(BuildPassiveCommon.GetDefenderAcBonus(target, ctx.hero)) or 0
-                        if guardAcBonus ~= 0 then
-                            guardTargetAC = (tonumber(target and target.ac) or 0) + guardAcBonus
-                        end
-                    end
                     local attackBonus = tonumber(ctx.hero and ctx.hero.hit) or 0
                     local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
                         skill = ctx.skill,
@@ -146,7 +107,6 @@ local function ExecuteOp(ctx, frameCopy)
                         damageKind = resolvedKind,
                         damageDice = frameCopy.damageDice,
                         attackBonus = attackBonus,
-                        targetAC = guardTargetAC,
                     })
                     local hitResult = damageResult and damageResult.hit or nil
                     hitMetaByTarget[target.instanceId] = {

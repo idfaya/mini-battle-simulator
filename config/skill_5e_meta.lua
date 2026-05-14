@@ -63,36 +63,36 @@ local OVERRIDES = {
     -- Rogue Build
     [80001011] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "",
         role = "盗贼基础武器攻击",
-        notes = "盗贼 Build 主轴动作。单体近战武器攻击，偷袭、穿行突刺和处决打击都围绕这一母技能结算。",
+        notes = "盗贼 Build 主轴动作。单体近战武器攻击，严格按 5e 基础武器攻击口径结算：职业武器骰 + 正确属性修正；偷袭、穿行突刺和处决打击都围绕这一母技能结算。",
         tierNotes = {
             [1] = "标准版：单体近战武器攻击。",
         },
     },
     [80001013] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "",
         role = "影袭处决",
-        notes = "盗贼中阶主动。对后排或低血量目标发动一次攻击；该次攻击视为满足伏击条件。",
+        notes = "盗贼中阶主动。先执行 1 次基础武器攻击；该次攻击视为满足伏击条件。若目标已处于半血斩杀窗口，再额外追加 2d6 伤害。",
         tierNotes = {
             [1] = "中阶版：稳定兑现一次伏击窗口，低血量目标额外吃 2d6。",
         },
     },
     [80001014] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "",
         role = "扰乱飞刃",
-        notes = "诡术师子职主动。对后排目标发动一次基础武器攻击；若命中，目标 AC -1 直到下回合开始前。",
+        notes = "诡术师子职主动。对后排目标发动 1 次基础武器攻击；若命中，目标 AC -1 直到下回合开始前。",
         tierNotes = {
             [1] = "基础版：后排定点压制并制造 AC 破绽。",
         },
     },
     [80001015] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "",
         role = "穿行突刺",
-        notes = "游斗者子职主动。可指定任意敌人发动一次基础武器攻击；该次攻击视为满足偷袭条件。",
+        notes = "游斗者子职主动。可指定任意敌人发动 1 次基础武器攻击；该次攻击视为满足偷袭条件。",
         tierNotes = {
             [1] = "基础版：稳定兑现一次强制偷袭窗口。",
         },
@@ -159,16 +159,16 @@ local OVERRIDES = {
     -- Fighter / Defender
     [80002001] = {
         kind = "physical",
-        damageDice = "1d8",
+        damageDice = "",
         role = "战士基础武器攻击",
-        notes = "战士主轴动作。单体近战物理攻击，所有反击、连击、额外攻击都复用这一母技能完成结算。",
+        notes = "战士主轴动作。单体近战物理攻击，严格按 5e 基础武器攻击口径结算：武器伤害骰 + 属性修正；所有反击、连击、额外攻击都复用这一母技能完成结算。",
         tierNotes = {
             [1] = "标准版：单体近战物理攻击。",
         },
     },
     [80002003] = {
         kind = "physical",
-        damageDice = "7",
+        damageDice = "",
         role = "动作激增",
         notes = "战士共享主动爆发。CD3，立刻追加 1 次基础武器攻击，目标重新选择；不影响该回合原本的普通攻击。",
         tierNotes = {
@@ -258,19 +258,22 @@ local OVERRIDES = {
     },
     [80003011] = {
         kind = "physical",
-        damageDice = "8",
+        damageDice = "",
         role = "武僧基础徒手攻击",
-        notes = "新 Build 管线的武僧母技能。所有武艺、额外攻击和 Lv3 主动都围绕该徒手攻击展开。",
+        notes = "新 Build 管线的武僧母技能。严格按 5e 基础武器攻击口径结算：职业武器骰 + 正确属性修正；所有武艺、额外攻击和 Lv3 主动都围绕该徒手攻击展开。",
+        tierNotes = {
+            [1] = "标准版：单体徒手攻击。",
+        },
     },
     [80003013] = {
         kind = "physical",
-        damageDice = "8",
+        damageDice = "",
         role = "震劲掌",
         notes = "对当前目标执行 1 次徒手打击；命中后再检定强韧豁免，失败则 STUN 1 回合。",
     },
     [80003014] = {
         kind = "physical",
-        damageDice = "6",
+        damageDice = "",
         role = "影步连打",
         notes = "对任意目标执行 1 次徒手打击；若目标位于后排，追加 1d8 伤害。",
     },
@@ -301,7 +304,7 @@ local OVERRIDES = {
     [80004003] = {
         kind = "physical",
         concentration = true,
-        damageDice = "2",
+        damageDice = "",
         role = "团队战意灵光",
         notes = "属于持续型团队增益动作。开启后进入专注，给友军施加 battle intent buff；skill.level 主要延长持续回合。",
         tierNotes = {
@@ -331,9 +334,12 @@ local OVERRIDES = {
     },
     [80004011] = {
         kind = "physical",
-        damageDice = "7",
+        damageDice = "",
         role = "圣武士基础武器攻击",
-        notes = "新 Build 管线的圣武士母技能。用于触发神圣惩击、额外攻击和各类誓约强化。",
+        notes = "新 Build 管线的圣武士母技能。严格按 5e 基础武器攻击口径结算：职业武器骰 + 正确属性修正；用于触发神圣惩击、额外攻击和各类誓约强化。",
+        tierNotes = {
+            [1] = "标准版：单体近战武器攻击。",
+        },
     },
     [80004013] = {
         kind = "auto",
@@ -343,7 +349,7 @@ local OVERRIDES = {
     },
     [80004014] = {
         kind = "physical",
-        damageDice = "7",
+        damageDice = "",
         role = "破邪斩",
         notes = "圣骑中阶主动。先执行 1 次基础武器攻击；若命中，再追加 2d8 光耀伤害并驱散目标 1 个正面增益。",
     },
@@ -402,13 +408,16 @@ local OVERRIDES = {
     },
     [80005011] = {
         kind = "physical",
-        damageDice = "6",
+        damageDice = "",
         role = "游侠基础远程攻击",
-        notes = "新 Build 管线的游侠母技能。围绕猎人印记、额外攻击和子职射击展开。",
+        notes = "新 Build 管线的游侠母技能。严格按 5e 基础武器攻击口径结算：职业武器骰 + 正确属性修正；围绕猎人印记、额外攻击和子职射击展开。",
+        tierNotes = {
+            [1] = "标准版：单体远程武器攻击。",
+        },
     },
     [80005013] = {
         kind = "physical",
-        damageDice = "6",
+        damageDice = "",
         role = "狩猎指引",
         notes = "游侠中阶主动。始终服务当前标记目标；对印记目标发动远程攻击并追加追猎收益。",
     },
@@ -419,13 +428,13 @@ local OVERRIDES = {
     },
     [80005014] = {
         kind = "physical",
-        damageDice = "6",
+        damageDice = "",
         role = "暮影射击",
         notes = "对任意敌人执行 1 次远程基础攻击；若目标位于后排，再追加 1d8 伤害。",
     },
     [80005015] = {
         kind = "physical",
-        damageDice = "6",
+        damageDice = "",
         role = "缠绕箭",
         notes = "对任意敌人执行 1 次远程基础攻击；命中后若目标反射豁免失败，则冻结 1 回合近似表达 Restrained。",
     },
@@ -454,7 +463,9 @@ local OVERRIDES = {
         notes = "生命领域主动。为生命最低的两名友军各回复 1d8 + 4 生命；可继续叠加治疗专精与慈恩主教。",
     },
     [80006014] = {
-        kind = "auto",
+        kind = "spell",
+        saveType = "will",
+        onSaveSuccess = "half",
         damageDice = "1d8",
         role = "圣焰裁决",
         notes = "光明领域主动。先发动 1 次基础神术；若目标未通过该次豁免，再追加 2d6 光耀伤害。",
@@ -631,9 +642,9 @@ local OVERRIDES = {
     -- Barbarian
     [80010011] = {
         kind = "physical",
-        damageDice = "1d12",
+        damageDice = "",
         role = "狂斧劈砍",
-        notes = "野蛮人基础近战武器攻击，命中后通过狂怒被动积累怒气。",
+        notes = "野蛮人基础近战武器攻击，严格按 5e 基础武器攻击口径结算：职业武器骰 + 力量修正；命中后通过狂怒被动积累怒气。",
     },
     [80010013] = {
         kind = "physical",

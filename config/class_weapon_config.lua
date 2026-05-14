@@ -13,6 +13,7 @@ local ClassWeaponConfig = {}
 -- - classId 1..5 are melee streams (see class_role_config.lua)
 -- - classId 6 is a support caster, but its basic attack is a melee mace swing.
 -- - classId 7..9 are backline casters and should not use weapon dice for damage.
+-- - classId 10 is Barbarian and uses a heavy two-handed martial baseline.
 
 ---@type table<integer, string>
 ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
@@ -22,6 +23,7 @@ ClassWeaponConfig.WEAPON_DICE_BY_CLASS = {
     [4] = "1d6", -- B1 war spirit: avoid large spike from heavy die alone
     [5] = "1d6", -- T1 poison: finesse baseline stays stable
     [6] = "1d4", -- H1 healer: modest mace basic attack
+    [10] = "1d12", -- Barbarian heavy weapon baseline
 }
 
 function ClassWeaponConfig.GetWeaponDice(classId)

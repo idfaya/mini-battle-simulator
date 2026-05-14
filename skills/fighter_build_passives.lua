@@ -1,4 +1,5 @@
 local SkillRuntimeConfig = require("config.skill_runtime_config")
+local ClassWeaponConfig = require("config.class_weapon_config")
 local BattleEvent = require("core.battle_event")
 
 local FighterBuildPassives = {}
@@ -193,14 +194,7 @@ local function getGuardProtector(defender)
 end
 
 local function getBasicAttackDamageDice()
-    local Skill5eMeta = require("config.skill_5e_meta")
-    local meta = Skill5eMeta.Get(IDS.fighter_basic_attack)
-    local damageDice = tostring(meta and meta.damageDice or "1d8")
-    if damageDice == "" then
-        return "1d8"
-    end
-    local firstPart = damageDice:match("([^;]+)")
-    return firstPart or "1d8"
+    return ClassWeaponConfig.GetWeaponDice(2) or "1d6"
 end
 
 local function pickAnotherAliveEnemy(hero, excludedTarget)

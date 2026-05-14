@@ -6,6 +6,7 @@ This document describes project conventions and operational rules for coding age
 ## Non-Negotiables
 
 - 5e rules: HP/AC/hit bonus/spell DC must follow D&D 5e style rules. Do not "invent" new math without aligning with existing 5e helpers.
+- Physical basic weapon attacks must follow 5e baseline: one weapon damage die plus the appropriate ability modifier. Do not stack an extra skill damage die onto a standard weapon attack unless the skill explicitly grants bonus damage.
 - Difficulty model: avoid stacking ad-hoc multipliers. Prefer budget-driven tuning via `budget.difficulty` and `budget.pressureFactor`.
 - Directory rules:
   - Skill logic lives in `skills/`.
@@ -58,4 +59,3 @@ When changing skill behavior:
 ## Quick Commands
 
 - Refresh web Lua mirror: `npm run export:lua`
-

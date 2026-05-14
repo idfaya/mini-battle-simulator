@@ -19,6 +19,10 @@ local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
 local HeroData = require("config.hero_data")
 local BarbarianBuildPassives = require("skills.barbarian_build_passives")
+local BattleSkill = require("modules.battle_skill")
+local BattleFormula = require("core.battle_formula")
+local Ability5e = require("modules.ability_5e")
+local ClassWeaponConfig = require("config.class_weapon_config")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -69,6 +73,28 @@ do
 end
 
 do
+    local hero = new_unit(9691, "BarbarianDamageHero")
+    local target = new_unit(9692, "BarbarianDamageTarget")
+    hero.class = 10
+    hero.strMod = 4
+    hero.dexMod = 2
+    hero.conMod = 3
+
+    local result = BattleSkill.ResolveScaledDamage(hero, target, {
+        meta = {
+            kind = "physical",
+            damageDice = "",
+        },
+    })
+
+    assert_true(result.damageRoll ~= nil and result.damageRoll.expr == ClassWeaponConfig.GetWeaponDice(10), "barbarian basic attack uses weapon die only under 5e rules")
+    assert_true((result.damage or 0) >= 5, "barbarian basic attack still adds strength modifier after weapon die")
+    local profile = Ability5e.GetClassProfile(10)
+    assert_true(profile ~= nil and profile.primary_ability == "str", "barbarian class profile uses strength as primary ability")
+    assert_true(Ability5e.GetClassHitDie(10) == 12, "barbarian class profile uses d12 hit die")
+end
+
+do
     local hero = new_unit(9701, "Barbarian")
     hero.skills = {
         { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
@@ -95,6 +121,40 @@ do
     local ctx = { data = { extraParam = { attacker = new_unit(9712, "Enemy"), damage = 7 } } }
     passive:OnDefBeforeDmg(ctx)
     assert_true(ctx.data.extraParam.damage == 5, "Berserk reduces incoming damage by 2")
+end
+
+do
+    local hero = new_unit(9721, "HeavyStrikeHero")
+    local target = new_unit(9722, "HeavyStrikeTarget")
+    hero.class = 10
+    hero.hit = 8
+    hero.strMod = 4
+    local oldRollHit = BattleFormula.RollHit
+    BattleFormula.RollHit = function(_, _, opts)
+        return {
+            hit = true,
+            crit = false,
+            total = 19 + (tonumber(opts and opts.attackBonus) or 0),
+            roll = 19,
+            bonus = tonumber(opts and opts.attackBonus) or 0,
+            nat20 = false,
+            nat1 = false,
+            targetAC = tonumber(opts and opts.targetAC) or 10,
+            raw = { 19 },
+        }
+    end
+
+    local result = BattleSkill.ResolveScaledDamage(hero, target, {
+        meta = {
+            kind = "physical",
+            damageDice = "1d12+3",
+        },
+        attackBonus = hero.hit - 2,
+        critMin = 19,
+    })
+
+    BattleFormula.RollHit = oldRollHit
+    assert_true(result.isCrit == true, "expanded crit range is honored by unified damage resolver")
 end
 
 log("Barbarian build pipeline tests passed.")

@@ -452,6 +452,12 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         ignoreNatRules = ignoreNatRules,
     })
     result.hit = hitResult
+    if hitResult.hit and tonumber(opts.critMin) ~= nil then
+        local critMin = math.max(2, math.min(20, math.floor(tonumber(opts.critMin) or 20)))
+        if (tonumber(hitResult.roll) or 0) >= critMin then
+            hitResult.crit = true
+        end
+    end
     result.isCrit = hitResult.crit == true
     result.isDodged = not hitResult.hit
 

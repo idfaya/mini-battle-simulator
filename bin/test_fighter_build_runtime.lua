@@ -24,6 +24,7 @@ local BattleFormation = require("modules.battle_formation")
 local BattleLogic = require("modules.battle_logic")
 local FighterBuildPassives = require("skills.fighter_build_passives")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
+local ClassWeaponConfig = require("config.class_weapon_config")
 local PassiveDefs = require("config.passive.passive_defs")
 
 BattleEvent.Init()
@@ -104,6 +105,32 @@ do
     passive:OnBattleBegin()
 
     assert_true(hero.passiveRuntime.basicAttackIgnoreAc == 2, "precise attack grants 2 AC ignore to basic attack")
+end
+
+do
+    local target = new_unit(9153, "BasicAttackExprTarget")
+    for classId = 1, 6 do
+        local hero = new_unit(9150 + classId, "BasicAttackExprHero" .. tostring(classId))
+        hero.class = classId
+        hero.strMod = 3
+        hero.dexMod = 3
+        hero.conMod = 3
+        hero.intMod = 3
+        hero.wisMod = 3
+        hero.chaMod = 3
+
+        local result = BattleSkill.ResolveScaledDamage(hero, target, {
+            meta = {
+                kind = "physical",
+                damageDice = "",
+            },
+        })
+        local expectedExpr = ClassWeaponConfig.GetWeaponDice(classId)
+        assert_true(result.damageRoll ~= nil and result.damageRoll.expr == expectedExpr,
+            "class " .. tostring(classId) .. " basic attack uses weapon die only under 5e rules")
+        assert_true((result.damage or 0) >= 4,
+            "class " .. tostring(classId) .. " basic attack still adds ability modifier after weapon die")
+    end
 end
 
 do
@@ -462,7 +489,7 @@ do
     })
 
     assert_true(hitTarget ~= nil and hitTarget.target == secondaryTarget, "sweeping attack hits another alive enemy instead of the primary target")
-    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d8", "sweeping attack uses fighter basic attack damage dice")
+    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d6", "sweeping attack uses fighter weapon damage die under 5e rules")
 
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
     FighterBuildPassives.ApplyDirectBonusDamage = oldApplyDirectBonusDamage

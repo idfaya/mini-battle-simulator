@@ -134,36 +134,34 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end
-    local BattleFormula = require("core.battle_formula")
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
-    local Dice = require("core.dice")
     local Skill5eMeta = require("config.skill_5e_meta")
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
-    local acBonus = BuildPassiveCommon.GetDefenderAcBonus(target, hero)
     local hitPenalty = tonumber(meta and meta.hitPenalty) or -2
     local critMin = tonumber(meta and meta.critMin) or 19
     local damageDice = tostring(meta and meta.damageDice or "1d12+3")
     if BarbarianBuildPassives.IsBerserkActive(hero) then
         damageDice = BuildPassiveCommon.JoinDiceParts(damageDice, "1d6")
     end
-    local hitResult = BattleFormula.RollHit(hero, target, {
+    local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
+        skill = skill,
+        meta = meta,
+        damageKind = "direct",
         attackBonus = (tonumber(hero.hit) or 0) + hitPenalty,
-        targetAC = (tonumber(target.ac) or 10) + acBonus,
-        ignoreNatRules = hero.__ignoreNatRules == true,
+        damageDice = damageDice,
+        critMin = critMin,
     })
-    hitResult.crit = hitResult.crit or ((tonumber(hitResult.roll) or 0) >= critMin)
+    local hitResult = damageResult and damageResult.hit or nil
     if not hitResult.hit then
         BarbarianBuildPassives.AddRage(hero, 1, "重击落空")
         return 0
     end
-    local diceTotal, diceDetail = Dice.Roll(damageDice, { crit = hitResult.crit == true })
-    local rolled = BattleSkill.ApplyUnifiedDamageScale and BattleSkill.ApplyUnifiedDamageScale(hero, target, diceTotal, "direct") or diceTotal
     local damageContext = {
         attacker = hero,
         target = target,
-        damage = math.max(0, math.floor(tonumber(rolled) or 0)),
+        damage = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0)),
     }
     BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
     BuildPassiveCommon.ApplyTeamProtections(target, {
@@ -177,14 +175,9 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
             skillId = skill and skill.skillId or IDS.barbarian_heavy_strike,
             skillName = skill and skill.name or "重击",
             damageKind = "direct",
-            isCrit = hitResult.crit == true,
+            isCrit = damageResult and damageResult.isCrit == true,
             attackRoll = hitResult,
-            damageRoll = {
-                expr = damageDice,
-                total = diceTotal,
-                parts = diceDetail and diceDetail.parts or {},
-                crit = hitResult.crit == true,
-            },
+            damageRoll = damageResult and damageResult.damageRoll or nil,
         })
         BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = hero, damage = damage })
         BattleSkill.TriggerDamageBuffs(hero, target, damage)

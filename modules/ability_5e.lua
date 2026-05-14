@@ -8,15 +8,15 @@
 --
 -- Design source: design/newbattle/class_system_design.md §4.
 --
--- classId map (as of MVP, barbarian deferred):
+-- classId map:
 --   1 Rogue | 2 Fighter | 3 Monk | 4 Paladin | 5 Ranger
---   6 Cleric | 7 Sorcerer | 8 Wizard | 9 Warlock
+--   6 Cleric | 7 Sorcerer | 8 Wizard | 9 Warlock | 10 Barbarian
 
 local Ability5e = {}
 
 ---@alias ArmorFormula
 ---| "heavy_fixed"         # Fighter 17
----| "unarmored_str_con"   # (reserved, barbarian)
+---| "unarmored_dex_con"   # Barbarian 10+dex+con
 ---| "unarmored_dex_wis"   # Monk 10+dex+wis
 ---| "medium_capped"       # Cleric/Paladin 13 + min(2,dex)
 ---| "light_11_dex"        # Rogue 11+dex
@@ -42,6 +42,7 @@ local CLASS_ABILITY_PROFILE = {
     [7] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = false, ref = false, will = true  }, -- Sorcerer
     [8] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = true,  ref = false, will = true  }, -- Wizard
     [9] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = false, ref = true,  will = true  }, -- Warlock
+    [10] = { primary_ability = "str", spell_ability = "none", armor_formula = "unarmored_dex_con", fort = true, ref = false, will = false }, -- Barbarian
 }
 
 Ability5e.CLASS_ABILITY_PROFILE = CLASS_ABILITY_PROFILE
@@ -123,7 +124,7 @@ function Ability5e.CalculateArmorClass(classId, mods)
     end
     local f = profile.armor_formula
     if f == "heavy_fixed"       then return 17 end
-    if f == "unarmored_str_con" then return 10 + math.max(0, con) end -- reserved
+    if f == "unarmored_dex_con" then return 10 + dex + con end
     if f == "unarmored_dex_wis" then return 10 + dex + wis end
     if f == "medium_capped"     then return 13 + math.min(2, dex) end
     if f == "light_11_dex"      then return 11 + dex end
@@ -138,6 +139,7 @@ end
 
 function Ability5e.GetClassHitDie(classId)
     local id = tonumber(classId) or 0
+    if id == 10 then return 12 end                    -- Barbarian
     if id == 2 or id == 4 or id == 5 then return 10 end -- Fighter / Paladin / Ranger
     if id == 1 or id == 3 or id == 6 then return 8 end  -- Rogue / Monk / Cleric
     if id == 7 or id == 8 or id == 9 then return 6 end  -- Sorcerer / Wizard / Warlock
