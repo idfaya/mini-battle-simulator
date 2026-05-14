@@ -24,7 +24,7 @@ async function readLogs(page: import("playwright/test").Page) {
   return page.locator(".battle-log li").allTextContents();
 }
 
-test("cleric light route shows holy verdict and blessed strikes", async ({ page }) => {
+test("cleric light route shows holy spark and blessed strikes", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
   await page.goto(
@@ -37,7 +37,7 @@ test("cleric light route shows holy verdict and blessed strikes", async ({ page 
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("神术裁决");
+    .toContain("神圣火花");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
     .toContain("圣焰裁决");
@@ -46,7 +46,7 @@ test("cleric light route shows holy verdict and blessed strikes", async ({ page 
     .toContain("圣域祷言");
 
   const logs = await readLogs(page);
-  expect(logs.some((line) => line.includes("神术裁决"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("神圣火花"))).toBeTruthy();
   expect(logs.some((line) => line.includes("圣焰裁决"))).toBeTruthy();
   expect(logs.some((line) => line.includes("圣域祷言"))).toBeTruthy();
   expect(pageErrors).toEqual([]);

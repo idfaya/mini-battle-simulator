@@ -348,7 +348,7 @@ local SKILLS = {
         runtimeKind = "active",
         designKind = "active",
         classId = 6,
-        name = "神术裁决",
+        name = "神圣火花",
         hidden = false,
         cooldown = 0,
         luaFile = "config.skill.skill_80006011",
@@ -356,6 +356,10 @@ local SKILLS = {
         tags = tags("cleric", "basic_spell"),
         runtimeData = {
             skillType = 1,
+            targetsSelections = {
+                castTarget = E_CAST_TARGET.Enemy,
+                dualHolyLight = true,
+            },
         },
     },
     [SkillRuntimeConfig.Ids.cleric_healing_word] = {

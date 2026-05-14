@@ -188,6 +188,15 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    if BattleSkill.IsAlly(hero, target) then
+        return applyHealAmount(
+            hero,
+            target,
+            "1d8",
+            0,
+            skill and skill.skillId or IDS.cleric_basic_spell,
+            skill and skill.name or "神圣火花")
+    end
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattleVisualEvents = require("ui.battle_visual_events")
@@ -225,13 +234,13 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             isDodged = damageResult and damageResult.isDodged or false,
             isBlocked = damageResult and damageResult.isBlock or false,
             skillId = skill and skill.skillId or IDS.cleric_basic_spell,
-            skillName = skill and skill.name or "基础神术",
+            skillName = skill and skill.name or "神圣火花",
             damageKind = "spell",
             attackRoll = damageResult and damageResult.hit or nil,
             saveRoll = damageResult and damageResult.save or nil,
             damageRoll = damageResult and damageResult.damageRoll or nil,
         })
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用基础神术：对 %s 造成 %d 点伤害",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用神圣火花：对 %s 造成 %d 点伤害",
             hero.name or "Unknown",
             target.name or "目标",
             damage))
@@ -249,7 +258,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             target,
             {
                 skillId = skill and skill.skillId or IDS.cleric_basic_spell,
-                skillName = skill and skill.name or "基础神术",
+                skillName = skill and skill.name or "神圣火花",
                 attackRoll = damageResult.hit,
             }))
     end

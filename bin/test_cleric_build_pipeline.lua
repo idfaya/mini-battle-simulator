@@ -49,6 +49,7 @@ local function new_unit(id, name)
         level = 5,
         isDead = false,
         isAlive = true,
+        isLeft = true,
         wpType = 1,
         spellDC = 17,
         skills = {},
@@ -57,6 +58,17 @@ local function new_unit(id, name)
 end
 
 do
+    local lv1 = HeroBuild.CompileBuild(6, 1, {})
+    assert_true(hasSkill(lv1.activeSkills, SkillRuntimeConfig.Ids.cleric_basic_spell), "Cleric Lv1 grants basic spell")
+    assert_true(not hasSkill(lv1.activeSkills, SkillRuntimeConfig.Ids.cleric_healing_word), "Cleric Lv1 does not grant healing word yet")
+    assert_true(hasSkill(lv1.passiveSkills, SkillRuntimeConfig.Ids.cleric_shelter_prayer), "Cleric Lv1 grants divine shelter")
+    assert_true(not hasSkill(lv1.activeSkills, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "Cleric Lv1 does not grant sanctuary prayer yet")
+
+    local lv3 = HeroBuild.CompileBuild(6, 3, {})
+    assert_true(hasSkill(lv3.passiveSkills, SkillRuntimeConfig.Ids.cleric_shelter_prayer), "Cleric Lv3 keeps divine shelter")
+    assert_true(hasSkill(lv3.activeSkills, SkillRuntimeConfig.Ids.cleric_healing_word), "Cleric Lv3 grants healing word")
+    assert_true(not hasSkill(lv3.activeSkills, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "Cleric Lv3 still does not grant sanctuary prayer")
+
     local build = HeroBuild.CompileBuild(6, 5, {})
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_basic_spell), "Cleric Lv5 grants basic spell")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_healing_word), "Cleric Lv5 grants healing word")
@@ -85,6 +97,43 @@ do
         assert_true(hasSkill(build.activeSkills, spec.mid), "Caster Lv5 grants mid skill for class " .. spec.classId)
         assert_true(hasSkill(build.activeSkills, spec.high), "Caster Lv5 grants high skill for class " .. spec.classId)
     end
+end
+
+do
+    local hero = new_unit(7051, "SparkCleric")
+    local ally = new_unit(7052, "InjuredAlly")
+    local BattleSkill = require("modules.battle_skill")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local oldIsAlly = BattleSkill.IsAlly
+    local oldCalcHeal = BattleSkill.CalculateHealDice
+    local oldApplyHeal = BattleDmgHeal.ApplyHeal
+    local healed = 0
+
+    ally.hp = 40
+    ally.maxHp = 100
+    BattleSkill.IsAlly = function(_, dst)
+        return dst == ally
+    end
+    BattleSkill.CalculateHealDice = function(_, _, dice)
+        if dice == "1d8" then
+            return 8
+        end
+        return 0
+    end
+    BattleDmgHeal.ApplyHeal = function(_, amount)
+        healed = healed + amount
+    end
+
+    local total = ClericBuildPassives.PerformBasicSpellAttack(hero, ally, {
+        skillId = SkillRuntimeConfig.Ids.cleric_basic_spell,
+        name = "神圣火花",
+    })
+    assert_true(total == 8, "holy spark heals ally targets instead of damaging them")
+    assert_true(healed == 8, "holy spark applies heal amount to ally target")
+
+    BattleSkill.IsAlly = oldIsAlly
+    BattleSkill.CalculateHealDice = oldCalcHeal
+    BattleDmgHeal.ApplyHeal = oldApplyHeal
 end
 
 do
@@ -178,6 +227,7 @@ end
 do
     local hero = new_unit(7301, "DawnCleric")
     local target = new_unit(7302, "Dummy")
+    target.isLeft = false
     hero.skills = {
         { skillId = SkillRuntimeConfig.Ids.cleric_dawn_bishop },
     }
@@ -207,6 +257,7 @@ end
 do
     local hero = new_unit(7401, "SaveCleric")
     local target = new_unit(7402, "TargetDummy")
+    target.isLeft = false
     local BattleFormula = require("core.battle_formula")
     local oldRollSave = BattleFormula.RollSave
     local oldRollHit = BattleFormula.RollHit
@@ -232,11 +283,11 @@ do
 
     ClericBuildPassives.PerformBasicSpellAttack(hero, target, {
         skillId = SkillRuntimeConfig.Ids.cleric_basic_spell,
-        name = "基础神术",
+        name = "神圣火花",
     })
 
-    assert_true(saveCalls == 1, "cleric basic spell resolves via save check")
-    assert_true(hitCalls == 0, "cleric basic spell no longer rolls against AC")
+    assert_true(saveCalls == 1, "holy spark against enemies resolves via save check")
+    assert_true(hitCalls == 0, "holy spark against enemies does not roll against AC")
 
     BattleFormula.RollSave = oldRollSave
     BattleFormula.RollHit = oldRollHit
@@ -245,6 +296,7 @@ end
 do
     local hero = new_unit(7501, "JudgementCleric")
     local target = new_unit(7502, "Dummy")
+    target.isLeft = false
     hero.passiveRuntime = {}
     local BattleSkill = require("modules.battle_skill")
     local oldCastSmallSkill = BattleSkill.CastSmallSkillWithResult

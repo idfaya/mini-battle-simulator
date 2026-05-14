@@ -447,8 +447,9 @@ local OVERRIDES = {
         saveType = "will",
         onSaveSuccess = "half",
         damageDice = "1d8",
-        role = "神术裁决",
-        notes = "牧师基础神术。单体远程神术，按 spellDC 进行意志豁免；成功半伤。",
+        healDice = "1d8",
+        role = "神圣火花",
+        notes = "牧师神圣火花。对敌方时按 spellDC 进行意志豁免并造成 1d8 神术伤害，成功半伤；对友方时改为回复 1d8 生命。",
     },
     [80006012] = {
         kind = "auto",
@@ -468,7 +469,7 @@ local OVERRIDES = {
         onSaveSuccess = "half",
         damageDice = "1d8",
         role = "圣焰裁决",
-        notes = "光明领域主动。先发动 1 次基础神术；若目标未通过该次豁免，再追加 2d6 光耀伤害。",
+        notes = "光明领域主动。先对敌方发动 1 次神圣火花；若目标未通过该次豁免，再追加 2d6 光耀伤害。",
     },
     [80006015] = {
         kind = "auto",
@@ -478,7 +479,7 @@ local OVERRIDES = {
     [80006109] = {
         kind = "auto",
         role = "圣焰主教",
-        notes = "每回合第一次基础神术使目标未通过豁免后，额外造成 1d8 光耀伤害。",
+        notes = "每回合第一次神圣火花使目标未通过豁免后，额外造成 1d8 光耀伤害。",
     },
     [80006110] = {
         kind = "auto",
@@ -488,7 +489,7 @@ local OVERRIDES = {
     [80006111] = {
         kind = "auto",
         role = "守望主教",
-        notes = "每回合第一次基础神术使目标未通过豁免后，直到你下回合开始，我方前排 AC +1。",
+        notes = "每回合第一次神圣火花使目标未通过豁免后，直到你下回合开始，我方前排 AC +1。",
     },
     [80006001] = {
         kind = "physical",

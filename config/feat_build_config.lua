@@ -286,7 +286,7 @@ local FEATS = {
         classId = 6,
         level = 1,
         name = "牧师祷训",
-        description = "获得基础神术，对单体敌人施加一次标准远程神术豁免对抗。",
+        description = "获得神圣火花：对敌方造成 1 次远程神术伤害；若目标为友军，则改为回复生命。",
         effects = {
             { type = "grant_skill", skill = 80006011 },
         },
@@ -306,7 +306,7 @@ local FEATS = {
         classId = 6,
         level = 2,
         name = "裁断祷文",
-        description = "基础神术额外造成 1d6 光耀伤害。",
+        description = "神圣火花对敌命中后额外造成 1d6 光耀伤害。",
         choiceGroup = "cleric_lv2_prayer",
         effects = {
             { type = "grant_skill", skill = 80006102 },
@@ -349,7 +349,7 @@ local FEATS = {
         classId = 6,
         level = 3,
         name = "光明领域",
-        description = "获得圣焰裁决，CD3，对任意一名敌人发动 1 次基础神术；若目标未通过该次豁免，额外造成 2d6 光耀伤害。",
+        description = "获得圣焰裁决，CD3，对任意一名敌人发动 1 次神圣火花；若目标未通过该次豁免，额外造成 2d6 光耀伤害。",
         choiceGroup = "cleric_lv3_domain",
         effects = {
             { type = "grant_skill", skill = 80006014 },
@@ -370,7 +370,7 @@ local FEATS = {
         classId = 6,
         level = 4,
         name = "神术专精",
-        description = "基础神术额外造成 1d6 光耀伤害。",
+        description = "神圣火花对敌命中后额外造成 1d6 光耀伤害。",
         choiceGroup = "cleric_lv4_mastery",
         effects = {
             { type = "grant_skill", skill = 80006105 },
@@ -403,7 +403,7 @@ local FEATS = {
         classId = 6,
         level = 5,
         name = "圣焰主教",
-        description = "每回合第一次基础神术使目标未通过豁免后，额外造成 1d8 光耀伤害。",
+        description = "每回合第一次神圣火花使目标未通过豁免后，额外造成 1d8 光耀伤害。",
         choiceGroup = "cleric_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80006109 },
@@ -425,7 +425,7 @@ local FEATS = {
         classId = 6,
         level = 5,
         name = "守望主教",
-        description = "每回合第一次基础神术使目标未通过豁免后，直到你下回合开始，我方前排 AC +1。",
+        description = "每回合第一次神圣火花使目标未通过豁免后，直到你下回合开始，我方前排 AC +1。",
         choiceGroup = "cleric_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80006111 },
