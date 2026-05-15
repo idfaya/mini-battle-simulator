@@ -2055,6 +2055,18 @@ function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
         return candidates
     end
 
+    if requestedCount <= 1 and measureType ~= E_MEASURE_TYPE.Muti then
+        local SkillRuntimeConfig = require("config.skill_runtime_config")
+        if BuildPassiveCommon.HasSkill(hero, SkillRuntimeConfig.Ids.ranger_hunter_mark) then
+            local RangerBuildPassives = require("skills.ranger_build_passives")
+            for _, enemy in ipairs(candidates) do
+                if RangerBuildPassives.IsTargetMarkedBy(hero, enemy) then
+                    return { enemy }
+                end
+            end
+        end
+    end
+
     if ShouldPreferLowestHp(targetsSelections) then
         local sorted = SortTargetsByLowestHp(candidates)
         return PickTopTargets(sorted, requestedCount)

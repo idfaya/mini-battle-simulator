@@ -8,6 +8,8 @@ local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleBuff = require("modules.battle_buff")
 local SkillTimeline = require("core.skill_timeline")
+local SkillRuntimeConfig = require("config.skill_runtime_config")
+local RangerBuildPassives = require("skills.ranger_build_passives")
 
 local function assert_true(condition, message)
     if not condition then
@@ -110,6 +112,44 @@ assert_eq(enemyPosTargets[1].wpType, 5, "EnemyPos should select target wpType 5"
 local lowestHpTarget = BattleSkill.SelectLowestHpEnemy(hero)
 assert_true(lowestHpTarget ~= nil, "lowest hp target should exist")
 assert_eq(lowestHpTarget.wpType, 3, "lowest hp enemy should still respect front protection")
+
+BattleFormation.OnFinal()
+
+BattleFormation.Init({
+    teamLeft = {
+        new_unit(1101, "Ranger", 2, true, 1000, 1000),
+    },
+    teamRight = {
+        new_unit(2101, "MarkFrontA", 1, false, 900, 1000),
+        new_unit(2102, "MarkFrontB", 3, false, 800, 1000),
+        new_unit(2103, "MarkBack", 5, false, 100, 1000),
+    },
+})
+
+local ranger = BattleFormation.FindHeroByCampAndPos(true, 2)
+local markFrontA = BattleFormation.FindHeroByCampAndPos(false, 1)
+local markFrontB = BattleFormation.FindHeroByCampAndPos(false, 3)
+ranger.skills = {
+    { skillId = SkillRuntimeConfig.Ids.ranger_hunter_mark, skillType = E_SKILL_TYPE_PASSIVE, name = "猎人印记" },
+}
+
+RangerBuildPassives.ApplyHunterMark(ranger, markFrontA)
+assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, markFrontA), "hunter mark should apply to the first target")
+assert_true(BattleBuff.GetBuff(markFrontA, 890005) ~= nil, "hunter mark buff should exist on the first target")
+
+RangerBuildPassives.ApplyHunterMark(ranger, markFrontB)
+assert_true(not RangerBuildPassives.IsTargetMarkedBy(ranger, markFrontA), "hunter mark should be removed from the previous target")
+assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, markFrontB), "hunter mark should move to the new target")
+assert_true(BattleBuff.GetBuff(markFrontA, 890005) == nil, "previous hunter mark buff should be cleared")
+assert_true(BattleBuff.GetBuff(markFrontB, 890005) ~= nil, "new hunter mark buff should exist on the current target")
+
+local rangerBasicTargets = BattleSkill.SelectTarget(ranger, BattleSkill.CreateSkillInstance(SkillRuntimeConfig.Ids.ranger_basic_attack, {}))
+assert_eq(#rangerBasicTargets, 1, "ranger basic attack should resolve one target")
+assert_eq(rangerBasicTargets[1].wpType, 3, "ranger basic attack should prioritize the marked target")
+
+local rangerHunterShotTargets = BattleSkill.SelectTarget(ranger, BattleSkill.CreateSkillInstance(SkillRuntimeConfig.Ids.ranger_hunter_shot, {}))
+assert_eq(#rangerHunterShotTargets, 1, "hunter shot should resolve one target")
+assert_eq(rangerHunterShotTargets[1].wpType, 3, "hunter shot should prioritize the marked target")
 
 BattleFormation.OnFinal()
 
