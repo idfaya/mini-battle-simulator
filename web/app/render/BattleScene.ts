@@ -675,11 +675,8 @@ export class BattleScene {
           const envelope = Math.sin(hitProgress * Math.PI);
           const shakeAmplitude = Math.min(11, distance * 0.026) * envelope;
           const shakeWaveA = Math.sin(hitProgress * Math.PI * 8);
-          const shakeWaveB = Math.sin(hitProgress * Math.PI * 14);
           dx += tangentX * shakeWaveA * shakeAmplitude;
           dy += tangentY * shakeWaveA * shakeAmplitude;
-          dx += unitX * shakeWaveB * shakeAmplitude * 0.28;
-          dy += unitY * shakeWaveB * shakeAmplitude * 0.28;
         }
       }
     }

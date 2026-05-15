@@ -248,6 +248,77 @@ async function waitForNoSelfGuardIntercept(page: import("playwright/test").Page,
   }, timeoutMs);
 }
 
+async function waitForNoForwardLungeOnDirectHit(
+  page: import("playwright/test").Page,
+  targetName: string,
+  timeoutMs = 2500,
+) {
+  return page.evaluate(async ({ trackedTargetName, trackedTimeoutMs }: { trackedTargetName: string; trackedTimeoutMs: number }) => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        callApi?: <T>(name: string, payload?: unknown) => T;
+      };
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          unitLayouts?: Array<{ id: string; x: number; y: number; baseX: number; baseY: number }>;
+          meleeClashes?: Array<{
+            attackerId: string;
+            interceptorId?: string;
+            targetIds: string[];
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    const host = runtime.__miniBattleHost;
+    if (!renderer || !host || typeof host.callApi !== "function") {
+      return false;
+    }
+    const snapshot = host.callApi<{
+      leftTeam?: Array<{ id: string; name: string }>;
+      rightTeam?: Array<{ id: string; name: string }>;
+    }>("get_snapshot");
+    const trackedTargetId =
+      [...(snapshot.leftTeam ?? []), ...(snapshot.rightTeam ?? [])].find((unit) => unit.name === trackedTargetName)?.id ?? "";
+    if (!trackedTargetId) {
+      return false;
+    }
+    const attempts = Math.max(1, Math.ceil(trackedTimeoutMs / 40));
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      await sleep(40);
+      const state = renderer.getBattleDebugState();
+      const layouts = new Map((state.unitLayouts ?? []).map((layout) => [layout.id, layout]));
+      for (const clash of state.meleeClashes ?? []) {
+        if (clash.interceptorId || clash.targetIds.length !== 1 || clash.targetIds[0] !== trackedTargetId) {
+          continue;
+        }
+        const attacker = layouts.get(clash.attackerId);
+        const target = layouts.get(clash.targetIds[0]);
+        if (!attacker || !target) {
+          continue;
+        }
+        const attackVectorX = attacker.baseX - target.baseX;
+        const attackVectorY = attacker.baseY - target.baseY;
+        const attackDistance = Math.hypot(attackVectorX, attackVectorY);
+        if (attackDistance < 1) {
+          continue;
+        }
+        const forwardUnitX = attackVectorX / attackDistance;
+        const forwardUnitY = attackVectorY / attackDistance;
+        const targetOffsetX = target.x - target.baseX;
+        const targetOffsetY = target.y - target.baseY;
+        const forwardProjection = targetOffsetX * forwardUnitX + targetOffsetY * forwardUnitY;
+        const attackerShift = Math.hypot(attacker.x - attacker.baseX, attacker.y - attacker.baseY);
+        if (attackerShift > 8) {
+          return forwardProjection < 8;
+        }
+      }
+    }
+    return false;
+  }, { trackedTargetName: targetName, trackedTimeoutMs: timeoutMs });
+}
+
 async function waitForGuardInterceptParticipants(page: import("playwright/test").Page) {
   return page.evaluate(async () => {
     const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -512,6 +583,7 @@ test("fighter guard stance logs protection in the mid tier", async ({ page }) =>
     .toContain("战士 使用 护卫架势");
   const logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(logs).toContain("护卫");
+  expect(await waitForNoForwardLungeOnDirectHit(page, "战士")).toBe(true);
   expect(await waitForNoSelfGuardIntercept(page)).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
