@@ -149,6 +149,46 @@ local function DidFrameAffectTarget(frameCopy, target)
     return true
 end
 
+local SPELL_LIKE_STATUS_DEDUPE_SKILLS = {
+    [80007001] = true, -- 火焰弹
+    [80008001] = true, -- 寒霜射线
+    [80009001] = true, -- 邪能冲击
+}
+
+local function ShouldDedupeSpellLikeStatus(ctx)
+    local skillId = tonumber(ctx and ctx.skill and ctx.skill.skillId) or 0
+    if skillId <= 0 then
+        return false
+    end
+    if SPELL_LIKE_STATUS_DEDUPE_SKILLS[skillId] then
+        return true
+    end
+    local Skill5eMeta = require("config.skill_5e_meta")
+    local meta = Skill5eMeta.Get(skillId)
+    return meta and meta.kind == "spell"
+end
+
+local function ClaimSpellLikeStatusApplication(ctx, target, statusKey)
+    if not ShouldDedupeSpellLikeStatus(ctx) then
+        return true
+    end
+    local targetId = target and (target.instanceId or target.id) or nil
+    if not targetId then
+        return true
+    end
+    ctx.__spellLikeStatusApplied = ctx.__spellLikeStatusApplied or {}
+    local targetMap = ctx.__spellLikeStatusApplied[targetId]
+    if not targetMap then
+        targetMap = {}
+        ctx.__spellLikeStatusApplied[targetId] = targetMap
+    end
+    if targetMap[statusKey] then
+        return false
+    end
+    targetMap[statusKey] = true
+    return true
+end
+
 local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -409,8 +449,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         local p = type(spec) == "table" and spec.param or {}
         local stacks = tonumber(p and p.stacks) or 1
         local turns = tonumber(p and p.turns) or 2
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
+                seen[targetId] = true
                 BattleSkill.ApplyBurn(t, stacks, turns, ctx.hero)
             end
         end
@@ -421,8 +465,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 2
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
+                seen[targetId] = true
                 BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
             end
         end
@@ -445,14 +493,21 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
 
         local total = 0
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
                 local wasBurning = frameCopy.__burningTargets and frameCopy.__burningTargets[t.instanceId or t.id]
                 if wasBurning then
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "fire", ctx.skill)
-                    BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                    if ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
+                        BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                    end
                 else
-                    BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                    if ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
+                        BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                    end
                 end
             end
         end
@@ -467,8 +522,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkill = require("modules.battle_skill")
         local p = type(spec) == "table" and spec.param or {}
         local layers = tonumber(p and p.layers) or 1
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "buff:850001") then
+                seen[targetId] = true
                 BattleSkill.ApplyPoison(t, layers, ctx.hero)
             end
         end
@@ -483,7 +542,8 @@ function SkillEffectRegistry.RegisterBuiltins()
         local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
-            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
                 seen[targetId] = true
                 -- Hard control: if the target saved against this spell frame, do not apply.
                 if frameCopy.__savedTargets and frameCopy.__savedTargets[targetId] then
@@ -499,9 +559,13 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("wizard_freezing_nova", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleSkillStatus = require("skills.battle_skill_status")
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
-            if t and not t.isDead and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId]) then
+            if t and not t.isDead and targetId and not seen[targetId]
+                and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId])
+                and ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
+                seen[targetId] = true
                 if BattleSkillStatus.HasSlow(t) then
                     BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880003, ctx.skill, { duration = 1 })
                 end
@@ -526,13 +590,18 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
 
         local total = 0
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
                 local wasSlowed = frameCopy.__slowedTargets and frameCopy.__slowedTargets[t.instanceId or t.id]
                 if wasSlowed then
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "ice", ctx.skill)
                 end
-                BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
+                if ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
+                    BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
+                end
             end
         end
         return {
@@ -546,8 +615,12 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 2
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "buff:890001") then
+                seen[targetId] = true
                 BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
             end
         end
@@ -570,14 +643,19 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
 
         local total = 0
+        local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
-            if t and not t.isDead and DidFrameAffectTarget(frameCopy, t) then
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
                 local wasMarked = frameCopy.__staticMarkedTargets and frameCopy.__staticMarkedTargets[t.instanceId or t.id]
                 if wasMarked then
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "thunder", ctx.skill)
                     BattleBuff.DelBuffBySubType(t, 890001)
                 else
-                    BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
+                    if ClaimSpellLikeStatusApplication(ctx, t, "buff:890001") then
+                        BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
+                    end
                 end
             end
         end

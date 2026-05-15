@@ -102,6 +102,41 @@ do
     assert_true(frames == 3, "Fireball frame count == 3 (cast, projectile, damage)")
 end
 
+-- Test 1b: Spell-like multi-hit applies at most one status stack per cast
+do
+    local hero = new_unit(1003, "Tester_SpellDedupe", 10000, 200, 0)
+    local target = new_unit(2003, "SpellDedupe_Target", 10000, 0, 0)
+    local SkillTimeline = require("core.skill_timeline")
+    local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
+    local skill = { skillId = 80007001, name = "火焰弹" }
+    local timeline = SkillTimelineCompiler.Build(hero, { target }, skill, {
+        id = 990001,
+        frames = {
+            { frame = 0, op = "cast", target = target },
+            {
+                frame = 12,
+                op = "damage",
+                target = target,
+                tags = {
+                    { tag = "apply_poison", phase = "post", param = { layers = 1 } },
+                },
+            },
+            {
+                frame = 24,
+                op = "damage",
+                target = target,
+                tags = {
+                    { tag = "apply_poison", phase = "post", param = { layers = 1 } },
+                },
+            },
+        },
+    })
+    local ok, _ = SkillTimeline.Execute(hero, { target }, skill, timeline)
+    assert_true(ok, "Spell multi-hit dedupe timeline execute ok")
+    assert_true(BattleBuff.GetBuffStackNumBySubType(target, 850001) == 1,
+        "Spell multi-hit adds poison only once per cast")
+end
+
 -- Test 2: Ice Arrow applies slow buff (80008001)
 do
     local hero = new_unit(1101, "Tester_Ice", 10000, 200, 0)
