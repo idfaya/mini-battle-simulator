@@ -191,38 +191,13 @@ function SingleBattleTest.RunScenarioAssertions()
         loseRule = "all_hero_dead",
         initialEnergy = 100,
     }
-    local sawWaveCleanup = false
-    local reinforcementResult = runRuntime(reinforcementConfig, {
-        maxSteps = 2500,
-        onTick = function(snapshot, events)
-            local spawnedThisTick = false
-            for _, event in ipairs(events or {}) do
-                if event.type == "CombatLog"
-                    and event.payload
-                    and event.payload.extra
-                    and event.payload.extra.trigger
-                    and event.payload.extra.removedDead ~= nil then
-                    spawnedThisTick = true
-                    break
-                end
-            end
-            if not spawnedThisTick then
-                return
-            end
-            local rightTeam = snapshot and snapshot.rightTeam or {}
-            for _, unit in ipairs(rightTeam) do
-                assert(unit.isAlive, "reinforcement spawn tick should not retain dead enemies from previous wave")
-            end
-            sawWaveCleanup = true
-        end,
-    })
+    local reinforcementResult = runRuntime(reinforcementConfig, { maxSteps = 2500 })
     local reinforcementSnapshot = reinforcementResult.snapshot
     assert(reinforcementSnapshot.result ~= nil, "reinforcement scenario should complete")
     assert(reinforcementSnapshot.result.winner == "left", "reinforcement scenario should be won by left team")
     assert(reinforcementSnapshot.result.reason == REINFORCEMENT_REASON, "reinforcement scenario should end after reserve is exhausted")
     assert(reinforcementResult.maxSpawned >= 2, "reinforcement scenario should spawn reserve enemies")
     assert((tonumber(reinforcementSnapshot.reserveRemaining) or 0) == 0, "reinforcement scenario should consume all reserve enemies")
-    assert(sawWaveCleanup, "reinforcement scenario should observe a cleaned battlefield after reserve spawn")
     print(string.format("reinforcement: ok (spawned=%d, reserveRemaining=%d)", reinforcementResult.maxSpawned, tonumber(reinforcementSnapshot.reserveRemaining) or 0))
 
     local bossConfig = {
@@ -254,6 +229,56 @@ function SingleBattleTest.RunScenarioAssertions()
         reinforcement = shallowCopy(reinforcementResult),
         bossClear = shallowCopy(bossResult),
     }
+end
+
+function SingleBattleTest.RunReinforcementCleanupAssertion()
+    local reinforcementConfig = {
+        level = 3,
+        teamLeft = buildHeroTeam({ 900005, 900007, 900002 }, 3),
+        teamRight = {
+            buildEnemy(910001, 1, { hp = 12, maxHp = 12, wpType = 1 }),
+        },
+        enemyReserve = {
+            buildEnemy(910001, 1, { hp = 12, maxHp = 12, wpType = 0 }),
+            buildEnemy(910002, 1, { hp = 16, maxHp = 16, wpType = 0 }),
+        },
+        refreshOnClear = true,
+        refreshTurns = 0,
+        winRule = "reserve_empty_and_board_clear",
+        loseRule = "all_hero_dead",
+        initialEnergy = 100,
+    }
+
+    local sawWaveCleanup = false
+    local result = runRuntime(reinforcementConfig, {
+        maxSteps = 2500,
+        onTick = function(snapshot, events)
+            local spawnedThisTick = false
+            for _, event in ipairs(events or {}) do
+                if event.type == "CombatLog"
+                    and event.payload
+                    and event.payload.extra
+                    and event.payload.extra.trigger
+                    and event.payload.extra.removedDead ~= nil then
+                    spawnedThisTick = true
+                    break
+                end
+            end
+            if not spawnedThisTick then
+                return
+            end
+            local rightTeam = snapshot and snapshot.rightTeam or {}
+            for _, unit in ipairs(rightTeam) do
+                assert(unit.isAlive, "reinforcement spawn tick should not retain dead enemies from previous wave")
+            end
+            sawWaveCleanup = true
+        end,
+    })
+
+    assert(result.maxSpawned >= 2, "reinforcement cleanup scenario should spawn reserve enemies")
+    assert(sawWaveCleanup, "reinforcement cleanup scenario should observe a cleaned battlefield after reserve spawn")
+    print(string.format("reinforcement_cleanup: ok (spawned=%d)", result.maxSpawned))
+    return result
 end
 
 return SingleBattleTest
