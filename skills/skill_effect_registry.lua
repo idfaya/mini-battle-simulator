@@ -122,10 +122,20 @@ end
 local function ResolveBattleIntentBuff(skill)
     local SkillConfig = require("config.skill_config")
     local skillConfig = skill and (skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)) or nil
-    if skillConfig and skillConfig.SkillLevel == 4 then
+    local skillId = tonumber(skill and skill.skillId) or 0
+    local skillLevel = tonumber(skill and skill.level)
+        or tonumber(skillConfig and skillConfig.SkillLevel)
+        or 1
+    if skillId == 80004004 then
         return 840003, 2
     end
-    if skillConfig and skillConfig.SkillLevel == 3 then
+    if skillId == 80004003 then
+        return 840002, 2
+    end
+    if skillLevel >= 4 then
+        return 840003, 2
+    end
+    if skillLevel >= 3 then
         return 840002, 2
     end
     return nil, 2

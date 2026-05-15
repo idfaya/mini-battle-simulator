@@ -349,9 +349,10 @@ local function refreshBattleRoundBlessings()
     end
 end
 
--- #region debug-point F:enemy-action-trace
+local ENABLE_ENEMY_ACTION_TRACE = false
+
 local function PublishEnemyActionTrace(stage, hero, extra)
-    if not hero or hero.isLeft then
+    if not ENABLE_ENEMY_ACTION_TRACE or not hero or hero.isLeft then
         return
     end
     BattleEvent.Publish("DebugCounterTiming", {
@@ -630,10 +631,14 @@ local function BuildSkillCandidate(hero, skill, opts)
     end
 
     local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
+    local primaryTarget = previewTargets[1]
+    local previewTargetsAlly = primaryTarget and primaryTarget.isLeft == hero.isLeft
     if IsPureHealExecution(executionType) and not HasInjuredAlly(hero) then
         return nil
     end
-    if executionType == "cleric_basic_spell" and not ShouldHolySparkHeal(hero) and previewTargets[1] and previewTargets[1].isLeft == hero.isLeft then
+    -- Holy Spark remains available as an offensive spell with no injured allies.
+    -- Only gate the healing branch when the current preview resolves onto a friendly target.
+    if executionType == "cleric_basic_spell" and previewTargetsAlly and not ShouldHolySparkHeal(hero) then
         return nil
     end
     if executionType == "healing_word" and not ShouldCastHealingWord(hero) then
@@ -715,6 +720,8 @@ local function SpawnEnemyReinforcements(reason)
         return false
     end
 
+    local removedDead = BattleFormation.RemoveDeadHeroes and BattleFormation.RemoveDeadHeroes(false) or 0
+
     local availableSlots = BattleFormation.GetAvailableSlotCount(false)
     if availableSlots <= 0 then
         return false
@@ -754,6 +761,7 @@ local function SpawnEnemyReinforcements(reason)
     PublishCombatLog(string.format("敌方增援抵达：%s", table.concat(names, "、")), {
         trigger = reason,
         round = currentRound,
+        removedDead = removedDead,
         reserveRemaining = #(flow.enemyReserveQueue or {}),
     })
 

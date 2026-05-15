@@ -120,26 +120,6 @@ function pushAnimationEvent(animations: AnimationEvent[], event: AnimationEvent)
   animations.push(event);
 }
 
-// #region debug-point E:report-runtime
-const DEBUG_COUNTER_URL = "http://127.0.0.1:7777/event";
-const DEBUG_COUNTER_SESSION = "fighter-counter-timing";
-function reportCounterDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
-  fetch(DEBUG_COUNTER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: DEBUG_COUNTER_SESSION,
-      runId: "pre-fix",
-      hypothesisId,
-      location,
-      msg,
-      data,
-      ts: Date.now(),
-    }),
-  }).catch(() => {});
-}
-// #endregion
-
 export class BattleStore {
   private state: BattleStoreState = {
     snapshot: null,
@@ -199,20 +179,7 @@ export class BattleStore {
     let banner = this.state.banner;
 
     for (const event of events) {
-      // #region debug-point E:bridge-events
-      if (event.type === "skill_cast_started") {
-        reportCounterDebug("E", "web/app/state/battleStore.ts:skill_cast_started", "[DEBUG] skill cast started", {
-          heroId: event.payload.heroId,
-          heroName: event.payload.heroName,
-          skillId: event.payload.skillId,
-          skillName: event.payload.skillName,
-        });
-      } else if (event.type === "DebugCounterTiming") {
-        reportCounterDebug("E", "web/app/state/battleStore.ts:DebugCounterTiming", "[DEBUG] debug counter timing", {
-          stage: event.payload.stage,
-          source: event.payload.source,
-          data: event.payload.data,
-        });
+      if (event.type === "DebugCounterTiming") {
         const stage = String(event.payload.stage ?? "");
         const debugData =
           typeof event.payload.data === "object" && event.payload.data !== null
@@ -238,7 +205,6 @@ export class BattleStore {
           });
         }
       }
-      // #endregion
       switch (event.type) {
         case "battle_started":
           this.pendingCastResults.clear();

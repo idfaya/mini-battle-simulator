@@ -164,6 +164,7 @@ local function buildHeroForBattle(rosterHero, modifiers)
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp)))
     heroData.def = math.max(0, math.floor((heroData.def or 0)))
     heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
+    -- Compatibility mirror for legacy readers that still inspect `atk`.
     heroData.atk = heroData.hit
     heroData.ac = math.max(0, math.floor((heroData.ac or 0) + (modifiers.acDeltaByClass[rosterHero.classId] or 0)))
     heroData.spellDC = math.max(0, math.floor((heroData.spellDC or 0) + (modifiers.spellDCDeltaByClass[rosterHero.classId] or 0)))

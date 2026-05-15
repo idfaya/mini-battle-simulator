@@ -197,25 +197,25 @@ local function eachGuardCandidate(defender, callback)
         if isAlive(unit) and hasSkill(unit, IDS.fighter_guard_counter) then
             local runtime = ensureRuntime(unit)
             if runtime.guardStanceActive then
-                local ok, result = callback(unit, runtime)
+                local ok = callback(unit, runtime)
                 if ok then
-                    return unit, runtime, result
+                    return unit, runtime
                 end
             end
         end
         return nil, nil
     end
 
-    local guard, runtime, result = visit(defender)
+    local guard, runtime = visit(defender)
     if guard then
-        return guard, runtime, result
+        return guard, runtime
     end
 
     local BattleFormation = require("modules.battle_formation")
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
-        guard, runtime, result = visit(ally)
+        guard, runtime = visit(ally)
         if guard then
-            return guard, runtime, result
+            return guard, runtime
         end
     end
     return nil, nil
@@ -377,7 +377,6 @@ end
 function FighterBuildPassives.CastBasicAttackRepeated(hero, target, count)
     local BattleSkill = require("modules.battle_skill")
     local total = 0
-    local hitAny = false
     local times = math.max(1, tonumber(count) or 1)
     for _ = 1, times do
         if not isAlive(hero) or not isAlive(target) then
@@ -387,9 +386,6 @@ function FighterBuildPassives.CastBasicAttackRepeated(hero, target, count)
         if ok then
             local dealt = math.max(0, math.floor(tonumber(result and result.totalDamage) or 0))
             total = total + dealt
-            if dealt > 0 then
-                hitAny = true
-            end
         end
     end
     return total

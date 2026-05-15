@@ -154,7 +154,7 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
         critMin = critMin,
     })
     local hitResult = damageResult and damageResult.hit or nil
-    if not hitResult.hit then
+    if not hitResult or not hitResult.hit then
         BarbarianBuildPassives.AddRage(hero, 1, "重击落空")
         return 0
     end

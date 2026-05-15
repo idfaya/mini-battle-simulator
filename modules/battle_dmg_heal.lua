@@ -166,17 +166,6 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
     local newHp = math.max(0, curHp - reducedDamage)
     local actualDamage = math.max(0, curHp - newHp)
 
-    -- region debug-point enemy-no-damage-apply
-    Logger.Log(string.format("[DBG enemy-no-damage apply] attacker=%s attackerLeft=%s target=%s targetLeft=%s damage=%d hp=%d->%d",
-        tostring(attacker and attacker.name),
-        tostring(attacker and attacker.isLeft),
-        tostring(target and target.name),
-        tostring(target and target.isLeft),
-        reducedDamage,
-        tonumber(curHp) or 0,
-        tonumber(newHp) or 0))
-    -- endregion debug-point enemy-no-damage-apply
-
     BattleAttribute.SetHpByVal(target, newHp)
     if attacker and attacker.__scriptDamageAccumulator ~= nil then
         attacker.__scriptDamageAccumulator = attacker.__scriptDamageAccumulator + reducedDamage

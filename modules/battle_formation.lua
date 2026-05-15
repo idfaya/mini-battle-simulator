@@ -543,6 +543,36 @@ function BattleFormation.RemoveHero(hero)
     hero.isDead = true
 end
 
+--- 清理队伍中的死亡单位
+---@param isLeft boolean 是否在左侧队伍
+---@return number 移除数量
+function BattleFormation.RemoveDeadHeroes(isLeft)
+    local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
+    local removedCount = 0
+
+    for index = #team, 1, -1 do
+        local hero = team[index]
+        if hero and (hero.isDead or not hero.isAlive or (tonumber(hero.hp) or 0) <= 0) then
+            local key = BuildPositionKey(hero.isLeft, hero.wpType)
+            table.remove(team, index)
+            BattleFormation.heroInstanceMap[hero.instanceId] = nil
+            BattleFormation.positionMap[key] = nil
+            hero.isAlive = false
+            hero.isDead = true
+            removedCount = removedCount + 1
+            Logger.Debug(string.format(
+                "RemoveDeadHeroes - 清理死亡单位: %s (instanceId: %d, isLeft: %s, wpType: %d)",
+                tostring(hero.name),
+                tonumber(hero.instanceId) or 0,
+                tostring(hero.isLeft),
+                tonumber(hero.wpType) or 0
+            ))
+        end
+    end
+
+    return removedCount
+end
+
 --- 复活英雄
 ---@param wpType number 位置类型
 ---@param heroData table 英雄数据
