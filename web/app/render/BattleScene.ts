@@ -238,6 +238,7 @@ export class BattleScene {
 
     this.syncPresentationState(state.snapshot, baseLayouts, now);
     this.consumeAnimations(state.animations, baseLayouts, now);
+    this.releaseDeadGuardReactionHolds(baseLayouts);
     this.pruneTransientAnimations(now);
 
     const allLayouts = baseLayouts.map((layout) => this.resolveAnimatedLayout(layout, baseLayouts, now));
@@ -532,6 +533,35 @@ export class BattleScene {
       if (!activeUnitIds.has(unitId)) {
         this.previousAliveByUnit.delete(unitId);
       }
+    }
+  }
+
+  private releaseDeadGuardReactionHolds(layouts: UnitLayout[]) {
+    const aliveByUnitId = new Map(layouts.map((layout) => [layout.unit.id, layout.unit.isAlive]));
+    const isAliveUnit = (unitId: string) => aliveByUnitId.get(unitId) === true;
+
+    this.pendingReactionHolds = this.pendingReactionHolds.filter((intent) => {
+      if (intent.cueKind !== "guard") {
+        return true;
+      }
+      return isAliveUnit(intent.reactorId);
+    });
+    this.pendingGuardIntercepts = this.pendingGuardIntercepts.filter((intent) => isAliveUnit(intent.guardId));
+
+    for (const clash of this.meleeClashes) {
+      const bindings = (clash.reactionBindings ?? []).filter((binding) => {
+        if (binding.cueKind !== "guard") {
+          return true;
+        }
+        return isAliveUnit(binding.reactorId);
+      });
+      clash.reactionBindings = bindings.length > 0 ? bindings : undefined;
+
+      let nextHoldUntil = 0;
+      for (const binding of bindings) {
+        nextHoldUntil = Math.max(nextHoldUntil, binding.holdUntil);
+      }
+      clash.holdUntil = nextHoldUntil > 0 ? nextHoldUntil : undefined;
     }
   }
 

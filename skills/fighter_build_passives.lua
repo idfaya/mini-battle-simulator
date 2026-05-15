@@ -502,16 +502,18 @@ function FighterBuildPassives.ResolveQueuedReactions(attacker)
     local queuedCounters = {}
     local queuedGuards = {}
     for _, hero in ipairs(BattleFormation.GetAllHeroes() or {}) do
-        if isAlive(hero) then
-            local runtime = ensureRuntime(hero)
-            if runtime.pendingCounterBasicTarget and sameUnit(runtime.pendingCounterBasicTarget, attacker) then
-                local target = runtime.pendingCounterBasicTarget
-                runtime.pendingCounterBasicTarget = nil
+        local runtime = ensureRuntime(hero)
+        if runtime.pendingCounterBasicTarget and sameUnit(runtime.pendingCounterBasicTarget, attacker) then
+            local target = runtime.pendingCounterBasicTarget
+            runtime.pendingCounterBasicTarget = nil
+            if isAlive(hero) then
                 table.insert(queuedCounters, { hero = hero, runtime = runtime, target = target })
             end
-            if runtime.pendingGuardCounterTarget and sameUnit(runtime.pendingGuardCounterTarget, attacker) then
-                local target = runtime.pendingGuardCounterTarget
-                runtime.pendingGuardCounterTarget = nil
+        end
+        if runtime.pendingGuardCounterTarget and sameUnit(runtime.pendingGuardCounterTarget, attacker) then
+            local target = runtime.pendingGuardCounterTarget
+            runtime.pendingGuardCounterTarget = nil
+            if isAlive(hero) then
                 table.insert(queuedGuards, { hero = hero, runtime = runtime, target = target })
             end
         end

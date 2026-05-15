@@ -245,6 +245,50 @@ do
 end
 
 do
+    local defender = new_unit(93031, "DeadGuardDefender")
+    local guard = new_unit(93032, "DeadGuardFighter")
+    local attacker = new_unit(93033, "DeadGuardAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldCastSmallSkill = BattleSkill.CastSmallSkill
+    local oldGetAllHeroes = BattleFormation.GetAllHeroes
+    local castCount = 0
+
+    attacker.class = 2
+    guard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    guard.passiveRuntime = {
+        guardStanceActive = true,
+    }
+
+    BattleFormation.GetFriendTeam = function(unit)
+        if unit == defender then
+            return { defender, guard }
+        end
+        return { guard, defender }
+    end
+    BattleFormation.GetAllHeroes = function()
+        return { defender, guard, attacker }
+    end
+    BattleSkill.CastSmallSkill = function()
+        castCount = castCount + 1
+        return true
+    end
+
+    FighterBuildPassives.TryTriggerGuardCounter(defender, { attacker = attacker })
+    guard.hp = 0
+    guard.isAlive = false
+    guard.isDead = true
+    FighterBuildPassives.ResolveQueuedReactions(attacker)
+    assert_true(castCount == 0, "dead guard does not resolve queued guard counter")
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "dead guard clears queued guard counter target")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    BattleFormation.GetAllHeroes = oldGetAllHeroes
+end
+
+do
     local defender = new_unit(9304, "GuardDefenderAgainstCounter")
     local guard = new_unit(9305, "GuardFighterAgainstCounter")
     local attacker = new_unit(9306, "CounterSourceAttacker")
