@@ -89,9 +89,16 @@ end
 -- Test 1: Timeline frames for Fireball (80007001)
 do
     local frames = 0
+    local damageEvent = nil
+    local damageListener = function(evt)
+        if evt and evt.skillId == 80007001 then
+            damageEvent = evt
+        end
+    end
     BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, function(evt)
         frames = frames + 1
     end)
+    BattleEvent.AddListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
     local hero = new_unit(1001, "Tester_Fire", 10000, 200, 0)
     local target = new_unit(2001, "Dummy_Target", 10000, 0, 0)
     local skillLua = require("config.skill.skill_80007001")
@@ -102,6 +109,11 @@ do
     assert_true(frames == 3, "Fireball frame count == 3 (cast, projectile, damage)")
     assert_true(target.hp < target.maxHp, "Fireball spell timeline applies damage")
     assert_true((result and result.totalDamage or 0) > 0, "Fireball spell timeline accumulates total damage")
+    assert_true(damageEvent ~= nil, "Fireball publishes damage event")
+    assert_true(damageEvent.preferSkillColor == true, "Fireball damage event prefers skill color")
+    assert_true(damageEvent.saveRoll ~= nil, "Fireball damage event carries save roll")
+    assert_true(damageEvent.damageRoll ~= nil, "Fireball damage event carries damage roll")
+    BattleEvent.RemoveListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
 end
 
 -- Test 1b: Spell-like multi-hit applies at most one status stack per cast
@@ -137,6 +149,44 @@ do
     assert_true(ok, "Spell multi-hit dedupe timeline execute ok")
     assert_true(BattleBuff.GetBuffStackNumBySubType(target, 850001) == 1,
         "Spell multi-hit adds poison only once per cast")
+end
+
+-- Test 1c: Save-success spell with zero damage still publishes MISS + save metadata
+do
+    local hero = new_unit(1004, "Tester_SpellSave", 10000, 200, 0)
+    hero.spellDC = 10
+    local target = new_unit(2004, "SpellSave_Target", 10000, 0, 0)
+    target.saveRef = 1000
+    local SkillTimeline = require("core.skill_timeline")
+    local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
+    local missEvent = nil
+    local missListener = function(evt)
+        if evt and evt.skillId == 80007001 then
+            missEvent = evt
+        end
+    end
+    BattleEvent.AddListener(BattleVisualEvents.MISS, missListener)
+    local skill = { skillId = 80007001, name = "火球术" }
+    local timeline = SkillTimelineCompiler.Build(hero, { target }, skill, {
+        id = 990002,
+        frames = {
+            { frame = 0, op = "cast", target = target },
+            {
+                frame = 12,
+                op = "damage",
+                target = target,
+                onSaveSuccess = "none",
+            },
+        },
+    })
+    local ok, result = SkillTimeline.Execute(hero, { target }, skill, timeline)
+    assert_true(ok, "Spell zero-damage-on-save timeline execute ok")
+    assert_true(target.hp == target.maxHp, "Successful save with no damage keeps HP unchanged")
+    assert_true((result and result.totalDamage or 0) == 0, "Successful save with no damage keeps totalDamage zero")
+    assert_true(missEvent ~= nil, "Successful save with no damage publishes MISS")
+    assert_true(missEvent.saveRoll ~= nil and missEvent.saveRoll.success == true,
+        "Successful save MISS carries save roll metadata")
+    BattleEvent.RemoveListener(BattleVisualEvents.MISS, missListener)
 end
 
 -- Test 2: Ice Arrow applies slow buff (80008001)

@@ -70,6 +70,9 @@ local function ExecuteOp(ctx, frameCopy)
                 local isSpell = meta and meta.kind == "spell"
 
                 if isSpell then
+                    local BattleEvent = require("core.battle_event")
+                    local BattleVisualEvents = require("ui.battle_visual_events")
+                    local Logger = require("utils.logger")
                     local effectiveMeta = meta
                     if frameCopy.saveType or frameCopy.onSaveSuccess then
                         effectiveMeta = ShallowClone(meta or {})
@@ -106,11 +109,28 @@ local function ExecuteOp(ctx, frameCopy)
                             skillId = ctx.skill and ctx.skill.skillId or nil,
                             skillName = ctx.skill and ctx.skill.name or nil,
                             damageKind = resolvedKind,
+                            preferSkillColor = true,
                             isCrit = isCrit,
                             saveRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].save or nil,
                             damageRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].damageRoll or nil,
                         })
                         total = total + dmg
+                    elseif saveResult and saveResult.success then
+                        Logger.Log(string.format("[SAVE] %s 对 %s 豁免成功 (roll=%d total=%d vs DC=%d)",
+                            target.name or "Unknown",
+                            ctx.hero and ctx.hero.name or "Unknown",
+                            saveResult.roll or 0,
+                            saveResult.total or 0,
+                            saveResult.dc or dc))
+                        BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                            BattleVisualEvents.MISS,
+                            ctx.hero,
+                            target,
+                            {
+                                skillId = ctx.skill and ctx.skill.skillId or nil,
+                                skillName = ctx.skill and ctx.skill.name or nil,
+                                saveRoll = saveResult,
+                            }))
                     end
                     BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = ctx.hero, damage = dmg })
                     BattleSkill.TriggerDamageBuffs(ctx.hero, target, dmg)
