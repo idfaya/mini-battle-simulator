@@ -1,5 +1,6 @@
 import { expect, test } from "playwright/test";
 import { createFloatingText } from "../app/render/animations";
+import { BattleScene } from "../app/render/BattleScene";
 import { BattleStore } from "../app/state/battleStore";
 import type { AnimationEvent, UnitState } from "../app/types/battle";
 
@@ -236,6 +237,57 @@ test("critical basic attack damage merges with attached skill damage into one re
   expect(merged?.kind).toBe("critical");
   expect(merged?.color).toBe("#ff5a5f");
   expect(merged?.text).toBe("25");
+});
+
+test("active skill cast shows caster pulse label while basic attack does not", () => {
+  const scene = new BattleScene();
+  const now = 1000;
+  const layout = {
+    x: 0,
+    y: 0,
+    width: 120,
+    height: 120,
+    alpha: 1,
+    scale: 1,
+    darken: 0,
+    entryGlow: 0,
+    showDefeatedLabel: false,
+    defeatedLabelAlpha: 0,
+    unit: mockUnit,
+    formationSide: "player",
+    row: "front",
+    column: 0,
+    baseX: 0,
+    baseY: 0,
+  };
+
+  (scene as unknown as { consumeAnimations: (events: AnimationEvent[], layouts: unknown[], nowValue: number) => void }).consumeAnimations(
+    [
+      {
+        type: "skill_cast_started",
+        heroId: mockUnit.id,
+        heroName: mockUnit.name,
+        skillName: "火球术",
+        skillType: 2,
+      },
+      {
+        type: "skill_cast_started",
+        heroId: mockUnit.id,
+        heroName: mockUnit.name,
+        skillName: "普通攻击",
+        skillType: 1,
+      },
+    ],
+    [layout],
+    now,
+  );
+
+  expect((scene as unknown as { unitPulses: Array<{ unitId: string; label?: string }> }).unitPulses).toEqual([
+    expect.objectContaining({
+      unitId: mockUnit.id,
+      label: "火球术",
+    }),
+  ]);
 });
 
 test("battle screen boots and renders actionable UI", async ({ page }) => {

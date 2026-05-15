@@ -130,6 +130,13 @@ export type AnimationEvent =
   | { type: "miss"; heroId: string; text: string }
   | { type: "banner"; text: string; emphasis?: boolean }
   | {
+      type: "skill_cast_started";
+      heroId: string;
+      heroName: string;
+      skillName: string;
+      skillType: number;
+    }
+  | {
       type: "passive_triggered";
       heroId: string;
       heroName: string;

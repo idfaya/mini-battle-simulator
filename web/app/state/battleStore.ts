@@ -289,6 +289,13 @@ export class BattleStore {
           appendLog(`${String(event.payload.heroName ?? "")} 使用 ${String(event.payload.skillName ?? "")}`);
           banner = `${String(event.payload.heroName ?? "")} · ${String(event.payload.skillName ?? "")}`;
           flashUntil = performance.now() + 200;
+          animations.push({
+            type: "skill_cast_started",
+            heroId: String(event.payload.heroId ?? ""),
+            heroName: String(event.payload.heroName ?? ""),
+            skillName: String(event.payload.skillName ?? ""),
+            skillType: Number(event.payload.skillType ?? 0),
+          });
           break;
         case "skill_timeline_started":
           animations.push({

@@ -1273,6 +1273,18 @@ export class BattleScene {
         continue;
       }
 
+      if (event.type === "skill_cast_started") {
+        if (!this.shouldShowActiveSkillPulse(event)) {
+          continue;
+        }
+        const activeUnit = layouts.find((layout) => layout.unit.id === event.heroId);
+        this.queueUnitPulse(event.heroId, now, this.resolveElementStyle(this.resolveElementTheme("", event.skillName, activeUnit?.unit.classId ?? 0)), {
+          durationMs: 620,
+          label: event.skillName,
+        });
+        continue;
+      }
+
       if (event.type === "passive_triggered") {
         if (event.skillName === "额外攻击") {
           this.pendingExtraAttackUntilByHero.set(event.heroId, now + 900);
@@ -1860,6 +1872,13 @@ export class BattleScene {
   private looksLikeCounterPassive(skillName: string, triggerType: string) {
     const normalized = `${String(skillName ?? "")} ${String(triggerType ?? "")}`.toLowerCase();
     return /counter|反击/.test(normalized);
+  }
+
+  private shouldShowActiveSkillPulse(event: Extract<AnimationEvent, { type: "skill_cast_started" }>) {
+    if (!event.skillName) {
+      return false;
+    }
+    return event.skillType === 2 || event.skillType === 3;
   }
 
   private looksLikeAoeSkill(effect: string, skillName: string) {
