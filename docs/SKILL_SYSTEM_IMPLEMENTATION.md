@@ -33,7 +33,7 @@
 | 执行入口 | `Execute` 函数 或 `actData` 关键帧 | `BuildTimeline` 函数 |
 | 时序控制 | `TriggerS` 秒级时间戳 | `frame` 逻辑帧序号 |
 | 伤害结算 | `DWCommon.DamageData` 字符串解析 | `CalculateDamageWithRate` 直接调用 |
-| Buff 施加 | `DWCommon.LaunchBuff` 字符串解析 | `ApplyBuff` / `ApplyFreeze` 直接调用 |
+| Buff 施加 | `DWCommon.LaunchBuff` 字符串解析 | `ApplyBuff` / `ApplyFreeze` / `ApplyFrost` 直接调用 |
 | 表现解耦 | 逻辑与表现混合 | 逻辑帧结算 + 事件派发，表现层异步订阅 |
 
 ### 1.2 核心模块
@@ -86,7 +86,7 @@ end
 | hit | 命中判定 | 判定闪避/格挡 |
 | damage | 伤害结算 | 调用 CalculateDamageWithRate，派发 DAMAGE_DEALT |
 | heal | 治疗结算 | 调用 CalculateHeal，派发 HEAL_RECEIVED |
-| buff | Buff 施加 | 调用 ApplyBuff / ApplyFreeze，派发 BUFF_ADDED |
+| buff | Buff 施加 | 调用 ApplyBuff / ApplyFreeze / ApplyFrost，派发 BUFF_ADDED |
 | effect | 特效触发 | 纯表现层事件，逻辑层无操作 |
 
 ### 2.4 Context 结构
@@ -203,6 +203,7 @@ local buff_870001 = {
 | Buff 持续 | Buff[3] | ApplyBuff 参数 | duration |
 | Buff 叠加 | Buff[5] | ApplyBuff 参数 | canStack/maxStack |
 | 冻结持续 | Buff[3] | ApplyFreeze 参数 | duration |
+| 霜冻持续 | Buff[3] | ApplyFrost 参数 | duration |
 
 **修改技能参数时，三层必须同步更新。**
 
@@ -285,6 +286,9 @@ BattleSkill.ApplyBuff(target, buffId, duration, caster)
 
 -- 施加冻结
 BattleSkill.ApplyFreeze(target, duration, chance, caster)
+
+-- 施加霜冻
+BattleSkillStatus.ApplyFrost(target, duration, caster)
 ```
 
 ---
@@ -412,8 +416,9 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 | 860001 | 亲和 | GOOD | 永久 | 不可叠 | 每回合回复10%最大生命 |
 | 870001 | 燃烧 | BAD | 2回合 | 可叠99层 | 每层每回合5%最大生命DOT |
 | 870002 | 火焰亲和 | GOOD | 永久 | 不可叠 | 火焰伤害+15% |
-| 880001 | 减速 | BAD | 2回合 | 不可叠 | 速度-30% |
+| 880001 | 减速 | BAD | 2回合 | 不可叠 | 旧减速占位，现不作为冰法核心状态 |
 | 880002 | 冻结 | CONTROL | 1回合 | 不可叠 | 无法行动 |
+| 880005 | 霜冻 | BAD | 2回合 | 不可叠 | 无法移动，但可远程攻击和释放技能 |
 
 ---
 
@@ -501,6 +506,7 @@ def = (baseDef + defGrowth) * totalMultiplier
 | `GetPassiveAdjustedChance(hero, baseChance, passiveKey)` | 读取统一被动状态并调整概率 |
 | `ApplyBuff(target, buffId, duration, caster)` | 施加 Buff |
 | `ApplyFreeze(target, duration, chance, caster)` | 施加冻结 |
+| `BattleSkillStatus.ApplyFrost(target, duration, caster)` | 施加霜冻 |
 | `GetSkillCurCoolDown(hero, skillId)` | 获取技能冷却 |
 | `SetSkillCurCoolDown(hero, skillId, cd)` | 设置技能冷却 |
 | `GetHeroSkills(hero)` | 获取英雄所有技能 |

@@ -1,6 +1,6 @@
 ---
 --- Battle Skill Status Module
---- 集中管理技能引发的状态效果：中毒(Poison)、燃烧(Burn)、冻结(Freeze)、感染(Infect)
+--- 集中管理技能引发的状态效果：中毒(Poison)、燃烧(Burn)、冻结(Freeze)、霜冻(Frost)、感染(Infect)
 ---
 --- 从 modules/battle_skill.lua [10] 区拆出（2026-04-27），后迁移到 skills/ 目录。
 --- 仍复用 battle_skill.ApplyBuffFromSkill 作为 buff 挂载入口，以保持现有 buff 生命周期一致。
@@ -135,6 +135,21 @@ function BattleSkillStatus.ApplyFreeze(target, turns, slowPct, caster)
         target.name or "Unknown", turns or 0, slowPct or 0))
 end
 
+--- 施加霜冻（无法移动的状态标记；当前不阻止远程攻击或施法）
+---@param target table
+---@param turns number|nil
+---@param caster table|nil
+function BattleSkillStatus.ApplyFrost(target, turns, caster)
+    if not target then
+        return
+    end
+    GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880005, nil, {
+        duration = turns or 2,
+    })
+    Logger.Log(string.format("[ApplyFrost] %s 霜冻回合: %d",
+        target.name or "Unknown", turns or 2))
+end
+
 ---@param target table
 ---@param turns number|nil
 ---@param caster table|nil
@@ -159,6 +174,13 @@ end
 function BattleSkillStatus.HasSlow(target)
     local BattleBuff = require("modules.battle_buff")
     return BattleBuff.GetBuff(target, 880001) ~= nil
+end
+
+---@param target table
+---@return boolean
+function BattleSkillStatus.HasFrost(target)
+    local BattleBuff = require("modules.battle_buff")
+    return BattleBuff.GetBuff(target, 880005) ~= nil
 end
 
 return BattleSkillStatus

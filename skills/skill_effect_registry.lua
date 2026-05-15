@@ -566,6 +566,24 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { buffId = 880001 }
     end)
 
+    SkillEffectRegistry.Register("apply_frost", function(ctx, frameCopy, _, spec)
+        local BattleSkillStatus = require("skills.battle_skill_status")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = tonumber(p and p.turns) or 2
+        local seen = {}
+        for _, t in ipairs(frameCopy.targets or {}) do
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
+                and ClaimSpellLikeStatusApplication(ctx, t, "frost") then
+                seen[targetId] = true
+                if not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId]) then
+                    BattleSkillStatus.ApplyFrost(t, turns, ctx.hero)
+                end
+            end
+        end
+        return { buffId = 880005 }
+    end)
+
     SkillEffectRegistry.Register("wizard_freezing_nova", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleSkillStatus = require("skills.battle_skill_status")
@@ -576,13 +594,14 @@ function SkillEffectRegistry.RegisterBuiltins()
                 and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId])
                 and ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
                 seen[targetId] = true
-                if BattleSkillStatus.HasSlow(t) then
-                    BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880003, ctx.skill, { duration = 1 })
+                if BattleSkillStatus.HasFrost(t) then
+                    BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880002, ctx.skill, { duration = 1 })
+                else
+                    BattleSkillStatus.ApplyFrost(t, 2, ctx.hero)
                 end
-                BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
             end
         end
-        return { buffId = 880001 }
+        return { buffId = 880005 }
     end)
 
     SkillEffectRegistry.Register("wizard_blizzard_settlement", function(ctx, frameCopy, phase, spec)
@@ -590,10 +609,10 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         if phase == "pre" then
-            frameCopy.__slowedTargets = {}
+            frameCopy.__frostedTargets = {}
             for _, t in ipairs(frameCopy.targets or {}) do
-                if t and BattleSkillStatus.HasSlow(t) then
-                    frameCopy.__slowedTargets[t.instanceId or t.id] = true
+                if t and BattleSkillStatus.HasFrost(t) then
+                    frameCopy.__frostedTargets[t.instanceId or t.id] = true
                 end
             end
             return nil
@@ -605,19 +624,19 @@ function SkillEffectRegistry.RegisterBuiltins()
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
                 seen[targetId] = true
-                local wasSlowed = frameCopy.__slowedTargets and frameCopy.__slowedTargets[t.instanceId or t.id]
-                if wasSlowed then
+                local wasFrosted = frameCopy.__frostedTargets and frameCopy.__frostedTargets[t.instanceId or t.id]
+                if wasFrosted then
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "ice", ctx.skill)
                 end
-                if ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
-                    BattleSkill.ApplyFreeze(t, 0, 3000, ctx.hero)
+                if ClaimSpellLikeStatusApplication(ctx, t, "frost") then
+                    BattleSkillStatus.ApplyFrost(t, 2, ctx.hero)
                 end
             end
         end
         return {
             damage = (tonumber(frameCopy.damage) or 0) + total,
             effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + total,
-            buffId = 880001,
+            buffId = 880005,
         }
     end)
 

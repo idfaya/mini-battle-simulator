@@ -234,7 +234,7 @@ do
     BattleFormula.RollHit = oldRollHit
 end
 
--- Test 6: Wizard blizzard (80008004) uses slow settlement instead of random freeze
+-- Test 6: Wizard blizzard (80008004) uses frost settlement
 do
     local skillLua = require("config.skill.skill_80008004")
     local hero = new_unit(3701, "Ice")
@@ -248,7 +248,7 @@ do
             hasSettlement = true
         end
     end
-    assert_true(hasSettlement, "Blizzard uses deterministic slow settlement")
+    assert_true(hasSettlement, "Blizzard uses deterministic frost settlement")
 end
 
 -- Test 7: Warlock chain lightning (80009003) hits current target plus one extra target

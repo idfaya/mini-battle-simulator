@@ -488,7 +488,7 @@ local FEATS = {
         classId = 8,
         level = 1,
         name = "寒霜迟滞",
-        description = "核心被动。寒霜射线命中后使目标减速。",
+        description = "核心被动。寒霜射线命中后使目标进入霜冻状态。",
         effects = {
             { type = "grant_skill", skill = 80008002 },
         },
@@ -498,7 +498,7 @@ local FEATS = {
         classId = 8,
         level = 3,
         name = "冻结新星",
-        description = "获得冻结新星，CD3，范围冰霜法术；已减速目标豁免失败时 STUN 1 回合。",
+        description = "获得冻结新星，CD3，十字范围冰霜法术；已霜冻目标冻结 1 回合，未霜冻目标施加霜冻。",
         effects = {
             { type = "grant_skill", skill = 80008003 },
         },
@@ -508,7 +508,7 @@ local FEATS = {
         classId = 8,
         level = 5,
         name = "暴风雪",
-        description = "获得暴风雪，CD5，对全体敌人造成冰霜伤害；已减速目标额外受 1d8 伤害，未减速目标被减速。",
+        description = "获得暴风雪，CD5，对全体敌人造成冰霜伤害；已霜冻目标额外受 1d8 伤害并刷新霜冻，未霜冻目标施加霜冻。",
         effects = {
             { type = "grant_skill", skill = 80008004 },
         },

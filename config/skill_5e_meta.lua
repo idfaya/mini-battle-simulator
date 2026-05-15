@@ -575,7 +575,7 @@ local OVERRIDES = {
         kind = "auto",
         damageDice = "1d8",
         role = "寒霜射线",
-        notes = "法师基础冰霜法术攻击。命中后通过寒霜迟滞施加减速。",
+        notes = "法师基础冰霜法术攻击。命中后通过寒霜迟滞施加霜冻。",
     },
     [80008003] = {
         kind = "spell",
@@ -585,7 +585,7 @@ local OVERRIDES = {
         onSaveSuccess = "half",
         damageDice = "1d6+2",
         role = "冻结新星",
-        notes = "CD3。范围冰霜法术；豁免失败且已减速的目标 STUN 1 回合，并刷新减速。",
+        notes = "CD3。十字范围冰霜法术；已霜冻目标冻结 1 回合，未霜冻目标改为施加霜冻。",
     },
     [80008004] = {
         kind = "spell",
@@ -595,12 +595,12 @@ local OVERRIDES = {
         onSaveSuccess = "half",
         damageDice = "2d6",
         role = "暴风雪",
-        notes = "CD5。全体冰霜法术；已减速目标额外受 1d8 冰霜伤害并刷新减速，未减速目标被减速。",
+        notes = "CD5。全体冰霜法术；已霜冻目标额外受 1d8 冰霜伤害并刷新霜冻，未霜冻目标被施加霜冻。",
     },
     [80008002] = {
         kind = "auto",
         role = "寒霜迟滞",
-        notes = "核心被动。寒霜射线和相关冰霜技能命中后施加或刷新减速。",
+        notes = "核心被动。寒霜射线和相关冰霜技能命中后施加或刷新霜冻。",
     },
 
     -- Warlock / Thunder caster
