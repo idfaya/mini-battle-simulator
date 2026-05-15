@@ -222,6 +222,9 @@ local function eachGuardCandidate(defender, callback)
 end
 
 local function getGuardProtector(defender)
+    if hasSkill(defender, IDS.fighter_guard_counter) and ensureRuntime(defender).guardStanceActive then
+        return nil, nil
+    end
     local guard, runtime = eachGuardCandidate(defender, function(unit)
         return canGuardTarget(unit, defender)
     end)

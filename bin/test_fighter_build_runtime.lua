@@ -488,6 +488,39 @@ do
 end
 
 do
+    local firstGuard = new_unit(93145, "FirstGuardOwner")
+    local secondGuard = new_unit(93146, "SecondGuardOwner")
+    local attacker = new_unit(93147, "GuardVsGuardAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+
+    firstGuard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    secondGuard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    firstGuard.passiveRuntime = {
+        guardStanceActive = true,
+    }
+    secondGuard.passiveRuntime = {
+        guardStanceActive = true,
+    }
+    firstGuard.wpType = 1
+    secondGuard.wpType = 2
+    attacker.class = 2
+
+    BattleFormation.GetFriendTeam = function()
+        return { firstGuard, secondGuard }
+    end
+
+    local resolvedTarget, protectionMeta = FighterBuildPassives.ResolveGuardInterception(firstGuard, { attacker = attacker })
+    assert_true(resolvedTarget == firstGuard, "guard owner under active stance is not intercepted by another guard owner")
+    assert_true(protectionMeta == nil, "guard owner direct hit does not produce guard interception metadata")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
     local guard = new_unit(9315, "InterceptGuard")
     local ally = new_unit(9316, "InterceptAlly")
     local attacker = new_unit(9317, "InterceptAttacker")

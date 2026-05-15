@@ -248,6 +248,55 @@ async function waitForNoSelfGuardIntercept(page: import("playwright/test").Page,
   }, timeoutMs);
 }
 
+async function waitForNoInterceptOnGuardOwners(page: import("playwright/test").Page, targetPositions: number[], timeoutMs = 2500) {
+  return page.evaluate(
+    async ({ trackedPositions, trackedTimeoutMs }: { trackedPositions: number[]; trackedTimeoutMs: number }) => {
+      const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const runtime = window as typeof window & {
+        __miniBattleHost?: {
+          callApi?: <T>(name: string, payload?: unknown) => T;
+        };
+        __miniBattleRenderer?: {
+          getBattleDebugState: () => {
+            meleeClashes?: Array<{
+              interceptorId?: string;
+              interceptedTargetId?: string;
+            }>;
+          };
+        };
+      };
+      const host = runtime.__miniBattleHost;
+      const renderer = runtime.__miniBattleRenderer;
+      if (!host || typeof host.callApi !== "function" || !renderer) {
+        return false;
+      }
+      const snapshot = host.callApi<{
+        leftTeam?: Array<{ id: string; position: number }>;
+      }>("get_snapshot");
+      const trackedIds = new Set(
+        (snapshot.leftTeam ?? [])
+          .filter((unit) => trackedPositions.includes(unit.position))
+          .map((unit) => unit.id),
+      );
+      if (trackedIds.size === 0) {
+        return false;
+      }
+      const attempts = Math.max(1, Math.ceil(trackedTimeoutMs / 40));
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        await sleep(40);
+        const hasInterceptedGuardOwner = (renderer.getBattleDebugState().meleeClashes ?? []).some(
+          (clash) => Boolean(clash.interceptedTargetId) && trackedIds.has(String(clash.interceptedTargetId)),
+        );
+        if (hasInterceptedGuardOwner) {
+          return false;
+        }
+      }
+      return true;
+    },
+    { trackedPositions: targetPositions, trackedTimeoutMs: timeoutMs },
+  );
+}
+
 async function waitForNoForwardLungeOnDirectHit(
   page: import("playwright/test").Page,
   targetName: string,
@@ -708,6 +757,22 @@ test("fighter high tier keeps indomitable wind in the build", async ({ page }) =
     .toContain("战士 使用 护卫架势");
   const logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(logs).not.toContain("二次生命");
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("fighter guard owners are not intercepted by another fighter guard owner", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005,900005&enemies=910003,910003,910003&level=3&seed=101001");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("战士 使用 护卫架势");
+
+  expect(await waitForNoInterceptOnGuardOwners(page, [1, 2])).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
