@@ -105,6 +105,52 @@ async function waitForGuardInterceptMotion(page: import("playwright/test").Page)
   });
 }
 
+async function waitForGuardInterceptStationaryProtected(page: import("playwright/test").Page) {
+  return page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          unitLayouts?: Array<{ id: string; x: number; y: number; baseX: number; baseY: number }>;
+          meleeClashes?: Array<{
+            attackerId: string;
+            interceptorId?: string;
+            interceptedTargetId?: string;
+            targetIds: string[];
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return false;
+    }
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await sleep(40);
+      const state = renderer.getBattleDebugState();
+      const layouts = new Map((state.unitLayouts ?? []).map((layout) => [layout.id, layout]));
+      for (const clash of state.meleeClashes ?? []) {
+        if (!clash.interceptorId || !clash.interceptedTargetId || !clash.targetIds.includes(clash.interceptorId)) {
+          continue;
+        }
+        const attacker = layouts.get(clash.attackerId);
+        const interceptor = layouts.get(clash.interceptorId);
+        const protectedTarget = layouts.get(clash.interceptedTargetId);
+        if (!attacker || !interceptor || !protectedTarget) {
+          continue;
+        }
+        const attackerShift = Math.hypot(attacker.x - attacker.baseX, attacker.y - attacker.baseY);
+        const interceptorShift = Math.hypot(interceptor.x - interceptor.baseX, interceptor.y - interceptor.baseY);
+        const protectedShift = Math.hypot(protectedTarget.x - protectedTarget.baseX, protectedTarget.y - protectedTarget.baseY);
+        if (attackerShift > 8 && interceptorShift > 8 && protectedShift < 3) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+}
+
 async function waitForGuardInterceptParticipants(page: import("playwright/test").Page) {
   return page.evaluate(async () => {
     const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -437,6 +483,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
     .toContain("战士 触发被动 护卫架势：登记护卫反击");
 
   expect(await waitForGuardInterceptMotion(page)).toBe(true);
+  expect(await waitForGuardInterceptStationaryProtected(page)).toBe(true);
   expect(await waitForReactionOverlap(page, "guard")).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();

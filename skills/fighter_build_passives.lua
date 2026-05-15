@@ -55,6 +55,43 @@ local function sameUnit(a, b)
     return tonumber(a.instanceId or a.id) == tonumber(b.instanceId or b.id)
 end
 
+local function getUnitRow(unit)
+    local BattleFormation = require("modules.battle_formation")
+    local wpType = tonumber(unit and (unit.wpType or unit.position)) or 0
+    local row = BattleFormation.GetHeroRow and BattleFormation.GetHeroRow(wpType) or nil
+    if row ~= nil then
+        return row
+    end
+    if wpType >= 1 and wpType <= 3 then
+        return 1
+    end
+    if wpType >= 4 and wpType <= 6 then
+        return 2
+    end
+    return nil
+end
+
+local function canGuardTarget(guard, defender)
+    if not guard or not defender or sameUnit(guard, defender) then
+        return false
+    end
+    if guard.isDead or defender.isDead then
+        return false
+    end
+    if (tonumber(guard.hp) or 0) <= 0 or (tonumber(defender.hp) or 0) <= 0 then
+        return false
+    end
+    if guard.isAlive == false or defender.isAlive == false then
+        return false
+    end
+    local guardRow = getUnitRow(guard)
+    local defenderRow = getUnitRow(defender)
+    if guardRow == nil or defenderRow == nil then
+        return true
+    end
+    return defenderRow >= guardRow
+end
+
 -- #region debug-point A:counter-guard-events
 local function publishCounterDebug(stage, data)
     BattleEvent.Publish("DebugCounterTiming", {
@@ -185,8 +222,8 @@ local function eachGuardCandidate(defender, callback)
 end
 
 local function getGuardProtector(defender)
-    local guard, runtime = eachGuardCandidate(defender, function()
-        return true
+    local guard, runtime = eachGuardCandidate(defender, function(unit)
+        return canGuardTarget(unit, defender)
     end)
     return guard, runtime
 end
@@ -468,9 +505,12 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     local originalDefender = extraParam and extraParam.originalDefender or defender
     local guard = extraParam and extraParam.guardDefender or nil
     local runtime = guard and ensureRuntime(guard) or nil
+    if guard and not canGuardTarget(guard, originalDefender) then
+        return
+    end
     if (not guard) or (not runtime) then
         guard, runtime = eachGuardCandidate(defender, function(unit, unitRuntime)
-            return not unitRuntime.__inGuardCounter
+            return canGuardTarget(unit, originalDefender) and (not unitRuntime.__inGuardCounter)
         end)
     end
     if not guard or not runtime then

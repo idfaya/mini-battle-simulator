@@ -451,7 +451,38 @@ do
         damageContext = meleeDamageContext,
     })
     assert_true(meleeDamageContext.damage == 7, "guard stance does not modify self damage directly")
-    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == meleeAttacker, "guard stance counters melee attackers that directly attack the guard owner")
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "guard stance no longer guards or counters self-targeted melee attacks")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local backGuard = new_unit(93141, "BackGuard")
+    local frontAlly = new_unit(93142, "FrontAlly")
+    local backAlly = new_unit(93143, "BackAlly")
+    local attacker = new_unit(93144, "RowRestrictedAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+
+    backGuard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    backGuard.passiveRuntime = {
+        guardStanceActive = true,
+    }
+    backGuard.wpType = 4
+    backAlly.wpType = 5
+    frontAlly.wpType = 1
+    attacker.class = 2
+
+    BattleFormation.GetFriendTeam = function()
+        return { frontAlly, backAlly, backGuard }
+    end
+
+    local frontResolved, frontMeta = FighterBuildPassives.ResolveGuardInterception(frontAlly, { attacker = attacker })
+    local backResolved, backMeta = FighterBuildPassives.ResolveGuardInterception(backAlly, { attacker = attacker })
+
+    assert_true(frontResolved == frontAlly and frontMeta == nil, "back row guard cannot intercept allies standing in front of them")
+    assert_true(backResolved == backGuard and backMeta and backMeta.guard == backGuard, "guard can still intercept allies on the same row")
 
     BattleFormation.GetFriendTeam = oldGetFriendTeam
 end
