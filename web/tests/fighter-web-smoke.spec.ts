@@ -61,6 +61,69 @@ async function waitForReactionOverlap(page: import("playwright/test").Page, kind
   }, kind);
 }
 
+async function waitForCounterSourceQuickReturn(page: import("playwright/test").Page, timeoutMs = 1200) {
+  return page.evaluate(async (trackedTimeoutMs: number) => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          unitLayouts?: Array<{ id: string; x: number; y: number; baseX: number; baseY: number }>;
+          meleeClashes?: Array<{
+            attackerId: string;
+            targetIds: string[];
+            reactionBindings?: Array<{
+              reactorId: string;
+              sourceAttackerId: string;
+              cueKind: "counter" | "guard";
+            }>;
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return false;
+    }
+    const attempts = Math.max(1, Math.ceil(trackedTimeoutMs / 40));
+    let trackedSourceAttackerId = "";
+    let sawDisplacedSource = false;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      await sleep(40);
+      const state = renderer.getBattleDebugState();
+      const layouts = new Map((state.unitLayouts ?? []).map((layout) => [layout.id, layout]));
+      const clashes = state.meleeClashes ?? [];
+      if (trackedSourceAttackerId === "") {
+        for (const clash of clashes) {
+          const counterBinding = (clash.reactionBindings ?? []).find((binding) => binding.cueKind === "counter");
+          if (!counterBinding) {
+            continue;
+          }
+          trackedSourceAttackerId = counterBinding.sourceAttackerId;
+          break;
+        }
+      }
+      if (trackedSourceAttackerId === "") {
+        continue;
+      }
+      const sourceLayout = layouts.get(trackedSourceAttackerId);
+      if (!sourceLayout) {
+        return true;
+      }
+      const sourceShift = Math.hypot(sourceLayout.x - sourceLayout.baseX, sourceLayout.y - sourceLayout.baseY);
+      if (sourceShift > 8) {
+        sawDisplacedSource = true;
+      }
+      if (!sawDisplacedSource) {
+        continue;
+      }
+      if (sourceShift < 6) {
+        return true;
+      }
+    }
+    return false;
+  }, timeoutMs);
+}
+
 async function waitForGuardInterceptMotion(page: import("playwright/test").Page) {
   return page.evaluate(async () => {
     const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -149,6 +212,40 @@ async function waitForGuardInterceptStationaryProtected(page: import("playwright
     }
     return false;
   });
+}
+
+async function waitForNoSelfGuardIntercept(page: import("playwright/test").Page, timeoutMs = 2000) {
+  return page.evaluate(async (trackedTimeoutMs: number) => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          meleeClashes?: Array<{
+            interceptorId?: string;
+            interceptedTargetId?: string;
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return false;
+    }
+    const attempts = Math.max(1, Math.ceil(trackedTimeoutMs / 40));
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      await sleep(40);
+      const hasSelfIntercept = (renderer.getBattleDebugState().meleeClashes ?? []).some(
+        (clash) =>
+          Boolean(clash.interceptorId) &&
+          Boolean(clash.interceptedTargetId) &&
+          clash.interceptorId === clash.interceptedTargetId,
+      );
+      if (hasSelfIntercept) {
+        return false;
+      }
+    }
+    return true;
+  }, timeoutMs);
 }
 
 async function waitForGuardInterceptParticipants(page: import("playwright/test").Page) {
@@ -415,6 +512,7 @@ test("fighter guard stance logs protection in the mid tier", async ({ page }) =>
     .toContain("战士 使用 护卫架势");
   const logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(logs).toContain("护卫");
+  expect(await waitForNoSelfGuardIntercept(page)).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
@@ -461,6 +559,7 @@ test("fighter counter attack starts before the enemy returns to base position", 
     .toContain("战士 触发被动 反击：登记反击");
 
   expect(await waitForReactionOverlap(page, "counter")).toBe(true);
+  expect(await waitForCounterSourceQuickReturn(page)).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击"));

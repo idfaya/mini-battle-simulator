@@ -1749,7 +1749,7 @@ export class BattleScene {
       return 220;
     }
     if (bindings.some((binding) => binding.cueKind === "counter")) {
-      return 90;
+      return 20;
     }
     return 220;
   }
