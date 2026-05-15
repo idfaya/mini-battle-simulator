@@ -100,6 +100,8 @@ do
     local ok, result = SkillTimeline.Execute(hero, { target }, { skillId = 80007001, name = "火球术" }, timeline)
     assert_true(ok, "Fireball timeline execute ok")
     assert_true(frames == 3, "Fireball frame count == 3 (cast, projectile, damage)")
+    assert_true(target.hp < target.maxHp, "Fireball spell timeline applies damage")
+    assert_true((result and result.totalDamage or 0) > 0, "Fireball spell timeline accumulates total damage")
 end
 
 -- Test 1b: Spell-like multi-hit applies at most one status stack per cast

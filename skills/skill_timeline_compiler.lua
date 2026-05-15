@@ -80,6 +80,9 @@ local function ExecuteOp(ctx, frameCopy)
                             effectiveMeta.onSaveSuccess = frameCopy.onSaveSuccess
                         end
                     end
+                    local targetId = target.instanceId or target.id
+                    local saveType = (effectiveMeta and effectiveMeta.saveType) or "ref"
+                    local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
                     local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
                         skill = ctx.skill,
                         meta = effectiveMeta,
@@ -87,18 +90,34 @@ local function ExecuteOp(ctx, frameCopy)
                         damageDice = frameCopy.damageDice,
                     })
                     local saveResult = damageResult and damageResult.save or nil
-                    hitMetaByTarget[target.instanceId] = { save = saveResult, saveType = saveType, dc = dc }
+                    hitMetaByTarget[targetId] = { save = saveResult, saveType = saveType, dc = dc }
                     if saveResult and saveResult.success then
-                        savedTargets[target.instanceId] = true
+                        savedTargets[targetId] = true
                     end
-                    local saveType = (effectiveMeta and effectiveMeta.saveType) or "ref"
-                    local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
+                    isCrit = damageResult and damageResult.isCrit == true or false
                     local damageRoll = damageResult and damageResult.damageRoll or nil
                     dmg = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0))
-                    if hitMetaByTarget[target.instanceId] then
-                        hitMetaByTarget[target.instanceId].damage = dmg
-                        hitMetaByTarget[target.instanceId].damageRoll = damageRoll
+                    if hitMetaByTarget[targetId] then
+                        hitMetaByTarget[targetId].damage = dmg
+                        hitMetaByTarget[targetId].damageRoll = damageRoll
                     end
+                    if dmg > 0 then
+                        BattleDmgHeal.ApplyDamage(target, dmg, ctx.hero, {
+                            skillId = ctx.skill and ctx.skill.skillId or nil,
+                            skillName = ctx.skill and ctx.skill.name or nil,
+                            damageKind = resolvedKind,
+                            isCrit = isCrit,
+                            saveRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].save or nil,
+                            damageRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].damageRoll or nil,
+                        })
+                        total = total + dmg
+                    end
+                    BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = ctx.hero, damage = dmg })
+                    BattleSkill.TriggerDamageBuffs(ctx.hero, target, dmg)
+                    if target.isDead or (target.hp or 0) <= 0 then
+                        BattlePassiveSkill.RunSkillOnDmgMakeKill(ctx.hero, { target = target })
+                    end
+                    ctx.lastHitTargets = { target }
                 else
                     local BuildPassiveCommon = require("skills.build_passive_common")
                     local originalTarget = target
