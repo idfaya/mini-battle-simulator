@@ -343,11 +343,9 @@ do
     }
     firstGuard.passiveRuntime = {
         guardStanceActive = true,
-        guardCounterUsed = false,
     }
     secondGuard.passiveRuntime = {
         guardStanceActive = true,
-        guardCounterUsed = false,
     }
 
     BattleFormation.GetFriendTeam = function()
@@ -384,7 +382,6 @@ do
     }
     guard.passiveRuntime = {
         guardStanceActive = true,
-        guardCounterUsed = false,
     }
     meleeAttacker.class = 2
     rangedAttacker.class = 7
@@ -393,8 +390,8 @@ do
         return { guard, ally }
     end
 
-    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(guard, meleeAttacker) == 0, "guard stance does not grant AC bonus to self")
-    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(ally, meleeAttacker) == 2, "guard stance grants AC bonus to allies")
+    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(guard, meleeAttacker) == 2, "guard stance grants AC bonus to the guard owner")
+    assert_true(FighterBuildPassives.GetGuardStanceAcBonus(ally, meleeAttacker) == 0, "guard stance no longer grants AC bonus to allies directly")
 
     local rangedDamageContext = { damage = 7 }
     FighterBuildPassives.ApplyGuardStanceProtection(ally, {
@@ -410,9 +407,65 @@ do
         damageContext = meleeDamageContext,
     })
     assert_true(meleeDamageContext.damage == 7, "guard stance does not modify self damage directly")
-    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == nil, "guard stance does not guard the owner themself")
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == meleeAttacker, "guard stance counters melee attackers that directly attack the guard owner")
 
     BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local guard = new_unit(9315, "InterceptGuard")
+    local ally = new_unit(9316, "InterceptAlly")
+    local attacker = new_unit(9317, "InterceptAttacker")
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldResolveScaledDamage = BattleSkill.ResolveScaledDamage
+    local oldApplyDamage = BattleDmgHeal.ApplyDamage
+    local oldRunSkillOnDefBeforeDmg = BattlePassiveSkill.RunSkillOnDefBeforeDmg
+    local oldRunSkillOnDefAfterDmg = BattlePassiveSkill.RunSkillOnDefAfterDmg
+    local oldRunSkillOnDmgMakeKill = BattlePassiveSkill.RunSkillOnDmgMakeKill
+    local oldTriggerDamageBuffs = BattleSkill.TriggerDamageBuffs
+    local resolvedTarget = nil
+    local damagedTarget = nil
+
+    guard.skills = {
+        { skillId = SkillRuntimeConfig.Ids.fighter_guard_counter },
+    }
+    guard.passiveRuntime = {
+        guardStanceActive = true,
+    }
+    attacker.class = 2
+
+    BattleFormation.GetFriendTeam = function()
+        return { ally, guard }
+    end
+    BattleSkill.ResolveScaledDamage = function(_, target)
+        resolvedTarget = target
+        return { damage = 9, hit = { hit = true } }
+    end
+    BattleDmgHeal.ApplyDamage = function(target)
+        damagedTarget = target
+    end
+    BattlePassiveSkill.RunSkillOnDefBeforeDmg = function() end
+    BattlePassiveSkill.RunSkillOnDefAfterDmg = function() end
+    BattlePassiveSkill.RunSkillOnDmgMakeKill = function() end
+    BattleSkill.TriggerDamageBuffs = function() end
+
+    local total = BattleSkill.ExecuteDefaultAttackWithPassive(attacker, { ally }, {
+        skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+        name = "基础武器攻击",
+    })
+
+    assert_true(total == 9, "guard interception keeps original melee damage total")
+    assert_true(resolvedTarget == guard, "guard interception resolves the attack against the guard owner")
+    assert_true(damagedTarget == guard, "guard interception applies melee damage to the guard owner")
+    assert_true(guard.passiveRuntime.pendingGuardCounterTarget == attacker, "guard interception queues guard counter against the attacker")
+
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    BattleSkill.ResolveScaledDamage = oldResolveScaledDamage
+    BattleDmgHeal.ApplyDamage = oldApplyDamage
+    BattlePassiveSkill.RunSkillOnDefBeforeDmg = oldRunSkillOnDefBeforeDmg
+    BattlePassiveSkill.RunSkillOnDefAfterDmg = oldRunSkillOnDefAfterDmg
+    BattlePassiveSkill.RunSkillOnDmgMakeKill = oldRunSkillOnDmgMakeKill
+    BattleSkill.TriggerDamageBuffs = oldTriggerDamageBuffs
 end
 
 do

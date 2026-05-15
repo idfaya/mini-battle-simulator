@@ -68,6 +68,8 @@ type MeleeClash = {
   style: MeleeStyle;
   holdUntil?: number;
   reactionBindings?: ReactionHoldBinding[];
+  interceptorId?: string;
+  interceptedTargetId?: string;
 };
 
 type ElementStyle = {
@@ -102,6 +104,14 @@ type ProjectileAnimation = {
   startedAt: number;
   durationMs: number;
   style: ProjectileStyle;
+};
+
+type PendingGuardIntercept = {
+  attackerId: string;
+  originalTargetId: string;
+  guardId: string;
+  queuedAt: number;
+  until: number;
 };
 
 type AoeAnimation = {
@@ -194,6 +204,7 @@ export class BattleScene {
   private pendingExtraAttackUntilByHero = new Map<string, number>();
   private pendingPreciseTargetsByHero = new Map<string, { until: number; targetId: string }>();
   private pendingReactionHolds: ReactionHoldIntent[] = [];
+  private pendingGuardIntercepts: PendingGuardIntercept[] = [];
   private actionOrderRound: number | null = null;
   private actionOrderRosterKey = "";
   private actionOrderIds: string[] = [];
@@ -612,13 +623,20 @@ export class BattleScene {
         18,
         Math.hypot(attackEnd.x - attackStart.x, attackEnd.y - attackStart.y) + heavyImpactInset,
       );
+      const splitAdvance = clash.interceptorId ? 0.5 : 1;
 
       if (layout.unit.id === attacker.unit.id) {
         const travel = this.getMeleeTravelDistanceForClash(clash, elapsed, now, contactDistance);
 
-        dx += unitX * travel;
-        dy += unitY * travel;
-      } else if (targets.some((target) => target.unit.id === layout.unit.id)) {
+        dx += unitX * travel * splitAdvance;
+        dy += unitY * travel * splitAdvance;
+      }
+      if (clash.interceptorId === layout.unit.id) {
+        const travel = this.getMeleeTravelDistanceForClash(clash, elapsed, now, contactDistance);
+        dx -= unitX * travel * 0.5;
+        dy -= unitY * travel * 0.5;
+      }
+      if (targets.some((target) => target.unit.id === layout.unit.id)) {
         for (const hitMoment of clash.hitMoments) {
           const hitProgress = this.getHitEnvelope(progress, hitMoment, 0.18);
           if (hitProgress <= 0) {
@@ -1252,6 +1270,7 @@ export class BattleScene {
         } else if (event.cue === "counter_queue") {
           this.queueOrDeferCounterHold(event.heroId, event.targetId, layouts, now, "counter");
         } else if (event.cue === "guard_counter_queue") {
+          this.registerGuardIntercept(event.heroId, event.targetId, event.sourceTargetId ?? event.heroId, now);
           this.queueOrDeferCounterHold(event.heroId, event.targetId, layouts, now, "guard");
         }
         continue;
@@ -1408,6 +1427,7 @@ export class BattleScene {
           style: this.resolveMeleeStyle(event.effect, event.skillName, attacker.unit.classId),
         };
         this.meleeClashes.push(clash);
+        this.applyPendingGuardInterceptToClash(clash, now);
         this.applyPendingReactionHoldToClash(clash, layouts, now);
         this.extendCounterHoldForReaction(attacker.unit.id, primaryTarget.unit.id, now + clash.baseDurationMs);
         if (clash.precise) {
@@ -1472,6 +1492,7 @@ export class BattleScene {
       }
     }
     this.pendingReactionHolds = prunePendingReactionHolds(this.pendingReactionHolds, now);
+    this.pendingGuardIntercepts = this.pendingGuardIntercepts.filter((item) => item.until >= now);
   }
 
   private findRecentMeleeClash(attackerId: string, targetId: string, now: number) {
@@ -1601,6 +1622,46 @@ export class BattleScene {
       clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + 240);
     }
     return true;
+  }
+
+  private applyGuardInterceptToClash(clash: MeleeClash, guardId: string, originalTargetId: string) {
+    clash.interceptorId = guardId;
+    clash.interceptedTargetId = originalTargetId;
+    clash.anchorTargetId = guardId;
+    clash.targetIds = [guardId];
+  }
+
+  private registerGuardIntercept(guardId: string, attackerId: string, originalTargetId: string, now: number) {
+    if (!guardId || !attackerId || !originalTargetId) {
+      return;
+    }
+    const recentClash = this.findRecentMeleeClash(attackerId, originalTargetId, now);
+    if (recentClash) {
+      this.applyGuardInterceptToClash(recentClash, guardId, originalTargetId);
+      return;
+    }
+    this.pendingGuardIntercepts.push({
+      attackerId,
+      originalTargetId,
+      guardId,
+      queuedAt: now,
+      until: now + COUNTER_HOLD_MATCH_WINDOW_MS,
+    });
+  }
+
+  private applyPendingGuardInterceptToClash(clash: MeleeClash, now: number) {
+    for (let index = 0; index < this.pendingGuardIntercepts.length; index += 1) {
+      const pending = this.pendingGuardIntercepts[index];
+      if (pending.until < now) {
+        continue;
+      }
+      if (pending.attackerId !== clash.attackerId || pending.originalTargetId !== clash.anchorTargetId) {
+        continue;
+      }
+      this.applyGuardInterceptToClash(clash, pending.guardId, pending.originalTargetId);
+      this.pendingGuardIntercepts.splice(index, 1);
+      return;
+    }
   }
 
   private queueOrDeferCounterHold(
@@ -2346,7 +2407,10 @@ export class BattleScene {
       unitLayouts: this.lastResolvedLayouts.map((layout) => ({ ...layout })),
       meleeClashes: this.meleeClashes.map((clash) => ({
         attackerId: clash.attackerId,
+        anchorTargetId: clash.anchorTargetId,
         targetIds: [...clash.targetIds],
+        interceptorId: clash.interceptorId ?? "",
+        interceptedTargetId: clash.interceptedTargetId ?? "",
         reactionBindings: (clash.reactionBindings ?? []).map((binding) => ({
           reactorId: binding.reactorId,
           sourceAttackerId: binding.sourceAttackerId,

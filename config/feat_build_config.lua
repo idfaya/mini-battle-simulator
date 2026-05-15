@@ -641,7 +641,7 @@ local FEATS = {
         classId = 2,
         level = 3,
         name = "护卫",
-        description = "获得护卫架势，CD3，持续到你下回合开始；期间友军被攻击时获得 AC+2；若攻击者为近战单位，你会在其攻击结算后对其发动 1 次基础武器攻击。自己不能护卫自己。",
+        description = "获得护卫架势，CD3，持续到你下次行动开始；期间己方承受的近战攻击都由你承担，且你会在其攻击结算后对攻击者发动 1 次基础武器攻击；护卫期间你自身 AC+2。",
         choiceGroup = "fighter_lv3_active",
         effects = {
             { type = "grant_skill", skill = 80002005 },

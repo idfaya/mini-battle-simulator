@@ -100,8 +100,14 @@ local function ExecuteOp(ctx, frameCopy)
                         hitMetaByTarget[target.instanceId].damageRoll = damageRoll
                     end
                 else
+                    local BuildPassiveCommon = require("skills.build_passive_common")
+                    local originalTarget = target
+                    local actualTarget, protectionMeta = BuildPassiveCommon.ResolveProtectedDefender(target, {
+                        attacker = ctx.hero,
+                        skill = ctx.skill,
+                    })
                     local attackBonus = tonumber(ctx.hero and ctx.hero.hit) or 0
-                    local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
+                    local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, actualTarget, {
                         skill = ctx.skill,
                         meta = meta,
                         damageKind = resolvedKind,
@@ -109,7 +115,7 @@ local function ExecuteOp(ctx, frameCopy)
                         attackBonus = attackBonus,
                     })
                     local hitResult = damageResult and damageResult.hit or nil
-                    hitMetaByTarget[target.instanceId] = {
+                    hitMetaByTarget[actualTarget.instanceId] = {
                         hit = hitResult,
                         damageRoll = damageResult and damageResult.damageRoll or nil,
                     }
@@ -122,7 +128,7 @@ local function ExecuteOp(ctx, frameCopy)
                         BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
                             BattleVisualEvents.MISS,
                             ctx.hero,
-                            target,
+                            actualTarget,
                             {
                                 skillId = ctx.skill and ctx.skill.skillId or nil,
                                 skillName = ctx.skill and ctx.skill.name or nil,
@@ -130,50 +136,54 @@ local function ExecuteOp(ctx, frameCopy)
                             }))
                         dmg = 0
                     end
-                    if hitMetaByTarget[target.instanceId] then
-                        hitMetaByTarget[target.instanceId].damage = dmg
+                    if hitMetaByTarget[actualTarget.instanceId] then
+                        hitMetaByTarget[actualTarget.instanceId].damage = dmg
                     end
-                end
+                    target = actualTarget
 
-                -- Allow defender-side passives to modify incoming damage.
-                local damageContext = {
-                    attacker = ctx.hero,
-                    target = target,
-                    damage = dmg,
-                }
-                BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
-                local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
-                if ok and FighterBuildPassives and FighterBuildPassives.ApplyGuardStanceProtection then
-                    FighterBuildPassives.ApplyGuardStanceProtection(target, {
+                    -- Allow defender-side passives to modify incoming damage.
+                    local damageContext = {
                         attacker = ctx.hero,
-                        damageContext = damageContext,
-                        skill = ctx.skill,
-                    })
-                end
-                dmg = math.max(0, math.floor(damageContext.damage or dmg))
+                        target = actualTarget,
+                        originalTarget = originalTarget,
+                        damage = dmg,
+                    }
+                    BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
+                    local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+                    if ok and FighterBuildPassives and FighterBuildPassives.ApplyGuardStanceProtection then
+                        FighterBuildPassives.ApplyGuardStanceProtection(actualTarget, {
+                            attacker = ctx.hero,
+                            damageContext = damageContext,
+                            skill = ctx.skill,
+                            originalDefender = originalTarget,
+                            guardDefender = protectionMeta and protectionMeta.guard or nil,
+                        })
+                    end
+                    dmg = math.max(0, math.floor(damageContext.damage or dmg))
 
-                if dmg > 0 then
-                    BattleDmgHeal.ApplyDamage(target, dmg, ctx.hero, {
-                        skillId = ctx.skill and ctx.skill.skillId or nil,
-                        skillName = ctx.skill and ctx.skill.name or nil,
-                        damageKind = resolvedKind,
-                        isCrit = isCrit,
-                        attackRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].hit or nil,
-                        saveRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].save or nil,
-                        damageRoll = hitMetaByTarget[target.instanceId] and hitMetaByTarget[target.instanceId].damageRoll or nil,
-                    })
-                    total = total + dmg
-                end
+                    if dmg > 0 then
+                        BattleDmgHeal.ApplyDamage(actualTarget, dmg, ctx.hero, {
+                            skillId = ctx.skill and ctx.skill.skillId or nil,
+                            skillName = ctx.skill and ctx.skill.name or nil,
+                            damageKind = resolvedKind,
+                            isCrit = isCrit,
+                            attackRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].hit or nil,
+                            saveRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].save or nil,
+                            damageRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].damageRoll or nil,
+                        })
+                        total = total + dmg
+                    end
 
-                -- Defender after-damage hooks + buff triggers.
-                BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = ctx.hero, damage = dmg })
-                BattleSkill.TriggerDamageBuffs(ctx.hero, target, dmg)
+                    -- Defender after-damage hooks + buff triggers.
+                    BattlePassiveSkill.RunSkillOnDefAfterDmg(actualTarget, { attacker = ctx.hero, damage = dmg })
+                    BattleSkill.TriggerDamageBuffs(ctx.hero, actualTarget, dmg)
 
-                -- Attacker kill hooks (used by several passives).
-                if target.isDead or (target.hp or 0) <= 0 then
-                    BattlePassiveSkill.RunSkillOnDmgMakeKill(ctx.hero, { target = target })
+                    -- Attacker kill hooks (used by several passives).
+                    if actualTarget.isDead or (actualTarget.hp or 0) <= 0 then
+                        BattlePassiveSkill.RunSkillOnDmgMakeKill(ctx.hero, { target = actualTarget })
+                    end
+                    ctx.lastHitTargets = { actualTarget }
                 end
-                ctx.lastHitTargets = { target }
             end
         end
         frameCopy.__savedTargets = savedTargets

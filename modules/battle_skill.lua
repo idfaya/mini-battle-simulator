@@ -1248,30 +1248,38 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     for _, target in ipairs(targets) do
         if target and not target.isDead then
             local BuildPassiveCommon = require("skills.build_passive_common")
-            local damageResult = BattleSkill.ResolveScaledDamage(hero, target, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill))
+            local originalTarget = target
+            local actualTarget, protectionMeta = BuildPassiveCommon.ResolveProtectedDefender(target, {
+                attacker = hero,
+                skill = skill,
+            })
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, actualTarget, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, actualTarget, skill))
             local damage = tonumber(damageResult and damageResult.damage) or 0
             local damageContext = {
                 attacker = hero,
-                target = target,
+                target = actualTarget,
+                originalTarget = originalTarget,
                 damage = damage,
             }
 
-            BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
-            BuildPassiveCommon.ApplyTeamProtections(target, {
+            BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
+            BuildPassiveCommon.ApplyTeamProtections(actualTarget, {
                 attacker = hero,
                 damageContext = damageContext,
                 skill = skill,
+                originalDefender = originalTarget,
+                guardDefender = protectionMeta and protectionMeta.guard or nil,
             })
             damage = math.max(0, math.floor(damageContext.damage or damage))
             if damage > 0 then
-                damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
+                damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, actualTarget)
             end
             totalDamage = totalDamage + damage
 
             -- 使用 ApplyDamage 应用伤害（会触发事件）
             local BattleDmgHeal = require("modules.battle_dmg_heal")
             if damage > 0 then
-                BattleDmgHeal.ApplyDamage(target, damage, hero, {
+                BattleDmgHeal.ApplyDamage(actualTarget, damage, hero, {
                     isCrit = damageResult and damageResult.isCrit or false,
                     isDodged = damageResult and damageResult.isDodged or false,
                     isBlocked = damageResult and damageResult.isBlock or false,
@@ -1287,14 +1295,14 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 if damageResult and damageResult.hit and damageResult.hit.hit == false then
                     Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
                         hero.name or "Unknown",
-                        target.name or "Unknown",
+                        actualTarget.name or "Unknown",
                         damageResult.hit.roll or 0,
                         damageResult.hit.total or 0,
                         damageResult.hit.targetAC or 0))
                     BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
                         BattleVisualEvents.MISS,
                         hero,
-                        target,
+                        actualTarget,
                         {
                             skillId = skill and skill.skillId or nil,
                             skillName = skill and skill.name or nil,
@@ -1317,21 +1325,21 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
 
             Logger.Log(string.format("[ExecuteDefaultAttackWithPassive] %s 对 %s 造成 %d 点伤害",
                 hero.name or "Unknown",
-                target.name or "Unknown",
+                actualTarget.name or "Unknown",
                 damage))
 
             -- 触发目标受击后被动技能 (DefAfterDmg)
-            BattlePassiveSkill.RunSkillOnDefAfterDmg(target, {attacker = hero, damage = damage})
+            BattlePassiveSkill.RunSkillOnDefAfterDmg(actualTarget, {attacker = hero, damage = damage})
 
             -- 触发伤害相关Buff
-            BattleSkill.TriggerDamageBuffs(hero, target, damage)
+            BattleSkill.TriggerDamageBuffs(hero, actualTarget, damage)
 
             -- 检查是否击杀
-            if target.isDead or target.hp <= 0 then
+            if actualTarget.isDead or actualTarget.hp <= 0 then
                 -- 触发击杀被动技能 (DmgMakeKill)
-                BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = target})
+                BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = actualTarget})
             end
-            BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
+            BuildPassiveCommon.AfterBasicAttackResolved(hero, actualTarget, damage)
         end
     end
 

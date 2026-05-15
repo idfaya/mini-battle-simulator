@@ -129,7 +129,6 @@ function FighterBuildPassives.ActivateGuardStance(hero)
     local BattleSkill = require("modules.battle_skill")
     local runtime = ensureRuntime(hero)
     runtime.guardStanceActive = true
-    runtime.guardCounterUsed = false
     runtime.guardStanceRound = getRound()
     BattleSkill.ApplyBuffFromSkill(hero, hero, GUARD_STANCE_BUFF_ID, nil, {
         duration = 1,
@@ -140,7 +139,6 @@ function FighterBuildPassives.ClearGuardStance(hero)
     local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
     runtime.guardStanceActive = false
-    runtime.guardCounterUsed = false
     runtime.guardStanceRound = nil
     BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARD_STANCE_BUFF_ID, hero, 1)
 end
@@ -149,16 +147,12 @@ local function eachGuardCandidate(defender, callback)
     if not isAlive(defender) or type(callback) ~= "function" then
         return nil, nil
     end
-    local defenderId = tonumber(defender.instanceId or defender.id) or 0
     local inspected = {}
     local function visit(unit)
         if not unit then
             return nil, nil
         end
         local unitId = tonumber(unit.instanceId or unit.id) or 0
-        if unitId == defenderId then
-            return nil, nil
-        end
         if inspected[unitId] then
             return nil, nil
         end
@@ -173,6 +167,11 @@ local function eachGuardCandidate(defender, callback)
             end
         end
         return nil, nil
+    end
+
+    local guard, runtime, result = visit(defender)
+    if guard then
+        return guard, runtime, result
     end
 
     local BattleFormation = require("modules.battle_formation")
@@ -190,6 +189,29 @@ local function getGuardProtector(defender)
         return true
     end)
     return guard, runtime
+end
+
+function FighterBuildPassives.ResolveGuardInterception(defender, extraParam)
+    local attacker = extraParam and extraParam.attacker or nil
+    if not isAlive(defender) or not isAlive(attacker) or not isMeleeUnit(attacker) then
+        return defender, nil
+    end
+
+    local attackerRuntime = ensureRuntime(attacker)
+    if attackerRuntime.__inCounterBasic or attackerRuntime.__inGuardCounter then
+        return defender, nil
+    end
+
+    local guard, runtime = getGuardProtector(defender)
+    if not guard or not runtime then
+        return defender, nil
+    end
+
+    return guard, {
+        guard = guard,
+        originalDefender = defender,
+        redirected = not sameUnit(guard, defender),
+    }
 end
 
 local function getBasicAttackDamageDice()
@@ -221,8 +243,10 @@ function FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)
     if not isAlive(defender) or not isAlive(attacker) then
         return 0
     end
-    local guard = getGuardProtector(defender)
-    if not guard then
+    if not hasSkill(defender, IDS.fighter_guard_counter) then
+        return 0
+    end
+    if not ensureRuntime(defender).guardStanceActive then
         return 0
     end
     return 2
@@ -234,12 +258,21 @@ function FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)
         return
     end
 
-    local guard, runtime = getGuardProtector(defender)
+    local originalDefender = extraParam and extraParam.originalDefender or defender
+    local guard = extraParam and extraParam.guardDefender or defender
+    local runtime = guard and ensureRuntime(guard) or nil
     if not guard or not runtime then
         return
     end
 
-    FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
+    local payload = {
+        attacker = attacker,
+        damageContext = extraParam and extraParam.damageContext or nil,
+        skill = extraParam and extraParam.skill or nil,
+        originalDefender = originalDefender,
+        guardDefender = guard,
+    }
+    FighterBuildPassives.TryTriggerGuardCounter(originalDefender, payload)
 end
 
 function FighterBuildPassives.RecordAttackVictim(attacker, target, damage)
@@ -372,27 +405,34 @@ function FighterBuildPassives.PerformPressureStrike(hero, target, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
-    local result = BattleSkill.ResolveScaledDamage(hero, target, {
+    local actualTarget, protectionMeta = FighterBuildPassives.ResolveGuardInterception(target, {
+        attacker = hero,
+        skill = skill,
+    })
+    local result = BattleSkill.ResolveScaledDamage(hero, actualTarget, {
         skill = skill,
         damageKind = "direct",
-        targetAC = math.max(0, (tonumber(target.ac) or 0) - 2),
+        targetAC = math.max(0, (tonumber(actualTarget.ac) or 0) - 2),
         damageDice = "1d8",
     })
     local damage = tonumber(result and result.damage) or 0
     local damageContext = {
         attacker = hero,
-        target = target,
+        target = actualTarget,
+        originalTarget = target,
         damage = damage,
     }
-    BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
-    FighterBuildPassives.ApplyGuardStanceProtection(target, {
+    BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
+    FighterBuildPassives.ApplyGuardStanceProtection(actualTarget, {
         attacker = hero,
         damageContext = damageContext,
         skill = skill,
+        originalDefender = target,
+        guardDefender = protectionMeta and protectionMeta.guard or nil,
     })
     damage = math.max(0, math.floor(damageContext.damage or damage))
     if damage > 0 then
-        BattleDmgHeal.ApplyDamage(target, damage, hero, {
+        BattleDmgHeal.ApplyDamage(actualTarget, damage, hero, {
             isCrit = result and result.isCrit or false,
             skillId = skill and skill.skillId or nil,
             skillName = skill and skill.name or nil,
@@ -400,14 +440,14 @@ function FighterBuildPassives.PerformPressureStrike(hero, target, skill)
             attackRoll = result and result.hit or nil,
             damageRoll = result and result.damageRoll or nil,
         })
-        BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = hero, damage = damage })
-        BattleSkill.TriggerDamageBuffs(hero, target, damage)
-        if target.isDead or (target.hp or 0) <= 0 then
-            BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = target })
+        BattlePassiveSkill.RunSkillOnDefAfterDmg(actualTarget, { attacker = hero, damage = damage })
+        BattleSkill.TriggerDamageBuffs(hero, actualTarget, damage)
+        if actualTarget.isDead or (actualTarget.hp or 0) <= 0 then
+            BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = actualTarget })
         end
     end
-    if damage > 0 and FighterBuildPassives.HasSignatureMastery(hero) and isAlive(target) then
-        damage = damage + FighterBuildPassives.ApplyDirectBonusDamage(hero, target, "1d6")
+    if damage > 0 and FighterBuildPassives.HasSignatureMastery(hero) and isAlive(actualTarget) then
+        damage = damage + FighterBuildPassives.ApplyDirectBonusDamage(hero, actualTarget, "1d6")
     end
     return damage
 end
@@ -425,21 +465,25 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
         return
     end
 
-    local guard, runtime = eachGuardCandidate(defender, function(unit, unitRuntime)
-        return (not unitRuntime.guardCounterUsed) and (not unitRuntime.__inGuardCounter)
-    end)
+    local originalDefender = extraParam and extraParam.originalDefender or defender
+    local guard = extraParam and extraParam.guardDefender or nil
+    local runtime = guard and ensureRuntime(guard) or nil
+    if (not guard) or (not runtime) then
+        guard, runtime = eachGuardCandidate(defender, function(unit, unitRuntime)
+            return not unitRuntime.__inGuardCounter
+        end)
+    end
     if not guard or not runtime then
         return
     end
 
-    runtime.guardCounterUsed = true
     attackerRuntime.pendingGuardReactionQueued = true
     runtime.pendingGuardCounterTarget = attacker
     publishPassiveTriggered(guard, "护卫架势", "登记护卫反击", string.format("将对 %s 发动护卫反击", attacker.name or "目标"))
     -- #region debug-point B:queue-guard
     publishCounterDebug("queue_guard_counter", {
-        defenderId = defender.instanceId or defender.id,
-        defenderName = defender.name,
+        defenderId = originalDefender and (originalDefender.instanceId or originalDefender.id) or defender.instanceId or defender.id,
+        defenderName = originalDefender and originalDefender.name or defender.name,
         guardId = guard.instanceId or guard.id,
         guardName = guard.name,
         attackerId = attacker.instanceId or attacker.id,

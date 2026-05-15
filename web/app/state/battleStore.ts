@@ -193,6 +193,7 @@ export class BattleStore {
             type: "combat_cue",
             heroId: guardId,
             targetId: attackerId,
+            sourceTargetId: String(debugData?.defenderId ?? ""),
             cue: "guard_counter_queue",
           });
         }

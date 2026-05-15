@@ -61,6 +61,50 @@ async function waitForReactionOverlap(page: import("playwright/test").Page, kind
   }, kind);
 }
 
+async function waitForGuardInterceptMotion(page: import("playwright/test").Page) {
+  return page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          unitLayouts?: Array<{ id: string; x: number; y: number; baseX: number; baseY: number }>;
+          meleeClashes?: Array<{
+            attackerId: string;
+            interceptorId?: string;
+            interceptedTargetId?: string;
+            targetIds: string[];
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return false;
+    }
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await sleep(40);
+      const state = renderer.getBattleDebugState();
+      const layouts = new Map((state.unitLayouts ?? []).map((layout) => [layout.id, layout]));
+      for (const clash of state.meleeClashes ?? []) {
+        if (!clash.interceptorId || !clash.interceptedTargetId || !clash.targetIds.includes(clash.interceptorId)) {
+          continue;
+        }
+        const attacker = layouts.get(clash.attackerId);
+        const interceptor = layouts.get(clash.interceptorId);
+        if (!attacker || !interceptor) {
+          continue;
+        }
+        const attackerShift = Math.hypot(attacker.x - attacker.baseX, attacker.y - attacker.baseY);
+        const interceptorShift = Math.hypot(interceptor.x - interceptor.baseX, interceptor.y - interceptor.baseY);
+        if (attackerShift > 8 && interceptorShift > 8) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+}
+
 test("fighter web flow shows guard stance in the three-tier build", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
@@ -196,12 +240,15 @@ test("fighter guard counter starts before the enemy returns to base position", a
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("战士 触发被动 护卫架势：登记护卫反击");
 
+  expect(await waitForGuardInterceptMotion(page)).toBe(true);
   expect(await waitForReactionOverlap(page, "guard")).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
   const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
+  const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("兽人 的 基础武器攻击 对 战士"), queueIndex + 1);
   expect(queueIndex).toBeGreaterThanOrEqual(0);
+  expect(redirectedHitIndex).toBeGreaterThan(queueIndex);
   expect(counterIndex).toBeGreaterThan(queueIndex);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);

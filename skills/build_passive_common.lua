@@ -369,6 +369,20 @@ function BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill)
     return opts
 end
 
+function BuildPassiveCommon.ResolveProtectedDefender(defender, extraParam)
+    local actualDefender = defender
+    local protectionMeta = nil
+    local okFighter, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
+    if okFighter and FighterBuildPassives and FighterBuildPassives.ResolveGuardInterception then
+        local resolvedDefender, resolvedMeta = FighterBuildPassives.ResolveGuardInterception(defender, extraParam)
+        if resolvedDefender then
+            actualDefender = resolvedDefender
+            protectionMeta = resolvedMeta
+        end
+    end
+    return actualDefender, protectionMeta
+end
+
 function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
     local runtime = ensureRuntime(hero)
     local bonusDice = tostring(runtime.basicAttackBonusDice or "")
