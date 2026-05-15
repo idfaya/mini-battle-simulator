@@ -442,6 +442,13 @@ local function IsPureHealExecution(executionType)
         or executionType == "lay_on_hands"
 end
 
+local function ShouldCastSelfRecoverySkill(hero, executionType)
+    if executionType ~= "harmonize" then
+        return true
+    end
+    return GetTargetMissingHpRatio(hero) > 0
+end
+
 local function HasInjuredAlly(hero)
     local BattleFormation = require("modules.battle_formation")
     for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
@@ -645,6 +652,9 @@ local function BuildSkillCandidate(hero, skill, opts)
         return nil
     end
     if executionType == "sanctuary_prayer" and not ShouldCastSanctuaryPrayer(hero) then
+        return nil
+    end
+    if not ShouldCastSelfRecoverySkill(hero, executionType) then
         return nil
     end
 

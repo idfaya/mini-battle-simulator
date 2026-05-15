@@ -26,12 +26,11 @@ function skill_80003003.BuildTimeline(hero, targets, skill)
                     { tag = "remove_buff_by_subtype", phase = "pre", param = { subType = E_BUFF_SPEC_SUBTYPE.SILENT } },
                 },
             },
-            { frame = 45, op = "effect", effect = "skill_80003003_end", targetRef = "selected" },
+            { frame = 45, op = "effect", effect = "skill_80003003_end", targetRef = "self" },
         },
     })
 end
 
 return skill_80003003
-
 
 

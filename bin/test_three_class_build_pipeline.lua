@@ -19,6 +19,9 @@ local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.skill_runtime_config")
 local HeroData = require("config.hero_data")
+local BattleFormation = require("modules.battle_formation")
+local BattleSkill = require("modules.battle_skill")
+local BattleMain = require("modules.battle_main")
 local MonkBuildPassives = require("skills.monk_build_passives")
 
 local function hasSkill(list, skillId)
@@ -28,6 +31,25 @@ local function hasSkill(list, skillId)
         end
     end
     return false
+end
+
+local function new_unit(id, name)
+    return {
+        id = id,
+        instanceId = id,
+        name = name,
+        hp = 100,
+        maxHp = 100,
+        isDead = false,
+        isAlive = true,
+        isLeft = true,
+        skills = {},
+        skillsConfig = {},
+        skillData = nil,
+        wpType = 4,
+        class = 3,
+        classId = 3,
+    }
 end
 
 do
@@ -93,6 +115,43 @@ do
     passive:OnSelfTurnBegin()
     assert_true(hero.passiveRuntime.pendingBasicAttackHitBonus == 1, "Monk swift step grants first attack hit bonus")
     assert_true(hero.passiveRuntime.pendingBasicAttackBonusDice == "1d4", "Monk swift step grants first attack bonus damage die")
+end
+
+do
+    BattleFormation.OnFinal()
+
+    local monk = new_unit(9201, "DecisionMonk")
+    local ally = new_unit(9202, "MonkAlly")
+    local enemy = new_unit(9203, "EnemyTarget")
+    ally.class = 2
+    ally.classId = 2
+    ally.wpType = 1
+    enemy.class = 2
+    enemy.classId = 2
+    enemy.wpType = 1
+    enemy.isLeft = false
+    monk.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(3, 5, {}))
+
+    BattleFormation.Init({
+        teamLeft = { monk, ally },
+        teamRight = { enemy },
+    })
+
+    local battleMonk = BattleFormation.FindHeroByCampAndPos(true, 4)
+    BattleSkill.Init(battleMonk, battleMonk.skillsConfig)
+
+    battleMonk.hp = 100
+    battleMonk.maxHp = 100
+    local fullHpSkill = BattleMain.DebugSelectAvailableSkill(battleMonk)
+    assert_true(fullHpSkill and fullHpSkill.skillId == SkillRuntimeConfig.Ids.monk_open_hand,
+        "Monk does not spend harmonize at full HP")
+
+    battleMonk.hp = 60
+    local injuredSkill = BattleMain.DebugSelectAvailableSkill(battleMonk)
+    assert_true(injuredSkill and injuredSkill.skillId == SkillRuntimeConfig.Ids.monk_harmonize,
+        "Monk uses harmonize after taking damage")
+
+    BattleFormation.OnFinal()
 end
 
 log("Three-class build pipeline tests passed.")

@@ -772,8 +772,7 @@ local SKILLS = {
         runtimeData = {
             skillType = 2,
             targetsSelections = {
-                castTarget = E_CAST_TARGET.Alias,
-                includeSelf = true,
+                castTarget = E_CAST_TARGET.Self,
             },
         },
     },

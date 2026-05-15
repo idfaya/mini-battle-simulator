@@ -24,14 +24,42 @@ async function readLogs(page: import("playwright/test").Page) {
   return page.locator(".battle-log li").allTextContents();
 }
 
+async function captureAnimationSummary(page: import("playwright/test").Page, durationMs = 4000) {
+  return page.evaluate(async ({ durationMs: sampleMs }) => {
+    const win = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState?: () => {
+          meleeClashes?: Array<unknown>;
+          projectileCount?: number;
+        };
+      };
+    };
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    let maxMeleeClashes = 0;
+    let maxProjectileCount = 0;
+    const deadline = performance.now() + sampleMs;
+
+    while (performance.now() < deadline) {
+      const debugState = win.__miniBattleRenderer?.getBattleDebugState?.() ?? {};
+      maxMeleeClashes = Math.max(maxMeleeClashes, Array.isArray(debugState.meleeClashes) ? debugState.meleeClashes.length : 0);
+      maxProjectileCount = Math.max(maxProjectileCount, typeof debugState.projectileCount === "number" ? debugState.projectileCount : 0);
+      await sleep(50);
+    }
+
+    return { maxMeleeClashes, maxProjectileCount };
+  }, { durationMs });
+}
+
 test("monk smoke shows martial arts chain, subclass action and extra attack", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900001&enemies=910006&level=5&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900001&enemies=910003&level=5&seed=101001");
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".ult-button")).toHaveCount(0);
+
+  const animationSummary = await captureAnimationSummary(page);
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
@@ -43,6 +71,8 @@ test("monk smoke shows martial arts chain, subclass action and extra attack", as
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("触发连击："))).toBeTruthy();
   expect(logs.some((line) => line.includes("使用 震劲掌"))).toBeTruthy();
+  expect(animationSummary.maxProjectileCount).toBe(0);
+  expect(animationSummary.maxMeleeClashes).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
