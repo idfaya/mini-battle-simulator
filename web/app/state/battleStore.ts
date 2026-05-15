@@ -80,6 +80,46 @@ function formatRollSuffix(payload: Record<string, unknown>, includeDamage: boole
   return parts.length > 0 ? `（${parts.join("；")}）` : "";
 }
 
+function isDamageAnimation(event: AnimationEvent | undefined): event is Extract<AnimationEvent, { type: "damage" }> {
+  return event?.type === "damage";
+}
+
+function isSkillColoredDamage(event: Extract<AnimationEvent, { type: "damage" }>) {
+  return event.preferSkillColor === true || event.basicAttack !== true;
+}
+
+function shouldMergeBasicAttackSkillDamage(
+  previous: AnimationEvent | undefined,
+  current: Extract<AnimationEvent, { type: "damage" }>,
+) {
+  if (!isDamageAnimation(previous)) {
+    return false;
+  }
+  if (previous.heroId !== current.heroId || previous.attackerId !== current.attackerId) {
+    return false;
+  }
+  const previousBasic = previous.basicAttack === true;
+  const currentBasic = current.basicAttack === true;
+  if (!previousBasic && !currentBasic) {
+    return false;
+  }
+  return (previousBasic && isSkillColoredDamage(current)) || (currentBasic && isSkillColoredDamage(previous));
+}
+
+function pushAnimationEvent(animations: AnimationEvent[], event: AnimationEvent) {
+  if (event.type === "damage" && shouldMergeBasicAttackSkillDamage(animations[animations.length - 1], event)) {
+    const previous = animations[animations.length - 1] as Extract<AnimationEvent, { type: "damage" }>;
+    previous.value += event.value;
+    previous.critical = previous.critical || event.critical;
+    previous.preferSkillColor = true;
+    if (!previous.skillName && event.skillName) {
+      previous.skillName = event.skillName;
+    }
+    return;
+  }
+  animations.push(event);
+}
+
 // #region debug-point E:report-runtime
 const DEBUG_COUNTER_URL = "http://127.0.0.1:7777/event";
 const DEBUG_COUNTER_SESSION = "fighter-counter-timing";
@@ -236,7 +276,7 @@ export class BattleStore {
           appendLog(
             `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
           );
-          animations.push({
+          pushAnimationEvent(animations, {
             type: "damage",
             heroId: String(event.payload.targetId ?? ""),
             attackerId: String(event.payload.attackerId ?? ""),

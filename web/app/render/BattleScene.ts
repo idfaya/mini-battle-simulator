@@ -948,7 +948,7 @@ export class BattleScene {
       ctx.font = iconSize < 14 ? "bold 7px sans-serif" : iconSize < 18 ? "bold 8px sans-serif" : "bold 10px sans-serif";
       ctx.fillText(style.label, iconX + iconSize / 2, y + iconSize / 2 + 0.5);
 
-      const stackText = buff.stackCount > 1 ? String(buff.stackCount) : buff.duration > 0 && buff.duration < 99 ? String(buff.duration) : "";
+      const stackText = buff.stackCount > 1 ? String(buff.stackCount) : "";
       if (stackText) {
         ctx.fillStyle = "rgba(11, 19, 32, 0.95)";
         ctx.beginPath();
@@ -1649,12 +1649,15 @@ export class BattleScene {
       if (!clash.holdUntil) {
         continue;
       }
-      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + 240);
+      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + this.getClashReleaseDurationMs(clash));
     }
     return true;
   }
 
   private applyGuardInterceptToClash(clash: MeleeClash, guardId: string, originalTargetId: string) {
+    if (!guardId || !originalTargetId || guardId === originalTargetId) {
+      return;
+    }
     clash.interceptorId = guardId;
     clash.interceptedTargetId = originalTargetId;
     clash.anchorTargetId = guardId;
@@ -1662,7 +1665,7 @@ export class BattleScene {
   }
 
   private registerGuardIntercept(guardId: string, attackerId: string, originalTargetId: string, now: number) {
-    if (!guardId || !attackerId || !originalTargetId) {
+    if (!guardId || !attackerId || !originalTargetId || guardId === originalTargetId) {
       return;
     }
     const recentClash = this.findRecentMeleeClash(attackerId, originalTargetId, now);
@@ -1719,7 +1722,7 @@ export class BattleScene {
       COUNTER_QUEUE_HOLD_MS,
     );
     if (clash.holdUntil) {
-      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + 240);
+      clash.durationMs = Math.max(clash.durationMs, clash.holdUntil - clash.startedAt + this.getClashReleaseDurationMs(clash));
     }
   }
 
@@ -1732,9 +1735,23 @@ export class BattleScene {
       if (!clash.reactionBindings?.some((binding) => binding.reactorId === reactorId)) {
         continue;
       }
-      clash.durationMs = Math.max(clash.baseDurationMs, (clash.holdUntil ?? holdUntil) - clash.startedAt + 240);
+      clash.durationMs = Math.max(
+        clash.baseDurationMs,
+        (clash.holdUntil ?? holdUntil) - clash.startedAt + this.getClashReleaseDurationMs(clash),
+      );
       return;
     }
+  }
+
+  private getClashReleaseDurationMs(clash: MeleeClash) {
+    const bindings = clash.reactionBindings ?? [];
+    if (bindings.some((binding) => binding.cueKind === "guard")) {
+      return 220;
+    }
+    if (bindings.some((binding) => binding.cueKind === "counter")) {
+      return 90;
+    }
+    return 220;
   }
 
   private getMeleeFocusPoint(attacker: UnitLayout, targets: UnitLayout[], clash: MeleeClash) {
@@ -1791,6 +1808,7 @@ export class BattleScene {
     const baseDurationMs = Math.max(1, clash.baseDurationMs || clash.durationMs);
     const hitCount = clash.hitMoments.length;
     const holdUntil = clash.holdUntil ?? 0;
+    const releaseDurationMs = this.getClashReleaseDurationMs(clash);
     if (holdUntil > 0) {
       const contactProgress = hitCount >= 2 ? 0.28 : 0.46;
       const contactElapsed = baseDurationMs * contactProgress;
@@ -1800,7 +1818,7 @@ export class BattleScene {
       if (now < holdUntil) {
         return maxPush;
       }
-      const releaseProgress = Math.max(0, Math.min(1, (now - holdUntil) / 220));
+      const releaseProgress = Math.max(0, Math.min(1, (now - holdUntil) / Math.max(1, releaseDurationMs)));
       return maxPush * Math.pow(1 - releaseProgress, 2);
     }
     return this.getMeleeTravelDistance(Math.min(1, elapsed / baseDurationMs), maxPush, hitCount);

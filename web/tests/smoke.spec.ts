@@ -1,5 +1,6 @@
 import { expect, test } from "playwright/test";
 import { createFloatingText } from "../app/render/animations";
+import { BattleStore } from "../app/state/battleStore";
 import type { AnimationEvent, UnitState } from "../app/types/battle";
 
 function filterKnownNoise(errors: string[]) {
@@ -128,6 +129,113 @@ test("floating text styles cover basic white skill yellow crit red heal and miss
       expect(text?.color).toBe(testCase.expectedColor);
     }
   }
+});
+
+test("basic attack damage merges with attached skill damage into one yellow number", () => {
+  const store = new BattleStore();
+  store.appendEvents([
+    {
+      type: "damage_dealt",
+      ts: 1,
+      payload: {
+        attackerId: "hero-1",
+        attackerName: "Hero",
+        targetId: "target-1",
+        targetName: "Target",
+        damage: 12,
+        isCrit: false,
+        isBasicAttack: true,
+        preferSkillColor: false,
+        skillName: "",
+      },
+    },
+    {
+      type: "damage_dealt",
+      ts: 2,
+      payload: {
+        attackerId: "hero-1",
+        attackerName: "Hero",
+        targetId: "target-1",
+        targetName: "Target",
+        damage: 8,
+        isCrit: false,
+        isBasicAttack: false,
+        preferSkillColor: true,
+        skillName: "伏击",
+      },
+    },
+  ]);
+
+  expect(store["state"].animations).toEqual([
+    {
+      type: "damage",
+      heroId: "target-1",
+      attackerId: "hero-1",
+      skillName: "伏击",
+      value: 20,
+      critical: false,
+      basicAttack: true,
+      preferSkillColor: true,
+    },
+  ]);
+
+  const merged = createFloatingText(store["state"].animations[0] as AnimationEvent, mockUnit, 1000);
+  expect(merged?.color).toBe("#ffd166");
+  expect(merged?.text).toBe("20");
+});
+
+test("critical basic attack damage merges with attached skill damage into one red number", () => {
+  const store = new BattleStore();
+  store.appendEvents([
+    {
+      type: "damage_dealt",
+      ts: 1,
+      payload: {
+        attackerId: "hero-1",
+        attackerName: "Hero",
+        targetId: "target-1",
+        targetName: "Target",
+        damage: 18,
+        isCrit: true,
+        isBasicAttack: true,
+        preferSkillColor: false,
+        skillName: "",
+      },
+    },
+    {
+      type: "damage_dealt",
+      ts: 2,
+      payload: {
+        attackerId: "hero-1",
+        attackerName: "Hero",
+        targetId: "target-1",
+        targetName: "Target",
+        damage: 7,
+        isCrit: false,
+        isBasicAttack: false,
+        preferSkillColor: true,
+        skillName: "惩戒火花",
+      },
+    },
+  ]);
+
+  expect(store["state"].animations).toEqual([
+    {
+      type: "damage",
+      heroId: "target-1",
+      attackerId: "hero-1",
+      skillName: "惩戒火花",
+      value: 25,
+      critical: true,
+      basicAttack: true,
+      preferSkillColor: true,
+    },
+  ]);
+
+  const merged = createFloatingText(store["state"].animations[0] as AnimationEvent, mockUnit, 1000);
+  expect(merged?.kind).toBe("critical");
+  expect(merged?.color).toBe("#ff5a5f");
+  expect(merged?.text).toBe("25");
 });
 
 test("battle screen boots and renders actionable UI", async ({ page }) => {
