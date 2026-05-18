@@ -1514,7 +1514,7 @@ function BattleSkill.LoadBuffConfig(buffId)
         return nil
     end
 
-    local buffConfig = result[id]
+    local buffConfig = type(result.Get) == "function" and result.Get(id) or result[id]
     if buffConfig then
         BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
         BattleSkill.buffConfigCache[cacheKey] = buffConfig
@@ -2490,5 +2490,4 @@ function BattleSkill.ProcessTurnStartStatus(hero)
 end
 
 return BattleSkill
-
 

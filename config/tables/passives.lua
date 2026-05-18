@@ -1,8 +1,27 @@
 local ConfigJsonLoader = require("config.json_loader")
 
-local function loadPassiveDefs()
+if not E_PASSIVE_SKILL_TRIGGER_TIME then
+    require("core.battle_enum")
+end
+
+local defs = {}
+local loaded = false
+
+local methods = {}
+
+local function clearDefs()
+    for key in pairs(defs) do
+        defs[key] = nil
+    end
+end
+
+local function ensureLoaded()
+    if loaded then
+        return
+    end
+
+    clearDefs()
     local data = assert(ConfigJsonLoader.Load("data/passives.json", { expectedType = "table" }))
-    local defs = {}
     for _, rawEntry in ipairs(data) do
         local skillId = tonumber(rawEntry and rawEntry.id)
         if skillId then
@@ -21,7 +40,41 @@ local function loadPassiveDefs()
             }
         end
     end
+
+    loaded = true
+end
+
+function methods.Init()
+    ensureLoaded()
+    return true
+end
+
+function methods.Reload()
+    loaded = false
+    ensureLoaded()
+    return true
+end
+
+function methods.Get(skillId)
+    ensureLoaded()
+    return defs[tonumber(skillId) or 0]
+end
+
+function methods.GetAll()
+    ensureLoaded()
     return defs
 end
 
-return loadPassiveDefs()
+return setmetatable({}, {
+    __index = function(_, key)
+        if methods[key] ~= nil then
+            return methods[key]
+        end
+        ensureLoaded()
+        return defs[key]
+    end,
+    __pairs = function()
+        ensureLoaded()
+        return next, defs, nil
+    end,
+})

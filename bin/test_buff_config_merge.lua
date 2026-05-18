@@ -71,9 +71,9 @@ end
 local rawRows = load_raw_buff_rows()
 assert_true(type(rawRows) == "table" and #rawRows == 28, "buffs.json contains 28 buff entries")
 
-local BuffConfig = require("config.tables.buffs")
-assert_true(type(BuffConfig) == "table", "buff_config loads as table")
-assert_true(count_entries(BuffConfig) == 28, "buff_config contains 28 buff entries")
+local BuffTable = require("config.tables.buffs")
+assert_true(type(BuffTable) == "table", "buffs table loads as table")
+assert_true(count_entries(BuffTable) == 28, "buffs table contains 28 buff entries")
 
 local poison = BattleSkill.LoadBuffConfig(850001)
 assert_true(poison ~= nil, "LoadBuffConfig loads poison from merged table")

@@ -1,7 +1,16 @@
 local ConfigJsonLoader = require("config.json_loader")
 local BuffEffectRegistry = require("skills.buff_effect_registry")
 
-local BuffConfig = {}
+local entries = {}
+local loaded = false
+
+local methods = {}
+
+local function clearEntries()
+    for key in pairs(entries) do
+        entries[key] = nil
+    end
+end
 
 local function attachHandlers(entry)
     local effects = {}
@@ -24,7 +33,12 @@ local function attachHandlers(entry)
     return entry
 end
 
-local function loadBuffConfig()
+local function ensureLoaded()
+    if loaded then
+        return
+    end
+
+    clearEntries()
     local data, err = ConfigJsonLoader.Load("data/buffs.json", { expectedType = "table" })
     assert(data, err)
 
@@ -36,13 +50,46 @@ local function loadBuffConfig()
                 entry[key] = value
             end
             entry.buffId = buffId
-            BuffConfig[buffId] = attachHandlers(entry)
+            entries[buffId] = attachHandlers(entry)
         end
     end
+
+    loaded = true
 end
 
-loadBuffConfig()
+function methods.Init()
+    ensureLoaded()
+    return true
+end
 
-return BuffConfig
+function methods.Reload()
+    loaded = false
+    ensureLoaded()
+    return true
+end
+
+function methods.Get(buffId)
+    ensureLoaded()
+    return entries[tonumber(buffId) or 0]
+end
+
+function methods.GetAll()
+    ensureLoaded()
+    return entries
+end
+
+return setmetatable({}, {
+    __index = function(_, key)
+        if methods[key] ~= nil then
+            return methods[key]
+        end
+        ensureLoaded()
+        return entries[key]
+    end,
+    __pairs = function()
+        ensureLoaded()
+        return next, entries, nil
+    end,
+})
 
 
