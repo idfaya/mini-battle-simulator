@@ -3,9 +3,8 @@ local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RunRecruitPool = require("config.roguelike.run_recruit_pool")
 local HeroData = require("config.hero_data")
-local FeatConfig = require("config.feat_config")
-local FeatBuildConfig = require("config.feat_build_config")
-local ClassBuildProgression = require("config.class_build_progression")
+local FeatBuildConfig = require("config.tables.feats")
+local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
 local BattleEvent = require("core.battle_event")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
@@ -327,9 +326,6 @@ local function isFighterBuildHero(hero)
 end
 
 local function getEligibleFeatPool(hero)
-    if not isFighterBuildHero(hero) then
-        return FeatConfig.GetEligibleFeats(hero.classId, (hero.level or 1) + 1, hero.feats)
-    end
     local nextLevel = (hero.level or 1) + 1
     local entry = ClassBuildProgression.GetLevelEntry(hero.classId, nextLevel)
     if not entry then
@@ -726,3 +722,4 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
 end
 
 return RoguelikeReward
+

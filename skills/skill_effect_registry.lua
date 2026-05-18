@@ -120,11 +120,11 @@ local function GetClassId(unit)
 end
 
 local function ResolveBattleIntentBuff(skill)
-    local SkillConfig = require("config.skill_config")
+    local SkillConfig = require("config.tables.skills")
     local skillConfig = skill and (skill.skillConfig or SkillConfig.GetSkillConfig(skill.skillId)) or nil
     local skillId = tonumber(skill and skill.skillId) or 0
     local skillLevel = tonumber(skill and skill.level)
-        or tonumber(skillConfig and skillConfig.SkillLevel)
+        or tonumber(skillConfig and skillConfig.skillTier)
         or 1
     if skillId == 80004004 then
         return 840003, 2
@@ -173,7 +173,7 @@ local function ShouldDedupeSpellLikeStatus(ctx)
     if SPELL_LIKE_STATUS_DEDUPE_SKILLS[skillId] then
         return true
     end
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     local meta = Skill5eMeta.Get(skillId)
     return meta and meta.kind == "spell"
 end
@@ -278,7 +278,7 @@ function SkillEffectRegistry.RegisterBuiltins()
         local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
         local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
         local healCount = (tier >= 2) and 2 or 1
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006003)
         local healDice = (meta and meta.healDice) or "1d8+2"
         local sortedAllies = SortByLowestHpRatio(allies)
@@ -369,7 +369,7 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("revive_latest_ally", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local skillId = (ctx.skill and ctx.skill.skillId) or 80006004
         local meta = Skill5eMeta.Get(skillId) or {}
         local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
@@ -760,7 +760,7 @@ function SkillEffectRegistry.RegisterBuiltins()
     end)
 
     SkillEffectRegistry.Register("chain_lightning", function(ctx, frameCopy, _, spec)
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hitCount = tonumber(p and p.hitCount) or 1
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
@@ -772,7 +772,7 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("chance_chain_lightning", function(ctx, frameCopy, _, spec)
         local BattleSkill = require("modules.battle_skill")
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
         local baseChance = tonumber(p and p.baseChance) or 0
         local key = p and p.key
@@ -817,7 +817,7 @@ function SkillEffectRegistry.RegisterBuiltins()
     SkillEffectRegistry.Register("random_hits_damage", function(ctx, frameCopy, _, spec)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hits = tonumber(p and p.hits) or 1
         local enablePursuit = p and p.pursuitOnKill == true
@@ -1133,3 +1133,4 @@ function SkillEffectRegistry.RegisterBuiltins()
 end
 
 return SkillEffectRegistry
+

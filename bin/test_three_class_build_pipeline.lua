@@ -14,10 +14,10 @@ local function assert_true(cond, name)
     end
 end
 
-local FeatBuildConfig = require("config.feat_build_config")
+local FeatBuildConfig = require("config.tables.feats")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local HeroData = require("config.hero_data")
 local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
@@ -155,3 +155,4 @@ do
 end
 
 log("Three-class build pipeline tests passed.")
+

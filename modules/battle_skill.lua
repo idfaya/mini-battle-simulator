@@ -41,14 +41,14 @@ if not E_CAST_TARGET then
 end
 
 local Logger = require("utils.logger")
-local SkillConfig = require("config.skill_config")
-local PassiveDefs = require("config.passive.passive_defs")
+local SkillConfig = require("config.tables.skills")
+local PassiveDefs = require("config.tables.passives")
 local BattleEvent = require("core.battle_event")
 local BattleVisualEvents = require("ui.battle_visual_events")
-local ClassRoleConfig = require("config.class_role_config")
+local ClassRoleConfig = require("config.tables.classes")
 local BattleRhythmConfig = require("config.battle_rhythm_config")
-local ClassRhythmConfig = require("config.class_rhythm_config")
-local ClassWeaponConfig = require("config.class_weapon_config")
+local ClassRhythmConfig = require("config.tables.classes")
+local ClassWeaponConfig = require("config.tables.classes")
 local Ability5e = require("modules.ability_5e")
 
 ---@class BattleSkill
@@ -78,7 +78,7 @@ BattleSkill.skillInstanceIdCounter = 0
 
 local InferTargetsSelections
 
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 local function resolveSkillDisplayName(skillId, mergedConfig)
     local runtimeEntry = SkillRuntimeConfig.Get(skillId)
@@ -89,8 +89,8 @@ local function resolveSkillDisplayName(skillId, mergedConfig)
         return mergedConfig.name
     end
     local legacyConfig = SkillConfig.GetSkillConfig(skillId)
-    if legacyConfig and legacyConfig.Name and legacyConfig.Name ~= "" then
-        return legacyConfig.Name
+    if legacyConfig and legacyConfig.name and legacyConfig.name ~= "" then
+        return legacyConfig.name
     end
     return "Skill_" .. tostring(skillId)
 end
@@ -273,7 +273,7 @@ function BattleSkill.ApplyUnifiedDamageScale(attacker, defender, rawDamage, dama
 end
 
 local function NormalizeDamageMeta(attacker, opts)
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     opts = opts or {}
 
     if type(opts.meta) == "table" then
@@ -309,7 +309,7 @@ local function NormalizeDamageMeta(attacker, opts)
 end
 
 local function ResolveAttackMode(meta)
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     return Skill5eMeta.ResolveAttackMode(meta)
 end
 
@@ -667,17 +667,16 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     BattleSkill.InitModule()
     
     local configModule = SkillConfig
-    
-    -- 从配置模块获取配置
-    local skillType = configModule.GetSkillType(skillId)
-    local skillParam = configModule.GetSkillParam(skillId)
-    local skillBuffs = configModule.GetSkillBuffs(skillId)
-    local skillCooldown = configModule.GetSkillCooldown(skillId)
-    local skillCost = configModule.GetSkillCost(skillId)
-    local luaPath = configModule.GetSkillLuaPath(skillId)
-    
+
+    local config = configModule.GetSkillConfig(skillId) or {}
+    local skillType = config.skillType
+    local skillParam = config.skillParam or {}
+    local skillBuffs = config.buffs or {}
+    local skillCooldown = config.cooldown or 0
+    local skillCost = config.skillCost or 0
+    local luaPath = config.luaFile
+
     -- 合并配置
-    local config = BattleSkill.GetSkillConfig(skillId)
     local mergedConfig = BattleSkill.MergeSkillConfig(config, skillConfig)
     
     -- 确定技能类型
@@ -717,7 +716,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         -- 配置数据
         config = mergedConfig,
         
-        -- 从 res_skill.json 加载的数据
+        -- 从统一技能表加载的数据
         skillParam = skillParam,
         skillBuffs = skillBuffs,
         -- 优先使用传入的 skillConfig.skillCost，否则使用配置表中的值
@@ -735,7 +734,7 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
         conditions = mergedConfig.conditions or {},
 
         -- Lua脚本路径
-        luaFile = luaPath or mergedConfig.luaFile or mergedConfig.LuaFile or "",
+        luaFile = luaPath or mergedConfig.luaFile or "",
         luaFuncName = mergedConfig.luaFuncName or "",
 
         -- 额外数据
@@ -748,8 +747,8 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     }
 
     if skill.skillConfig then
-        if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.skillConfig.CoolDownR or 0) > 0 then
-            skill.maxCoolDown = skill.skillConfig.CoolDownR
+        if (not skill.maxCoolDown or skill.maxCoolDown <= 0) and (skill.skillConfig.cooldown or 0) > 0 then
+            skill.maxCoolDown = skill.skillConfig.cooldown
         end
     end
 
@@ -760,8 +759,8 @@ function BattleSkill.CreateSkillInstance(skillId, skillConfig)
     Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d: skillConfig=%s",
         skillId, tostring(skill.skillConfig)))
     if skill.skillConfig then
-        Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   ClassID=%s, Name=%s",
-            tostring(skill.skillConfig.ClassID), tostring(skill.skillConfig.Name)))
+        Logger.Log(string.format("[BattleSkill.CreateSkillInstance]   classId=%s, name=%s",
+            tostring(skill.skillConfig.classId), tostring(skill.skillConfig.name)))
     end
 
     Logger.Log(string.format("[BattleSkill.CreateSkillInstance] 技能 %d (类型:%d) Lua路径: %s",
@@ -864,7 +863,7 @@ local function GenerateBasicAttackActionToken(hero)
 end
 
 local function ResolveBasicAttackCastMeta(hero, skillId, opts)
-    local SkillRuntimeConfig = require("config.skill_runtime_config")
+    local SkillRuntimeConfig = require("config.tables.skill_runtime")
     if not SkillRuntimeConfig.IsBasicAttackSkill or not SkillRuntimeConfig.IsBasicAttackSkill(skillId) then
         return nil
     end
@@ -1112,7 +1111,7 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
     end
 
     -- Chanting: delay execution and create an interruptible window.
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     local meta = Skill5eMeta.Get(skillId)
     if not opts.ignoreChant and meta and tonumber(meta.chantTurns) and tonumber(meta.chantTurns) > 0 then
         BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
@@ -1510,7 +1509,7 @@ function BattleSkill.LoadBuffConfig(buffId)
         return BattleSkill.buffConfigCache[cacheKey]
     end
 
-    local success, result = pcall(require, "config.buff.buff_config")
+    local success, result = pcall(require, "config.tables.buffs")
     if not success or type(result) ~= "table" then
         return nil
     end
@@ -1768,9 +1767,9 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
         return mergedConfig.targetsSelections
     end
 
-    local name = (skillCfg and skillCfg.Name) or (mergedConfig and mergedConfig.name) or ""
-    local skillParam = (skillCfg and skillCfg.SkillParam) or {}
-    local inferredSkillId = tonumber((skillCfg and skillCfg.ID) or (mergedConfig and mergedConfig.skillId) or 0) or 0
+    local name = (skillCfg and skillCfg.name) or (mergedConfig and mergedConfig.name) or ""
+    local skillParam = (skillCfg and skillCfg.skillParam) or {}
+    local inferredSkillId = tonumber((skillCfg and skillCfg.id) or (mergedConfig and mergedConfig.skillId) or 0) or 0
     local inferredTag = InferSpecialEffectTag(inferredSkillId, skillCfg, mergedConfig)
 
     if inferredSkillId == 80001003 or name == "斩杀" or name == "Cunning Strike" then
@@ -2066,7 +2065,7 @@ function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
     end
 
     if requestedCount <= 1 and measureType ~= E_MEASURE_TYPE.Muti then
-        local SkillRuntimeConfig = require("config.skill_runtime_config")
+        local SkillRuntimeConfig = require("config.tables.skill_runtime")
         if BuildPassiveCommon.HasSkill(hero, SkillRuntimeConfig.Ids.ranger_hunter_mark) then
             local RangerBuildPassives = require("skills.ranger_build_passives")
             for _, enemy in ipairs(candidates) do
@@ -2144,9 +2143,7 @@ function BattleSkill.GetSkillConfig(skillId)
         return BattleSkill.skillConfigCache[skillId]
     end
 
-    -- TODO: 从配置表加载技能配置
-    -- 这里需要根据实际项目结构从CSV或JSON加载配置
-    local config = BattleSkill.LoadSkillConfigFromFile(skillId)
+    local config = SkillConfig.GetSkillConfig(skillId) or {}
 
     BattleSkill.skillConfigCache[skillId] = config
     return config
@@ -2172,12 +2169,8 @@ function BattleSkill.LoadSkillLua(skillId)
         return BattleSkill.skillLuaCache[skillId]
     end
 
-    local luaPath = SkillConfig.GetSkillLuaPath(skillId)
-    if not luaPath or luaPath == "" then
-        local SkillRuntimeConfig = require("config.skill_runtime_config")
-        local runtimeEntry = SkillRuntimeConfig.Get(skillId)
-        luaPath = runtimeEntry and runtimeEntry.luaFile or luaPath
-    end
+    local skillDef = SkillConfig.GetSkillConfig(skillId)
+    local luaPath = skillDef and skillDef.luaFile or nil
     if not luaPath or luaPath == "" then
         -- 技能 1001 是普通攻击，没有Lua脚本是正常的，不显示警告
         if skillId ~= 1001 then
@@ -2497,3 +2490,5 @@ function BattleSkill.ProcessTurnStartStatus(hero)
 end
 
 return BattleSkill
+
+

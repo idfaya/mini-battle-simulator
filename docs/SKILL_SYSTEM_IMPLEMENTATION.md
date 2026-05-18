@@ -44,9 +44,9 @@
 | BattleSkill | `modules/battle_skill.lua` | 技能系统主入口，管理技能实例、冷却、释放流程 |
 | BattleVisualEvents | `ui/battle_visual_events.lua` | 视觉事件定义与数据构建器 |
 | BattlePassiveSkill | `modules/battle_passive_skill.lua` | 被动技能注册、触发分发与运行时状态查询 |
-| PassiveDefs | `config/passive/passive_defs.lua` | 被动触发定义表（classId → triggers） |
+| PassiveDefs | `config/tables/passives.lua` | 被动触发定义加载器，从 `config/data/passives.json` 读取触发表 |
 | PassiveHandlers | `modules/passive_handlers.lua` | 被动处理器工厂，承载脚本型被动逻辑 |
-| SkillConfig | `config/skill_config.lua` | 技能配置加载器 |
+| SkillConfig | `config/skill_config.lua` | 技能配置薄封装，转发到 `config/tables/skills.lua` |
 | BattleHeroFactory | `modules/battle_hero_factory.lua` | 英雄/敌人工厂，含技能类型转换 |
 | HeroData | `config/hero_data.lua` | 英雄属性与技能配置 |
 | EnemyData | `config/enemy_data.lua` | 敌人属性与技能配置 |
@@ -108,7 +108,7 @@ context = {
 
 每个技能由三层配置共同定义，必须保持一致：
 
-### 3.1 JSON 静态配置 (`config/res_skill.json`)
+### 3.1 JSON 静态配置 (`config/data/skills.json`)
 
 ```json
 {
@@ -169,7 +169,7 @@ end
 return skill_80007003
 ```
 
-### 3.3 Buff 定义 (`config/res_buff.json` + `config/buff/buff_effect_registry.lua`)
+### 3.3 Buff 定义 (`config/data/buffs.json` + `skills/buff_effect_registry.lua`)
 
 ```json
 [
@@ -296,7 +296,7 @@ BattleSkillStatus.ApplyFrost(target, duration, caster)
 
 | 层级 | 文件 | 职责 |
 |------|------|------|
-| 被动定义 | `config/passive/passive_defs.lua` | 定义每个 `classId` 的触发时机和回调名 |
+| 被动定义 | `config/tables/passives.lua` | 被动定义加载器，负责把 `config/data/passives.json` 转成运行时触发表 |
 | 被动逻辑 | `modules/passive_handlers.lua` | 实现被动处理器工厂，返回具名回调对象 |
 | 调度入口 | `modules/battle_passive_skill.lua` | 注册触发器、派发回调、维护 `hero.passiveRuntime` |
 
@@ -390,7 +390,7 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 从技能系统角度，只需要掌握以下几点：
 
 - Buff 统一通过 `BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, override)` 施加
-- Buff 静态配置统一放在 `config/res_buff.json`，运行时通过 `config/buff/buff_config.lua` 加载并按 `buffId` 索引
+- Buff 静态配置统一放在 `config/data/buffs.json`，运行时通过 `config/tables/buffs.lua` 加载并按 `buffId` 索引
 - Timeline 技能优先通过 `skills/skill_effect_registry.lua` 中的标签复用已有状态逻辑
 - 中毒、燃烧、冻结、霜冻、静电印记等常见状态封装在 `skills/battle_skill_status.lua`
 - 回合开始由 `BattleSkillTurnHooks.ProcessTurnStartStatus()` 触发 `OnRoundBegin` 与控制判定
@@ -402,7 +402,7 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 
 - 不要在技能文档中重复维护完整 Buff 清单，避免与独立 Buff 文档冲突
 - 修改状态行为时，应同时检查：
-  - `config/buff/` 中的配置定义
+  - `config/tables/buffs.lua` 与 `skills/buff_effect_registry.lua`
   - `skills/battle_skill_status.lua` 中的封装逻辑
   - `skills/skill_effect_registry.lua` 中的 Timeline 标签行为
   - `ui/battle_visual_events.lua` 中的前端事件数据
@@ -535,3 +535,6 @@ def = (baseDef + defGrowth) * totalMultiplier
 ---
 
 *文档结束*
+
+
+

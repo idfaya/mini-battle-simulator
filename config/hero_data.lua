@@ -1,8 +1,8 @@
-local JSON = require("utils.json")
-local SkillConfig = require("config.skill_config")
-local ClassRoleConfig = require("config.class_role_config")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
-local ClassBuildProgression = require("config.class_build_progression")
+local ConfigJsonLoader = require("config.json_loader")
+local SkillConfig = require("config.tables.skills")
+local ClassRoleConfig = require("config.tables.classes")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
 local Ability5e = require("modules.ability_5e")
@@ -227,13 +227,13 @@ local function resolveSkillTypeFromConfigs(skillId, skillConfig)
     local resolvedType = E_SKILL_TYPE_PASSIVE
     local resolvedCost = 0
     if skillConfig then
-        if skillConfig.Type == 1 then
+        if skillConfig.skillType == 1 then
             resolvedType = E_SKILL_TYPE_NORMAL
-        elseif skillConfig.Type == 2 then
+        elseif skillConfig.skillType == 2 then
             resolvedType = E_SKILL_TYPE_ACTIVE
-        elseif skillConfig.Type == 3 then
+        elseif skillConfig.skillType == 3 then
             resolvedType = E_SKILL_TYPE_LIMITED
-            resolvedCost = skillConfig.Cost or 100
+            resolvedCost = skillConfig.skillCost or 100
         end
     end
     return resolvedType, resolvedCost
@@ -244,8 +244,8 @@ local function resolveSkillDisplayName(skillId, skillConfig)
     if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
         return runtimeEntry.name
     end
-    if skillConfig and skillConfig.Name and skillConfig.Name ~= "" then
-        return skillConfig.Name
+    if skillConfig and skillConfig.name and skillConfig.name ~= "" then
+        return skillConfig.name
     end
     return "Skill_" .. tostring(skillId)
 end
@@ -311,22 +311,6 @@ local function applyClassArmorFloor(classId, templateAc, calculatedAc)
         return math.max(math.floor(templateAc or 0), math.floor(calculatedAc or 0))
     end
     return math.floor(calculatedAc or 0)
-end
-
-local function OpenConfigFile(fileName)
-    local paths = {
-        "config/" .. fileName,
-        "../config/" .. fileName,
-    }
-
-    for _, path in ipairs(paths) do
-        local file = io.open(path, "r")
-        if file then
-            return file
-        end
-    end
-
-    return nil
 end
 
 local HERO_LEVEL_MAX = 20
@@ -457,18 +441,9 @@ local function ParseSkillIDs(skillData)
 end
 
 local function LoadHeroInfo()
-    local file = OpenConfigFile("res_hero.json")
-    if not file then
-        print("[HeroData] Failed to open res_hero.json")
-        return
-    end
-
-    local content = file:read("*a")
-    file:close()
-
-    local data = JSON.JsonDecode(content)
+    local data, err = ConfigJsonLoader.Load("data/heroes.json", { expectedType = "table" })
     if not data then
-        print("[HeroData] Failed to parse res_hero.json")
+        print("[HeroData] " .. tostring(err))
         return
     end
 
@@ -515,16 +490,7 @@ end
 local function ResolveSkillConfig(classId, skillLevel)
     EnsureSkillConfigReady()
 
-    local levels = SkillConfig.GetSkillLevels(classId)
-    if levels and #levels > 0 then
-        for _, levelConfig in ipairs(levels) do
-            if levelConfig.SkillLevel == skillLevel then
-                return levelConfig, levelConfig.ID
-            end
-        end
-    end
-
-    local actualSkillId = classId * 10 + skillLevel
+    local actualSkillId = (tonumber(classId) or 0) * 10 + (tonumber(skillLevel) or 0)
     return SkillConfig.GetSkillConfig(actualSkillId), actualSkillId
 end
 
@@ -830,7 +796,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
                         end
                         table.insert(skillsConfig, {
                             skillId = skillId,
-                            classId = config.ClassID,
+                            classId = config.classGroupId or 0,
                             skillType = skillType,
                             level = internalLevel,
                             name = resolveSkillDisplayName(skillId, config),
@@ -984,142 +950,7 @@ Init()
 -- ApplyFeats 返回一个纯数据的 featMods 表，由 Roguelike 层调用 applyRosterLevel 时合并。
 -- ==========================================================================
 
-local FeatConfig = require("config.feat_config")
-local FeatBuildConfig = require("config.feat_build_config")
-local ClassLevelGrants = require("config.class_level_grants")
-
-local STAT_KEYS = {
-    "maxHp", "atk", "def", "ac", "hit", "spellDC",
-    "saveFort", "saveRef", "saveWill", "speed",
-    "critRate", "blockRate", "healBonus",
-}
-
-local function addStat(target, key, delta)
-    if not delta or delta == 0 then
-        return
-    end
-    if key == "atk" then
-        -- 5e single-source offense: fold legacy atk bonuses into hit.
-        key = "hit"
-    end
-    target[key] = (target[key] or 0) + delta
-end
-
----@param featIds integer[]|nil
----@return table<string, integer> featMods
----@return integer[] unlockSkills
----@return table<integer, integer> upgradeSkills
----@return table[] riskHooks
-function HeroData.ApplyFeats(featIds)
-    local mods = {}
-    local unlockSkills = {}
-    local upgradeSkills = {}
-    local riskHooks = {}
-
-    for _, featId in ipairs(featIds or {}) do
-        local def = FeatConfig.GetFeat(featId)
-        if def then
-            for _, eff in ipairs(def.effects or {}) do
-                if eff.type == "stat_add" then
-                    for _, key in ipairs(STAT_KEYS) do
-                        addStat(mods, key, tonumber(eff[key]))
-                    end
-                elseif eff.type == "stat_mult" then
-                    -- 用千分比制与现有 critRate/blockRate 对齐（直接相加）。
-                    for _, key in ipairs(STAT_KEYS) do
-                        addStat(mods, key, tonumber(eff[key]))
-                    end
-                elseif eff.type == "unlock_skill" then
-                    if eff.skillId then
-                        unlockSkills[#unlockSkills + 1] = eff.skillId
-                    end
-                elseif eff.type == "upgrade_skill" then
-                    if eff.skillId then
-                        local lv = tonumber(eff.skillLevel) or 2
-                        upgradeSkills[eff.skillId] = math.max(upgradeSkills[eff.skillId] or 0, lv)
-                    end
-                elseif eff.type == "passive" then
-                    if eff.passiveId then
-                        unlockSkills[#unlockSkills + 1] = eff.passiveId
-                    end
-                elseif eff.type == "risk_modifier" then
-                    riskHooks[#riskHooks + 1] = {
-                        featId = featId,
-                        onBattleStart = eff.onBattleStart,
-                        onTurnStart = eff.onTurnStart,
-                        grant = eff.grant or {},
-                    }
-                    -- 代价型 feat 的"换取"部分直接进入 mods，使战斗期间稳定生效。
-                    for key, val in pairs(eff.grant or {}) do
-                        addStat(mods, key, tonumber(val))
-                    end
-                end
-            end
-        end
-    end
-
-    return mods, unlockSkills, upgradeSkills, riskHooks
-end
-
----@param classId integer
----@param fromLevel integer  -- 不含
----@param toLevel integer    -- 含
----@return table<string, integer> grantMods
----@return integer[] unlockSkills
----@return table<integer, integer> upgradeSkills
-function HeroData.CollectClassLevelGrants(classId, fromLevel, toLevel)
-    local mods = {}
-    local unlockSkills = {}
-    local upgradeSkills = {}
-    local grants = ClassLevelGrants.GetGrantsInRange(classId, (tonumber(fromLevel) or 0) + 1, toLevel)
-    for _, entry in ipairs(grants) do
-        for key, val in pairs(entry.statBonus or {}) do
-            addStat(mods, key, tonumber(val))
-        end
-        for _, skillId in ipairs(entry.unlockSkills or {}) do
-            unlockSkills[#unlockSkills + 1] = skillId
-        end
-        for skillId, lv in pairs(entry.upgradeSkills or {}) do
-            upgradeSkills[skillId] = math.max(upgradeSkills[skillId] or 0, tonumber(lv) or 1)
-        end
-    end
-    return mods, unlockSkills, upgradeSkills
-end
-
----合并 feat 与 class grant 的 mods 到基底属性上，返回最终属性。
----@param baseAttrs table
----@param featMods table<string, integer>
----@param grantMods table<string, integer>
----@return table finalAttrs
-function HeroData.MergeAttrMods(baseAttrs, featMods, grantMods)
-    local final = {}
-    for k, v in pairs(baseAttrs or {}) do
-        final[k] = v
-    end
-    local sources = { featMods or {}, grantMods or {} }
-    for _, src in ipairs(sources) do
-        for _, key in ipairs(STAT_KEYS) do
-            local delta = src[key]
-            if delta and delta ~= 0 then
-                if key == "maxHp" then
-                    local oldMax = final.maxHp or 1
-                    final.maxHp = math.max(1, oldMax + delta)
-                    if final.maxHp < oldMax then
-                        final.hp = math.max(1, math.min(final.maxHp, final.hp or final.maxHp))
-                    else
-                        final.hp = final.hp or final.maxHp
-                    end
-                else
-                    final[key] = (final[key] or 0) + delta
-                end
-            end
-        end
-    end
-    if final.hit ~= nil then
-        final.atk = final.hit
-    end
-    return final
-end
+local FeatBuildConfig = require("config.tables.feats")
 
 local function sortFeatDefs(list)
     table.sort(list, function(a, b)
@@ -1152,29 +983,7 @@ local function collectCanonicalBuildSelections(classId, level)
 end
 
 local function collectCanonicalFeatSelections(classId, level)
-    if ClassBuildProgression.GetProgression(classId) then
-        return collectCanonicalBuildSelections(classId, level)
-    end
-    local selected = {}
-    local maxLevel = math.max(1, tonumber(level) or 1)
-    for stageLevel = 2, maxLevel do
-        local pool = FeatConfig.GetEligibleFeats(classId, stageLevel, selected)
-        if #pool > 0 then
-            sortFeatDefs(pool)
-            local picked = nil
-            for _, feat in ipairs(pool) do
-                if tonumber(feat.minLevel) == stageLevel then
-                    picked = feat
-                    break
-                end
-            end
-            picked = picked or pool[1]
-            if picked and picked.id then
-                selected[#selected + 1] = picked.id
-            end
-        end
-    end
-    return selected
+    return collectCanonicalBuildSelections(classId, level)
 end
 
 local function buildPromotionAbilityScores(classId, heroId, promotionStage)
@@ -1258,85 +1067,16 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
     local abilityScores = buildPromotionAbilityScores(resolvedClassId, heroId, stage)
     local selectedFeatIds = collectCanonicalFeatSelections(resolvedClassId, level)
 
-    if ClassBuildProgression.GetProgression(resolvedClassId) then
-        local buildState = HeroBuild.TryCompileBuild(resolvedClassId, level, selectedFeatIds)
-        local builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
-            abilityScores = abilityScores,
-            buildState = buildState,
-            buildFeatIds = selectedFeatIds,
-        })
-        if builtHero then
-            builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
-            builtHero.promotionStage = stage
-        end
-        return builtHero
-    end
-
+    local buildState = HeroBuild.TryCompileBuild(resolvedClassId, level, selectedFeatIds)
     local builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
         abilityScores = abilityScores,
+        buildState = buildState,
+        buildFeatIds = selectedFeatIds,
     })
-    if not builtHero then
-        return nil
+    if builtHero then
+        builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
+        builtHero.promotionStage = stage
     end
-
-    local grantMods, grantUnlockSkills, grantUpgradeSkills =
-        HeroData.CollectClassLevelGrants(resolvedClassId, 0, level)
-    local featMods, featUnlockSkills, featUpgradeSkills =
-        HeroData.ApplyFeats(selectedFeatIds)
-    local final = HeroData.MergeAttrMods(HeroData.CalculateHeroAttributes(heroId, level, 1, {
-        abilityScores = abilityScores,
-    }), featMods, grantMods)
-
-    if final then
-        builtHero.hp = final.hp or builtHero.hp
-        builtHero.maxHp = final.maxHp or builtHero.maxHp
-        builtHero.atk = final.hit or builtHero.atk
-        builtHero.def = final.def or builtHero.def
-        builtHero.ac = final.ac or builtHero.ac
-        builtHero.hit = final.hit or builtHero.hit
-        builtHero.spellAttack = final.spellAttack or builtHero.spellAttack
-        builtHero.spellDC = final.spellDC or builtHero.spellDC
-        builtHero.saveFort = final.saveFort or builtHero.saveFort
-        builtHero.saveRef = final.saveRef or builtHero.saveRef
-        builtHero.saveWill = final.saveWill or builtHero.saveWill
-        builtHero.speed = final.speed or builtHero.speed
-        builtHero.spd = builtHero.speed
-        builtHero.critRate = final.critRate or builtHero.critRate
-        builtHero.blockRate = final.blockRate or builtHero.blockRate
-        builtHero.healBonus = final.healBonus or builtHero.healBonus
-    end
-
-    local ownedSkills = {}
-    local ownedSet = {}
-    for _, sid in ipairs(grantUnlockSkills or {}) do
-        if not ownedSet[sid] then
-            ownedSet[sid] = true
-            ownedSkills[#ownedSkills + 1] = sid
-        end
-    end
-    for _, sid in ipairs(featUnlockSkills or {}) do
-        if not ownedSet[sid] then
-            ownedSet[sid] = true
-            ownedSkills[#ownedSkills + 1] = sid
-        end
-    end
-    local skillLevels = {}
-    for sid, lv in pairs(grantUpgradeSkills or {}) do
-        skillLevels[sid] = math.max(skillLevels[sid] or 0, tonumber(lv) or 1)
-    end
-    for sid, lv in pairs(featUpgradeSkills or {}) do
-        skillLevels[sid] = math.max(skillLevels[sid] or 0, tonumber(lv) or 1)
-    end
-
-    builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
-        abilityScores = abilityScores,
-        ownedSkills = ownedSkills,
-        skillLevels = skillLevels,
-    }) or builtHero
-    builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
-    builtHero.ownedSkills = cloneArray(ownedSkills)
-    builtHero.skillLevels = cloneMap(skillLevels)
-    builtHero.promotionStage = stage
     return builtHero
 end
 
@@ -1498,3 +1238,4 @@ function HeroData.ConvertClassUnitToHeroData(classUnit)
 end
 
 return HeroData
+

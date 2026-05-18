@@ -1,5 +1,5 @@
-local SkillRuntimeConfig = require("config.skill_runtime_config")
-local ClassWeaponConfig = require("config.class_weapon_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local ClassWeaponConfig = require("config.tables.classes")
 local BattleEvent = require("core.battle_event")
 
 local FighterBuildPassives = {}
@@ -107,7 +107,7 @@ local function isAlive(unit)
 end
 
 local function isMeleeUnit(unit)
-    local ClassRoleConfig = require("config.class_role_config")
+    local ClassRoleConfig = require("config.tables.classes")
     local classId = tonumber(unit and (unit.class or unit.Class)) or 0
     return ClassRoleConfig.IsMelee(classId)
 end
@@ -749,3 +749,4 @@ function FighterBuildPassives.CreateSweepingAttackPassive(context)
 end
 
 return FighterBuildPassives
+

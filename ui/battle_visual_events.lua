@@ -132,7 +132,7 @@ function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
     local isBasicAttack = false
     local preferSkillColor = params.preferSkillColor == true
     if params.skillId ~= nil then
-        local ok, SkillRuntimeConfig = pcall(require, "config.skill_runtime_config")
+        local ok, SkillRuntimeConfig = pcall(require, "config.tables.skill_runtime")
         if ok and SkillRuntimeConfig and SkillRuntimeConfig.IsBasicAttackSkill then
             isBasicAttack = SkillRuntimeConfig.IsBasicAttackSkill(params.skillId) == true
         end
@@ -408,3 +408,4 @@ function BattleVisualEvents.BuildCombatEvent(eventType, attacker, target, params
 end
 
 return BattleVisualEvents
+

@@ -37,7 +37,7 @@ local RunRewardPool = {}
 -- - "gold": +gold
 -- - "equipment": grant an equipment id (see run_equipment_config.lua)
 -- - "blessing": grant a blessing id (see run_blessing_config.lua)
--- - "recruit": offer a hero id (from res_hero.json)
+-- - "recruit": offer a hero id (from data/heroes.json)
 --
 -- Only event reward groups remain on the main roguelike reward path.
 ---@type table<integer, RunRewardGroup>

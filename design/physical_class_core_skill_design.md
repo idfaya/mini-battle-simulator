@@ -402,12 +402,12 @@
 
 - `design/`：以本文档为规则源，回写各职业 Build 文档。
 - `class_system_design.md`：提供 `Class 单位`、`promotion_stage`、技能槽和成长职责的统一字段口径。
-- `config/feat_build_config.lua`：定义职业核心技对应的 Feat。
+- `config/tables/feats.lua`：定义职业核心技对应的 Feat。
 - `config/class_build_progression.lua`：决定同职业进阶、Feat 链与后续强化如何把职业推进到低阶 / 中阶 / 高阶。
 - `config/class_build_progression.lua` 中的阶段推进必须直接对应 `promotion_stage = low / mid / high`。
 - `skill_package_id` 的切换必须与 `basic_attack_slot / core_slot / mid_slot / high_slot` 的启用关系同步。
-- `config/skill_runtime_config.lua`：定义被动、命中后附伤、反应登记、标记等运行时语义。
-- `config/skill_5e_meta.lua`：补齐 5e 口径与规则说明。
+- `config/tables/skill_runtime.lua`：定义被动、命中后附伤、反应登记、标记等运行时语义。
+- `config/tables/skill_meta.lua`：补齐 5e 口径与规则说明。
 - `skills/`：实现各职业核心技的具体技能逻辑。
 - `modules/`：只补必要的目标事件、回合标记和自动战斗目标评分支持。
 

@@ -38,7 +38,7 @@
 
 ```text
 原始敌人数据层
-→ res_enemy.json / EnemyData
+→ data/enemies.json / EnemyData
 
 敌人数值构建层
 → Class + Level + MonsterType + 5e 规则
@@ -52,7 +52,7 @@ Roguelike 怪物编组层
 
 ### 3.1 原始敌人数据层
 
-- 敌人基础数据来自 `res_enemy.json`。
+- 敌人基础数据来自 `config/data/enemies.json`。
 - 每个敌人至少包含：
   - `ID`
   - `EnemyName`

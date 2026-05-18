@@ -1,5 +1,5 @@
-local SkillRuntimeConfig = require("config.skill_runtime_config")
-local Skill5eMeta = require("config.skill_5e_meta")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local Skill5eMeta = require("config.tables.skill_meta")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local ClericBuildPassives = {}
@@ -418,3 +418,4 @@ function ClericBuildPassives.CreateShelterPrayerPassive(context)
 end
 
 return ClericBuildPassives
+

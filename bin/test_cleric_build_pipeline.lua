@@ -22,11 +22,11 @@ local BattleMain = require("modules.battle_main")
 local BattleSkill = require("modules.battle_skill")
 local BuildPassiveCommon = require("skills.build_passive_common")
 local ClericBuildPassives = require("skills.cleric_build_passives")
-local FeatBuildConfig = require("config.feat_build_config")
+local FeatBuildConfig = require("config.tables.feats")
 local HeroBuild = require("modules.hero_build")
 local HeroData = require("config.hero_data")
 local SkillRuntime = require("modules.skill_runtime")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 BattleEvent.Init()
 BattleBuff.Init()
@@ -411,3 +411,4 @@ do
 end
 
 log("Cleric build pipeline tests passed.")
+

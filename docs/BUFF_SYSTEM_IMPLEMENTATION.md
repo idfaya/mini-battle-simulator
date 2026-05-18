@@ -41,9 +41,9 @@ Buff 系统在工程中的职责主要有四块：
 | 战斗主循环 | `modules/battle_main.lua` | 在回合结束调用 Buff 结算与持续时间递减 |
 | 枚举定义 | `core/battle_enum.lua` | 定义 Buff 主类型、控制子类型等枚举 |
 | 视觉事件 | `ui/battle_visual_events.lua` | 构建 BUFF_ADDED、BUFF_REMOVED、HERO_STATE_CHANGED 等事件数据 |
-| Buff 配置源 | `config/res_buff.json` | Buff 静态总表配置，按数组维护当前 28 个状态 |
-| Buff 运行时适配 | `config/buff/buff_config.lua` | 读取 `res_buff.json`，按 `buffId` 建索引并回绑 Lua handler |
-| Buff 效果注册 | `config/buff/buff_effect_registry.lua` | 为 DoT、减速等少数带自定义逻辑的 Buff 提供 handler |
+| Buff 配置源 | `config/data/buffs.json` | Buff 静态总表配置，按数组维护当前 28 个状态 |
+| Buff 运行时适配 | `config/tables/buffs.lua` | 读取 `data/buffs.json`，按 `buffId` 建索引并回绑 Lua handler |
+| Buff 效果注册 | `skills/buff_effect_registry.lua` | 为 DoT、减速等少数带自定义逻辑的 Buff 提供 handler |
 
 ---
 
@@ -53,10 +53,10 @@ Buff 系统在工程中的职责主要有四块：
 
 当前 Buff 系统可以按四层理解：
 
-1. `config/res_buff.json`
+1. `config/data/buffs.json`
    - 定义 Buff 静态总表配置
    - 包括名称、主类型、持续时间、叠层规则、触发效果等
-2. `config/buff/buff_config.lua`
+2. `config/tables/buffs.lua`
    - 运行时适配层
    - 负责读取 JSON，并按 `handlerId` 回绑 Lua 自定义效果
 3. `BattleSkill.ApplyBuffFromSkill`
@@ -105,7 +105,7 @@ local heroBuffs = {}
 
 ### 4.1 基础结构
 
-Buff 静态配置统一放在 `config/res_buff.json`，运行时由 `config/buff/buff_config.lua` 读取后按 `buffId` 建立索引，并按 `handlerId` 回绑 Lua 效果函数。
+Buff 静态配置统一放在 `config/data/buffs.json`，运行时由 `config/tables/buffs.lua` 读取后按 `buffId` 建立索引，并按 `handlerId` 回绑 Lua 效果函数。
 
 典型配置如下：
 
@@ -543,7 +543,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 ## 12. 当前 Buff 配置总表
 
-截至当前版本，`config/res_buff.json` 中共维护 28 个 Buff 条目；运行时通过 `config/buff/buff_config.lua` 适配加载。
+截至当前版本，`config/data/buffs.json` 中共维护 28 个 Buff 条目；运行时通过 `config/tables/buffs.lua` 适配加载。
 
 ### 12.1 820xxx：旧战斗通用姿态/仇恨状态
 
@@ -678,7 +678,8 @@ Buff 系统会向表现层发布以下核心事件：
 - `modules/battle_buff.lua`
 - `skills/battle_skill_status.lua`
 - `skills/skill_effect_registry.lua`
-- `config/buff/`
+- `config/tables/buffs.lua`
+- `skills/buff_effect_registry.lua`
 
 ### 14.2 减速的现状较特殊
 
@@ -727,7 +728,7 @@ Buff 系统会向表现层发布以下核心事件：
 3. `skills/battle_skill_status.lua`
 4. `skills/skill_effect_registry.lua`
 5. `skills/battle_skill_turn_hooks.lua`
-6. `config/buff/` 中对应的状态文件
+6. `config/tables/buffs.lua` 与 `skills/buff_effect_registry.lua`
 7. `ui/battle_visual_events.lua`
 
 这样能最快看清：
@@ -737,3 +738,6 @@ Buff 系统会向表现层发布以下核心事件：
 - 什么时候过期
 - 前端拿到哪些数据
 - 业务规则到底落在配置里还是脚本里
+
+
+

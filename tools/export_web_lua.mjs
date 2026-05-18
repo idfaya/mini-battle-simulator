@@ -8,10 +8,12 @@ const repoRoot = path.resolve(__dirname, "..");
 const outputRoot = path.join(repoRoot, "web", "public", "lua", "project");
 const sourceDirs = ["core", "modules", "config", "ui", "utils", "skills", "roguelike", "runtime"];
 const embeddedFiles = [
-  "config/res_hero.json",
-  "config/res_enemy.json",
-  "config/res_skill.json",
-  "config/res_buff.json"
+  "config/data/heroes.json",
+  "config/data/enemies.json",
+  "config/data/buffs.json",
+  "config/data/skills.json",
+  "config/data/passives.json",
+  "config/data/classes.json"
 ];
 
 function ensureDir(dir) {

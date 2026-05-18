@@ -123,7 +123,7 @@ local function applyDirectBonusDamage(hero, target, diceExpr, meta)
 end
 
 local function getBasicAttackDamageDice(skillId)
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     local meta = Skill5eMeta.Get(skillId)
     local damageDice = tostring(meta and meta.damageDice or "1d8")
     if damageDice == "" then
@@ -459,3 +459,4 @@ function BuildPassiveCommon.ApplyTeamProtections(defender, extraParam)
 end
 
 return BuildPassiveCommon
+

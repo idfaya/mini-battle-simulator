@@ -53,3 +53,5 @@ end
 return skill_80001003
 
 
+
+

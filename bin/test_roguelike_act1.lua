@@ -7,7 +7,7 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 local Run = require("roguelike.roguelike_run")
 local BattleFormation = require("modules.battle_formation")
 local RunBattleProfile = require("config.roguelike.run_battle_profile")
-local ClassRoleConfig = require("config.class_role_config")
+local ClassRoleConfig = require("config.tables.classes")
 local HeroData = require("config.hero_data")
 
 local function getUltimateSkillForUnit(unitId)
@@ -41,7 +41,7 @@ local function isEnemyOrOutputUltimate(unit)
     end
 
     -- "输出型"：用技能描述里的骰子/伤害关键词做保守判断；治疗/复活类不自动点。
-    local desc = (ult.skillConfig and ult.skillConfig.Description) or ""
+    local desc = (ult.skillConfig and ult.skillConfig.description) or ""
     if desc:find("治疗") or desc:find("复活") then
         return false
     end

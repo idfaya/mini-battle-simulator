@@ -43,7 +43,7 @@ local function isEnemyOrOutputUltimate(unit)
     if castTarget == E_CAST_TARGET.Enemy or castTarget == E_CAST_TARGET.EnemyPos then
         return true
     end
-    local desc = (ult.skillConfig and ult.skillConfig.Description) or ""
+    local desc = (ult.skillConfig and ult.skillConfig.description) or ""
     if desc:find("治疗") or desc:find("复活") then
         return false
     end

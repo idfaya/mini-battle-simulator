@@ -2,7 +2,7 @@
 
 > **项目**: Mini Battle Simulator
 > **更新时间**: 2026-05-18
-> **说明**: 本表用于给程序、策划、测试统一查看当前工程内 28 个 Buff 的配置现状、规则语义与实现方式。内容以 `config/res_buff.json`、`config/buff/buff_effect_registry.lua` 与当前运行逻辑为准。
+> **说明**: 本表用于给程序、策划、测试统一查看当前工程内 28 个 Buff 的配置现状、规则语义与实现方式。内容以 `config/data/buffs.json`、`skills/buff_effect_registry.lua` 与当前运行逻辑为准。
 
 ---
 
@@ -104,10 +104,13 @@
 - 程序查看时，优先关注：`主类型`、`持续`、`叠层`、`触发/读取`、`备注`
 - 策划查看时，优先关注：`规则分类`、`当前效果/用途`、`备注`
 - 修改 Buff 时，不要只改本表，应同步检查：
-  - `config/res_buff.json`
-  - `config/buff/buff_effect_registry.lua`
-  - `config/buff/buff_config.lua`
+  - `config/data/buffs.json`
+  - `skills/buff_effect_registry.lua`
+  - `config/tables/buffs.lua`
   - `skills/battle_skill_status.lua`
   - `skills/skill_effect_registry.lua`
   - `modules/battle_buff.lua`
   - `modules/battle_attribute.lua`
+
+
+

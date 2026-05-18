@@ -4,7 +4,7 @@
 ---
 
 local Logger = require("utils.logger")
-local PassiveDefs = require("config.passive.passive_defs")
+local PassiveDefs = require("config.tables.passives")
 local PassiveHandlers = require("modules.passive_handlers")
 
 -- Ensure enum is available even in isolated tests (without BattleMain bootstrapping).
@@ -129,12 +129,17 @@ local function CreatePassiveSkillContext(hero, heroTrigger, skill, extraParam)
     data.TriggerUnitID = heroTrigger.instanceId or heroTrigger.id
 
     if skill then
-        data.OwnerSkillId = skill.skillId
+        data.OwnerSkillId = skill.skillId or skill.id
         data.OwnerSkillCsv = {}
-        data.OwnerSkillCsv.classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+        data.OwnerSkillCsv.classId = skill.skillId
+            or skill.id
+            or skill.classId
+            or skill.rglConfig and (skill.rglConfig.skillId or skill.rglConfig.id or skill.rglConfig.ClassID)
         
         -- 复制技能参数
-        local skillParam = skill.skillParam or skill.rglConfig and skill.rglConfig.SkillParam or {}
+        local skillParam = skill.skillParam
+            or skill.rglConfig and (skill.rglConfig.skillParam or skill.rglConfig.SkillParam)
+            or {}
         for k, v in ipairs(skillParam) do
             data.OwnerSkillCsv["param" .. k] = v
         end
@@ -148,6 +153,16 @@ local function CreatePassiveSkillContext(hero, heroTrigger, skill, extraParam)
     context.data = data
 
     return context
+end
+
+local function GetPassiveTemplateId(skill)
+    return tonumber(skill and (
+        skill.skillId
+        or skill.id
+        or skill.passiveTemplateId
+        or skill.classId
+        or skill.rglConfig and (skill.rglConfig.skillId or skill.rglConfig.id or skill.rglConfig.ClassID)
+    )) or nil
 end
 
 --- 调用被动技能
@@ -190,8 +205,8 @@ end
 
 --- 创建战斗脚本技能
 local function CreateBattleScriptSkill(hero, skill, luaFuncName, triggerTime)
-    local skillId = skill.skillId
-    local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+    local skillId = skill.skillId or skill.id
+    local classId = GetPassiveTemplateId(skill)
 
     if not hero.luaPassive then
         hero.luaPassive = {}
@@ -296,7 +311,7 @@ end
 
 --- 获取被动技能模板
 local function GetPassiveSkillTemplate(skill)
-    local classId = skill.classId or skill.rglConfig and skill.rglConfig.ClassID
+    local classId = GetPassiveTemplateId(skill)
     if not classId then
         Logger.Error("[BattlePassiveSkill] 技能没有classId")
         return nil
@@ -426,7 +441,7 @@ function BattlePassiveSkill.InsertPassiveSkill(heroSkillOwner, heroSkillTrigger,
     local skill = nil
     if heroSkillOwner.passiveSkills then
         for _, s in ipairs(heroSkillOwner.passiveSkills) do
-            if s.classId == classId or (s.rglConfig and s.rglConfig.ClassID == classId) then
+            if GetPassiveTemplateId(s) == classId then
                 skill = s
                 break
             end

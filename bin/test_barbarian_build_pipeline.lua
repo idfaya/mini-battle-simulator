@@ -16,13 +16,13 @@ end
 
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local HeroData = require("config.hero_data")
 local BarbarianBuildPassives = require("skills.barbarian_build_passives")
 local BattleSkill = require("modules.battle_skill")
 local BattleFormula = require("core.battle_formula")
 local Ability5e = require("modules.ability_5e")
-local ClassWeaponConfig = require("config.class_weapon_config")
+local ClassWeaponConfig = require("config.tables.classes")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -76,9 +76,12 @@ do
     local hero = new_unit(9691, "BarbarianDamageHero")
     local target = new_unit(9692, "BarbarianDamageTarget")
     hero.class = 10
+    hero.hit = 999
     hero.strMod = 4
     hero.dexMod = 2
     hero.conMod = 3
+    hero.__ignoreNatRules = true
+    target.__ignoreNatRules = true
 
     local result = BattleSkill.ResolveScaledDamage(hero, target, {
         meta = {
@@ -158,3 +161,4 @@ do
 end
 
 log("Barbarian build pipeline tests passed.")
+

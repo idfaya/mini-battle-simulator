@@ -1,0 +1,483 @@
+[
+  {
+    "build": [
+      {
+        "fixed": [
+          2140101,
+          2140102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2140301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2140501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 1,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "hit": 1,
+          "saveRef": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "physicalDiceScale": 1.0
+    },
+    "role": {
+      "icon": "🗡️",
+      "isMelee": true,
+      "name": "盗贼",
+      "preferRow": "front",
+      "streamId": "Rogue"
+    },
+    "weapon": {
+      "weaponDice": "1d6"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2100101,
+          2100402
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2100302
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2100102
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 2,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "hit": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      },
+      {
+        "level": 10,
+        "statBonus": {
+          "ac": 1,
+          "maxHp": 10
+        },
+        "unlockSkills": [],
+        "upgradeSkills": {
+          "80002004": 3
+        }
+      }
+    ],
+    "rhythm": {
+      "physicalDiceScale": 1.0
+    },
+    "role": {
+      "icon": "🛡️",
+      "isMelee": true,
+      "name": "战士",
+      "preferRow": "front",
+      "streamId": "Fighter"
+    },
+    "weapon": {
+      "weaponDice": "1d6"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2110101,
+          2110102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2110301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2110303
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 3,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "saveRef": 1,
+          "speed": 2
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "physicalDiceScale": 1.0
+    },
+    "role": {
+      "icon": "⚡",
+      "isMelee": true,
+      "name": "武僧",
+      "preferRow": "front",
+      "streamId": "Monk"
+    },
+    "weapon": {
+      "weaponDice": "1d4"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2120101,
+          2120201
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2120302
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2120301
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 4,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "ac": 1,
+          "saveWill": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "healScale": 1.0,
+      "physicalDiceScale": 1.0
+    },
+    "role": {
+      "icon": "✨",
+      "isMelee": true,
+      "name": "圣武士",
+      "preferRow": "front",
+      "streamId": "Paladin"
+    },
+    "weapon": {
+      "weaponDice": "1d6"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2130101,
+          2130102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2130301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2130501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 5,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "hit": 1,
+          "spellDC": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "physicalDiceScale": 1.0
+    },
+    "role": {
+      "icon": "🏹",
+      "isMelee": false,
+      "name": "游侠",
+      "preferRow": "back",
+      "streamId": "Ranger"
+    },
+    "weapon": {
+      "weaponDice": "1d6"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2150101,
+          2150202
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2150102
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2150303
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 6,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "healBonus": 400,
+          "saveWill": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "healScale": 1.0,
+      "spellDiceScale": 1.0
+    },
+    "role": {
+      "icon": "💚",
+      "isMelee": false,
+      "name": "牧师",
+      "preferRow": "back",
+      "streamId": "Cleric"
+    },
+    "weapon": {
+      "weaponDice": "1d4"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2170101,
+          2170102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2170301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2170501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 7,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "hit": 1,
+          "spellDC": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "spellDiceScale": 1.0
+    },
+    "role": {
+      "icon": "🔥",
+      "isMelee": false,
+      "name": "术士(火)",
+      "preferRow": "back",
+      "streamId": "Sorcerer"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2180101,
+          2180102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2180301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2180501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 8,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "saveFort": 1,
+          "spellDC": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "spellDiceScale": 1.0
+    },
+    "role": {
+      "icon": "❄️",
+      "isMelee": false,
+      "name": "法师(冰)",
+      "preferRow": "back",
+      "streamId": "Wizard"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2190101,
+          2190102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2190301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2190501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 9,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "critRate": 200,
+          "spellDC": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": {
+      "spellDiceScale": 1.0
+    },
+    "role": {
+      "icon": "🌩️",
+      "isMelee": false,
+      "name": "邪术师(雷)",
+      "preferRow": "back",
+      "streamId": "Warlock"
+    }
+  },
+  {
+    "build": [
+      {
+        "fixed": [
+          2200101,
+          2200102
+        ],
+        "level": 1
+      },
+      {
+        "fixed": [
+          2200301
+        ],
+        "level": 3
+      },
+      {
+        "fixed": [
+          2200501
+        ],
+        "level": 5
+      }
+    ],
+    "classId": 10,
+    "grants": [
+      {
+        "level": 5,
+        "statBonus": {
+          "maxHp": 8,
+          "saveFort": 1
+        },
+        "unlockSkills": [],
+        "upgradeSkills": []
+      }
+    ],
+    "rhythm": [],
+    "role": {
+      "icon": "🪓",
+      "isMelee": true,
+      "name": "野蛮人",
+      "preferRow": "front",
+      "streamId": "Barbarian"
+    },
+    "weapon": {
+      "weaponDice": "1d12"
+    }
+  }
+]

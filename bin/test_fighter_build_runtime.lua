@@ -23,9 +23,9 @@ local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattleFormation = require("modules.battle_formation")
 local BattleLogic = require("modules.battle_logic")
 local FighterBuildPassives = require("skills.fighter_build_passives")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
-local ClassWeaponConfig = require("config.class_weapon_config")
-local PassiveDefs = require("config.passive.passive_defs")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local ClassWeaponConfig = require("config.tables.classes")
+local PassiveDefs = require("config.tables.passives")
 
 BattleEvent.Init()
 BattleBuff.Init()
@@ -754,3 +754,4 @@ do
 end
 
 log("Fighter build runtime tests passed.")
+

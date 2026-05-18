@@ -28,3 +28,5 @@ end
 
 return skill_80003004
 
+
+

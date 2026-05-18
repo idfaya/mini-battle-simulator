@@ -1,24 +1,7 @@
-local json = require("utils.json")
-local BuffEffectRegistry = require("config.buff.buff_effect_registry")
+local ConfigJsonLoader = require("config.json_loader")
+local BuffEffectRegistry = require("skills.buff_effect_registry")
 
 local BuffConfig = {}
-
-local function getConfigFilePath(fileName)
-    local paths = {
-        "config/" .. fileName,
-        "../config/" .. fileName,
-    }
-
-    for _, path in ipairs(paths) do
-        local file = io.open(path, "r")
-        if file then
-            file:close()
-            return path
-        end
-    end
-
-    return nil
-end
 
 local function attachHandlers(entry)
     local effects = {}
@@ -42,15 +25,8 @@ local function attachHandlers(entry)
 end
 
 local function loadBuffConfig()
-    local path = getConfigFilePath("res_buff.json")
-    assert(path, "cannot find config/res_buff.json")
-
-    local file = assert(io.open(path, "r"))
-    local content = file:read("*a")
-    file:close()
-
-    local data = json.JsonDecode(content)
-    assert(type(data) == "table", "res_buff.json must decode to a table")
+    local data, err = ConfigJsonLoader.Load("data/buffs.json", { expectedType = "table" })
+    assert(data, err)
 
     for _, rawEntry in ipairs(data) do
         local buffId = tonumber(rawEntry and rawEntry.buffId)
@@ -68,3 +44,5 @@ end
 loadBuffConfig()
 
 return BuffConfig
+
+

@@ -52,8 +52,8 @@ end
 
 local function load_raw_buff_rows()
     local paths = {
-        "config/res_buff.json",
-        "../config/res_buff.json",
+        "config/data/buffs.json",
+        "../config/data/buffs.json",
     }
 
     for _, path in ipairs(paths) do
@@ -69,9 +69,9 @@ local function load_raw_buff_rows()
 end
 
 local rawRows = load_raw_buff_rows()
-assert_true(type(rawRows) == "table" and #rawRows == 28, "res_buff.json contains 28 buff entries")
+assert_true(type(rawRows) == "table" and #rawRows == 28, "buffs.json contains 28 buff entries")
 
-local BuffConfig = require("config.buff.buff_config")
+local BuffConfig = require("config.tables.buffs")
 assert_true(type(BuffConfig) == "table", "buff_config loads as table")
 assert_true(count_entries(BuffConfig) == 28, "buff_config contains 28 buff entries")
 
@@ -110,3 +110,5 @@ assert_true(appliedBurn ~= nil and appliedBurn.stackCount == 1, "ApplyBurn refre
 assert_true(appliedBurn ~= nil and appliedBurn.duration == 4, "ApplyBurn refreshes burn duration")
 
 log("ALL TESTS PASSED")
+
+

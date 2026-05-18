@@ -4,7 +4,7 @@
 ---
 
 local Logger = require("utils.logger")
-local ClassRoleConfig = require("config.class_role_config")
+local ClassRoleConfig = require("config.tables.classes")
 
 ---@class BattleFormation
 local BattleFormation = {}

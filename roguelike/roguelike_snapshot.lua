@@ -1,9 +1,8 @@
 local RoguelikeMap = require("roguelike.roguelike_map")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
-local FeatConfig = require("config.feat_config")
-local FeatBuildConfig = require("config.feat_build_config")
-local ClassBuildProgression = require("config.class_build_progression")
+local FeatBuildConfig = require("config.tables.feats")
+local ClassBuildProgression = require("config.tables.classes")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeSnapshot = {}
@@ -53,22 +52,12 @@ local function buildFeatSummary(hero)
     local result = {}
     local classId = tonumber(hero and hero.classId) or 0
     local level = tonumber(hero and hero.level) or 1
-    -- 已迁移到 ClassBuildProgression 的职业（战士/武僧/盗贼/牧师/圣骑/游侠等）
-    -- 统一走 FeatBuildConfig + 固定 feat 列表，避免被旧的 FeatConfig 漏查。
-    if ClassBuildProgression.GetProgression(classId) then
-        for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
-            local feat = FeatBuildConfig.GetFeat(featId)
-            addUnique(result, feat and feat.name or nil)
-        end
-        for _, featId in ipairs(hero and hero.feats or {}) do
-            local feat = FeatBuildConfig.GetFeat(featId)
-            addUnique(result, feat and feat.name or nil)
-        end
-        return result
+    for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
+        local feat = FeatBuildConfig.GetFeat(featId)
+        addUnique(result, feat and feat.name or nil)
     end
-
     for _, featId in ipairs(hero and hero.feats or {}) do
-        local feat = FeatConfig.GetFeat(featId)
+        local feat = FeatBuildConfig.GetFeat(featId)
         addUnique(result, feat and feat.name or nil)
     end
     return result
@@ -220,3 +209,4 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
 end
 
 return RoguelikeSnapshot
+

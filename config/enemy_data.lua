@@ -1,7 +1,7 @@
-local JSON = require("utils.json")
-local SkillConfig = require("config.skill_config")
-local ClassRoleConfig = require("config.class_role_config")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local ConfigJsonLoader = require("config.json_loader")
+local SkillConfig = require("config.tables.skills")
+local ClassRoleConfig = require("config.tables.classes")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local Ability5e = require("modules.ability_5e")
 
 ---@class EnemyAbilityScores
@@ -86,23 +86,6 @@ local MONSTER_TYPE_TEMPLATES = {
     [2] = { acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
 }
 
-local function GetConfigFilePath(fileName)
-    local paths = {
-        "config/" .. fileName,
-        "../config/" .. fileName,
-    }
-
-    for _, path in ipairs(paths) do
-        local file = io.open(path, "r")
-        if file then
-            file:close()
-            return path
-        end
-    end
-
-    return nil
-end
-
 local function BuildConfiguredSkillIds(enemy)
     local result = {}
     local seen = {}
@@ -140,14 +123,14 @@ local function resolveSkillTypeFromConfigs(skillId, skillConfig)
     local resolvedType = E_SKILL_TYPE_PASSIVE
     local resolvedCost = 0
     if skillConfig then
-        if skillConfig.Type == 1 then
+        if skillConfig.skillType == 1 then
             resolvedType = E_SKILL_TYPE_NORMAL
-        elseif skillConfig.Type == 2 then
+        elseif skillConfig.skillType == 2 then
             resolvedType = E_SKILL_TYPE_ACTIVE
-        elseif skillConfig.Type == 3 then
+        elseif skillConfig.skillType == 3 then
             resolvedType = E_SKILL_TYPE_LIMITED
-            resolvedCost = skillConfig.Cost or 100
-        elseif skillConfig.Type == 4 then
+            resolvedCost = skillConfig.skillCost or 100
+        elseif skillConfig.skillType == 4 then
             resolvedType = E_SKILL_TYPE_PASSIVE
         end
     elseif skillId >= 800010000 and skillId < 800013000 then
@@ -167,8 +150,8 @@ local function resolveSkillDisplayName(skillId, skillConfig)
     if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
         return runtimeEntry.name
     end
-    if skillConfig and skillConfig.Name and skillConfig.Name ~= "" then
-        return skillConfig.Name
+    if skillConfig and skillConfig.name and skillConfig.name ~= "" then
+        return skillConfig.name
     end
     return "Skill_" .. tostring(skillId)
 end
@@ -346,25 +329,6 @@ local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
     }
 end
 
-local function loadJsonFile(filename)
-    local file = io.open(filename, "r")
-    if not file then
-        print(string.format("[EnemyData] Cannot open: %s", filename))
-        return nil
-    end
-
-    local content = file:read("*all")
-    file:close()
-
-    local success, result = pcall(JSON.JsonDecode, content)
-    if not success then
-        print(string.format("[EnemyData] JSON parse failed: %s", filename))
-        return nil
-    end
-
-    return result
-end
-
 local function EnemyHasSkills(enemy)
     if not enemy then
         return false
@@ -380,10 +344,9 @@ function EnemyData.Init()
         return true
     end
 
-    local enemyPath = GetConfigFilePath("res_enemy.json")
-    local enemyArray = enemyPath and loadJsonFile(enemyPath) or nil
+    local enemyArray, err = ConfigJsonLoader.Load("data/enemies.json", { expectedType = "table" })
     if not enemyArray then
-        print("[EnemyData] Failed to load res_enemy.json")
+        print("[EnemyData] " .. tostring(err))
         return false
     end
 
@@ -637,3 +600,4 @@ end
 EnemyData.Init()
 
 return EnemyData
+

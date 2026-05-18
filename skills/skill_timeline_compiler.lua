@@ -53,7 +53,7 @@ local function ExecuteOp(ctx, frameCopy)
         local BattlePassiveSkill = require("modules.battle_passive_skill")
         local BattleFormula = require("core.battle_formula")
         local Dice = require("core.dice")
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local total = 0
         local targets = frameCopy.targets or {}
         local savedTargets = {}
@@ -242,7 +242,7 @@ local function ExecuteOp(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         local BattlePassiveSkill = require("modules.battle_passive_skill")
-        local Skill5eMeta = require("config.skill_5e_meta")
+        local Skill5eMeta = require("config.tables.skill_meta")
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
         local healDice = frameCopy.healDice or meta.healDice or "1d8+1"
         local total = 0
@@ -298,3 +298,6 @@ function SkillTimelineCompiler.Build(hero, targets, skill, skillDef)
 end
 
 return SkillTimelineCompiler
+
+
+

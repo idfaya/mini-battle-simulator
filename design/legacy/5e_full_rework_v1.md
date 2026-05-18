@@ -86,12 +86,12 @@
 当前引擎已经具备以下 5e 关键件（可以直接用/小改）：
 - 豁免：`SkillTimelineCompiler` 的 `op=damage` 在 `meta.kind="spell"` 时会走 `RollSave`（基于 `spellDC` 和 `saveFort/saveRef/saveWill`）。
 - 施法命中：`BattleFormula.RollHit` 支持命中检定，且 `meta.kind ~= "spell"` 会走命中判定。
-- 吟唱=施法时间：`config/skill_5e_meta.lua` 的 `chantTurns` 通过 `__pendingCast` 落地，并应在施法者下次行动开始时自动释放。
+- 吟唱=施法时间：`config/tables/skill_meta.lua` 的 `chantTurns` 通过 `__pendingCast` 落地，并应在施法者下次行动开始时自动释放。
 - 专注：已有 `__concentrationSkillId` + 受伤触发 `RollConcentration` 打断。
 - 控制：`Frozen/STUN/SILENT` 等 `CONTROL` 类 Buff 已接入“跳过行动”。
 
 为“更像 5e”，v3 的重点是“技能行为像 5e”（改动小但收益大）：
-- 统一“法术攻击 vs 豁免法术”口径：在 `skill_5e_meta.lua` 中用 `kind` 表达。
+- 统一“法术攻击 vs 豁免法术”口径：在 `skill_meta.lua` 中用 `kind` 表达。
   - `kind="spell"`：豁免类法术（Fireball / Frost Nova / Hypnotic Pattern 等）。
   - `kind="auto"`：法术攻击类（Fire Bolt / Eldritch Blast / Ray of Frost 等，走命中检定但不拼接武器骰）。
 
@@ -249,3 +249,5 @@ v3 将“专注清理 buff”从硬编码改为可配置：专注技能在 meta 
 3. 允许我做两处“适度重做”吗？（都很小，但能显著提升 5e 味道）
    - 专注改为“可扩展”：不仅仅绑定 80004003/04，也能让 Bard/Druid 的专注技能正确清理 Buff。
    - 新增 2~4 个小 Buff：`STUN(30001)`、`Frightened`、`Restrained`、`MoonbeamDot`（实现用现有 buff/custom 即可）。
+
+

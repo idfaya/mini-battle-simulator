@@ -326,10 +326,10 @@
 
 ### 新增模块
 
-- `config/skill_runtime_config.lua`
+- `config/tables/skill_runtime.lua`
   - 定义新的统一 `skill` 数据
 
-- `config/feat_build_config.lua`
+- `config/tables/feats.lua`
   - 定义新的 Feat 配置
 
 - `config/class_build_progression.lua`
@@ -361,7 +361,7 @@
 - `config/skill/skill_80002004.lua`
   - 不再继续承载旧“旋风斩”语义
 
-- `config/skill_5e_meta.lua`
+- `config/tables/skill_meta.lua`
   - 需与新语义同步
 
 ## 分阶段实施
@@ -559,9 +559,9 @@
 ### 第一阶段推荐落点
 
 - 第一阶段优先新增：
-  - `config/feat_build_config.lua`
+  - `config/tables/feats.lua`
   - `config/class_build_progression.lua`
-  - `config/skill_runtime_config.lua`
+  - `config/tables/skill_runtime.lua`
   - `modules/hero_build.lua`
   - `modules/skill_runtime.lua`
 - 第一阶段目标不是做完战士全部数值平衡，而是先验证：
@@ -576,3 +576,5 @@
 - 优先做“可运行的结构正确”，再做“技能细节完全齐全”。
 - 新旧系统并存期间，避免修改非战士职业的现有行为。
 - 若需要暂时复用旧 `skillId`，可以复用执行器，但不要继续沿用旧技能语义命名。
+
+

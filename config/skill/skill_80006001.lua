@@ -24,3 +24,5 @@ function skill_80006001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80006001
+
+

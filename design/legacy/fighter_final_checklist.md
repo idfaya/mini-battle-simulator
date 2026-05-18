@@ -58,9 +58,9 @@
 - 程序设计：`design/feat_skill_refactor_program_design.md`
 - Web 用例文档：`design/fighter_web_test_cases.md`
 - 最终清单：`design/fighter_final_checklist.md`
-- Feat 配置：`config/feat_build_config.lua`
+- Feat 配置：`config/tables/feats.lua`
 - 等级进度：`config/class_build_progression.lua`
-- Runtime skill 配置：`config/skill_runtime_config.lua`
+- Runtime skill 配置：`config/tables/skill_runtime.lua`
 - 被动实现：`skills/fighter_build_passives.lua`
 - Web 回归：`web/tests/fighter-web-smoke.spec.ts`
 

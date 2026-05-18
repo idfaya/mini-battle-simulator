@@ -10,7 +10,7 @@ local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 local BattleEnergyConfig = require("config.battle_energy_config")
 local BattleRhythmConfig = require("config.battle_rhythm_config")
-local ClassRoleConfig = require("config.class_role_config")
+local ClassRoleConfig = require("config.tables.classes")
 local ArrayUtils = require("utils.array_utils")
 local Logger = require("utils.logger")
 

@@ -1,4 +1,4 @@
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local BarbarianBuildPassives = {}
@@ -137,7 +137,7 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
-    local Skill5eMeta = require("config.skill_5e_meta")
+    local Skill5eMeta = require("config.tables.skill_meta")
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
     local hitPenalty = tonumber(meta and meta.hitPenalty) or -2
     local critMin = tonumber(meta and meta.critMin) or 19
@@ -251,3 +251,4 @@ function BarbarianBuildPassives.CreateBerserkPassive(context)
 end
 
 return BarbarianBuildPassives
+

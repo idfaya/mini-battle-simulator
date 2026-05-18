@@ -27,7 +27,7 @@ local function isOutputUlt(unit)
     local ts = ult.targetsSelections or (ult.config and ult.config.targetsSelections)
     local ct = ts and ts.castTarget or ult.castTarget
     if ct == E_CAST_TARGET.Enemy or ct == E_CAST_TARGET.EnemyPos then return true end
-    local desc = (ult.skillConfig and ult.skillConfig.Description) or ""
+    local desc = (ult.skillConfig and ult.skillConfig.description) or ""
     if desc:find("治疗") or desc:find("复活") then return false end
     return desc:find("d%d+") ~= nil
 end

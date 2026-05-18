@@ -18,12 +18,12 @@ require("core.battle_enum")
 local BattleEvent = require("core.battle_event")
 local BattleBuff = require("modules.battle_buff")
 local BuildPassiveCommon = require("skills.build_passive_common")
-local FeatBuildConfig = require("config.feat_build_config")
+local FeatBuildConfig = require("config.tables.feats")
 local HeroBuild = require("modules.hero_build")
 local HeroData = require("config.hero_data")
 local RogueBuildPassives = require("skills.rogue_build_passives")
 local SkillRuntime = require("modules.skill_runtime")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 BattleEvent.Init()
 BattleBuff.Init()
@@ -158,3 +158,4 @@ do
 end
 
 log("Rogue build pipeline tests passed.")
+

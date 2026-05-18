@@ -18,7 +18,7 @@ function uniq(arr) {
 }
 
 function main() {
-  const skills = JSON.parse(fs.readFileSync(path.join("config", "res_skill.json"), "utf8"));
+  const skills = JSON.parse(fs.readFileSync(path.join("config", "data", "skills.json"), "utf8"));
   const rows = [];
 
   for (const s of skills) {

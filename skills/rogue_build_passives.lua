@@ -1,5 +1,5 @@
-local ClassRoleConfig = require("config.class_role_config")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local ClassRoleConfig = require("config.tables.classes")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local RogueBuildPassives = {}
@@ -373,3 +373,4 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
 end
 
 return RogueBuildPassives
+

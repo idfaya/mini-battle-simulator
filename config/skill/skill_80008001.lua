@@ -1,5 +1,5 @@
 local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
-local Skill5eMeta = require("config.skill_5e_meta")
+local Skill5eMeta = require("config.tables.skill_meta")
 
 local skill_80008001 = {}
 
@@ -29,3 +29,6 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008001
+
+
+

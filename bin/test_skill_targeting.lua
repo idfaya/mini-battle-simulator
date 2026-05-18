@@ -8,7 +8,7 @@ local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleBuff = require("modules.battle_buff")
 local SkillTimeline = require("core.skill_timeline")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local RangerBuildPassives = require("skills.ranger_build_passives")
 
 local function assert_true(condition, message)
@@ -264,3 +264,6 @@ BattleFormation.OnFinal()
 BattleSkill.OnFinal()
 
 print("skill targeting test passed")
+
+
+

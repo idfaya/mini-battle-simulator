@@ -1,4 +1,4 @@
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local PaladinBuildPassives = {}
@@ -341,3 +341,4 @@ function PaladinBuildPassives.CreateExtraAttackPassive(context)
 end
 
 return PaladinBuildPassives
+

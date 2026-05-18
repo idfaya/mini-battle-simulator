@@ -1,11 +1,11 @@
 local BattleRuntime = require("runtime.browser_battle_runtime")
 local BattleFormation = require("modules.battle_formation")
-local SkillConfig = require("config.skill_config")
+local SkillConfig = require("config.tables.skills")
 local BattleEnergy = require("modules.battle_energy")
 local HeroData = require("config.hero_data")
 local EnemyData = require("config.enemy_data")
 local BattleEvent = require("core.battle_event")
-local ClassRoleConfig = require("config.class_role_config")
+local ClassRoleConfig = require("config.tables.classes")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
@@ -577,7 +577,8 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, battleProfile)
 
             for skillId, cd in pairs(rosterHero.skillCooldowns) do
                 local sid = tonumber(skillId)
-                if sid and (tonumber(SkillConfig.GetSkillType(sid)) or 0) ~= 3 then
+                local skillDef = sid and SkillConfig.GetSkillConfig(sid) or nil
+                if sid and (tonumber(skillDef and skillDef.skillType) or 0) ~= 3 then
                     rosterHero.skillCooldowns[sid] = math.max(0, math.floor(tonumber(cd) or 0))
                 end
             end

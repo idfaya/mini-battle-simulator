@@ -316,16 +316,16 @@
 
 - `class_system_design.md`
   - 提供 `Class 单位`、`promotion_stage`、技能槽和成长职责的统一字段口径
-- `config/feat_build_config.lua`
+- `config/tables/feats.lua`
   - 为四个法系职业定义低阶 / 中阶 / 高阶三段 Feat 授予
   - 后续成长统一使用 `grant_skill / modify_skill / replace_skill`
 - `config/class_build_progression.lua`
   - 将同职业进阶、装备和 Feat 链映射到低阶 / 中阶 / 高阶的晋升
 - `config/class_build_progression.lua` 中的阶段推进必须直接对应 `promotion_stage = low / mid / high`
 - `skill_package_id` 的切换必须与 `basic_attack_slot / core_slot / mid_slot / high_slot` 的启用关系同步
-- `config/skill_runtime_config.lua`
+- `config/tables/skill_runtime.lua`
   - 为四职业的中阶能力与高阶能力配置 `active/passive/cd/targeting` 语义
-- `config/skill_5e_meta.lua`
+- `config/tables/skill_meta.lua`
   - 补齐法术命中、豁免、DOT、减速、减伤、清负面等说明
 - `skills/`
   - 处理 DOT、印记、团队减伤、群体法术与附加伤害逻辑

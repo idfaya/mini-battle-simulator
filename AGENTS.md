@@ -28,6 +28,13 @@ Default workflow after Lua changes:
 ## Key Paths
 
 - Roguelike config: `config/roguelike/`
+- Canonical skill data: `config/data/skills.json`
+- Canonical passive data: `config/data/passives.json`
+- Canonical class data: `config/data/classes.json`
+- Canonical hero data: `config/data/heroes.json`
+- Canonical enemy data: `config/data/enemies.json`
+- Canonical buff data: `config/data/buffs.json`
+- Canonical Lua table loaders: `config/tables/*.lua`
 - Core battle modules: `modules/`
 - Skill modules: `skills/`
 - Web mirror (generated): `web/public/lua/project/`
@@ -47,8 +54,8 @@ Preferred mitigation:
 
 When changing skill behavior:
 
-- Update `config/skill_5e_meta.lua` (5e meta rules).
-- Update `config/res_skill.json` if the schema/fields used by runtime changed.
+- Update `config/data/skills.json` rules fields and keep `config/tables/skill_meta.lua` in sync.
+- Update `config/data/skills.json` if the schema or fields used by runtime changed.
 
 ## Safety And Hygiene
 

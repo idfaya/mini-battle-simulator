@@ -14,12 +14,12 @@ local function assert_true(cond, name)
     end
 end
 
-local FeatBuildConfig = require("config.feat_build_config")
-local ClassBuildProgression = require("config.class_build_progression")
+local FeatBuildConfig = require("config.tables.feats")
+local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
 local RoguelikeReward = require("roguelike.roguelike_reward")
 local SkillRuntime = require("modules.skill_runtime")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -194,3 +194,4 @@ do
 end
 
 log("Fighter build pipeline tests passed.")
+

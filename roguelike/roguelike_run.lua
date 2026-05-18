@@ -10,10 +10,9 @@ local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
-local ClassRoleConfig = require("config.class_role_config")
-local FeatConfig = require("config.feat_config")
-local FeatBuildConfig = require("config.feat_build_config")
-local SkillRuntimeConfig = require("config.skill_runtime_config")
+local ClassRoleConfig = require("config.tables.classes")
+local FeatBuildConfig = require("config.tables.feats")
+local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
 
 local RoguelikeRun = {}
@@ -132,7 +131,7 @@ local function cloneArray(input)
 end
 
 local function resolveFeatEntry(featId)
-    return FeatBuildConfig.GetFeat(featId) or FeatConfig.GetFeat(featId)
+    return FeatBuildConfig.GetFeat(featId)
 end
 
 local function resolveOwnedFeatIds(unitOrState)
@@ -1077,3 +1076,4 @@ function RoguelikeRun.SwapBenchWithTeam(benchRosterId, teamRosterId)
 end
 
 return RoguelikeRun
+
