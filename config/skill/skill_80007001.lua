@@ -1,9 +1,11 @@
 local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
+local Skill5eMeta = require("config.skill_5e_meta")
 
 local skill_80007001 = {}
 
 function skill_80007001.BuildTimeline(hero, targets, skill)
     local tier = tonumber(skill and skill.level) or 1
+    local damageDice = Skill5eMeta.ResolveStageDamageDice(80007001, tier)
     local frames = {}
     for _, t in ipairs(targets or {}) do
         if t and not t.isDead then
@@ -14,6 +16,7 @@ function skill_80007001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "fire_bolt_hit",
                 target = t,
+                damageDice = damageDice,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "fire" } },
                     { tag = "apply_burn_refresh_only", phase = "post", param = { turns = 2 } },

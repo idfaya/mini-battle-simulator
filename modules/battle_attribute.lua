@@ -348,6 +348,7 @@ function BattleAttribute.UpdateHeroAttribute(hero)
     hero.critDamage = hero.attributes.final[BattleAttribute.ATTR_ID.CRIT_DMG] or 150
     hero.hitRate = hero.attributes.final[BattleAttribute.ATTR_ID.HIT_RATE] or 100
     hero.hit = hero.hitRate
+    hero.spellAttack = hero.spellAttack or hero.hitRate
     hero.dodgeRate = hero.attributes.final[BattleAttribute.ATTR_ID.DODGE_RATE] or 0
     hero.damageReduce = hero.attributes.final[BattleAttribute.ATTR_ID.DMG_REDUCE] or 0
     hero.damageIncrease = hero.attributes.final[BattleAttribute.ATTR_ID.DMG_INCREASE] or 0

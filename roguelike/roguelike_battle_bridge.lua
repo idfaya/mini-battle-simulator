@@ -163,7 +163,9 @@ local function buildHeroForBattle(rosterHero, modifiers)
     baseCurrentHp = math.max(1, math.min(oldMaxHp, baseCurrentHp))
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp)))
     heroData.def = math.max(0, math.floor((heroData.def or 0)))
+    local baseSpellAttack = tonumber(heroData.spellAttack) or tonumber(heroData.hit) or 0
     heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
+    heroData.spellAttack = math.max(0, math.floor(baseSpellAttack + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
     -- Compatibility mirror for legacy readers that still inspect `atk`.
     heroData.atk = heroData.hit
     heroData.ac = math.max(0, math.floor((heroData.ac or 0) + (modifiers.acDeltaByClass[rosterHero.classId] or 0)))
@@ -242,7 +244,9 @@ local function buildEnemyForBattle(enemyId, level, wpType, budgetAdjust)
     enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * budgetHp))
     enemyData.maxHp = enemyData.hp
     enemyData.def = math.max(0, math.floor((enemyData.def or 0) * budgetDef))
+    local baseSpellAttack = tonumber(enemyData.spellAttack) or tonumber(enemyData.hit) or 0
     enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
+    enemyData.spellAttack = math.max(0, math.floor(baseSpellAttack + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
     enemyData.atk = enemyData.hit
     enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
     local sd = tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0

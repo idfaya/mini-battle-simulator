@@ -1,8 +1,10 @@
 local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
+local Skill5eMeta = require("config.skill_5e_meta")
 
 local skill_80009001 = {}
 
 function skill_80009001.BuildTimeline(hero, targets, skill)
+    local damageDice = Skill5eMeta.ResolveStageDamageDice(80009001, skill and skill.level)
     return SkillTimelineCompiler.Build(hero, targets, skill, {
         id = 80009001,
         frames = {
@@ -12,6 +14,7 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "skill_80009001_execute",
                 targetRef = "selected",
+                damageDice = damageDice,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },
                     { tag = "apply_static_mark", phase = "post", param = { turns = 2 } },
@@ -23,6 +26,5 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009001
-
 
 

@@ -258,6 +258,7 @@ local function serializeHero(hero)
         initiative = initiative.total or 0,
         ac = hero.ac or 0,
         hit = hero.hit or 0,
+        spellAttack = hero.spellAttack or hero.hit or 0,
         spellDC = hero.spellDC or 0,
         saveFort = hero.saveFort or 0,
         saveRef = hero.saveRef or 0,

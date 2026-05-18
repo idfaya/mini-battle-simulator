@@ -652,6 +652,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local baseAc = calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level)
     local finalAc = math.max(10, applyClassArmorFloor(hero.Class, template.ac, baseAc))
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
+    local finalSpellAttack = math.max(0, prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
     local finalSaveRef = dexMod + (isSaveProficient(hero.Class, "ref") and prof or 0)
@@ -683,6 +684,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
         healBonus = template.healBonus or 0,
         ac = finalAc,
         hit = finalHit,
+        spellAttack = finalSpellAttack,
         spellDC = finalSpellDC,
         saveFort = finalSaveFort,
         saveRef = finalSaveRef,
@@ -1292,6 +1294,7 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
         builtHero.def = final.def or builtHero.def
         builtHero.ac = final.ac or builtHero.ac
         builtHero.hit = final.hit or builtHero.hit
+        builtHero.spellAttack = final.spellAttack or builtHero.spellAttack
         builtHero.spellDC = final.spellDC or builtHero.spellDC
         builtHero.saveFort = final.saveFort or builtHero.saveFort
         builtHero.saveRef = final.saveRef or builtHero.saveRef
@@ -1399,6 +1402,7 @@ function HeroData.CreateClassUnit(classId, options)
         def = heroData.def,
         ac = heroData.ac,
         hit = heroData.hit,
+        spellAttack = heroData.spellAttack,
         spellDC = heroData.spellDC,
         saveFort = heroData.saveFort,
         saveRef = heroData.saveRef,

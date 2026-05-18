@@ -60,6 +60,7 @@ local function ExecuteOp(ctx, frameCopy)
         local hitMetaByTarget = {}
         local skillId = tonumber(ctx.skill and ctx.skill.skillId) or 0
         local meta = Skill5eMeta.Get(skillId)
+        local attackMode = Skill5eMeta.ResolveAttackMode(meta)
         local diceScale = tonumber(meta and meta.diceScale) or (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
         for _, target in ipairs(targets) do
             if target and not target.isDead then
@@ -67,9 +68,7 @@ local function ExecuteOp(ctx, frameCopy)
                 local isCrit = false
                 local resolvedKind = frameCopy.damageKind or "direct"
 
-                local isSpell = meta and meta.kind == "spell"
-
-                if isSpell then
+                if attackMode == "spell_save" then
                     local BattleEvent = require("core.battle_event")
                     local BattleVisualEvents = require("ui.battle_visual_events")
                     local Logger = require("utils.logger")
@@ -145,7 +144,12 @@ local function ExecuteOp(ctx, frameCopy)
                         attacker = ctx.hero,
                         skill = ctx.skill,
                     })
-                    local attackBonus = tonumber(ctx.hero and ctx.hero.hit) or 0
+                    local attackBonus = nil
+                    if attackMode == "spell_attack" then
+                        attackBonus = tonumber(ctx.hero and ctx.hero.spellAttack) or tonumber(ctx.hero and ctx.hero.hit) or 0
+                    else
+                        attackBonus = tonumber(ctx.hero and ctx.hero.hit) or 0
+                    end
                     local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, actualTarget, {
                         skill = ctx.skill,
                         meta = meta,
@@ -205,9 +209,9 @@ local function ExecuteOp(ctx, frameCopy)
                             skillId = ctx.skill and ctx.skill.skillId or nil,
                             skillName = ctx.skill and ctx.skill.name or nil,
                             damageKind = resolvedKind,
+                            preferSkillColor = true,
                             isCrit = isCrit,
                             attackRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].hit or nil,
-                            saveRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].save or nil,
                             damageRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].damageRoll or nil,
                         })
                         total = total + dmg

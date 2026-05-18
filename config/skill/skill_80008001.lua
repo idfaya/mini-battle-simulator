@@ -1,8 +1,10 @@
 local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
+local Skill5eMeta = require("config.skill_5e_meta")
 
 local skill_80008001 = {}
 
 function skill_80008001.BuildTimeline(hero, targets, skill)
+    local damageDice = Skill5eMeta.ResolveStageDamageDice(80008001, skill and skill.level)
     local frames = {}
     for _, t in ipairs(targets or {}) do
         if t and not t.isDead then
@@ -13,6 +15,7 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
                 op = "damage",
                 effect = "ice_arrow_hit",
                 target = t,
+                damageDice = damageDice,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "ice" } },
                     { tag = "apply_frost", phase = "post", param = { turns = 2 } },
@@ -26,4 +29,3 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80008001
-

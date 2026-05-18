@@ -164,6 +164,7 @@ local function CreateHero(heroData, wpType, isLeft)
         critRate = heroData.crt or heroData.critRate or 0,
         critDamage = heroData.crtd or heroData.critDamage or 150,
         hit = heroData.hit or heroData.hitRate or 0,
+        spellAttack = heroData.spellAttack or heroData.hit or heroData.hitRate or 0,
         hitRate = heroData.hit or heroData.hitRate or 100,
         dodgeRate = heroData.res or heroData.dodgeRate or 0,
         damageReduce = heroData.damageReduce or 0,
@@ -858,6 +859,7 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         critDamage = 150,
         -- Legacy token configs may still use `atk`; prefer `hit` as the canonical key.
         hit = tokenConfig.hit or tokenConfig.atk or 10,
+        spellAttack = tokenConfig.spellAttack or tokenConfig.hit or tokenConfig.atk or 10,
         hitRate = tokenConfig.hit or tokenConfig.atk or 10,
         dodgeRate = 0,
         damageReduce = 0,

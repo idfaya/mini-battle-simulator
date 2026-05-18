@@ -1,4 +1,5 @@
 local SkillRuntimeConfig = require("config.skill_runtime_config")
+local Skill5eMeta = require("config.skill_5e_meta")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local ClericBuildPassives = {}
@@ -202,12 +203,12 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     local BattleVisualEvents = require("ui.battle_visual_events")
     local BattleEvent = require("core.battle_event")
     local runtime = ensureRuntime(hero)
+    local meta = Skill5eMeta.Get(IDS.cleric_basic_spell)
+    local damageDice = Skill5eMeta.ResolveStageDamageDice(IDS.cleric_basic_spell, skill and skill.level)
     local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
-        meta = {
-            kind = "spell",
-            damageDice = "1d8",
-        },
+        meta = meta,
         damageKind = "spell",
+        damageDice = damageDice,
         noWeapon = true,
         noAbilityMod = true,
     })

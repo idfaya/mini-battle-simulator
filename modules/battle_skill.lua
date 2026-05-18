@@ -308,6 +308,11 @@ local function NormalizeDamageMeta(attacker, opts)
     return { kind = "physical" }
 end
 
+local function ResolveAttackMode(meta)
+    local Skill5eMeta = require("config.skill_5e_meta")
+    return Skill5eMeta.ResolveAttackMode(meta)
+end
+
 local function ApplyBattleIntentDamageModifiers(attacker, defender, rawDamage)
     local BattleBuff = require("modules.battle_buff")
     local value = math.max(0, math.floor(tonumber(rawDamage) or 0))
@@ -352,8 +357,10 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     opts = opts or {}
     local skill = opts.skill
     local meta = NormalizeDamageMeta(attacker, opts)
+    local attackMode = ResolveAttackMode(meta)
+    local isSpellDamage = attackMode == "spell_save" or attackMode == "spell_attack"
     local diceScale = (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
-    local damageKind = opts.damageKind or ((meta and meta.kind == "spell") and "spell" or "direct")
+    local damageKind = opts.damageKind or (isSpellDamage and "spell" or "direct")
     local ignoreNatRules = (defender and defender.__ignoreNatRules == true) or (attacker and attacker.__ignoreNatRules == true)
     local result = {
         meta = meta,
@@ -373,14 +380,14 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             crit = false,
         }
         if opts.noClassScalar ~= true then
-            rolled = ApplyClassDiceScalar(attacker, rolled, meta and meta.kind == "spell")
+            rolled = ApplyClassDiceScalar(attacker, rolled, isSpellDamage)
         end
         rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
         result.damage = BattleSkill.ApplyUnifiedDamageScale(attacker, defender, ApplyRhythmDamageScalar(rolled), damageKind)
         return result
     end
 
-    if meta and meta.kind == "spell" then
+    if attackMode == "spell_save" then
         local dc = tonumber(attacker and attacker.spellDC) or 10
         local saveType = meta.saveType or "ref"
         local saveBonus = 0
@@ -448,9 +455,18 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         targetAC = baseTargetAC + defenderAcBonus
     end
 
+    local attackBonus = opts.attackBonus
+    if attackBonus == nil then
+        if attackMode == "spell_attack" then
+            attackBonus = tonumber(attacker and attacker.spellAttack) or tonumber(attacker and attacker.hit) or 0
+        else
+            attackBonus = tonumber(attacker and attacker.hit) or 0
+        end
+    end
+
     local hitResult = BattleFormula.RollHit(attacker, defender, {
         mode = opts.mode or "normal",
-        attackBonus = opts.attackBonus,
+        attackBonus = attackBonus,
         targetAC = targetAC,
         ignoreNatRules = ignoreNatRules,
     })
@@ -494,7 +510,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         parts = diceDetail and diceDetail.parts or {},
         crit = hitResult.crit == true,
     }
-    rolled = ApplyClassDiceScalar(attacker, rolled, false)
+    rolled = ApplyClassDiceScalar(attacker, rolled, attackMode == "spell_attack")
     rolled = ApplyPhysicalAbilityMod(attacker, rolled, meta, opts)
     rolled = ApplyWeaponDamageBonus(attacker, rolled, meta)
     rolled = ApplyBattleIntentDamageModifiers(attacker, defender, rolled)
@@ -1486,30 +1502,24 @@ end
 ---@param buffId number Buff ID
 ---@return table|nil Buff配置
 function BattleSkill.LoadBuffConfig(buffId)
-    local cacheKey = "buff_" .. tostring(buffId)
+    local id = tonumber(buffId) or 0
+    local cacheKey = "buff_" .. tostring(id)
     
     -- 检查缓存
     if BattleSkill.buffConfigCache and BattleSkill.buffConfigCache[cacheKey] then
         return BattleSkill.buffConfigCache[cacheKey]
     end
-    
-    -- 加载配置文件
-    local filePath = "config.buff.buff_" .. tostring(buffId)
-    local success, result = pcall(require, filePath)
 
-    if success then
-        local varName = "buff_" .. tostring(buffId)
-        local buffConfig = nil
-        if type(result) == "table" then
-            buffConfig = result[varName] or result
-        else
-            buffConfig = _G[varName]
-        end
-        if buffConfig then
-            BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
-            BattleSkill.buffConfigCache[cacheKey] = buffConfig
-            return buffConfig
-        end
+    local success, result = pcall(require, "config.buff.buff_config")
+    if not success or type(result) ~= "table" then
+        return nil
+    end
+
+    local buffConfig = result[id]
+    if buffConfig then
+        BattleSkill.buffConfigCache = BattleSkill.buffConfigCache or {}
+        BattleSkill.buffConfigCache[cacheKey] = buffConfig
+        return buffConfig
     end
 
     return nil

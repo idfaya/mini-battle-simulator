@@ -323,7 +323,9 @@ local function applyBlessRoundDelta(hero, sign)
     local hitDelta = math.max(0, math.floor(tonumber(hero.blessBattleRoundsHitDelta) or 0)) * sign
     local saveDelta = math.max(0, math.floor(tonumber(hero.blessBattleRoundsSaveDelta) or 0)) * sign
     if hitDelta ~= 0 then
+        local baseSpellAttack = tonumber(hero.spellAttack) or tonumber(hero.hit) or 0
         hero.hit = math.max(0, math.floor((hero.hit or 0) + hitDelta))
+        hero.spellAttack = math.max(0, math.floor(baseSpellAttack + hitDelta))
         hero.atk = hero.hit
     end
     if saveDelta ~= 0 then

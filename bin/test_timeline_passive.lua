@@ -36,6 +36,7 @@ local function new_unit(id, name, hp, atk, def)
         atk = atk or 100, def = def or 0,
         -- 5e-style fields (keep tests deterministic)
         hit = 999,
+        spellAttack = 999,
         ac = 1,
         spellDC = 999,
         saveFort = 0,
@@ -86,7 +87,7 @@ do
     BattleEvent.RemoveListener(BattleVisualEvents.SKILL_TIMELINE_COMPLETED, completedHandler)
 end
 
--- Test 1: Timeline frames for Fireball (80007001)
+-- Test 1: Timeline frames for Fire Bolt (80007001)
 do
     local frames = 0
     local damageEvent = nil
@@ -102,17 +103,18 @@ do
     local hero = new_unit(1001, "Tester_Fire", 10000, 200, 0)
     local target = new_unit(2001, "Dummy_Target", 10000, 0, 0)
     local skillLua = require("config.skill.skill_80007001")
-    local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80007001, name = "火球术" })
+    local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80007001, name = "火焰弹" })
     local SkillTimeline = require("core.skill_timeline")
-    local ok, result = SkillTimeline.Execute(hero, { target }, { skillId = 80007001, name = "火球术" }, timeline)
-    assert_true(ok, "Fireball timeline execute ok")
-    assert_true(frames == 3, "Fireball frame count == 3 (cast, projectile, damage)")
-    assert_true(target.hp < target.maxHp, "Fireball spell timeline applies damage")
-    assert_true((result and result.totalDamage or 0) > 0, "Fireball spell timeline accumulates total damage")
-    assert_true(damageEvent ~= nil, "Fireball publishes damage event")
-    assert_true(damageEvent.preferSkillColor == true, "Fireball damage event prefers skill color")
-    assert_true(damageEvent.saveRoll ~= nil, "Fireball damage event carries save roll")
-    assert_true(damageEvent.damageRoll ~= nil, "Fireball damage event carries damage roll")
+    local ok, result = SkillTimeline.Execute(hero, { target }, { skillId = 80007001, name = "火焰弹" }, timeline)
+    assert_true(ok, "Fire Bolt timeline execute ok")
+    assert_true(frames == 3, "Fire Bolt frame count == 3 (cast, projectile, damage)")
+    assert_true(target.hp < target.maxHp, "Fire Bolt timeline applies damage")
+    assert_true((result and result.totalDamage or 0) > 0, "Fire Bolt timeline accumulates total damage")
+    assert_true(damageEvent ~= nil, "Fire Bolt publishes damage event")
+    assert_true(damageEvent.preferSkillColor == true, "Fire Bolt damage event prefers skill color")
+    assert_true(damageEvent.attackRoll ~= nil, "Fire Bolt damage event carries attack roll")
+    assert_true(damageEvent.saveRoll == nil, "Fire Bolt damage event omits save roll")
+    assert_true(damageEvent.damageRoll ~= nil, "Fire Bolt damage event carries damage roll")
     BattleEvent.RemoveListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
 end
 
@@ -156,17 +158,17 @@ do
     local hero = new_unit(1004, "Tester_SpellSave", 10000, 200, 0)
     hero.spellDC = 10
     local target = new_unit(2004, "SpellSave_Target", 10000, 0, 0)
-    target.saveRef = 1000
+    target.saveWill = 1000
     local SkillTimeline = require("core.skill_timeline")
     local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
     local missEvent = nil
     local missListener = function(evt)
-        if evt and evt.skillId == 80007001 then
+        if evt and evt.skillId == 80006011 then
             missEvent = evt
         end
     end
     BattleEvent.AddListener(BattleVisualEvents.MISS, missListener)
-    local skill = { skillId = 80007001, name = "火球术" }
+    local skill = { skillId = 80006011, name = "神圣火花" }
     local timeline = SkillTimelineCompiler.Build(hero, { target }, skill, {
         id = 990002,
         frames = {
@@ -187,6 +189,28 @@ do
     assert_true(missEvent.saveRoll ~= nil and missEvent.saveRoll.success == true,
         "Successful save MISS carries save roll metadata")
     BattleEvent.RemoveListener(BattleVisualEvents.MISS, missListener)
+end
+
+-- Test 1d: Fire Bolt tier 3 damage event carries staged dice
+do
+    local damageEvent = nil
+    local damageListener = function(evt)
+        if evt and evt.skillId == 80007001 then
+            damageEvent = evt
+        end
+    end
+    BattleEvent.AddListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
+    local hero = new_unit(1005, "Tester_Fire_T3", 10000, 200, 0)
+    local target = new_unit(2005, "Dummy_Target_T3", 10000, 0, 0)
+    local skillLua = require("config.skill.skill_80007001")
+    local skill = { skillId = 80007001, name = "火焰弹", level = 3 }
+    local timeline = skillLua.BuildTimeline(hero, { target }, skill)
+    local SkillTimeline = require("core.skill_timeline")
+    local ok = SkillTimeline.Execute(hero, { target }, skill, timeline)
+    assert_true(ok, "Fire Bolt tier3 timeline execute ok")
+    assert_true(damageEvent ~= nil and damageEvent.damageRoll ~= nil, "Fire Bolt tier3 publishes damage roll")
+    assert_true(damageEvent.damageRoll.expr == "1d10+2", "Fire Bolt tier3 damage roll uses staged dice")
+    BattleEvent.RemoveListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
 end
 
 -- Test 2: Ice Arrow applies frost buff (80008001)

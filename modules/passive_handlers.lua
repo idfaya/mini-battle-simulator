@@ -79,7 +79,9 @@ local function CreatePursuitPassive(context)
         end
         -- 5e 风味：Expertise（简化为战斗内 hit +1）。
         if (tonumber(hero.level) or 1) >= 2 and not hero.__expertiseApplied then
+            local baseSpellAttack = tonumber(hero.spellAttack) or tonumber(hero.hit) or 0
             hero.hit = (tonumber(hero.hit) or 0) + 1
+            hero.spellAttack = baseSpellAttack + 1
             hero.__expertiseApplied = true
         end
     end

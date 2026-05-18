@@ -15,6 +15,11 @@
 ---| "half"
 ---| "none"
 
+---@alias Skill5eAttackMode
+---| "physical_attack"
+---| "spell_attack"
+---| "spell_save"
+
 ---@class Skill5eMetaEntry
 ---@field kind Skill5eMetaKind
 ---@field saveType Skill5eSaveType|nil
@@ -22,6 +27,7 @@
 ---@field isAOE boolean|nil
 ---@field hardControl boolean|nil
 ---@field damageDice string|nil
+---@field stageDamageDice table<integer, string>|nil
 ---@field healDice string|nil
 ---@field chainDice string|nil
 ---@field diceScale number|nil
@@ -35,6 +41,7 @@
 ---@field role string|nil                -- concise combat role summary
 ---@field notes string|nil               -- explicit 5e-facing rules note
 ---@field tierNotes table<integer, string>|nil -- skill.level => what changes in runtime
+---@field attackMode Skill5eAttackMode|nil
 
 ---@class Skill5eMetaModule
 ---@field Get fun(skillId: integer): Skill5eMetaEntry
@@ -444,12 +451,23 @@ local OVERRIDES = {
     -- We still define heal dice here so runtime can stay free of MaxHP% healing.
     [80006011] = {
         kind = "spell",
+        attackMode = "spell_save",
         saveType = "will",
         onSaveSuccess = "half",
         damageDice = "1d8",
+        stageDamageDice = {
+            [1] = "1d8",
+            [2] = "1d8+1",
+            [3] = "1d8+2",
+        },
         healDice = "1d8",
         role = "神圣火花",
-        notes = "牧师神圣火花。对敌方时按 spellDC 进行意志豁免并造成 1d8 神术伤害，成功半伤；对友方时改为回复 1d8 生命。",
+        notes = "牧师神圣火花。对敌方时按 spellDC 进行意志豁免并造成神术伤害，成功半伤；对友方时改为回复 1d8 生命。",
+        tierNotes = {
+            [1] = "低阶：对敌造成 1d8 神术伤害；对友仍回复 1d8 生命。",
+            [2] = "中阶：对敌伤害提升为 1d8+1；对友治疗保持 1d8。",
+            [3] = "高阶：对敌伤害提升为 1d8+2；对友治疗保持 1d8。",
+        },
     },
     [80006012] = {
         kind = "auto",
@@ -539,12 +557,21 @@ local OVERRIDES = {
 
     -- Sorcerer (Fire)
     [80007001] = {
-        kind = "spell",
-        saveType = "ref",
-        onSaveSuccess = "half",
+        kind = "auto",
+        attackMode = "spell_attack",
         damageDice = "1d10",
+        stageDamageDice = {
+            [1] = "1d10",
+            [2] = "1d10+1",
+            [3] = "1d10+2",
+        },
         role = "火焰弹",
-        notes = "术士基础火焰法术。命中后通过余烬点燃附加燃烧；已燃烧目标只刷新持续时间。",
+        notes = "术士基础单体火焰法术攻击。使用法术攻击检定对抗 AC；命中后通过余烬点燃附加燃烧，已燃烧目标只刷新持续时间。",
+        tierNotes = {
+            [1] = "低阶：单体法术攻击，伤害 1d10。",
+            [2] = "中阶：单体法术攻击，伤害提升为 1d10+1。",
+            [3] = "高阶：单体法术攻击，伤害提升为 1d10+2。",
+        },
     },
     [80007003] = {
         kind = "spell",
@@ -574,8 +601,19 @@ local OVERRIDES = {
     [80008001] = {
         kind = "auto",
         damageDice = "1d8",
+        attackMode = "spell_attack",
+        stageDamageDice = {
+            [1] = "1d8",
+            [2] = "1d8+1",
+            [3] = "1d8+2",
+        },
         role = "寒霜射线",
         notes = "法师基础冰霜法术攻击。命中后通过寒霜迟滞施加霜冻。",
+        tierNotes = {
+            [1] = "低阶：单体法术攻击，伤害 1d8。",
+            [2] = "中阶：单体法术攻击，伤害提升为 1d8+1。",
+            [3] = "高阶：单体法术攻击，伤害提升为 1d8+2。",
+        },
     },
     [80008003] = {
         kind = "spell",
@@ -607,8 +645,19 @@ local OVERRIDES = {
     [80009001] = {
         kind = "auto",
         damageDice = "1d10",
+        attackMode = "spell_attack",
+        stageDamageDice = {
+            [1] = "1d10",
+            [2] = "1d10+1",
+            [3] = "1d10+2",
+        },
         role = "邪能冲击",
         notes = "邪术师基础雷电法术攻击。命中后通过静电印记标记目标。",
+        tierNotes = {
+            [1] = "低阶：单体法术攻击，伤害 1d10。",
+            [2] = "中阶：单体法术攻击，伤害提升为 1d10+1。",
+            [3] = "高阶：单体法术攻击，伤害提升为 1d10+2。",
+        },
     },
     [80009003] = {
         kind = "spell",
@@ -669,6 +718,35 @@ local function resolveDefault(skillId)
     return { kind = "physical" }
 end
 
+function Skill5eMeta.ResolveAttackMode(meta)
+    if type(meta) ~= "table" then
+        return "physical_attack"
+    end
+    if meta.attackMode == "spell_attack" or meta.attackMode == "spell_save" or meta.attackMode == "physical_attack" then
+        return meta.attackMode
+    end
+    if meta.kind == "spell" then
+        return "spell_save"
+    end
+    return "physical_attack"
+end
+
+function Skill5eMeta.ResolveStageDamageDice(skillId, skillLevel)
+    local meta = Skill5eMeta.Get(skillId)
+    local staged = meta and meta.stageDamageDice
+    if type(staged) ~= "table" then
+        return meta and meta.damageDice or nil
+    end
+    local level = math.max(1, math.floor(tonumber(skillLevel) or 1))
+    if level <= 1 then
+        return staged[1] or meta.damageDice
+    end
+    if level == 2 then
+        return staged[2] or staged[1] or meta.damageDice
+    end
+    return staged[3] or staged[2] or staged[1] or meta.damageDice
+end
+
 function Skill5eMeta.Get(skillId)
     local id = tonumber(skillId) or 0
     local meta = OVERRIDES[id] or resolveDefault(id)
@@ -681,6 +759,9 @@ function Skill5eMeta.Get(skillId)
     end
     if meta.concentration == nil then
         meta.concentration = false
+    end
+    if meta.attackMode == nil then
+        meta.attackMode = Skill5eMeta.ResolveAttackMode(meta)
     end
     if meta.kind == "spell" then
         if meta.isAOE == nil then meta.isAOE = false end
