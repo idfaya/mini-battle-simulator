@@ -105,6 +105,8 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".ult-button")).toHaveCount(0);
 
+  const animationSummary = await captureAnimationSummary(page);
+
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
     .toContain("猎人印记");
@@ -112,6 +114,7 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("使用 猎人印记"))).toBeTruthy();
   expect(logs.some((line) => line.includes("猎人印记"))).toBeTruthy();
+  expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

@@ -7,8 +7,9 @@ function skill_80005013.BuildTimeline(hero, targets, skill)
         id = 80005013,
         frames = {
             { frame = 0, op = "cast", effect = "ranger_hunter_shot_cast", targetRef = "selected" },
+            { frame = 12, op = "projectile", effect = "ranger_hunter_shot_projectile", targetRef = "selected" },
             {
-                frame = 18,
+                frame = 24,
                 op = "effect",
                 effect = "ranger_hunter_shot_execute",
                 targetRef = "selected",
@@ -16,7 +17,7 @@ function skill_80005013.BuildTimeline(hero, targets, skill)
                     { tag = "ranger_hunter_shot", phase = "post" },
                 },
             },
-            { frame = 36, op = "effect", effect = "ranger_hunter_shot_end", targetRef = "selected" },
+            { frame = 42, op = "effect", effect = "ranger_hunter_shot_end", targetRef = "selected" },
         },
     })
 end

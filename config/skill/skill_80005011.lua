@@ -4,8 +4,9 @@ function skill_80005011.BuildTimeline(hero, targets, skill)
     local BattleSkill = require("modules.battle_skill")
     return {
         { frame = 0, op = "cast", effect = "ranger_basic_attack_cast", targetRef = "selected" },
+        { frame = 12, op = "projectile", effect = "ranger_basic_attack_projectile", targetRef = "selected" },
         {
-            frame = 12,
+            frame = 24,
             op = "attack",
             targetRef = "selected",
             execute = function()
@@ -16,7 +17,7 @@ function skill_80005011.BuildTimeline(hero, targets, skill)
                 }
             end,
         },
-        { frame = 24, op = "effect", effect = "ranger_basic_attack_end", targetRef = "selected" },
+        { frame = 36, op = "effect", effect = "ranger_basic_attack_end", targetRef = "selected" },
     }
 end
 
