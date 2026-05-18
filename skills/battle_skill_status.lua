@@ -55,7 +55,7 @@ function BattleSkillStatus.ProcessInfectEffect(target)
         target.name or "Unknown", BattleBuff.GetBuffStackNumBySubType(target, 850001)))
 end
 
---- 施加燃烧（DoT，层数可叠加；若施法者带 870002 则延长 1 回合）
+--- 施加燃烧（DoT，只刷新持续时间；若施法者带 870002 则延长 1 回合）
 ---@param target table
 ---@param stacks number 新增层数
 ---@param turns number|nil 持续回合
@@ -72,15 +72,14 @@ function BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
-        BattleBuff.ModifyBuffStack(target, 870001, stacks)
     else
         GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 870001, nil, {
-            initialStack = stacks,
+            initialStack = 1,
             duration = actualTurns,
         })
     end
-    Logger.Log(string.format("[ApplyBurn] %s 燃烧层数: %d (总计: %d, 回合: %d)",
-        target.name or "Unknown", stacks, BattleBuff.GetBuffStackNumBySubType(target, 870001), actualTurns))
+    Logger.Log(string.format("[ApplyBurn] %s 燃烧刷新到 %d 回合 (总计层数: %d)",
+        target.name or "Unknown", actualTurns, BattleBuff.GetBuffStackNumBySubType(target, 870001)))
 end
 
 --- 施加燃烧，但已燃烧目标只刷新持续时间，不叠加层数。

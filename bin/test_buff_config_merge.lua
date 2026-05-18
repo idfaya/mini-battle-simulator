@@ -88,6 +88,10 @@ assert_true(type(slow.effects) == "table" and #slow.effects == 2, "slow add/remo
 assert_true(type(slow.effects[1].func) == "function" and type(slow.effects[2].func) == "function",
     "slow handlers restored from handlerId")
 
+local burn = BattleSkill.LoadBuffConfig(870001)
+assert_true(burn ~= nil and burn.canStack == false, "burn is non-stackable")
+assert_true(burn.stackRule == "refresh", "burn stack rule is refresh")
+
 local aura = BattleSkill.LoadBuffConfig(890012)
 assert_true(aura ~= nil and aura.isPermanent == true, "permanent aura config preserved")
 
@@ -95,5 +99,14 @@ local hero = new_unit(1001, "Caster")
 local target = new_unit(1002, "Target")
 BattleSkill.ApplyBuffFromSkill(hero, target, 890001, nil)
 assert_true(BattleBuff.GetBuff(target, 890001) ~= nil, "ApplyBuffFromSkill still applies merged buff config")
+
+BattleSkill.ApplyBurn(target, 2, 2, hero)
+local appliedBurn = BattleBuff.GetBuff(target, 870001)
+assert_true(appliedBurn ~= nil and appliedBurn.stackCount == 1, "ApplyBurn first apply keeps burn at one stack")
+
+BattleSkill.ApplyBurn(target, 3, 4, hero)
+appliedBurn = BattleBuff.GetBuff(target, 870001)
+assert_true(appliedBurn ~= nil and appliedBurn.stackCount == 1, "ApplyBurn refresh does not add burn stacks")
+assert_true(appliedBurn ~= nil and appliedBurn.duration == 4, "ApplyBurn refreshes burn duration")
 
 log("ALL TESTS PASSED")

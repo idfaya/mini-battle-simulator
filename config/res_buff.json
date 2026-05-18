@@ -7,7 +7,7 @@
   {"buffId":840003,"name":"战神降临","mainType":1,"subType":840003,"initialStack":1,"maxStack":1,"duration":3,"canStack":false,"stackRule":"refresh","effects":[]},
   {"buffId":850001,"name":"中毒","mainType":2,"subType":850001,"initialStack":1,"maxStack":99,"duration":99,"isPermanent":true,"canStack":true,"stackRule":"add","effects":[{"type":"custom","handlerId":"poison_tick","timing":3}]},
   {"buffId":860001,"name":"神恩","mainType":1,"subType":860001,"initialStack":1,"maxStack":1,"duration":2,"isPermanent":true,"canStack":false,"stackRule":"refresh","effects":[]},
-  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":99,"duration":2,"canStack":true,"stackRule":"add","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]},
+  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]},
   {"buffId":870002,"name":"火焰亲和","mainType":1,"subType":870002,"initialStack":1,"maxStack":1,"duration":99,"isPermanent":true,"canStack":false,"stackRule":"refresh","effects":[]},
   {"buffId":880001,"name":"减速","mainType":2,"subType":880001,"initialStack":1,"maxStack":1,"value":3000,"maxValue":3000,"displayMode":"pct","duration":2,"canStack":false,"stackRule":"refresh","effects":[{"type":"custom","handlerId":"slow_apply_penalty","timing":1},{"type":"custom","handlerId":"slow_remove_penalty","timing":2}]},
   {"buffId":880002,"name":"冻结","mainType":3,"subType":30007,"initialStack":1,"maxStack":1,"duration":1,"canStack":false,"stackRule":"refresh","effects":[]},

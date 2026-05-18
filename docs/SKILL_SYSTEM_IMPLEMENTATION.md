@@ -173,7 +173,7 @@ return skill_80007003
 
 ```json
 [
-  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":99,"duration":2,"canStack":true,"stackRule":"add","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]}
+  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]}
 ]
 ```
 
