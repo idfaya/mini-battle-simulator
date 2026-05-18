@@ -1468,7 +1468,11 @@ export class BattleScene {
         this.meleeClashes.push(clash);
         this.applyPendingGuardInterceptToClash(clash, now);
         this.applyPendingReactionHoldToClash(clash, layouts, now);
-        this.extendCounterHoldForReaction(attacker.unit.id, primaryTarget.unit.id, now + clash.baseDurationMs);
+        this.extendCounterHoldForReaction(
+          attacker.unit.id,
+          primaryTarget.unit.id,
+          now + this.getCounterSourceReleaseAtMs(clash),
+        );
         if (clash.precise) {
           this.queueImpactBurst(primaryTarget.unit.id, now, {
             delayMs: 150,
@@ -1750,6 +1754,12 @@ export class BattleScene {
       );
       return;
     }
+  }
+
+  private getCounterSourceReleaseAtMs(clash: MeleeClash) {
+    const baseDurationMs = Math.max(1, clash.baseDurationMs || clash.durationMs);
+    const returnStartProgress = clash.hitMoments.length >= 2 ? 0.82 : 0.62;
+    return Math.max(1, Math.round(baseDurationMs * returnStartProgress));
   }
 
   private getClashReleaseDurationMs(clash: MeleeClash) {
