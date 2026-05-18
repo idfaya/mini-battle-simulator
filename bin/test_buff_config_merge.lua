@@ -1,0 +1,99 @@
+local script_source = debug.getinfo(1, "S").source
+local script_path = script_source:sub(2)
+local script_dir = script_path:match("(.*[/\\])") or "./"
+local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
+LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
+
+local function log(msg) print(msg) end
+local function assert_true(cond, name)
+    if not cond then
+        io.stderr:write("ASSERT FAIL: " .. name .. "\n")
+        os.exit(1)
+    else
+        log("ASSERT OK  : " .. name)
+    end
+end
+
+local BattleEvent = require("core.battle_event")
+local BattleBuff = require("modules.battle_buff")
+local BattleSkill = require("modules.battle_skill")
+local json = require("utils.json")
+
+BattleEvent.Init()
+BattleBuff.Init()
+BattleSkill.InitModule()
+
+local function count_entries(t)
+    local count = 0
+    for _, _ in pairs(t or {}) do
+        count = count + 1
+    end
+    return count
+end
+
+local function new_unit(id, name)
+    return {
+        id = id,
+        instanceId = id,
+        name = name,
+        hp = 1000,
+        maxHp = 1000,
+        ac = 10,
+        saveRef = 2,
+        dexMod = 2,
+        wisMod = 0,
+        conMod = 0,
+        class = 8000500,
+        isDead = false,
+        isAlive = true,
+        attributes = { final = {} },
+    }
+end
+
+local function load_raw_buff_rows()
+    local paths = {
+        "config/res_buff.json",
+        "../config/res_buff.json",
+    }
+
+    for _, path in ipairs(paths) do
+        local file = io.open(path, "r")
+        if file then
+            local content = file:read("*a")
+            file:close()
+            return json.JsonDecode(content)
+        end
+    end
+
+    return nil
+end
+
+local rawRows = load_raw_buff_rows()
+assert_true(type(rawRows) == "table" and #rawRows == 28, "res_buff.json contains 28 buff entries")
+
+local BuffConfig = require("config.buff.buff_config")
+assert_true(type(BuffConfig) == "table", "buff_config loads as table")
+assert_true(count_entries(BuffConfig) == 28, "buff_config contains 28 buff entries")
+
+local poison = BattleSkill.LoadBuffConfig(850001)
+assert_true(poison ~= nil, "LoadBuffConfig loads poison from merged table")
+assert_true(poison.stackRule == "add", "poison stack rule preserved")
+assert_true(type(poison.effects) == "table" and poison.effects[1] and poison.effects[1].timing == 3,
+    "poison round-begin effect preserved")
+assert_true(type(poison.effects[1].func) == "function", "poison handler restored from handlerId")
+
+local slow = BattleSkill.LoadBuffConfig(880001)
+assert_true(slow ~= nil and slow.displayMode == "pct", "slow display mode preserved")
+assert_true(type(slow.effects) == "table" and #slow.effects == 2, "slow add/remove hooks preserved")
+assert_true(type(slow.effects[1].func) == "function" and type(slow.effects[2].func) == "function",
+    "slow handlers restored from handlerId")
+
+local aura = BattleSkill.LoadBuffConfig(890012)
+assert_true(aura ~= nil and aura.isPermanent == true, "permanent aura config preserved")
+
+local hero = new_unit(1001, "Caster")
+local target = new_unit(1002, "Target")
+BattleSkill.ApplyBuffFromSkill(hero, target, 890001, nil)
+assert_true(BattleBuff.GetBuff(target, 890001) ~= nil, "ApplyBuffFromSkill still applies merged buff config")
+
+log("ALL TESTS PASSED")

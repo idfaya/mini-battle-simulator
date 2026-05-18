@@ -169,29 +169,24 @@ end
 return skill_80007003
 ```
 
-### 3.3 Buff 定义 (`config/buff/buff_{ID}.lua`)
+### 3.3 Buff 定义 (`config/res_buff.json` + `config/buff/buff_effect_registry.lua`)
+
+```json
+[
+  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":99,"duration":2,"canStack":true,"stackRule":"add","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]}
+]
+```
 
 ```lua
-local buff_870001 = {
-    buffId = 870001,
-    mainType = E_BUFF_MAIN_TYPE.BAD,
-    subType = 870001,
-    name = "燃烧",
-    initialStack = 1,
-    maxStack = 99,
-    duration = 2,
-    canStack = true,
-    stackRule = "add",
-    effects = {
-        {
-            timing = 3,  -- ON_ROUND_BEGIN
-            type = "custom",
-            func = function(buff, hero, effect)
-                local damage = math.max(1, math.floor((hero.maxHp or 0) * 0.05 * buff.stackCount))
-                BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero)
-            end
+local BuffEffectRegistry = {
+    burn_tick = function(buff, hero)
+        local stacks = math.max(1, tonumber(buff.stackCount) or 1)
+        local diceExpr = string.format("%dd6", stacks)
+        -- 当前工程实际用骰子表达持续伤害
+                end
+            }
         }
-    }
+    },
 }
 ```
 
@@ -377,48 +372,50 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 
 ## 7. Buff 系统实现
 
-### 7.1 Buff 触发时机
+### 7.1 文档归档说明
 
-| timing | 枚举 | 说明 |
-|--------|------|------|
-| 1 | ON_ADD | 获得瞬间触发 |
-| 2 | ON_REMOVE | 移除瞬间触发 |
-| 3 | ON_ROUND_BEGIN | 回合开始触发（DOT/HOT） |
-| 4 | ON_ROUND_END | 回合结束触发 |
-| 5 | ON_ATTACK | 发起攻击时触发 |
-| 6 | ON_DEFEND | 被攻击时触发 |
-| 7 | ON_DAMAGE | 造成伤害时触发 |
-| 8 | ON_RECEIVE_DAMAGE | 受到伤害时触发 |
-| 11 | ON_KILL | 击杀目标时触发 |
-| 12 | ON_DEATH | 自身死亡时触发 |
+本章不再维护 Buff 系统的完整实现细节。
 
-### 7.2 Buff 效果类型
+原因：
 
-| type | 说明 | 参数 |
-|------|------|------|
-| custom | 自定义回调 | func(buff, hero, effect) |
-| damage | DOT 持续伤害 | value, damageType |
-| heal | HOT 持续治疗 | value, percent |
-| attr_change | 属性变更 | attr, value |
-| dispel | 驱散 | targetType |
+- Buff 系统已经独立演进，状态配置、生命周期、控制判定、前端事件与旧版技能文档存在分叉风险
+- 旧版这里的部分表格与描述已经不是当前源码现状，例如历史上的百分比 DoT、旧持续时间与旧姿态效果
 
-### 7.3 九流派 Buff 清单
+当前请统一以新文档为准：
 
-| Buff ID | 名称 | mainType | 持续 | 叠加 | DOT/效果 |
-|---------|------|----------|------|------|----------|
-| 820001 | 挑衅 | BAD | 1回合 | 不可叠 | 强制攻击施法者 |
-| 820002 | 反击姿态 | GOOD | 永久 | 不可叠 | 受击必反击150% |
-| 820003 | 盾墙 | GOOD | 2回合 | 不可叠 | 100%格挡+反击 |
-| 840001 | 战意 | GOOD | 永久 | 可叠5层 | 每层攻/防/速+5% |
-| 840002 | 全军突击 | GOOD | 3回合 | 不可叠 | 全体攻击+20% |
-| 840003 | 战神降临 | GOOD | 3回合 | 不可叠 | 全体攻/防/速+50% |
-| 850001 | 中毒 | BAD | 永久 | 可叠99层 | 每层每回合2%最大生命DOT |
-| 860001 | 亲和 | GOOD | 永久 | 不可叠 | 每回合回复10%最大生命 |
-| 870001 | 燃烧 | BAD | 2回合 | 可叠99层 | 每层每回合5%最大生命DOT |
-| 870002 | 火焰亲和 | GOOD | 永久 | 不可叠 | 火焰伤害+15% |
-| 880001 | 减速 | BAD | 2回合 | 不可叠 | 旧减速占位，现不作为冰法核心状态 |
-| 880002 | 冻结 | CONTROL | 1回合 | 不可叠 | 无法行动 |
-| 880005 | 霜冻 | BAD | 2回合 | 不可叠 | 无法移动，但可远程攻击和释放技能 |
+- [BUFF_SYSTEM_IMPLEMENTATION.md](file:///c:/work/MiniBattleSimulator/docs/BUFF_SYSTEM_IMPLEMENTATION.md)
+
+### 7.2 技能系统视角下的 Buff 要点
+
+从技能系统角度，只需要掌握以下几点：
+
+- Buff 统一通过 `BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, override)` 施加
+- Buff 静态配置统一放在 `config/res_buff.json`，运行时通过 `config/buff/buff_config.lua` 加载并按 `buffId` 索引
+- Timeline 技能优先通过 `skills/skill_effect_registry.lua` 中的标签复用已有状态逻辑
+- 中毒、燃烧、冻结、霜冻、静电印记等常见状态封装在 `skills/battle_skill_status.lua`
+- 回合开始由 `BattleSkillTurnHooks.ProcessTurnStartStatus()` 触发 `OnRoundBegin` 与控制判定
+- 回合结束由 `BattleMain.FinalizeHeroTurn()` 触发 `OnRoundEnd`、持续时间递减与过期移除
+
+### 7.3 当前开发约定
+
+涉及技能与 Buff 联动时，优先遵守以下约定：
+
+- 不要在技能文档中重复维护完整 Buff 清单，避免与独立 Buff 文档冲突
+- 修改状态行为时，应同时检查：
+  - `config/buff/` 中的配置定义
+  - `skills/battle_skill_status.lua` 中的封装逻辑
+  - `skills/skill_effect_registry.lua` 中的 Timeline 标签行为
+  - `ui/battle_visual_events.lua` 中的前端事件数据
+- 控制类状态是否阻断行动，不以名称判断，而以 `mainType == CONTROL` 或控制子类型集合为准
+- 当前 `speed` 虽然会读取部分 Buff 数值，但战斗中行动条仍按等速推进；不要把减速直接理解为“减少出手次数”
+
+### 7.4 常用交叉引用
+
+| 主题 | 参考文档 |
+|------|----------|
+| Buff 核心结构与生命周期 | [BUFF_SYSTEM_IMPLEMENTATION.md](file:///c:/work/MiniBattleSimulator/docs/BUFF_SYSTEM_IMPLEMENTATION.md) |
+| 技能 Timeline 架构 | 当前文档第 2 节至第 6 节 |
+| 视觉事件系统 | 当前文档第 9 节 |
 
 ---
 

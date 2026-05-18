@@ -51,11 +51,29 @@ function SkillConfig.LoadSkillConfig()
     end
 
     skillConfigCache = {}
-    for _, skill in ipairs(data) do
-        skillConfigCache[skill.ID] = skill
+    local count = 0
+
+    if type(data) == "table" then
+        if #data > 0 then
+            for _, skill in ipairs(data) do
+                if skill and skill.ID then
+                    skillConfigCache[skill.ID] = skill
+                    count = count + 1
+                end
+            end
+        else
+            for key, skill in pairs(data) do
+                local skillId = tonumber(key) or tonumber(skill and skill.ID)
+                if skill and skillId then
+                    skill.ID = skillId
+                    skillConfigCache[skillId] = skill
+                    count = count + 1
+                end
+            end
+        end
     end
 
-    Log(string.format("加载了 %d 个技能配置", #data))
+    Log(string.format("加载了 %d 个技能配置", count))
     return true
 end
 

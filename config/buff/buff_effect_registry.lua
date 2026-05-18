@@ -1,4 +1,29 @@
+local BattleDmgHeal = require("modules.battle_dmg_heal")
+local BattleSkill = require("modules.battle_skill")
 local Ability5e = require("modules.ability_5e")
+
+local BuffEffectRegistry = {}
+
+local function buildDotHandler(damageKind, dicePerStack)
+    return function(buff, hero)
+        if not hero or hero.isDead then
+            return
+        end
+        local stacks = math.max(1, tonumber(buff.stackCount) or 1)
+        local diceExpr = string.format("%d%s", stacks, dicePerStack)
+        local dmgResult = BattleSkill.ResolveScaledDamage(buff.caster or hero, hero, {
+            skipCheck = true,
+            noClassScalar = true,
+            kind = "spell",
+            damageKind = damageKind,
+            damageDice = diceExpr,
+        })
+        local damage = tonumber(dmgResult and dmgResult.damage) or 0
+        BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero, {
+            damageKind = damageKind,
+        })
+    end
+end
 
 local function getFrozenAcPenalty(hero)
     local classId = tonumber(hero and (hero.class or hero.Class or hero._class)) or 0
@@ -54,37 +79,9 @@ local function removeFrozenDexPenalty(buff, hero)
     buff.__frozenSavePenalty = 0
 end
 
-local buff_880001 = {
-    buffId = 880001,
-    mainType = E_BUFF_MAIN_TYPE.BAD,
-    subType = 880001,
-    name = "减速",
-    initialStack = 1,
-    maxStack = 1,
-    value = 3000,
-    maxValue = 3000,
-    displayMode = "pct",
-    duration = 2,
-    canStack = false,
-    stackRule = "refresh",
-    effects = {
-        {
-            timing = 1,
-            type = "custom",
-            func = function(buff, hero)
-                applyFrozenDexPenalty(buff, hero)
-            end
-        },
-        {
-            timing = 2,
-            type = "custom",
-            func = function(buff, hero)
-                removeFrozenDexPenalty(buff, hero)
-            end
-        }
-    }
-}
+BuffEffectRegistry.poison_tick = buildDotHandler("poison", "d4")
+BuffEffectRegistry.burn_tick = buildDotHandler("fire", "d6")
+BuffEffectRegistry.slow_apply_penalty = applyFrozenDexPenalty
+BuffEffectRegistry.slow_remove_penalty = removeFrozenDexPenalty
 
-return {
-    buff_880001 = buff_880001
-}
+return BuffEffectRegistry

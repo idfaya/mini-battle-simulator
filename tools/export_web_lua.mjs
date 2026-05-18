@@ -10,7 +10,8 @@ const sourceDirs = ["core", "modules", "config", "ui", "utils", "skills", "rogue
 const embeddedFiles = [
   "config/res_hero.json",
   "config/res_enemy.json",
-  "config/res_skill.json"
+  "config/res_skill.json",
+  "config/res_buff.json"
 ];
 
 function ensureDir(dir) {
