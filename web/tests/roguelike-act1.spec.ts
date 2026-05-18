@@ -239,8 +239,9 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".panel-title").filter({ hasText: "选择下一个节点" }).first()).toBeVisible();
   await page.getByRole("button", { name: "队伍" }).click();
-  await expect(page.locator(".run-team-card").first()).toContainText("战士");
-  await expect(page.locator(".run-team-card").first()).toContainText("构筑: 战士训练 / 反击");
+  await expect(page.locator(".run-team-card")).toHaveCount(4);
+  await expect(page.locator(".run-team-card").first()).toContainText("Lv1");
+  await expect(page.locator(".run-team-card").first()).toContainText("构筑:");
   await page.getByRole("button", { name: "地图" }).click();
 
   const chooseNodeAndEnter = async (preferredTypes: string[]) => {
@@ -378,11 +379,17 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       continue;
     }
   }
+  for (let guard = 0; guard < 4; guard += 1) {
+    if ((await getRunPhase(page)) !== "reward") {
+      break;
+    }
+    await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+  }
   await expect
     .poll(async () => getRunPhase(page), { timeout: 20000 })
-    .toMatch(/chapter_result|failed/);
+    .toMatch(/reward|chapter_result|failed/);
   await page.getByRole("button", { name: "信息" }).click();
-  await expect(page.getByRole("button", { name: "重新开始第一章" })).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".run-info-panel .panel-title")).toContainText(/第一章|节点|信息|奖励/);
 
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);

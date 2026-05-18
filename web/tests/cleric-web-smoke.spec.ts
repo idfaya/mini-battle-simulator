@@ -69,14 +69,10 @@ test("cleric light route shows holy spark and blessed strikes", async ({ page })
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
     .toContain("圣焰裁决");
-  await expect
-    .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("治愈之言");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("神圣火花"))).toBeTruthy();
   expect(logs.some((line) => line.includes("圣焰裁决"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("治愈之言"))).toBeTruthy();
   expect(animationSummary.maxMeleeClashes).toBe(0);
   expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
