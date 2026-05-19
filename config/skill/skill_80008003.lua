@@ -7,6 +7,7 @@ function skill_80008003.BuildTimeline(hero, targets, skill)
         id = 80008003,
         frames = {
             { frame = 0, op = "cast", effect = "skill_80008003_cast", targetRef = "selected" },
+            { frame = 12, op = "projectile", effect = "freezing_nova_projectile", targetRef = "selected" },
             {
                 frame = 30,
                 op = "damage",

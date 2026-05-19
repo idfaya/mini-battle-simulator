@@ -9,6 +9,7 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
         id = 80009001,
         frames = {
             { frame = 0, op = "cast", effect = "skill_80009001_cast", targetRef = "selected" },
+            { frame = 12, op = "projectile", effect = "eldritch_blast_projectile", targetRef = "selected" },
             {
                 frame = 24,
                 op = "damage",

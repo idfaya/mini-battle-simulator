@@ -34,6 +34,12 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
             effect = "chain_lightning_cast",
             target = chainTargets[1],
         })
+        table.insert(frames, {
+            frame = 8,
+            op = "projectile",
+            effect = "chain_lightning_projectile",
+            target = chainTargets[1],
+        })
     end
 
     for hitIndex, chainTarget in ipairs(chainTargets or {}) do

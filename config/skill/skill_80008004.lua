@@ -7,6 +7,7 @@ function skill_80008004.BuildTimeline(hero, targets, skill)
         id = 80008004,
         frames = {
             { frame = 0, op = "cast", effect = "skill_80008004_cast", targetRef = "selected" },
+            { frame = 18, op = "projectile", effect = "blizzard_projectile", targetRef = "selected" },
             {
                 frame = 42,
                 op = "damage",

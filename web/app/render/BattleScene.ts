@@ -1364,12 +1364,13 @@ export class BattleScene {
       return;
     }
 
-    const hostileTargets = event.targetIds
+    const distinctTargetIds = [...new Set(event.targetIds)];
+    const hostileTargets = distinctTargetIds
       .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
       .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team !== attacker.unit.team));
 
     const isMelee = this.isMeleeUnit(attacker.unit);
-    const isProjectileFrame = event.op === "projectile" || this.looksLikeProjectileEffect(event.effect);
+    const isProjectileFrame = event.op === "projectile";
     const isDamageFrame = this.isDamageLikeOp(event.op);
     const isMeleeExecuteFrame = isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
     const isRangedExecuteFrame = !isMelee && event.op === "effect" && this.looksLikeMeleeHitEffect(event.effect);
@@ -1399,35 +1400,18 @@ export class BattleScene {
       }
     }
 
-    const friendlyTargets = event.targetIds
+    const friendlyTargets = distinctTargetIds
       .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
       .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team === attacker.unit.team));
     const isBuffSupportFrame = this.isBuffSupportFrame(event);
 
-    // Buff support frames only need an on-target flash; do not fake a travelling orb to allies.
-    // Other support frames keep the lightweight projectile cue for readability.
+    // Support frames only need an on-target pulse; do not fake travelling projectiles.
     if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
       if (event.op !== "cast") {
         for (const target of friendlyTargets) {
-          const shouldTravelFromCaster = !isBuffSupportFrame && target.unit.id !== attacker.unit.id;
-          if (shouldTravelFromCaster) {
-            const projStyle = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
-            this.projectiles.push({
-              id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
-              attackerId: attacker.unit.id,
-              targetId: target.unit.id,
-              startedAt: now,
-              durationMs: 300,
-              style: projStyle,
-            });
-            this.observedProjectileKinds.add(projStyle.kind);
-          }
           this.queueUnitPulse(target.unit.id, now + 90, style, {
             durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
           });
-        }
-        if (!isBuffSupportFrame && friendlyTargets.some((target) => target.unit.id !== attacker.unit.id)) {
-          this.lastProjectileAtByCaster.set(attacker.unit.id, now);
         }
       }
       return;
@@ -1495,23 +1479,7 @@ export class BattleScene {
     }
 
     if (!isMelee && (isDamageFrame || isRangedExecuteFrame)) {
-      const lastProjectileAt = this.lastProjectileAtByCaster.get(attacker.unit.id) ?? -Infinity;
-      if (now - lastProjectileAt < 180) {
-        return;
-      }
-      for (const target of hostileTargets) {
-        const style = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
-        this.projectiles.push({
-          id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:fallback`,
-          attackerId: attacker.unit.id,
-          targetId: target.unit.id,
-          startedAt: now,
-          durationMs: 280,
-          style,
-        });
-        this.observedProjectileKinds.add(style.kind);
-      }
-      this.lastProjectileAtByCaster.set(attacker.unit.id, now);
+      return;
     }
   }
 
@@ -1870,11 +1838,6 @@ export class BattleScene {
     return op === "damage" || op === "chain_damage" || op === "attack";
   }
 
-  private looksLikeProjectileEffect(effect: string) {
-    const normalized = String(effect ?? "").toLowerCase();
-    return /projectile|fire|ball|ice|arrow|bolt|orb|arc|lightning|missile|shard/.test(normalized);
-  }
-
   private isBuffSupportFrame(event: Extract<AnimationEvent, { type: "timeline_frame" }>) {
     return event.buffId !== undefined || (event.statusEffect ?? "") !== "";
   }
@@ -2003,10 +1966,7 @@ export class BattleScene {
   private resolveProjectileStyle(effect: string, skillName: string, classId: number): ProjectileStyle {
     const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
 
-    if (
-      classId === 5 ||
-      /ranger|hunter|snare|shadow shot|ranger_basic_attack|ranger_hunter_shot|ranger_shadow_shot|ranger_snare_shot|游侠|狩猎|缠绕箭|暮影射击/.test(normalized)
-    ) {
+    if (/ranger|hunter|snare|shadow shot|ranger_basic_attack|ranger_hunter_shot|ranger_shadow_shot|ranger_snare_shot|游侠|狩猎|缠绕箭|暮影射击/.test(normalized)) {
       return {
         kind: "arrow",
         core: "#f6bd60",
@@ -2017,7 +1977,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("lightning") || classId === 9) {
+    if (/(lightning|thunder|eldritch|chain_lightning)/.test(normalized)) {
       return {
         kind: "lightning",
         core: "#fff3b0",
@@ -2028,7 +1988,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("fire") || classId === 7) {
+    if (/(fire|flame|ash|burn)/.test(normalized)) {
       return {
         kind: "orb",
         core: "#ff9f1c",
@@ -2039,7 +1999,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("ice") || classId === 8) {
+    if (/(ice|frost|blizzard|freez|cold)/.test(normalized)) {
       return {
         kind: "shard",
         core: "#caf0f8",
@@ -2050,7 +2010,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("poison") || classId === 5) {
+    if (normalized.includes("poison")) {
       return {
         kind: "orb",
         core: "#b7efc5",
@@ -2061,7 +2021,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("holy") || classId === 6 || classId === 4) {
+    if (/(holy|radiant|cleric|paladin)/.test(normalized)) {
       return {
         kind: "orb",
         core: "#fff3b0",
@@ -2072,7 +2032,7 @@ export class BattleScene {
       };
     }
 
-    if (normalized.includes("poison") || normalized.includes("venom") || classId === 5) {
+    if (normalized.includes("poison") || normalized.includes("venom")) {
       return {
         kind: "orb",
         core: "#b7efc5",

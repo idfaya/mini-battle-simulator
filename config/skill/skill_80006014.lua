@@ -4,6 +4,7 @@ function skill_80006014.BuildTimeline(hero, targets, skill)
     local ClericBuildPassives = require("skills.cleric_build_passives")
     return {
         { frame = 0, op = "cast", effect = "cleric_holy_verdict_cast", targetRef = "selected" },
+        { frame = 12, op = "projectile", effect = "cleric_holy_verdict_projectile", targetRef = "selected" },
         {
             frame = 22,
             op = "effect",
