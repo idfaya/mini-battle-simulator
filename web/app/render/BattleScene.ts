@@ -89,7 +89,7 @@ type MeleeStyle = {
 };
 
 type ProjectileStyle = {
-  kind: "orb" | "shard" | "lightning";
+  kind: "orb" | "shard" | "lightning" | "arrow";
   core: string;
   glow: string;
   trail: string;
@@ -1996,6 +1996,20 @@ export class BattleScene {
   private resolveProjectileStyle(effect: string, skillName: string, classId: number): ProjectileStyle {
     const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
 
+    if (
+      classId === 5 ||
+      /ranger|hunter|snare|shadow shot|arrow|shot|游侠|狩猎|缠绕箭|暮影射击|箭/.test(normalized)
+    ) {
+      return {
+        kind: "arrow",
+        core: "#f6bd60",
+        glow: "rgba(246, 189, 96, 0.9)",
+        trail: "rgba(244, 162, 97, 0.7)",
+        radius: 8,
+        arcHeight: 16,
+      };
+    }
+
     if (normalized.includes("lightning") || classId === 9) {
       return {
         kind: "lightning",
@@ -2310,6 +2324,24 @@ export class BattleScene {
           ctx.lineTo(0, -6);
           ctx.closePath();
           ctx.fill();
+        } else if (projectile.style.kind === "arrow") {
+          ctx.translate(point.x, point.y);
+          const angle = Math.atan2(end.y - start.y, end.x - start.x);
+          ctx.rotate(angle);
+          ctx.strokeStyle = projectile.style.trail;
+          ctx.lineWidth = 3;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(-12, 0);
+          ctx.lineTo(6, 0);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(10, 0);
+          ctx.lineTo(2, 5);
+          ctx.lineTo(2, -5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillRect(-14, -1.5, 4, 3);
         } else {
           ctx.beginPath();
           ctx.arc(point.x, point.y, projectile.style.radius, 0, Math.PI * 2);
@@ -2474,6 +2506,7 @@ export class BattleScene {
       deathStartedCount: this.deathStartedCount,
       deathActiveCount: this.deathAnimations.size,
       projectileCount: this.projectiles.length,
+      projectileKinds: [...new Set(this.projectiles.map((projectile) => projectile.style.kind))],
       observedFloatingTextKinds: [...this.observedFloatingTextKinds],
       observedCounterOverlapKeys: [...this.observedCounterOverlapKeys],
       observedGuardCounterOverlapKeys: [...this.observedGuardCounterOverlapKeys],

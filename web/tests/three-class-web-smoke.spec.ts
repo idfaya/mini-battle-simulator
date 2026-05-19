@@ -31,22 +31,29 @@ async function captureAnimationSummary(page: import("playwright/test").Page, dur
         getBattleDebugState?: () => {
           meleeClashes?: Array<unknown>;
           projectileCount?: number;
+          projectileKinds?: string[];
         };
       };
     };
     const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
     let maxMeleeClashes = 0;
     let maxProjectileCount = 0;
+    const observedProjectileKinds = new Set<string>();
     const deadline = performance.now() + sampleMs;
 
     while (performance.now() < deadline) {
       const debugState = win.__miniBattleRenderer?.getBattleDebugState?.() ?? {};
       maxMeleeClashes = Math.max(maxMeleeClashes, Array.isArray(debugState.meleeClashes) ? debugState.meleeClashes.length : 0);
       maxProjectileCount = Math.max(maxProjectileCount, typeof debugState.projectileCount === "number" ? debugState.projectileCount : 0);
+      for (const kind of Array.isArray(debugState.projectileKinds) ? debugState.projectileKinds : []) {
+        if (typeof kind === "string" && kind) {
+          observedProjectileKinds.add(kind);
+        }
+      }
       await sleep(50);
     }
 
-    return { maxMeleeClashes, maxProjectileCount };
+    return { maxMeleeClashes, maxProjectileCount, observedProjectileKinds: [...observedProjectileKinds] };
   }, { durationMs });
 }
 
@@ -115,6 +122,7 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
   expect(logs.some((line) => line.includes("使用 猎人印记"))).toBeTruthy();
   expect(logs.some((line) => line.includes("猎人印记"))).toBeTruthy();
   expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
+  expect(animationSummary.observedProjectileKinds).toContain("arrow");
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
