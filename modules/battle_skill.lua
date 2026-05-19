@@ -1033,6 +1033,8 @@ end
 
 local function ExecuteInlineBasicAttackCast(hero, target, normalSkill, opts)
     local BattlePassiveSkill = require("modules.battle_passive_skill")
+    local BattleVisualEvents = require("ui.battle_visual_events")
+    local BattleEvent = require("core.battle_event")
     opts = opts or {}
 
     if not hero or not normalSkill or not target or target.isDead then
@@ -1050,6 +1052,15 @@ local function ExecuteInlineBasicAttackCast(hero, target, normalSkill, opts)
     BattleSkill.TriggerSkillCastEvent(hero, normalSkill, targets)
     hero.__lastNormalAttackTarget = target
     BattlePassiveSkill.RunSkillOnNormalAtkStart(hero, { target = target, skillId = normalSkill.skillId })
+    if hero.classId == 5 or hero.class == 5 then
+        BattleEvent.Publish(BattleVisualEvents.SKILL_TIMELINE_FRAME,
+            BattleVisualEvents.BuildSkillTimelineFrame(hero, normalSkill, {
+                frame = 12,
+                op = "projectile",
+                effect = "ranger_basic_attack_projectile",
+                target = target,
+            }, 2))
+    end
 
     local totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, normalSkill) or 0
     local completed = nil
@@ -1783,9 +1794,39 @@ local function BuildTargetSelection(overrides)
     return selection
 end
 
+local function NormalizeCastTargetValue(value)
+    if type(value) == "number" then
+        return value
+    end
+    if type(value) ~= "string" then
+        return value
+    end
+    local normalized = string.lower(value)
+    if normalized == "enemy" then
+        return E_CAST_TARGET.Enemy
+    elseif normalized == "self" then
+        return E_CAST_TARGET.Self
+    elseif normalized == "alias" or normalized == "ally" then
+        return E_CAST_TARGET.Alias
+    elseif normalized == "alliesexcludeself" then
+        return E_CAST_TARGET.AlliesExcludeSelf
+    elseif normalized == "aliaspos" then
+        return E_CAST_TARGET.AliasPos
+    elseif normalized == "enemypos" then
+        return E_CAST_TARGET.EnemyPos
+    elseif normalized == "everyone" then
+        return E_CAST_TARGET.EveryOne
+    elseif normalized == "everyoneexcludeself" then
+        return E_CAST_TARGET.EveryOneExcludeSelf
+    end
+    return value
+end
+
 InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
     if mergedConfig and mergedConfig.targetsSelections then
-        return mergedConfig.targetsSelections
+        local selection = DeepCopyTable(mergedConfig.targetsSelections)
+        selection.castTarget = NormalizeCastTargetValue(selection.castTarget)
+        return selection
     end
 
     local name = (skillCfg and skillCfg.name) or (mergedConfig and mergedConfig.name) or ""
@@ -1878,7 +1919,7 @@ function BattleSkill.SelectTarget(hero, skill)
         return targets
     end
 
-    local castTarget = targetsSelections.castTarget or E_CAST_TARGET.Enemy
+    local castTarget = NormalizeCastTargetValue(targetsSelections.castTarget) or E_CAST_TARGET.Enemy
 
     if ShouldPreferAllyIfInjured(targetsSelections) then
         if targetsSelections.dualHolyLight == true and not ShouldPreferDualHolyLightAlly(hero) then

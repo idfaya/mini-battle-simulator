@@ -388,7 +388,15 @@ local function BuildOrderedAvailableSkills(hero, availableSkills)
         if skill then
             local numericSkillId = tonumber(skillId) or tonumber(skill.skillId) or 0
             local dedupeKey = tostring(numericSkillId)
-            if not seen[dedupeKey] then
+            local skillConfig = skill.config or skill.skillConfig or {}
+            local isPassiveRuntime = skill.runtimeKind == "passive"
+                or skill.designKind == "feature"
+                or skillConfig.runtimeKind == "passive"
+            local isHiddenSkill = skill.hidden == true
+                or skillConfig.hidden == true
+                or skill.skillType == E_SKILL_TYPE_HIDE
+            local isPassiveSkill = skill.skillType == E_SKILL_TYPE_PASSIVE or skill.isPassiveActive == true
+            if not seen[dedupeKey] and not isPassiveRuntime and not isHiddenSkill and not isPassiveSkill then
                 seen[dedupeKey] = true
                 table.insert(ordered, {
                     skill = skill,

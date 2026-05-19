@@ -190,6 +190,7 @@ export class BattleScene {
   private activeTimeline: TimelineOverlay | null = null;
   private meleeClashes: MeleeClash[] = [];
   private projectiles: ProjectileAnimation[] = [];
+  private observedProjectileKinds = new Set<string>();
   private aoeAnimations: AoeAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
   private unitPulses: UnitPulse[] = [];
@@ -1381,14 +1382,16 @@ export class BattleScene {
 
     if (isProjectileFrame) {
       for (const target of hostileTargets) {
+        const style = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
         this.projectiles.push({
           id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}`,
           attackerId: attacker.unit.id,
           targetId: target.unit.id,
           startedAt: now,
           durationMs: 340,
-          style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
+          style,
         });
+        this.observedProjectileKinds.add(style.kind);
       }
       this.lastProjectileAtByCaster.set(attacker.unit.id, now);
       if (!this.looksLikeAoeSkill(event.effect, event.skillName)) {
@@ -1408,14 +1411,16 @@ export class BattleScene {
         for (const target of friendlyTargets) {
           const shouldTravelFromCaster = !isBuffSupportFrame && target.unit.id !== attacker.unit.id;
           if (shouldTravelFromCaster) {
+            const projStyle = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
             this.projectiles.push({
               id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:support`,
               attackerId: attacker.unit.id,
               targetId: target.unit.id,
               startedAt: now,
               durationMs: 300,
-              style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
+              style: projStyle,
             });
+            this.observedProjectileKinds.add(projStyle.kind);
           }
           this.queueUnitPulse(target.unit.id, now + 90, style, {
             durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
@@ -1495,14 +1500,16 @@ export class BattleScene {
         return;
       }
       for (const target of hostileTargets) {
+        const style = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
         this.projectiles.push({
           id: `${event.heroId}:${target.unit.id}:${event.frameIndex}:${event.frame}:fallback`,
           attackerId: attacker.unit.id,
           targetId: target.unit.id,
           startedAt: now,
           durationMs: 280,
-          style: this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId),
+          style,
         });
+        this.observedProjectileKinds.add(style.kind);
       }
       this.lastProjectileAtByCaster.set(attacker.unit.id, now);
     }
@@ -1998,7 +2005,7 @@ export class BattleScene {
 
     if (
       classId === 5 ||
-      /ranger|hunter|snare|shadow shot|arrow|shot|游侠|狩猎|缠绕箭|暮影射击|箭/.test(normalized)
+      /ranger|hunter|snare|shadow shot|ranger_basic_attack|ranger_hunter_shot|ranger_shadow_shot|ranger_snare_shot|游侠|狩猎|缠绕箭|暮影射击/.test(normalized)
     ) {
       return {
         kind: "arrow",
@@ -2506,7 +2513,7 @@ export class BattleScene {
       deathStartedCount: this.deathStartedCount,
       deathActiveCount: this.deathAnimations.size,
       projectileCount: this.projectiles.length,
-      projectileKinds: [...new Set(this.projectiles.map((projectile) => projectile.style.kind))],
+      projectileKinds: [...this.observedProjectileKinds],
       observedFloatingTextKinds: [...this.observedFloatingTextKinds],
       observedCounterOverlapKeys: [...this.observedCounterOverlapKeys],
       observedGuardCounterOverlapKeys: [...this.observedGuardCounterOverlapKeys],

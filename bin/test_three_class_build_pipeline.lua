@@ -99,6 +99,24 @@ do
     })
     assert_true(rangerHero and rangerHero.buildState ~= nil, "HeroData generic build compile works for ranger")
     assert_true(hasSkill(rangerHero.skillsConfig, SkillRuntimeConfig.Ids.ranger_hunter_shot), "HeroData exports ranger build active")
+    BattleFormation.OnFinal()
+    local rangerEnemy = new_unit(9402, "RangerEnemy")
+    rangerEnemy.class = 8
+    rangerEnemy.classId = 8
+    rangerEnemy.wpType = 4
+    rangerEnemy.isLeft = false
+    BattleFormation.Init({
+        teamLeft = { rangerHero },
+        teamRight = { rangerEnemy },
+    })
+    local teamLeft = BattleFormation.GetTeams()
+    local battleRanger = teamLeft[1]
+    BattleSkill.Init(battleRanger, battleRanger.skillsConfig)
+    local rangerSelectedSkill = BattleMain.DebugSelectAvailableSkill(battleRanger)
+    assert_true(rangerSelectedSkill ~= nil, "Ranger has an auto-selected action")
+    assert_true(rangerSelectedSkill.skillId ~= SkillRuntimeConfig.Ids.ranger_hunter_mark,
+        "Ranger auto action does not select passive hunter mark")
+    BattleFormation.OnFinal()
 end
 
 do
@@ -156,4 +174,3 @@ do
 end
 
 log("Three-class build pipeline tests passed.")
-

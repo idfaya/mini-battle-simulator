@@ -118,6 +118,29 @@ do
     BattleEvent.RemoveListener(BattleVisualEvents.DAMAGE_DEALT, damageListener)
 end
 
+-- Test 1a: Ranger basic attack projectile frame should carry target info
+do
+    local projectileFrame = nil
+    local listener = function(evt)
+        if evt and evt.skillId == 80005011 and evt.op == "projectile" then
+            projectileFrame = evt
+        end
+    end
+    BattleEvent.AddListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, listener)
+    local hero = new_unit(1011, "Tester_Ranger", 10000, 200, 0)
+    hero.classId = 5
+    local target = new_unit(2011, "Ranger_Target", 10000, 0, 0)
+    local skillLua = require("config.skill.skill_80005011")
+    local timeline = skillLua.BuildTimeline(hero, { target }, { skillId = 80005011, name = "远程基础攻击" })
+    local SkillTimeline = require("core.skill_timeline")
+    local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80005011, name = "远程基础攻击", skillType = 1 }, timeline)
+    assert_true(ok, "Ranger basic attack timeline execute ok")
+    assert_true(projectileFrame ~= nil, "Ranger basic attack publishes projectile frame")
+    assert_true(projectileFrame.targets ~= nil and #projectileFrame.targets == 1, "Ranger basic attack projectile frame keeps target ids")
+    assert_true((projectileFrame.targets[1] and projectileFrame.targets[1].id) == target.instanceId, "Ranger basic attack projectile frame targets the selected enemy")
+    BattleEvent.RemoveListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, listener)
+end
+
 -- Test 1b: Spell-like multi-hit applies at most one status stack per cast
 do
     local hero = new_unit(1003, "Tester_SpellDedupe", 10000, 200, 0)
