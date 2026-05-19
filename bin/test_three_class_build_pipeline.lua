@@ -23,6 +23,8 @@ local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleMain = require("modules.battle_main")
 local MonkBuildPassives = require("skills.monk_build_passives")
+local RangerBuildPassives = require("skills.ranger_build_passives")
+local BuildPassiveCommon = require("skills.build_passive_common")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -75,9 +77,8 @@ do
     local build = HeroBuild.CompileBuild(5, 5, {})
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_basic_attack), "Ranger Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_hunter_shot), "Ranger Lv5 grants hunting guide")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_hunter_mastery), "Ranger Lv5 grants arrow rain active")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.ranger_hunter_mark), "Ranger Lv5 keeps hunter mark")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.ranger_extra_attack), "Ranger Lv5 grants extra attack")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.ranger_hunter_mastery), "Ranger Lv5 grants arrow rain")
 end
 
 do

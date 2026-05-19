@@ -190,6 +190,8 @@ local function ExecuteOp(ctx, frameCopy)
                         target = actualTarget,
                         originalTarget = originalTarget,
                         damage = dmg,
+                        damageKind = ctx.skill and ctx.skill.rules and ctx.skill.rules.kind or nil,
+                        skillId = ctx.skill and (ctx.skill.skillId or ctx.skill.id) or nil,
                     }
                     BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
                     local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")

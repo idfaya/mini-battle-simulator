@@ -29,6 +29,20 @@ local function isBackRow(unit)
     return wpType > 3
 end
 
+local function pickRandomAliveEnemy(hero)
+    local BattleFormation = require("modules.battle_formation")
+    local candidates = {}
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        if isAlive(enemy) then
+            candidates[#candidates + 1] = enemy
+        end
+    end
+    if #candidates == 0 then
+        return nil
+    end
+    return candidates[math.random(1, #candidates)]
+end
+
 local function getMarkTable(target)
     local runtime = ensureRuntime(target)
     runtime.rangerMarks = runtime.rangerMarks or {}
@@ -284,6 +298,44 @@ function RangerBuildPassives.PerformSnareShot(hero, target, skill)
     return damage + applySubclassMasteryDamage(hero, target, skill)
 end
 
+function RangerBuildPassives.PerformArrowRain(hero, skill)
+    if not isAlive(hero) then
+        return 0
+    end
+    local BattleSkill = require("modules.battle_skill")
+    local totalDamage = 0
+    local hitCounts = {}
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动箭雨：连续射出 4 支箭矢",
+        hero.name or "Unknown"))
+    for shotIndex = 1, 4 do
+        local target = pickRandomAliveEnemy(hero)
+        if not isAlive(target) then
+            break
+        end
+        local targetId = tonumber(target.instanceId or target.id) or 0
+        local hitCount = hitCounts[targetId] or 0
+        local multiplier = 1 / (2 ^ hitCount)
+        if multiplier ~= 1 then
+            BuildPassiveCommon.SetPendingBasicAttackDamageMultiplier(hero, multiplier, "箭雨")
+        end
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 的箭雨第 %d 箭锁定 %s%s",
+            hero.name or "Unknown",
+            shotIndex,
+            target.name or "目标",
+            hitCount > 0 and string.format("（同目标第 %d 次命中，伤害按 %.1f%% 结算）", hitCount + 1, multiplier * 100) or ""))
+        local ok, result = BattleSkill.CastBasicAttackAction(hero, target, {
+            basicAttackActionSource = "arrow_rain_active",
+            basicAttackIsFollowUp = true,
+        })
+        local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
+        totalDamage = totalDamage + damage
+        if damage > 0 and targetId ~= 0 then
+            hitCounts[targetId] = hitCount + 1
+        end
+    end
+    return totalDamage
+end
+
 function RangerBuildPassives.CreateHunterMarkPassive(context)
     local self = buildContextState(context)
 
@@ -355,20 +407,6 @@ function RangerBuildPassives.CreateExtraAttackPassive(context)
         tokenKey = "rangerExtraAttackToken",
         onPrimaryHit = function(hero, target, runtime)
             local marked = RangerBuildPassives.IsTargetMarkedBy(hero, target)
-            if hasSkill(hero, IDS.ranger_hunter_mastery) and marked then
-                local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d6", {
-                    kind = "physical",
-                    damageKind = "direct",
-                    skillId = IDS.ranger_hunter_mastery,
-                    skillName = "逐猎宗师",
-                })
-                if bonus > 0 then
-                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发逐猎宗师：对 %s 追加 %d 点追猎伤害",
-                        hero.name or "Unknown",
-                        target.name or "目标",
-                        bonus))
-                end
-            end
             if hasSkill(hero, IDS.ranger_shadow_mastery) and isBackRow(target) then
                 runtime.pendingBasicAttackBonusDice = BuildPassiveCommon.JoinDiceParts(runtime.pendingBasicAttackBonusDice, "1d6")
             end

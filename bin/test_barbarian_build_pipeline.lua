@@ -23,6 +23,7 @@ local BattleSkill = require("modules.battle_skill")
 local BattleFormula = require("core.battle_formula")
 local Ability5e = require("modules.ability_5e")
 local ClassWeaponConfig = require("config.tables.classes")
+local BattleBuff = require("modules.battle_buff")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -101,29 +102,40 @@ do
     local hero = new_unit(9701, "Barbarian")
     hero.skills = {
         { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
-        { skillId = SkillRuntimeConfig.Ids.barbarian_berserk },
     }
     local rage = BarbarianBuildPassives.CreateRagePassive({ src = hero })
     rage:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } })
-    assert_true(hero.passiveRuntime.barbarianRageStacks == 1, "Rage gains stack after basic attack")
-    rage:OnDefBeforeDmg({ data = { extraParam = { attacker = new_unit(9702, "Enemy"), damage = 5 } } })
-    assert_true(hero.passiveRuntime.barbarianRageStacks == 2, "Rage gains stack after being attacked")
-    BarbarianBuildPassives.AddRage(hero, 3, "test")
-    assert_true(hero.passiveRuntime.barbarianBerserkUsed == true, "Berserk activates immediately at 5 rage")
-    assert_true(hero.passiveRuntime.barbarianRageStacks == 0, "Berserk consumes rage stacks")
+    assert_true(hero.passiveRuntime.barbarianBerserkUsed == true, "Berserk activates after basic attack trigger")
+    assert_true(BarbarianBuildPassives.IsBerserkActive(hero) == true, "Berserk remains active until next round end")
+    local firstUntilRound = hero.passiveRuntime.barbarianBerserkUntilRound
+    rage:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } })
+    assert_true(hero.passiveRuntime.barbarianBerserkUntilRound == firstUntilRound, "Base berserk cannot stack or refresh in battle")
 end
 
 do
     local hero = new_unit(9711, "Berserker")
     hero.skills = {
         { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
-        { skillId = SkillRuntimeConfig.Ids.barbarian_berserk },
     }
     hero.passiveRuntime.barbarianBerserkUntilRound = 99
-    local passive = BarbarianBuildPassives.CreateBerserkPassive({ src = hero })
-    local ctx = { data = { extraParam = { attacker = new_unit(9712, "Enemy"), damage = 7 } } }
-    passive:OnDefBeforeDmg(ctx)
+    local rage = BarbarianBuildPassives.CreateRagePassive({ src = hero })
+    local ctx = { data = { extraParam = { attacker = new_unit(9712, "Enemy"), damage = 7, damageKind = "physical", skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } }
+    rage:OnDefBeforeDmg(ctx)
     assert_true(ctx.data.extraParam.damage == 5, "Berserk reduces incoming damage by 2")
+    assert_true(BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, 8) == 10, "Berserk adds 2 damage to attacks")
+end
+
+do
+    local hero = new_unit(9716, "TirelessBerserker")
+    hero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+        { skillId = SkillRuntimeConfig.Ids.barbarian_berserk },
+    }
+    hero.passiveRuntime.barbarianBerserkUsed = true
+    hero.passiveRuntime.barbarianBerserkUntilRound = -1
+    local rage = BarbarianBuildPassives.CreateRagePassive({ src = hero })
+    rage:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } })
+    assert_true(BarbarianBuildPassives.IsBerserkActive(hero) == true, "Tireless berserk removes once-per-battle limit")
 end
 
 do
@@ -132,6 +144,48 @@ do
     hero.class = 10
     hero.hit = 8
     hero.strMod = 4
+    local oldRollHit = BattleFormula.RollHit
+    local oldResolve = BattleSkill.ResolveScaledDamage
+    BattleFormula.RollHit = function(_, _, opts)
+        return {
+            hit = true,
+            crit = false,
+            total = 19 + (tonumber(opts and opts.attackBonus) or 0),
+            roll = 19,
+            bonus = tonumber(opts and opts.attackBonus) or 0,
+            nat20 = false,
+            nat1 = false,
+            targetAC = tonumber(opts and opts.targetAC) or 10,
+            raw = { 19 },
+        }
+    end
+    BattleSkill.ResolveScaledDamage = function(_, _, opts)
+        return {
+            hit = { hit = true, crit = false },
+            damage = 10,
+            damageRoll = { expr = "1d12", total = 6 },
+            isCrit = (tonumber(opts and opts.critMin) or 20) <= 19,
+            attackBonus = tonumber(opts and opts.attackBonus) or 0,
+            critMin = tonumber(opts and opts.critMin) or 20,
+        }
+    end
+
+    local damage = BarbarianBuildPassives.PerformHeavyStrike(hero, target, {
+        skillId = SkillRuntimeConfig.Ids.barbarian_heavy_strike,
+        name = "重击",
+    })
+
+    BattleSkill.ResolveScaledDamage = oldResolve
+    BattleFormula.RollHit = oldRollHit
+    assert_true(damage == 14, "Heavy strike doubles strength bonus on top of base damage")
+    assert_true(BattleBuff.GetBuffValueBySubType(hero, 880004) == 2, "Heavy strike applies AC -2 self debuff")
+end
+
+do
+    local hero = new_unit(9728, "CritHero")
+    local target = new_unit(9729, "CritTarget")
+    hero.class = 10
+    hero.hit = 8
     local oldRollHit = BattleFormula.RollHit
     BattleFormula.RollHit = function(_, _, opts)
         return {
@@ -146,18 +200,16 @@ do
             raw = { 19 },
         }
     end
-
     local result = BattleSkill.ResolveScaledDamage(hero, target, {
         meta = {
             kind = "physical",
-            damageDice = "1d12+3",
+            damageDice = "",
         },
-        attackBonus = hero.hit - 2,
+        attackBonus = hero.hit,
         critMin = 19,
     })
-
     BattleFormula.RollHit = oldRollHit
-    assert_true(result.isCrit == true, "expanded crit range is honored by unified damage resolver")
+    assert_true(result ~= nil and result.isCrit == true, "Heavy strike doubles crit range to 19-20")
 end
 
 log("Barbarian build pipeline tests passed.")

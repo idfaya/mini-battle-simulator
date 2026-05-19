@@ -1,13 +1,13 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local SkillsTable = require("config.tables.skills")
 
 local BarbarianBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
-local MAX_RAGE_STACKS = 5
 local BERSERK_DURATION_ROUNDS = 2
-local RAGE_BUFF_ID = 890002
-local BERSERK_BUFF_ID = 890003
+local BERSERK_BUFF_ID = 890002
+local HEAVY_STRIKE_AC_DOWN_BUFF_ID = 890014
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -29,35 +29,6 @@ local function buildContextState(context)
     return {
         context = context,
     }
-end
-
-local function syncRageBuff(hero)
-    local BattleBuff = require("modules.battle_buff")
-    local BattleSkill = require("modules.battle_skill")
-    if not hero then
-        return
-    end
-    local runtime = ensureRuntime(hero)
-    local stacks = math.max(0, math.floor(tonumber(runtime.barbarianRageStacks) or 0))
-    local buff = BattleBuff.GetBuff(hero, RAGE_BUFF_ID)
-    if stacks <= 0 then
-        if buff then
-            BattleBuff.DelBuffByBuffIdAndCaster(hero, RAGE_BUFF_ID, hero, 1)
-        end
-        return
-    end
-    if not buff then
-        BattleSkill.ApplyBuffFromSkill(hero, hero, RAGE_BUFF_ID, nil, {
-            initialStack = stacks,
-            maxStack = MAX_RAGE_STACKS,
-            duration = 99,
-            isPermanent = true,
-        })
-        buff = BattleBuff.GetBuff(hero, RAGE_BUFF_ID)
-    end
-    if buff then
-        buff.stackCount = stacks
-    end
 end
 
 local function syncBerserkBuff(hero)
@@ -92,42 +63,51 @@ function BarbarianBuildPassives.IsBerserkActive(hero)
     return (tonumber(runtime.barbarianBerserkUntilRound) or -1) >= getRound()
 end
 
-function BarbarianBuildPassives.AddRage(hero, amount, reason)
+function BarbarianBuildPassives.CanTriggerBerserk(hero)
     if not isAlive(hero) or not hasSkill(hero, IDS.barbarian_rage) then
-        return 0
+        return false
     end
     local runtime = ensureRuntime(hero)
-    local before = math.max(0, math.floor(tonumber(runtime.barbarianRageStacks) or 0))
-    local after = math.min(MAX_RAGE_STACKS, before + math.max(1, math.floor(tonumber(amount) or 1)))
-    runtime.barbarianRageStacks = after
-    syncRageBuff(hero)
-    if after > before then
-        BuildPassiveCommon.PublishPassiveTriggered(hero, "狂怒", reason or "积累狂怒", string.format("%d/%d", after, MAX_RAGE_STACKS))
+    if BarbarianBuildPassives.IsBerserkActive(hero) then
+        return false
     end
-    if after >= MAX_RAGE_STACKS then
-        BarbarianBuildPassives.TryActivateBerserk(hero)
+    if runtime.barbarianBerserkUsed == true and not hasSkill(hero, IDS.barbarian_berserk) then
+        return false
     end
-    return after - before
+    return true
 end
 
 function BarbarianBuildPassives.TryActivateBerserk(hero)
-    if not isAlive(hero) or not hasSkill(hero, IDS.barbarian_berserk) then
+    if not BarbarianBuildPassives.CanTriggerBerserk(hero) then
         return false
     end
     local runtime = ensureRuntime(hero)
-    if runtime.barbarianBerserkUsed == true then
-        return false
-    end
-    if (tonumber(runtime.barbarianRageStacks) or 0) < MAX_RAGE_STACKS then
-        return false
-    end
     runtime.barbarianBerserkUsed = true
-    runtime.barbarianRageStacks = 0
     runtime.barbarianBerserkUntilRound = getRound() + BERSERK_DURATION_ROUNDS - 1
-    syncRageBuff(hero)
     syncBerserkBuff(hero)
     BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", BERSERK_DURATION_ROUNDS))
     return true
+end
+
+function BarbarianBuildPassives.IsPhysicalDamage(extraParam)
+    local damageKind = tostring(extraParam and (extraParam.damageKind or extraParam.kind) or "")
+    if damageKind == "physical" then
+        return true
+    end
+    local skillId = tonumber(extraParam and extraParam.skillId) or 0
+    if skillId == 0 then
+        return false
+    end
+    local skill = SkillsTable.GetSkillConfig(skillId)
+    return tostring(skill and skill.rules and skill.rules.kind or "") == "physical"
+end
+
+function BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, damage)
+    local value = math.max(0, math.floor(tonumber(damage) or 0))
+    if value <= 0 or not BarbarianBuildPassives.IsBerserkActive(hero) then
+        return value
+    end
+    return value + 2
 end
 
 function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
@@ -138,13 +118,16 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local Skill5eMeta = require("config.tables.skill_meta")
+    local BattleSkill = require("modules.battle_skill")
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
-    local hitPenalty = tonumber(meta and meta.hitPenalty) or -2
+    local hitPenalty = tonumber(meta and meta.hitPenalty) or 0
     local critMin = tonumber(meta and meta.critMin) or 19
-    local damageDice = tostring(meta and meta.damageDice or "1d12+3")
-    if BarbarianBuildPassives.IsBerserkActive(hero) then
-        damageDice = BuildPassiveCommon.JoinDiceParts(damageDice, "1d6")
-    end
+    local damageDice = tostring(meta and meta.damageDice or "")
+    local strengthBonus = math.max(0, tonumber(hero.strMod) or 0)
+    BattleSkill.ApplyBuffFromSkill(hero, hero, HEAVY_STRIKE_AC_DOWN_BUFF_ID, skill, {
+        duration = 1,
+        value = 2,
+    })
     local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
         skill = skill,
         meta = meta,
@@ -161,8 +144,11 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     local damageContext = {
         attacker = hero,
         target = target,
-        damage = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0)),
+        damage = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0)) + strengthBonus,
+        damageKind = "physical",
+        skillId = skill and skill.skillId or IDS.barbarian_heavy_strike,
     }
+    damageContext.damage = BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, damageContext.damage)
     BattlePassiveSkill.RunSkillOnDefBeforeDmg(target, damageContext)
     BuildPassiveCommon.ApplyTeamProtections(target, {
         attacker = hero,
@@ -185,12 +171,23 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
             BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = target })
         end
     end
-    BarbarianBuildPassives.AddRage(hero, 1, "重击")
     return damage
 end
 
 function BarbarianBuildPassives.CreateRagePassive(context)
     local self = buildContextState(context)
+
+    function self:OnBattleBegin()
+        local hero = self.context and self.context.src or nil
+        local runtime = ensureRuntime(hero)
+        runtime.barbarianBerserkUsed = false
+        runtime.barbarianBerserkUntilRound = nil
+        syncBerserkBuff(hero)
+    end
+
+    function self:OnSelfTurnBegin()
+        syncBerserkBuff(self.context and self.context.src)
+    end
 
     function self:OnNormalAtkFinish(ctx)
         local hero = self.context and self.context.src or nil
@@ -201,16 +198,28 @@ function BarbarianBuildPassives.CreateRagePassive(context)
         if tonumber(extraParam.skillId) ~= IDS.barbarian_basic_attack then
             return
         end
-        BarbarianBuildPassives.AddRage(hero, 1, "主动攻击")
+        BarbarianBuildPassives.TryActivateBerserk(hero)
     end
 
     function self:OnDefBeforeDmg(ctx)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        if not isAlive(hero) or not isAlive(extraParam.attacker) then
+        if not isAlive(hero) then
             return
         end
-        BarbarianBuildPassives.AddRage(hero, 1, "受到攻击")
+        BarbarianBuildPassives.TryActivateBerserk(hero)
+        if not BarbarianBuildPassives.IsBerserkActive(hero) then
+            return
+        end
+        if not BarbarianBuildPassives.IsPhysicalDamage(extraParam) then
+            return
+        end
+        local before = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
+        if before <= 0 then
+            return
+        end
+        extraParam.damage = math.max(0, before - 2)
+        BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴减伤", string.format("%d -> %d", before, extraParam.damage))
     end
 
     return self
@@ -223,28 +232,11 @@ function BarbarianBuildPassives.CreateBerserkPassive(context)
         local runtime = ensureRuntime(self.context and self.context.src)
         runtime.barbarianBerserkUsed = false
         runtime.barbarianBerserkUntilRound = nil
-        runtime.barbarianRageStacks = 0
-        syncRageBuff(self.context and self.context.src)
         syncBerserkBuff(self.context and self.context.src)
     end
 
     function self:OnSelfTurnBegin()
-        BarbarianBuildPassives.TryActivateBerserk(self.context and self.context.src)
         syncBerserkBuff(self.context and self.context.src)
-    end
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        if not isAlive(hero) or not BarbarianBuildPassives.IsBerserkActive(hero) then
-            return
-        end
-        local before = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
-        if before <= 0 then
-            return
-        end
-        extraParam.damage = math.max(0, before - 2)
-        BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴减伤", string.format("%d -> %d", before, extraParam.damage))
     end
 
     return self

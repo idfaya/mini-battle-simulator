@@ -1275,6 +1275,8 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 target = actualTarget,
                 originalTarget = originalTarget,
                 damage = damage,
+                damageKind = "physical",
+                skillId = skill and skill.skillId or nil,
             }
 
             BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
@@ -1288,6 +1290,25 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
             damage = math.max(0, math.floor(damageContext.damage or damage))
             if damage > 0 then
                 damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, actualTarget)
+                local okBarbarian, BarbarianBuildPassives = pcall(require, "skills.barbarian_build_passives")
+                if okBarbarian and BarbarianBuildPassives and BarbarianBuildPassives.ApplyBerserkDamageBonus then
+                    damage = BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, damage)
+                end
+                local runtime = BuildPassiveCommon.EnsureRuntime(hero)
+                local multiplier = tonumber(runtime.pendingBasicAttackDamageMultiplier) or 1
+                if multiplier > 0 and multiplier ~= 1 then
+                    local scaledDamage = math.max(0, math.floor(damage * multiplier))
+                    if scaledDamage ~= damage then
+                        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：对 %s 的本次箭雨伤害缩放为 %d%%（%d -> %d）",
+                            hero.name or "Unknown",
+                            runtime.pendingBasicAttackDamageMultiplierLabel or "箭雨",
+                            actualTarget.name or "目标",
+                            math.floor(multiplier * 100 + 0.5),
+                            damage,
+                            scaledDamage))
+                    end
+                    damage = scaledDamage
+                end
             end
             totalDamage = totalDamage + damage
 
@@ -2016,6 +2037,7 @@ end
 function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
     local BattleFormation = require("modules.battle_formation")
     local BuildPassiveCommon = require("skills.build_passive_common")
+    local SkillRuntimeConfig = require("config.tables.skill_runtime")
     local ignoreFrontProtection = ShouldIgnoreFrontProtection(targetsSelections)
         or BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, skill)
     local measureType = ReadMeasureType(targetsSelections)
@@ -2065,7 +2087,6 @@ function BattleSkill.SelectEnemyTargets(hero, skill, targetsSelections)
     end
 
     if requestedCount <= 1 and measureType ~= E_MEASURE_TYPE.Muti then
-        local SkillRuntimeConfig = require("config.tables.skill_runtime")
         if BuildPassiveCommon.HasSkill(hero, SkillRuntimeConfig.Ids.ranger_hunter_mark) then
             local RangerBuildPassives = require("skills.ranger_build_passives")
             for _, enemy in ipairs(candidates) do
@@ -2490,4 +2511,3 @@ function BattleSkill.ProcessTurnStartStatus(hero)
 end
 
 return BattleSkill
-

@@ -15,8 +15,8 @@
   {"buffId":880004,"name":"破绽","mainType":2,"subType":880004,"value":1,"duration":1,"canStack":false,"stackRule":"refresh","desc":"AC -1，持续到下回合开始前。","effects":[]},
   {"buffId":880005,"name":"霜冻","mainType":2,"subType":880005,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","desc":"无法移动，但仍可进行远程攻击和释放技能。","effects":[]},
   {"buffId":890001,"name":"静电印记","mainType":2,"subType":890001,"value":1,"duration":2,"canStack":false,"stackRule":"refresh","desc":"被雷链和雷暴优先引爆的邪术印记。","effects":[]},
-  {"buffId":890002,"name":"狂怒","mainType":1,"subType":890002,"initialStack":1,"maxStack":5,"duration":99,"isPermanent":true,"canStack":true,"stackRule":"add","desc":"野蛮人的怒气层数。达到上限后会转化为狂暴。","effects":[]},
-  {"buffId":890003,"name":"狂暴","mainType":1,"subType":890003,"duration":2,"canStack":false,"stackRule":"refresh","desc":"野蛮人进入狂暴状态，获得额外减伤等收益。","effects":[]},
+  {"buffId":890002,"name":"狂暴","mainType":1,"subType":890002,"duration":2,"canStack":false,"stackRule":"refresh","desc":"野蛮人进入狂暴状态，持续到下回合结束；期间受到物理伤害 -2，所有攻击造成伤害 +2。","effects":[]},
+  {"buffId":890003,"name":"不倦狂暴","mainType":1,"subType":890003,"duration":2,"canStack":false,"stackRule":"refresh","desc":"保留给高阶野蛮人的狂暴相关扩展占位。","effects":[]},
   {"buffId":890004,"name":"护卫架势","mainType":1,"subType":890004,"duration":1,"canStack":false,"stackRule":"refresh","desc":"护卫窗口生效中，提供 AC 加成并准备护卫反击。","effects":[]},
   {"buffId":890005,"name":"猎人印记","mainType":2,"subType":890005,"duration":2,"canStack":false,"stackRule":"refresh","desc":"被游侠锁定的目标，会受到额外的追猎效果。","effects":[]},
   {"buffId":890006,"name":"圣域祷言","mainType":1,"subType":890006,"duration":3,"canStack":false,"stackRule":"refresh","desc":"圣域护持生效中，提供团队防护与减伤窗口。","effects":[]},
@@ -26,5 +26,6 @@
   {"buffId":890010,"name":"野外坚忍","mainType":1,"subType":890010,"duration":1,"canStack":false,"stackRule":"refresh","desc":"本回合首次受击前，减伤机会尚未消耗。","effects":[]},
   {"buffId":890011,"name":"神恩庇护","mainType":1,"subType":890011,"duration":99,"isPermanent":true,"canStack":false,"stackRule":"refresh","desc":"牧师常驻团队减伤庇护，每名友军每回合首次受击可获得减伤。","effects":[]},
   {"buffId":890012,"name":"神圣庇护","mainType":1,"subType":890012,"duration":99,"isPermanent":true,"canStack":false,"stackRule":"refresh","desc":"圣骑常驻团队减伤庇护，每名友军每回合首次受击可获得减伤。","effects":[]},
-  {"buffId":890013,"name":"重甲祷法","mainType":1,"subType":890013,"duration":99,"isPermanent":true,"canStack":false,"stackRule":"refresh","desc":"圣骑常驻防护，被动提供每回合首次受击减伤。","effects":[]}
+  {"buffId":890013,"name":"重甲祷法","mainType":1,"subType":890013,"duration":99,"isPermanent":true,"canStack":false,"stackRule":"refresh","desc":"圣骑常驻防护，被动提供每回合首次受击减伤。","effects":[]},
+  {"buffId":890014,"name":"重击破绽","mainType":2,"subType":880004,"value":2,"duration":1,"canStack":false,"stackRule":"refresh","desc":"自身 AC -2，持续到下回合开始前。","effects":[]}
 ]

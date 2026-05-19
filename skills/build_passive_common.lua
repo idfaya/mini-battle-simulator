@@ -284,13 +284,21 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
             basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
             basicAttackIsFollowUp = true,
         }
+        local suppressDefaultFollowUp = false
         if type(options.buildCastExtra) == "function" then
             local custom = options.buildCastExtra(hero, target, runtime, extraParam)
             if type(custom) == "table" then
                 for key, value in pairs(custom) do
-                    castExtra[key] = value
+                    if key == "suppressDefaultFollowUp" then
+                        suppressDefaultFollowUp = value == true
+                    else
+                        castExtra[key] = value
+                    end
                 end
             end
+        end
+        if suppressDefaultFollowUp then
+            return
         end
         local BattleSkill = require("modules.battle_skill")
         runtime[inProgressKey] = true
@@ -330,6 +338,18 @@ function BuildPassiveCommon.AppendPendingBasicAttackHitBonus(hero, value, label)
     runtime.pendingBasicAttackHitBonus = (tonumber(runtime.pendingBasicAttackHitBonus) or 0) + amount
     if type(label) == "string" and label ~= "" then
         runtime.pendingBasicAttackHitBonusLabel = label
+    end
+end
+
+function BuildPassiveCommon.SetPendingBasicAttackDamageMultiplier(hero, multiplier, label)
+    local amount = tonumber(multiplier) or 1
+    if amount <= 0 then
+        amount = 1
+    end
+    local runtime = ensureRuntime(hero)
+    runtime.pendingBasicAttackDamageMultiplier = amount
+    if type(label) == "string" and label ~= "" then
+        runtime.pendingBasicAttackDamageMultiplierLabel = label
     end
 end
 
@@ -409,6 +429,8 @@ function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
     runtime.pendingBasicAttackIgnoreAcLabel = nil
     runtime.pendingBasicAttackHitBonus = nil
     runtime.pendingBasicAttackHitBonusLabel = nil
+    runtime.pendingBasicAttackDamageMultiplier = nil
+    runtime.pendingBasicAttackDamageMultiplierLabel = nil
 end
 
 function BuildPassiveCommon.ResolveQueuedReactions(attacker)

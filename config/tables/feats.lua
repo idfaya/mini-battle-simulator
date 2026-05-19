@@ -569,8 +569,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.barbarian_rage,
         classId = 10,
         level = 1,
-        name = "狂怒",
-        description = "核心被动。每次主动攻击或受到攻击后积累 1 层狂怒，上限 5 层。",
+        name = "狂暴",
+        description = "核心被动。每次完成基础攻击或受到攻击时自动触发，不能叠层，持续到下回合结束；每场战斗只能触发一次。期间受到物理伤害 -2，所有攻击造成伤害 +2。",
         effects = {
             { type = "grant_skill", skill = 80010101 },
         },
@@ -580,7 +580,7 @@ local FEATS = {
         classId = 10,
         level = 3,
         name = "重击",
-        description = "获得重击，CD2，对当前目标发动一次强化近战攻击：命中 -2，伤害提高，且 19-20 暴击。",
+        description = "获得重击，CD2，对当前目标发动一次强化近战攻击：自身 AC -2，暴击范围翻倍，且力量加值翻倍。",
         effects = {
             { type = "grant_skill", skill = 80010013 },
         },
@@ -589,8 +589,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.barbarian_berserk,
         classId = 10,
         level = 5,
-        name = "狂暴",
-        description = "高阶被动。狂怒达到 5 层时自动触发短时狂暴，持续 2 回合；期间受到伤害减少 2，重击额外造成 1d6 伤害；每场战斗 1 次。",
+        name = "不倦狂暴",
+        description = "高阶被动。取消狂暴每场战斗只能触发一次的限制；其余触发条件、持续时间与增益效果保持不变。",
         effects = {
             { type = "grant_skill", skill = 80010103 },
         },
@@ -1128,11 +1128,10 @@ local FEATS = {
         classId = 5,
         level = 5,
         name = "箭雨",
-        description = "获得箭雨。对标记目标进行多段追猎：远程基础攻击追加第二击，若第一击命中印记目标则额外造成 1d6 伤害。",
+        description = "获得箭雨，CD4。作为独立主动技能连续发动 4 次标准远程武器攻击；每次随机选择 1 名敌人，若同一次箭雨内再次命中同一目标，则该次伤害依次减半。",
         choiceGroup = "ranger_lv5_capstone",
         effects = {
             { type = "grant_skill", skill = 80005109 },
-            { type = "grant_skill", skill = 80005108 },
         },
     },
     [FeatBuildConfig.Ids.ranger_shadow_mastery] = {

@@ -1118,6 +1118,15 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
+    SkillEffectRegistry.Register("ranger_arrow_rain", function(ctx, frameCopy)
+        local RangerBuildPassives = require("skills.ranger_build_passives")
+        local damage = RangerBuildPassives.PerformArrowRain(ctx.hero, ctx.skill)
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + damage,
+            targets = {},
+        }
+    end)
+
     SkillEffectRegistry.Register("barbarian_heavy_strike", function(ctx, frameCopy)
         local BarbarianBuildPassives = require("skills.barbarian_build_passives")
         local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
