@@ -315,11 +315,17 @@ end
 
 local HERO_LEVEL_MAX = 20
 local PROMOTION_STAGE_TO_LEVEL = {
-    -- promotion_stage only provides the minimum combat level fallback.
+    -- promotion_stage provides the minimum combat level fallback only.
     -- Real class_unit.level from Run exp growth must not be overwritten.
     low = 3,
     mid = 5,
     high = 7,
+}
+local PROMOTION_STAGE_TO_BUILD_LEVEL = {
+    -- Build unlocks follow stage, not combat level.
+    low = 1,
+    mid = 3,
+    high = 5,
 }
 local PROMOTION_STAGE_ORDER = {
     low = 1,
@@ -341,6 +347,10 @@ end
 
 local function getPromotionStageLevel(stage)
     return PROMOTION_STAGE_TO_LEVEL[normalizePromotionStage(stage)] or 1
+end
+
+local function getPromotionStageBuildLevel(stage)
+    return PROMOTION_STAGE_TO_BUILD_LEVEL[normalizePromotionStage(stage)] or 1
 end
 
 local function getCharacterGroup(classId)
@@ -1045,8 +1055,8 @@ function HeroData.GetCharacterGroup(classId)
 end
 
 function HeroData.GetCanonicalStageFeatIds(classId, promotionStage)
-    local level = getPromotionStageLevel(promotionStage)
-    return collectCanonicalFeatSelections(classId, level)
+    local buildLevel = getPromotionStageBuildLevel(promotionStage)
+    return collectCanonicalFeatSelections(classId, buildLevel)
 end
 
 function HeroData.GetClassCardSummaryKey(classId, promotionStage)
@@ -1062,13 +1072,14 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
     end
 
     local stage = normalizePromotionStage(promotionStage)
-    local level = math.floor(tonumber(explicitLevel) or getPromotionStageLevel(stage))
-    level = math.max(1, level)
+    local combatLevel = math.floor(tonumber(explicitLevel) or getPromotionStageLevel(stage))
+    combatLevel = math.max(1, combatLevel)
+    local buildLevel = getPromotionStageBuildLevel(stage)
     local abilityScores = buildPromotionAbilityScores(resolvedClassId, heroId, stage)
-    local selectedFeatIds = collectCanonicalFeatSelections(resolvedClassId, level)
+    local selectedFeatIds = collectCanonicalFeatSelections(resolvedClassId, buildLevel)
 
-    local buildState = HeroBuild.TryCompileBuild(resolvedClassId, level, selectedFeatIds)
-    local builtHero = HeroData.ConvertToHeroData(heroId, level, 1, {
+    local buildState = HeroBuild.TryCompileBuild(resolvedClassId, buildLevel, selectedFeatIds)
+    local builtHero = HeroData.ConvertToHeroData(heroId, combatLevel, 1, {
         abilityScores = abilityScores,
         buildState = buildState,
         buildFeatIds = selectedFeatIds,
@@ -1076,6 +1087,7 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
     if builtHero then
         builtHero.selectedFeatIds = cloneArray(selectedFeatIds)
         builtHero.promotionStage = stage
+        builtHero.buildLevel = buildLevel
     end
     return builtHero
 end

@@ -773,7 +773,7 @@ local FEATS = {
         classId = 3,
         level = 5,
         name = "明镜止水",
-        description = "获得明镜止水，CD3，恢复生命、清除控制或负面状态，并提供短时救场能力。",
+        description = "获得明镜止水，CD3，回复自身生命并清除 Frozen / STUN / SILENT；当前治疗沿用旧调息时间线，数值按 skill.level 为 1d8+3 / 2d8+3 / 2d8+6。",
         choiceGroup = "monk_lv3_subclass",
         effects = {
             { type = "grant_skill", skill = 80003015 },
@@ -884,7 +884,7 @@ local FEATS = {
         classId = 4,
         level = 1,
         name = "神圣庇护",
-        description = "核心被动。每回合第一次受到伤害时获得减伤；对邪恶单位攻击造成的伤害可作为后续特攻扩展。",
+        description = "核心被动。友军每回合第一次受到伤害时，提供 1d6 团队减伤；当前实现会按受击友军分别结算。",
         choiceGroup = "paladin_lv2_prayer",
         effects = {
             { type = "grant_skill", skill = 80004102 },
