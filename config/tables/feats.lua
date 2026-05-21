@@ -3,6 +3,8 @@
 ---| "modify_skill"
 ---| "replace_skill"
 
+---@alias BuildFeatTier "small"|"medium"|"high"
+
 ---@class BuildFeatEffect
 ---@field type BuildFeatEffectType
 ---@field skill integer|nil
@@ -18,6 +20,9 @@
 ---@field description string
 ---@field choiceGroup string|nil
 ---@field effects BuildFeatEffect[]
+---@field tier BuildFeatTier|nil
+---@field tags string[]|nil
+---@field isSubclassCore boolean|nil
 
 local FeatBuildConfig = {}
 
@@ -665,7 +670,7 @@ local FEATS = {
         level = 1,
         name = "反击",
         description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
-        choiceGroup = "fighter_lv4_passive",
+        -- Lv1 起手核心被动，与 rogue_sneak_attack / monk_martial_arts 同级；不挂 choiceGroup，避免与 Lv4 被动选择互斥。
         effects = {
             { type = "grant_skill", skill = 80002104 },
         },
@@ -907,7 +912,10 @@ local FEATS = {
         level = 5,
         name = "圣手",
         description = "获得圣手，CD3，为生命最低友军回复生命，清除 1 个控制或负面状态，并承担高阶救场定位。",
-        choiceGroup = "paladin_lv3_oath",
+        -- 与设计文档一致：Lv5 high-tier capstone，归入 paladin_lv5_capstone 组。
+        choiceGroup = "paladin_lv5_capstone",
+        tier = "high",
+        isSubclassCore = true,
         effects = {
             { type = "grant_skill", skill = 80004013 },
         },
@@ -1167,6 +1175,51 @@ for featId, feat in pairs(FEATS) do
     FEATS_BY_CLASS[classId][#FEATS_BY_CLASS[classId] + 1] = featId
 end
 
+-- ==========================================================================
+-- 规范化：根据 level 自动补齐 tier / tags / isSubclassCore（设计文档 §3.2）
+--   Lv2 → small（通用）
+--   Lv3 → medium，子职业核心（choiceGroup 非空，且 classId>0）
+--   Lv4 → medium（通用 mastery）
+--   Lv5 → high，子职业 capstone（classId>0）
+--   classId=0 的通用 feat 则 isSubclassCore 一律 false
+-- 仅写入未显式标注的字段，保留手工配置的优先级。
+-- ==========================================================================
+local function isSubclassChoiceGroup(group)
+    if type(group) ~= "string" or group == "" then
+        return false
+    end
+    -- Lv3 子职业分支统一通过 choiceGroup 标记（subclass / oath / domain / prayer / active 等）。
+    return group:find("_lv3_", 1, true) ~= nil
+end
+
+for _, feat in pairs(FEATS) do
+    local level = tonumber(feat.level) or 0
+    local classId = tonumber(feat.classId) or 0
+    if feat.tier == nil then
+        if level == 2 then
+            feat.tier = "small"
+        elseif level == 3 then
+            feat.tier = "medium"
+        elseif level == 4 then
+            feat.tier = "medium"
+        elseif level == 5 then
+            feat.tier = "high"
+        end
+    end
+    if feat.isSubclassCore == nil then
+        if classId > 0 and level == 3 and isSubclassChoiceGroup(feat.choiceGroup) then
+            feat.isSubclassCore = true
+        elseif classId > 0 and level == 5 then
+            feat.isSubclassCore = true
+        else
+            feat.isSubclassCore = false
+        end
+    end
+    if feat.tags == nil then
+        feat.tags = {}
+    end
+end
+
 local function sortById(list)
     table.sort(list, function(a, b)
         return (tonumber(a and a.id) or 0) < (tonumber(b and b.id) or 0)
@@ -1204,6 +1257,41 @@ function FeatBuildConfig.GetFeatsByLevel(classId, level, choiceGroup)
         end
     end
     return result
+end
+
+---@param classId integer
+---@param level integer
+---@param tier BuildFeatTier
+---@return integer[]
+function FeatBuildConfig.GetFeatsByTier(classId, level, tier)
+    local result = {}
+    local target = tostring(tier or "")
+    for _, feat in ipairs(FeatBuildConfig.GetFeatsByClass(classId)) do
+        if feat.level == level and feat.tier == target then
+            result[#result + 1] = feat.id
+        end
+    end
+    return result
+end
+
+---@param classId integer
+---@param level integer
+---@return integer[]
+function FeatBuildConfig.GetSubclassCoreFeats(classId, level)
+    local result = {}
+    for _, feat in ipairs(FeatBuildConfig.GetFeatsByClass(classId)) do
+        if feat.level == level and feat.isSubclassCore == true then
+            result[#result + 1] = feat.id
+        end
+    end
+    return result
+end
+
+---@param featId integer
+---@return BuildFeatTier|nil
+function FeatBuildConfig.GetFeatTier(featId)
+    local feat = FeatBuildConfig.GetFeat(featId)
+    return feat and feat.tier or nil
 end
 
 return FeatBuildConfig

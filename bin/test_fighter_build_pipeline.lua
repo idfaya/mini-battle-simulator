@@ -17,35 +17,14 @@ end
 local FeatBuildConfig = require("config.tables.feats")
 local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
-local RoguelikeReward = require("roguelike.roguelike_reward")
+local FeatPicker = require("roguelike.feat_picker")
+local HeroData = require("config.hero_data")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
         if tonumber(entry.id or entry.skillId) == tonumber(skillId) then
-            return true
-        end
-    end
-    return false
-end
-
-local function hasRewardFeat(options, featIds)
-    local expected = {}
-    for _, featId in ipairs(featIds or {}) do
-        expected[tonumber(featId) or 0] = true
-    end
-    for _, option in ipairs(options or {}) do
-        if expected[tonumber(option.featId) or 0] then
-            return true
-        end
-    end
-    return false
-end
-
-local function hasRewardClass(options, classId)
-    for _, option in ipairs(options or {}) do
-        if tonumber(option.classId) == tonumber(classId) then
             return true
         end
     end
@@ -82,45 +61,63 @@ do
 end
 
 do
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
-        levelCap = 20,
-        teamRoster = {
-            {
-                rosterId = 1,
-                heroId = 900005,
-                classId = 2,
-                name = "Fighter",
-                level = 2,
-                currentHp = 100,
-                isDead = false,
-                feats = ClassBuildProgression.CollectFixedFeatIds(2, 2),
-            },
-        },
+    -- 阶段 3：FeatPicker 升级三选一应能为 Lv2 fighter 暴露 fighter 候选 feat
+    -- 设计：character_progression_design.md §3
+    local LEVEL_EXP_THRESHOLDS = {
+        [1] = 0, [2] = 8, [3] = 20, [4] = 36, [5] = 58, [6] = 86,
+        [7] = 120, [8] = 160, [9] = 208, [10] = 264,
+    }
+    local fighter = HeroData.CreateClassUnit(2, {
+        rosterId = 1,
+        unitId = "fbp_fighter_lv2",
+        promotionStage = "low",
+        level = 2,
+        teamState = "active",
+        source = "fighter_build_pipeline_test",
     })
-    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter fixed node")
-    assert_true(hasRewardClass(rewardState.options, 2),
-        "Roguelike level-up includes fighter class card")
+    -- 重置 feats（CreateClassUnit 默认填充 canonical feats，会让 Lv3 候选差集为空）
+    fighter.feats = {}
+    if fighter.buildState then
+        fighter.buildState.featIds = {}
+    end
+    local mockState = {
+        ownedUnits = { fighter },
+        teamRoster = { fighter },
+        benchRoster = {},
+        partyLevel = 2,
+        partyExp = 20,  -- 跨过 Lv3 阈值
+        levelCap = 10,
+    }
+    local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "Lv2 fighter should get a feat-pick session at partyExp=20")
+    local hasFighterOption = false
+    for _, opt in ipairs(session.options or {}) do
+        if tonumber(opt.classId) == 2 and tonumber(opt.rosterId) == 1 then
+            hasFighterOption = true
+            break
+        end
+    end
+    assert_true(hasFighterOption, "feat-pick session should expose at least 1 fighter option")
 end
 
 do
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
-        levelCap = 20,
-        teamRoster = {
-            {
-                rosterId = 1,
-                heroId = 900005,
-                classId = 2,
-                name = "Fighter",
-                level = 4,
-                currentHp = 100,
-                isDead = false,
-                feats = ClassBuildProgression.CollectFixedFeatIds(2, 4),
-            },
-        },
-    })
-    assert_true(rewardState ~= nil, "Roguelike level-up state exists for fighter high-tier fixed node")
-    assert_true(hasRewardClass(rewardState.options, 2),
-        "Roguelike level-up includes fighter high-tier class card")
+    -- 阶段 3：手动给 fighter 加 Lv4 feat → CompileBuild 应正确解析为 build pipeline
+    local fighterLv4Feats = FeatBuildConfig.GetFeatsByLevel(2, 4) or {}
+    assert_true(#fighterLv4Feats > 0, "fixture sanity: fighter Lv4 should have feats")
+    local extraFeatId = tonumber(fighterLv4Feats[1].id) or 0
+    assert_true(extraFeatId > 0, "fixture sanity: fighter Lv4 feat should have valid id")
+    -- 拿 Lv3 build 作为基础（包含 Lv1+Lv3 fixed feats），再追加 Lv4 选中 feat
+    local build = HeroBuild.CompileBuild(2, 4, { extraFeatId })
+    local seenExtra = false
+    for _, fid in ipairs(build.featIds or {}) do
+        if tonumber(fid) == extraFeatId then
+            seenExtra = true
+            break
+        end
+    end
+    assert_true(seenExtra, "manually-added Lv4 feat should appear in compiled BuildState.featIds")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack),
+        "Fighter Lv4 build still has basic attack")
 end
 
 do

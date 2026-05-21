@@ -6,26 +6,11 @@ local ClassBuildProgression = require("config.tables.classes")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeSnapshot = {}
-local LEVEL_EXP_THRESHOLDS = {
-    [1] = 0,
-    [2] = 8,
-    [3] = 20,
-    [4] = 36,
-    [5] = 58,
-    [6] = 86,
-    [7] = 120,
-    [8] = 160,
-    [9] = 208,
-    [10] = 264,
-}
+-- 注：等级曲线统一来自 config.roguelike.level_curve；本文件不再维护本地阈值表。
 
 local function getNextLevelExp(hero)
-    local level = math.max(1, tonumber(hero and hero.level) or 1)
-    if level >= 10 then
-        return 0
-    end
-    local exp = math.max(0, tonumber(hero and hero.exp) or 0)
-    return math.max(0, (LEVEL_EXP_THRESHOLDS[level + 1] or 0) - exp)
+    -- 个人下一级 EXP 已不再有意义（队伍共享 partyExp），保留 0 占位以兼容旧客户端字段。
+    return 0
 end
 
 local function shallowCopyArray(input)
@@ -75,7 +60,6 @@ local function serializeTeam(roster)
             className = hero.className,
             characterGroup = hero.characterGroup,
             level = hero.level,
-            exp = hero.exp or 0,
             nextLevelExp = getNextLevelExp(hero),
             star = hero.star,
             hp = hero.currentHp,
@@ -83,7 +67,6 @@ local function serializeTeam(roster)
             isDead = hero.isDead == true,
             teamState = hero.teamState,
             promotionStage = hero.promotionStage,
-            promotionPendingTarget = hero.promotionPendingTarget,
             skillPackageId = hero.skillPackageId,
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,

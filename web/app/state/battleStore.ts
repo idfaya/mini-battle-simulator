@@ -215,6 +215,30 @@ export class BattleStore {
           appendLog("战斗开始");
           break;
         case "combat_log":
+          // #region debug-point D:store-combat-log
+          if (
+            typeof event.payload.message === "string" &&
+            (event.payload.message.includes("庇护") ||
+              event.payload.message.includes("神恩") ||
+              event.payload.message.includes("伤害"))
+          ) {
+            fetch("http://127.0.0.1:7777/event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sessionId: "cleric-shelter-damage",
+                runId: "pre-fix",
+                hypothesisId: "D",
+                location: "web/app/state/battleStore.ts:combat_log",
+                msg: "[DEBUG] battleStore received combat_log",
+                data: {
+                  message: event.payload.message,
+                },
+                ts: Date.now(),
+              }),
+            }).catch(() => {});
+          }
+          // #endregion
           if (typeof event.payload.message === "string" && event.payload.message !== "") {
             appendLog(event.payload.message);
           }
@@ -238,6 +262,31 @@ export class BattleStore {
           );
           break;
         case "damage_dealt":
+          // #region debug-point A:store-damage
+          fetch("http://127.0.0.1:7777/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: "cleric-shelter-damage",
+              runId: "pre-fix",
+              hypothesisId: "A",
+              location: "web/app/state/battleStore.ts:damage_dealt",
+              msg: "[DEBUG] battleStore received damage_dealt",
+              data: {
+                attackerId: event.payload.attackerId ?? null,
+                attackerName: event.payload.attackerName ?? null,
+                targetId: event.payload.targetId ?? null,
+                targetName: event.payload.targetName ?? null,
+                skillId: event.payload.skillId ?? null,
+                skillName: event.payload.skillName ?? null,
+                damage: event.payload.damage ?? null,
+                isCrit: event.payload.isCrit ?? null,
+                isBasicAttack: event.payload.isBasicAttack ?? null,
+              },
+              ts: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
           this.markCastResult(event.payload.attackerId);
           appendLog(
             `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
@@ -364,6 +413,27 @@ export class BattleStore {
           break;
         }
         case "passive_skill_triggered": {
+          // #region debug-point C:store-passive
+          fetch("http://127.0.0.1:7777/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: "cleric-shelter-damage",
+              runId: "pre-fix",
+              hypothesisId: "C",
+              location: "web/app/state/battleStore.ts:passive_skill_triggered",
+              msg: "[DEBUG] battleStore received passive_skill_triggered",
+              data: {
+                heroId: event.payload.heroId ?? null,
+                heroName: event.payload.heroName ?? null,
+                skillName: event.payload.skillName ?? null,
+                triggerType: event.payload.triggerType ?? null,
+                extraInfo: event.payload.extraInfo ?? null,
+              },
+              ts: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
           const heroName = String(event.payload.heroName ?? "");
           const skillName = String(event.payload.skillName ?? "");
           const triggerType = String(event.payload.triggerType ?? "");

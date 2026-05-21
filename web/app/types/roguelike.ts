@@ -56,7 +56,6 @@ export type RunTeamMember = {
   maxHp: number;
   isDead: boolean;
   teamState?: "active" | "bench" | "dead";
-  promotionStage?: "low" | "mid" | "high";
   skillPackageId?: string;
   buildSummary?: string[];
 };
@@ -77,32 +76,43 @@ export type BlessingState = {
 };
 
 export type RewardOption = {
-  rewardType: "gold" | "equipment" | "blessing" | "recruit" | "levelup";
+  rewardType: "gold" | "equipment" | "blessing" | "recruit";
   refId?: number;
   value?: number;
   label: string;
   description: string;
   resultType?: "new_class_unit" | "class_promotion";
   teamState?: "active" | "bench" | "dead";
-  promotionStageBefore?: "low" | "mid" | "high";
-  promotionStageAfter?: "low" | "mid" | "high";
   summaryKey?: string;
-  // Level-up composite card (battle_levelup)
-  rosterId?: number;
-  heroName?: string;
-  classId?: number;
-  nextLevel?: number;
-  featId?: number;
-  featName?: string;
-  featCode?: string;
-  featTags?: string[];
 };
 
-export type RewardState = {
-  groupId: number;
-  kind: string;
-  options: RewardOption[];
+// 队伍升级三选一选项（kind="feat_levelup"），来自 roguelike/feat_picker.lua。
+export type FeatOption = {
+  featId: number;
+  heroId: number;
+  rosterId?: number;
+  heroName: string;
+  classId: number;
+  level: number;
+  tier: "small" | "medium" | "high";
+  isSubclassCore: boolean;
+  featName?: string;
+  featDescription?: string;
+  choiceGroup?: string | null;
 };
+
+export type RewardState =
+  | {
+      groupId: number;
+      kind: "feat_levelup";
+      options: FeatOption[];
+      pendingLevels: number;
+    }
+  | {
+      groupId: number;
+      kind: string;
+      options: RewardOption[];
+    };
 
 export type BattleLevelUpStatChange = {
   key: string;
@@ -132,8 +142,6 @@ export type BattleLevelUpSummary = {
   classId: number;
   levelBefore: number;
   levelAfter: number;
-  promotionStageBefore?: "low" | "mid" | "high";
-  promotionStageAfter?: "low" | "mid" | "high";
   statChanges: BattleLevelUpStatChange[];
   gainedFeats: BattleLevelUpFeatGain[];
   gainedSkillCards?: BattleLevelUpSkillCard[];

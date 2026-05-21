@@ -57,9 +57,11 @@ RunEnemyPickPool.POOLS = {
     },
     [701006] = {
         id = 701006,
+        -- 阶段 1 修复：910006(IceDemon CR3) 是 boss 级敌人，让它出现在早期 elite
+        -- back pool 会让 economy-heavy 路线（partyLevel≈4）必然 wipe；移除它，
+        -- 用 910005(DarkMage CR1) 单独承担 elite 后排施法压力。
         entries = {
-            { enemyId = 910005, weight = 55 },
-            { enemyId = 910006, weight = 45 },
+            { enemyId = 910005, weight = 100 },
         },
     },
     [701007] = {

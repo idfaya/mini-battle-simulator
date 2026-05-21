@@ -1109,13 +1109,6 @@ function HeroData.CreateClassUnit(classId, options)
     currentHp = math.max(0, math.min(heroData.maxHp or currentHp, currentHp))
     local teamState = tostring(options and options.teamState or "active")
     local isDead = (options and options.isDead) == true or currentHp <= 0 or teamState == "dead"
-    local promotionPendingTarget = options and options.promotionPendingTarget or nil
-    if promotionPendingTarget ~= nil then
-        promotionPendingTarget = normalizePromotionStage(promotionPendingTarget)
-        if promotionPendingTarget ~= "mid" and promotionPendingTarget ~= "high" then
-            promotionPendingTarget = nil
-        end
-    end
     if isDead then
         teamState = "dead"
         currentHp = 0
@@ -1130,11 +1123,9 @@ function HeroData.CreateClassUnit(classId, options)
         className = ClassRoleConfig.GetName(resolvedClassId),
         characterGroup = getCharacterGroup(resolvedClassId),
         level = heroData.level,
-        exp = tonumber(options and options.exp) or 0,
         star = 1,
         teamState = teamState,
         promotionStage = heroData.promotionStage or normalizePromotionStage(options and options.promotionStage or "low"),
-        promotionPendingTarget = promotionPendingTarget,
         battleSlot = options and options.battleSlot or "none",
         recommendedSlot = ClassRoleConfig.PreferFrontRow(resolvedClassId) and "front" or "back",
         skillPackageId = HeroData.GetClassCardSummaryKey(resolvedClassId, heroData.promotionStage or "low"),
@@ -1182,10 +1173,6 @@ function HeroData.RefreshClassUnit(classUnit, updates)
     if currentHp == nil then
         currentHp = classUnit.currentHp
     end
-    local exp = patch.exp
-    if exp == nil then
-        exp = classUnit.exp
-    end
     local ultimateCharges = patch.ultimateCharges
     if ultimateCharges == nil then
         ultimateCharges = classUnit.ultimateCharges
@@ -1193,12 +1180,6 @@ function HeroData.RefreshClassUnit(classUnit, updates)
     local ultimateChargesMax = patch.ultimateChargesMax
     if ultimateChargesMax == nil then
         ultimateChargesMax = classUnit.ultimateChargesMax
-    end
-    local promotionPendingTarget = classUnit.promotionPendingTarget
-    if patch.clearPromotionPendingTarget == true then
-        promotionPendingTarget = nil
-    elseif patch.promotionPendingTarget ~= nil then
-        promotionPendingTarget = patch.promotionPendingTarget
     end
     local rebuilt = HeroData.CreateClassUnit(classUnit.classId, {
         rosterId = classUnit.rosterId,
@@ -1208,10 +1189,8 @@ function HeroData.RefreshClassUnit(classUnit, updates)
         teamState = patch.teamState or classUnit.teamState,
         currentHp = currentHp,
         isDead = patch.isDead,
-        exp = exp,
         battleSlot = patch.battleSlot or classUnit.battleSlot,
         source = patch.source or classUnit.source,
-        promotionPendingTarget = promotionPendingTarget,
         ultimateCharges = ultimateCharges,
         ultimateChargesMax = ultimateChargesMax,
         skillCooldowns = patch.skillCooldowns or classUnit.skillCooldowns,

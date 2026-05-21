@@ -148,6 +148,10 @@ export class LuaBattleHost {
   }
 
   async chooseReward(index: number): Promise<RunActionResponse> {
+    // 当 rewardState.kind === "feat_levelup" 时，会路由到
+    // roguelike/feat_picker.lua 的 FeatPicker.Pick(state, index)；其它 reward
+    // kind 走 RoguelikeReward.ApplyReward。两条路径在 Lua 侧统一由
+    // RoguelikeRun.ChooseReward 分发。
     return this.callApi<RunActionResponse>("choose_reward", { index });
   }
 

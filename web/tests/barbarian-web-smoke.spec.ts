@@ -38,11 +38,11 @@ test("barbarian smoke shows rage, heavy strike and berserk pipeline", async ({ p
     .toContain("重击");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("狂怒");
+    .toContain("狂暴");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("重击"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("触发被动 狂怒"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("触发被动 狂暴"))).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

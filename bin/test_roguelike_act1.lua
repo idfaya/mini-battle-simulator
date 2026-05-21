@@ -109,7 +109,9 @@ end
 local function acceptRewardIfPresent()
     local current = Run.GetSnapshot()
     local guard = 0
-    while current.phase == "reward" and guard < 4 do
+    -- 队伍升级三选一改造后，pendingPicks = sum(partyLevel - hero.level)，
+    -- 4 名英雄 + partyLevel 跨 2 级时单次链可达 8 次连续 reward；放宽到 32 留余量。
+    while current.phase == "reward" and guard < 32 do
         local rewardIndex = chooseRewardIndex(current)
         assert(Run.ChooseReward(rewardIndex) == true, "reward selection should succeed")
         current = autoPromoteBench()
@@ -143,6 +145,26 @@ function chooseRewardIndex(snapshot)
                     bestIndex = index
                     bestQuality = quality
                 end
+            end
+        end
+        if bestIndex then
+            return bestIndex
+        end
+    end
+
+    -- 升级三选一：优先选当前等级最低的英雄，让全队等级尽量均衡，避免敌人按 partyLevel 缩放后某些英雄拖后腿。
+    if reward.kind == "feat_levelup" then
+        local levelByRoster = {}
+        for _, hero in ipairs(snapshot.team or {}) do
+            levelByRoster[tonumber(hero.rosterId) or 0] = tonumber(hero.level) or 1
+        end
+        local bestIndex, bestLevel
+        for index, option in ipairs(reward.options) do
+            local rosterId = tonumber(option.rosterId) or 0
+            local lv = levelByRoster[rosterId] or 99
+            if not bestLevel or lv < bestLevel then
+                bestLevel = lv
+                bestIndex = index
             end
         end
         if bestIndex then
@@ -397,6 +419,21 @@ while guard < 24 do
 
     if snapshot.phase == "chapter_result" then
         break
+    end
+    if snapshot.phase == "failed" then
+        local function teamSummary(team)
+            local total, alive, lvSum = 0, 0, 0
+            for _, u in ipairs(team or {}) do
+                total = total + 1
+                lvSum = lvSum + (tonumber(u.level) or 1)
+                if not u.isDead and (u.hp or 0) > 0 then alive = alive + 1 end
+            end
+            return total, alive, lvSum
+        end
+        local total, alive, lvSum = teamSummary(snapshot.team)
+        print(string.format("[DIAG] phase=failed partyLevel=%s partyExp=%s team=%d alive=%d lvSum=%d battlesBefore=%s",
+            tostring(snapshot.partyLevel), tostring(snapshot.partyExp), total, alive, lvSum,
+            tostring(snapshot.debug and snapshot.debug.battlesResolved)))
     end
     assert(snapshot.phase ~= "failed", "run should not fail during act1 regression")
 

@@ -35,6 +35,8 @@
 ---@field slot RunEquipmentSlot
 ---@field effectType RunEquipmentEffectType
 ---@field params RunEquipmentParams
+---@field tags string[]                       构筑标签：用于 build_constraints 过滤、UI 分类（如 "weapon_martial"、"armor_heavy"）
+---@field mutuallyExclusiveGroup string|nil   互斥组：同 group 的装备同英雄只能存在 1 件（如 "weapon"、"armor"、"shield"）
 
 ---@class RunEquipmentConfigModule
 ---@field EQUIPMENTS table<integer, RunEquipmentEntry>
@@ -46,6 +48,8 @@ local RunEquipmentConfig = {}
 -- 5e standard equipment set for roguelike run.
 -- Equipment config is expressed in 5e-like semantics:
 -- hitDelta / acDelta / saveDelta / spellDCDelta / weaponDamageBonus.
+-- 设计文档：design/character_progression_design.md §4 装备/祝福约束。
+-- tags 与 mutuallyExclusiveGroup 由 roguelike/build_constraints.lua 在入库点统一过滤。
 
 ---@type table<integer, RunEquipmentEntry>
 RunEquipmentConfig.EQUIPMENTS = {
@@ -61,6 +65,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             acDelta = 1,
             saveDelta = 1,
         },
+        tags = { "accessory", "save_buff", "ac_buff" },
+        mutuallyExclusiveGroup = "accessory_cloak",
     },
     [101002] = {
         id = 101002,
@@ -74,6 +80,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             hitDelta = 1,
             weaponDamageBonus = 1,
         },
+        tags = { "weapon_martial", "weapon_melee" },
+        mutuallyExclusiveGroup = "weapon",
     },
     [101003] = {
         id = 101003,
@@ -86,6 +94,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             classIds = { 2, 4 },
             acDelta = 1,
         },
+        tags = { "armor_heavy" },
+        mutuallyExclusiveGroup = "armor",
     },
     [101004] = {
         id = 101004,
@@ -98,6 +108,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             classIds = { 2, 4, 6 },
             acDelta = 1,
         },
+        tags = { "shield" },
+        mutuallyExclusiveGroup = "shield",
     },
     [101005] = {
         id = 101005,
@@ -111,6 +123,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             hitDelta = 1,
             weaponDamageBonus = 1,
         },
+        tags = { "weapon_martial", "weapon_ranged" },
+        mutuallyExclusiveGroup = "weapon",
     },
     [101006] = {
         id = 101006,
@@ -123,6 +137,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             classIds = { 7, 8, 9 },
             spellDCDelta = 1,
         },
+        tags = { "focus_arcane", "spell_dc_buff" },
+        mutuallyExclusiveGroup = "focus",
     },
     [101007] = {
         id = 101007,
@@ -135,6 +151,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             classIds = { 9 },
             spellDCDelta = 1,
         },
+        tags = { "focus_arcane", "spell_dc_buff", "boss_drop" },
+        mutuallyExclusiveGroup = "focus",
     },
     [101008] = {
         id = 101008,
@@ -147,6 +165,8 @@ RunEquipmentConfig.EQUIPMENTS = {
             classIds = { 4, 6 },
             spellDCDelta = 1,
         },
+        tags = { "focus_divine", "spell_dc_buff", "boss_drop" },
+        mutuallyExclusiveGroup = "focus",
     },
 }
 

@@ -36,6 +36,8 @@
 ---@field scope RunBlessingScope
 ---@field effectType RunBlessingEffectType
 ---@field params RunBlessingParams
+---@field tags string[]                       构筑标签：用于 build_constraints 过滤、UI 分类（如 "team_buff"、"class_offense"）
+---@field mutuallyExclusiveGroup string|nil   互斥组：同 group 的祝福同一 run 只能存在 1 件（如 "team_save_buff"、"class_ac_buff"）
 
 ---@class RunBlessingConfigModule
 ---@field BLESSINGS table<integer, RunBlessingEntry>
@@ -43,6 +45,9 @@
 
 ---@type RunBlessingConfigModule
 local RunBlessingConfig = {}
+
+-- 设计文档：design/character_progression_design.md §4 装备/祝福约束。
+-- tags 与 mutuallyExclusiveGroup 由 roguelike/build_constraints.lua 在入库点统一过滤。
 
 ---@type table<integer, RunBlessingEntry>
 RunBlessingConfig.BLESSINGS = {
@@ -59,6 +64,8 @@ RunBlessingConfig.BLESSINGS = {
             hitDelta = 1,
             saveDelta = 1,
         },
+        tags = { "team_buff", "round_buff", "hit_buff", "save_buff" },
+        mutuallyExclusiveGroup = "team_round_opening_buff",
     },
     [101002] = {
         id = 101002,
@@ -71,6 +78,8 @@ RunBlessingConfig.BLESSINGS = {
         params = {
             tempHp = 5,
         },
+        tags = { "team_buff", "battle_start", "temp_hp" },
+        mutuallyExclusiveGroup = "team_temp_hp",
     },
     [101003] = {
         id = 101003,
@@ -84,6 +93,8 @@ RunBlessingConfig.BLESSINGS = {
             classIds = { 4, 6 },
             healingBonus = 2,
         },
+        tags = { "class_buff", "healing_bonus" },
+        mutuallyExclusiveGroup = "class_healing_buff",
     },
     [101004] = {
         id = 101004,
@@ -97,6 +108,8 @@ RunBlessingConfig.BLESSINGS = {
             classIds = { 2, 3, 4, 10 },
             acDelta = 1,
         },
+        tags = { "class_buff", "ac_buff", "physical_classes" },
+        mutuallyExclusiveGroup = "class_ac_buff",
     },
     [101005] = {
         id = 101005,
@@ -110,6 +123,8 @@ RunBlessingConfig.BLESSINGS = {
             classIds = { 2, 3, 4, 10 },
             damageReduce = 2,
         },
+        tags = { "class_buff", "damage_reduce", "physical_classes" },
+        mutuallyExclusiveGroup = "class_damage_reduce",
     },
     [101006] = {
         id = 101006,
@@ -124,6 +139,41 @@ RunBlessingConfig.BLESSINGS = {
             saveDelta = 1,
             spellDamageReduce = 2,
         },
+        tags = { "team_buff", "save_buff", "spell_dr", "boss_drop" },
+        mutuallyExclusiveGroup = "team_spell_protection",
+    },
+    -- 扩展两件，使总池 > BLESSING_TOTAL_LIMIT(6)，玩家在刷新时仍有真选择空间。
+    -- 数值严格遵守 5e 平衡：命中加成 ≤ +2、伤害加成 ≤ +2。
+    [101007] = {
+        id = 101007,
+        code = "guidance",
+        name = "指引",
+        description = "前 3 回合：施法系职业（牧师 / 术士 / 法师 / 邪术师）命中 +1。",
+        rarity = "common",
+        scope = "class",
+        effectType = "battle_rounds_hit_and_save",
+        params = {
+            classIds = { 6, 7, 8, 9 },
+            rounds = 3,
+            hitDelta = 1,
+        },
+        tags = { "class_buff", "round_buff", "hit_buff", "caster_classes" },
+        mutuallyExclusiveGroup = "caster_round_buff",
+    },
+    [101008] = {
+        id = 101008,
+        code = "warding_bond",
+        name = "守护契约",
+        description = "盗贼、游侠、武僧 AC +1。",
+        rarity = "rare",
+        scope = "class",
+        effectType = "class_ac",
+        params = {
+            classIds = { 1, 3, 5 },
+            acDelta = 1,
+        },
+        tags = { "class_buff", "ac_buff", "agile_classes" },
+        mutuallyExclusiveGroup = "agile_ac_buff",
     },
 }
 

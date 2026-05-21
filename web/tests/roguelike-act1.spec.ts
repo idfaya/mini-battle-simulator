@@ -96,6 +96,10 @@ async function chooseRewardIndex(page: import("playwright/test").Page) {
     if (!reward?.options?.length) {
       return 0;
     }
+    // 队伍升级三选一：暂时选第一个 option（后续可按英雄优先级/tier 加权）
+    if (reward.kind === "feat_levelup") {
+      return 0;
+    }
     if (reward.kind === "node_recruit") {
       const existing = new Set<number>();
       for (const hero of snapshot?.team ?? []) {
@@ -348,7 +352,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       continue;
     }
     if (phase === "reward") {
-      await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+      await resolveRewardChain(/队伍升级|选择职业卡|选择升级|选择奖励|选择招募/);
       continue;
     }
     if (phase === "camp") {
@@ -383,13 +387,13 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
     if ((await getRunPhase(page)) !== "reward") {
       break;
     }
-    await resolveRewardChain(/选择职业卡|选择升级|选择奖励|选择招募/);
+    await resolveRewardChain(/队伍升级|选择职业卡|选择升级|选择奖励|选择招募/);
   }
   await expect
     .poll(async () => getRunPhase(page), { timeout: 20000 })
     .toMatch(/reward|chapter_result|failed/);
   await page.getByRole("button", { name: "信息" }).click();
-  await expect(page.locator(".run-info-panel .panel-title")).toContainText(/第一章|节点|信息|奖励/);
+  await expect(page.locator(".run-info-panel .panel-title")).toContainText(/第一章|节点|信息|奖励|队伍升级/);
 
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);

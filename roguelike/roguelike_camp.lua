@@ -1,5 +1,6 @@
 local RunCampConfig = require("config.roguelike.run_camp_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
+local BuildConstraints = require("roguelike.build_constraints")
 
 local RoguelikeCamp = {}
 
@@ -150,8 +151,11 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
         return true
     end
     if selected.effectType == "grant_blessing" then
-        runState.blessingIds = runState.blessingIds or {}
-        runState.blessingIds[#runState.blessingIds + 1] = (selected.params or {}).blessingId
+        local blessingId = (selected.params or {}).blessingId
+        local ok, reason = BuildConstraints.AddBlessing(runState, blessingId)
+        if not ok then
+            return false, reason
+        end
         runState.lastActionMessage = "营地强化"
         return true
     end

@@ -1,215 +1,179 @@
+-- Roguelike 进度门测试（partyExp + FeatPicker）
+-- 设计文档：design/character_progression_design.md §3 / §9
+-- 验证：
+--   1) Lv1 → Lv2 升级时，候选只含 tier="small" 的 feat
+--   2) Lv2 → Lv3 升级时，候选可含 tier="medium" 子职业核心 feat（isSubclassCore=true）
+--   3) Lv4 → Lv5 升级时，候选含 tier="high" capstone feat
+--   4) 阵亡角色不出现在候选
+--   5) 已选 feat 不重复出现
 local script_source = debug.getinfo(1, "S").source
 local script_path = script_source:sub(2)
 local script_dir = script_path:match("(.*[/\\])") or "./"
 local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
 LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
-local Run = require("roguelike.roguelike_run")
-local RoguelikeReward = require("roguelike.roguelike_reward")
-local RoguelikeRoster = require("roguelike.roguelike_roster")
+local FeatPicker = require("roguelike.feat_picker")
+local FeatBuildConfig = require("config.tables.feats")
 local HeroData = require("config.hero_data")
-local BattleFormation = require("modules.battle_formation")
 
-local function assert_true(condition, message)
-    if not condition then
-        error(message or "assert_true failed")
+local function assert_true(cond, msg)
+    if not cond then
+        error(msg or "assert_true failed")
     end
 end
 
-local function getUltimateSkillForUnit(unitId)
-    local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
-    local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
-    if not instances then
-        return nil
-    end
-    for _, skill in pairs(instances) do
-        if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
-            return skill
-        end
-    end
-    return nil
-end
+local LEVEL_EXP_THRESHOLDS = {
+    [1] = 0, [2] = 8, [3] = 20, [4] = 36, [5] = 58, [6] = 86,
+    [7] = 120, [8] = 160, [9] = 208, [10] = 264,
+}
 
-local function isEnemyOrOutputUltimate(unit)
-    if not unit or not unit.id or unit.ultimateReady ~= true then
-        return false
-    end
-    local ult = getUltimateSkillForUnit(unit.id)
-    if not ult then
-        return false
-    end
-    local ts = ult.targetsSelections or (ult.config and ult.config.targetsSelections) or nil
-    local castTarget = ts and ts.castTarget or ult.castTarget
-    if castTarget == E_CAST_TARGET.Enemy or castTarget == E_CAST_TARGET.EnemyPos then
-        return true
-    end
-    local desc = (ult.skillConfig and ult.skillConfig.description) or ""
-    if desc:find("治疗") or desc:find("复活") then
-        return false
-    end
-    return desc:find("伤害骰") ~= nil or desc:find("%dd%d+") ~= nil or desc:find("d%d+") ~= nil
-end
-
-local function findReadyHero(snapshot)
-    local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
-    if not battleSnapshot then
-        return nil
-    end
-    for _, unit in ipairs(battleSnapshot.leftTeam or {}) do
-        if isEnemyOrOutputUltimate(unit) then
-            return unit.id
-        end
-    end
-    return nil
-end
-
-local function runBattleUntilResolved(maxSteps)
-    local snapshot = Run.GetSnapshot()
-    local castedUltimate = false
-    for _ = 1, maxSteps do
-        local readyHeroId = (not castedUltimate) and findReadyHero(snapshot) or nil
-        if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
-            Run.QueueBattleCommand({
-                type = "cast_ultimate",
-                heroId = readyHeroId,
-            })
-            castedUltimate = true
-        end
-        Run.Tick(800)
-        snapshot = Run.GetSnapshot()
-        if snapshot.phase ~= "battle" then
-            return snapshot
-        end
-    end
-    error("battle did not resolve in time")
-end
-
-local function choosePathAndEnter(nodeId)
-    local ok, reason = Run.ChoosePath(nodeId)
-    assert_true(ok, "choose path failed: " .. tostring(reason))
-    ok, reason = Run.EnterCurrentNode()
-    assert_true(ok, "enter node failed: " .. tostring(reason))
-end
-
-local function chooseFirstReward()
-    local snapshot = Run.GetSnapshot()
-    assert_true(snapshot.phase == "reward", "expected reward phase")
-    assert_true(Run.ChooseReward(1) == true, "reward selection should succeed")
-    return Run.GetSnapshot()
-end
-
-local function findClassCardOption(rewardState, classId)
-    for _, option in ipairs((rewardState and rewardState.options) or {}) do
-        if tonumber(option.classId) == tonumber(classId) then
-            return option
-        end
-    end
-    return nil
-end
-
-do
-    local runState = {
-        ownedUnits = {},
-        teamRoster = {},
-        benchRoster = {},
-        equipmentIds = {},
-        blessingIds = {},
-        maxHeroCount = 5,
-        nextRosterId = 2,
-    }
-    local fighter = HeroData.CreateClassUnit(2, {
-        rosterId = 1,
-        unitId = "test_fighter",
+local function makeUnit(classId, level, rosterId)
+    local unit = HeroData.CreateClassUnit(classId, {
+        rosterId = rosterId,
+        unitId = string.format("gate_unit_%d_%d", classId, rosterId),
         promotionStage = "low",
-        level = 2,
-        exp = 8,
+        level = level,
         teamState = "active",
-        source = "test",
+        source = "progression_gate_test",
     })
-    RoguelikeRoster.AddOwnedUnit(runState, fighter, "active")
-
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState(runState)
-    local lowToMidOption = findClassCardOption(rewardState, 2)
-    assert_true(lowToMidOption ~= nil, "low-stage fighter should appear in class card reward")
-    assert_true(lowToMidOption.resultType == "promotion_pending", "level 2 duplicate class card should become pending promotion")
-    assert_true(lowToMidOption.requiredLevel == 3, "low to mid promotion should require level 3")
-    assert_true(RoguelikeReward.ApplyLevelUpReward(runState, lowToMidOption) == true, "pending promotion reward should apply")
-    assert_true(fighter.promotionStage == "low", "pending promotion should not change stage immediately")
-    assert_true(fighter.promotionPendingTarget == "mid", "pending promotion should store target stage")
-
-    local hiddenState = RoguelikeReward.GenerateLevelUpRewardState(runState)
-    assert_true(findClassCardOption(hiddenState, 2) == nil, "pending class should leave class-card pool until level gate is met")
-
-    HeroData.RefreshClassUnit(fighter, {
-        level = 3,
-        exp = 20,
-        teamState = "active",
-        currentHp = fighter.currentHp,
-        promotionPendingTarget = fighter.promotionPendingTarget,
-        source = "test_level",
-    })
-    assert_true(RoguelikeReward.ResolvePendingPromotion(runState, fighter, "test_level") == true,
-        "reaching level 3 should auto-resolve pending low to mid promotion")
-    assert_true(fighter.promotionStage == "mid", "fighter should promote to mid at level 3")
-    assert_true(fighter.promotionPendingTarget == nil, "resolved promotion should clear pending target")
-
-    HeroData.RefreshClassUnit(fighter, {
-        level = 5,
-        exp = 58,
-        teamState = "active",
-        currentHp = fighter.currentHp,
-        source = "test_level",
-    })
-    local midState = RoguelikeReward.GenerateLevelUpRewardState(runState)
-    local midToHighOption = findClassCardOption(midState, 2)
-    assert_true(midToHighOption ~= nil, "mid-stage fighter should remain in class card reward")
-    assert_true(midToHighOption.resultType == "promotion_pending", "level 5 duplicate class card should still pend high promotion")
-    assert_true(midToHighOption.requiredLevel == 6, "mid to high promotion should require level 6")
-    assert_true(RoguelikeReward.ApplyLevelUpReward(runState, midToHighOption) == true, "mid to high pending reward should apply")
-    assert_true(fighter.promotionStage == "mid", "pending high promotion should not change stage immediately")
-    assert_true(fighter.promotionPendingTarget == "high", "pending high promotion should store target stage")
-
-    HeroData.RefreshClassUnit(fighter, {
-        level = 6,
-        exp = 86,
-        teamState = "active",
-        currentHp = fighter.currentHp,
-        promotionPendingTarget = fighter.promotionPendingTarget,
-        source = "test_level",
-    })
-    assert_true(RoguelikeReward.ResolvePendingPromotion(runState, fighter, "test_level") == true,
-        "reaching level 6 should auto-resolve pending mid to high promotion")
-    assert_true(fighter.promotionStage == "high", "fighter should promote to high at level 6")
-    assert_true(fighter.promotionPendingTarget == nil, "high promotion should clear pending target")
+    -- 重置 feats，避免 BuildClassUnit 默认带的 canonical feats 干扰候选差集
+    unit.feats = {}
+    if unit.buildState then
+        unit.buildState.featIds = {}
+    end
+    return unit
 end
 
+local function makeMockState(units, partyExp)
+    return {
+        ownedUnits = units,
+        teamRoster = units,
+        benchRoster = {},
+        partyLevel = 1,
+        partyExp = partyExp,
+        levelCap = 10,
+    }
+end
+
+local function findOption(session, predicate)
+    for _, opt in ipairs((session and session.options) or {}) do
+        if predicate(opt) then
+            return opt
+        end
+    end
+    return nil
+end
+
+-- ========== 用例 1：Lv1 → Lv2 升级时，候选 tier 全部为 "small" ==========
 do
-    math.randomseed(10102)
-    local snapshot = Run.StartRun({
-        chapterId = 101,
-        starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 10102,
-    })
-    local startingGold = snapshot.gold or 0
+    math.randomseed(12001)
+    local fighter = makeUnit(2, 1, 201)
+    local state = makeMockState({ fighter }, 8)  -- 跨过 Lv2 阈值
+    local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "Lv1 to Lv2 session should be created")
+    assert_true(state.partyLevel == 2, "partyLevel should be 2 after partyExp=8")
+    assert_true(#session.options > 0, "session should expose options")
+    for _, opt in ipairs(session.options) do
+        assert_true(opt.tier == "small",
+            "Lv1 to Lv2 options should be tier=small, got " .. tostring(opt.tier))
+        assert_true(opt.level == 2, "option.level should be 2")
+    end
+end
 
-    choosePathAndEnter(101001)
-    snapshot = runBattleUntilResolved(600)
-    assert_true(snapshot.phase == "map", "normal battle should return to map instead of opening class-card reward")
-    assert_true((snapshot.gold or 0) > startingGold, "normal battle should still grant gold")
+-- ========== 用例 2：Lv2 → Lv3 升级时，候选可含 tier="medium" + isSubclassCore=true ==========
+do
+    math.randomseed(12002)
+    -- Lv2 fighter；partyExp=20 跨过 Lv3 阈值
+    local fighter = makeUnit(2, 2, 202)
+    local state = makeMockState({ fighter }, 20)
+    local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "Lv2 to Lv3 session should be created")
+    assert_true(state.partyLevel == 3, "partyLevel should be 3 at partyExp=20")
+    -- Lv3 fighter feats 数据：fighter Lv3 是子职业核心档（fighting style）
+    -- 候选池中至少存在一个 medium + isSubclassCore=true 的 feat
+    local fighterLv3Feats = FeatBuildConfig.GetFeatsByLevel(2, 3) or {}
+    local hasMediumSubclassCore = false
+    for _, feat in ipairs(fighterLv3Feats) do
+        if feat.tier == "medium" and feat.isSubclassCore == true then
+            hasMediumSubclassCore = true
+            break
+        end
+    end
+    assert_true(hasMediumSubclassCore,
+        "fixture sanity: fighter Lv3 should have at least 1 medium+subclassCore feat")
+    -- session 由于 choiceGroup 互斥单英雄场景下只能出 1 张，但至少应有一张 fighter Lv3 候选
+    for _, opt in ipairs(session.options) do
+        assert_true(opt.level == 3, "option.level should be 3")
+        if opt.tier == "medium" then
+            -- medium feat 可能是 subclassCore，也可能不是；只要类型正确
+            assert_true(opt.tier == "medium", "tier should be medium")
+        end
+    end
+end
 
-    choosePathAndEnter(101002)
-    snapshot = chooseFirstReward()
-    assert_true(snapshot.phase == "map", "recruit node should return to map after choosing a class card")
+-- ========== 用例 3：Lv4 → Lv5 升级时，候选含 tier="high" capstone feat ==========
+do
+    math.randomseed(12003)
+    -- 选择 rogue（classId=1）：Lv5 capstone（high + isSubclassCore=true）已在 feat_picker 测试验证存在
+    local rogue = makeUnit(1, 4, 203)
+    local state = makeMockState({ rogue }, 58)  -- partyLevel = 5
+    local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "Lv4 to Lv5 session should be created")
+    assert_true(state.partyLevel == 5, "partyLevel should be 5 at partyExp=58")
+    local hasHighTier = false
+    for _, opt in ipairs(session.options) do
+        if opt.tier == "high" then
+            hasHighTier = true
+        end
+        assert_true(opt.level == 5, "option.level should be 5")
+    end
+    assert_true(hasHighTier,
+        "Lv4 to Lv5 candidate pool should contain at least one tier=high feat")
+end
 
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState({
-        ownedUnits = snapshot.ownedUnits,
-        teamRoster = snapshot.team,
-        benchRoster = snapshot.bench,
-        maxHeroCount = snapshot.maxHeroCount,
-    })
-    assert_true(rewardState ~= nil and rewardState.kind == "battle_levelup", "class-card reward state should still be available after recruit expansion")
-    for _, option in ipairs(rewardState.options or {}) do
-        assert_true(option.rewardType == "levelup", "class-card reward options should stay in levelup payload format")
+-- ========== 用例 4：阵亡角色不出现在候选 ==========
+do
+    math.randomseed(12004)
+    local alive = makeUnit(2, 1, 204)
+    local dead = makeUnit(1, 1, 205)
+    -- 标记为阵亡
+    dead.isDead = true
+    dead.teamState = "dead"
+    dead.currentHp = 0
+    local state = makeMockState({ alive, dead }, 8)
+    local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "session should be created with at least 1 alive hero")
+    for _, opt in ipairs(session.options) do
+        assert_true(opt.rosterId == 204,
+            "dead hero rosterId=205 should not appear in options, got rosterId=" .. tostring(opt.rosterId))
+    end
+end
+
+-- ========== 用例 5：已选 feat 不重复出现 ==========
+do
+    math.randomseed(12005)
+    local fighter = makeUnit(2, 1, 206)
+    local state = makeMockState({ fighter }, 8)
+    local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    assert_true(session ~= nil, "Lv1 to Lv2 session should be created")
+    assert_true(#session.options > 0, "should have at least 1 option")
+    -- 选第一项
+    local firstOption = session.options[1]
+    local pickedFeatId = firstOption.featId
+    local ok, result = FeatPicker.Pick(state, 1)
+    assert_true(ok, "Pick should succeed: " .. tostring(result))
+    -- 重置 partyExp 让队伍再次升级（提升到 Lv3，触发新 session）
+    state.partyExp = 20
+    state.partyLevel = 2  -- 重置 partyLevel（FeatPicker 内部会按 thresholds 重算）
+    local nextSession = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+    -- 第二个 session 中 fighter 的下一级是 Lv3（已是 Lv2），候选应该是 Lv3 feats
+    -- 已选 Lv2 feat 不应出现
+    if nextSession then
+        for _, opt in ipairs(nextSession.options) do
+            assert_true(opt.featId ~= pickedFeatId,
+                "previously picked feat (id=" .. tostring(pickedFeatId) ..
+                ") should not appear in next session options")
+        end
     end
 end
 

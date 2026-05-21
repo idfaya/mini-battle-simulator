@@ -89,7 +89,7 @@ local snapshot = Run.StartRun({
 assert(snapshot.phase == "map", "run should start on map")
 
 local guard = 0
-while guard < 30 do
+while guard < 50 do
     guard = guard + 1
     snapshot = Run.GetSnapshot()
     if snapshot.phase == "chapter_result" then break end

@@ -2,6 +2,7 @@ local RunShopGoods = require("config.roguelike.run_shop_goods")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
+local BuildConstraints = require("roguelike.build_constraints")
 
 local RoguelikeShop = {}
 
@@ -126,18 +127,30 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
     if (runState.gold or 0) < price then
         return false, "not_enough_gold"
     end
+
+    -- 装备/祝福类商品：先做 BuildConstraints 预检，避免扣完金币才发现冲突。
+    if goods.goodsType == "equipment" then
+        local ok, reason = BuildConstraints.CanAddEquipment(runState, goods.refId)
+        if not ok then
+            return false, reason
+        end
+    elseif goods.goodsType == "blessing" then
+        local ok, reason = BuildConstraints.CanAddBlessing(runState, goods.refId)
+        if not ok then
+            return false, reason
+        end
+    end
+
     runState.gold = (runState.gold or 0) - price
     runState.shopSoldMap[goodsId] = true
 
     if goods.goodsType == "equipment" then
-        runState.equipmentIds = runState.equipmentIds or {}
-        addUnique(runState.equipmentIds, goods.refId)
+        BuildConstraints.AddEquipment(runState, goods.refId)
         runState.lastActionMessage = "购买装备"
         return true
     end
     if goods.goodsType == "blessing" then
-        runState.blessingIds = runState.blessingIds or {}
-        addUnique(runState.blessingIds, goods.refId)
+        BuildConstraints.AddBlessing(runState, goods.refId)
         runState.lastActionMessage = "购买祝福"
         return true
     end

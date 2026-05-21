@@ -1,4 +1,4 @@
-import type { RunSnapshot } from "../types/roguelike";
+import type { FeatOption, RewardOption, RunSnapshot } from "../types/roguelike";
 
 type RunHandlers = {
   onChooseNode: (nodeId: number) => void;
@@ -145,10 +145,8 @@ function createRosterInfo(member: RunSnapshot["team"][number]) {
 
   const primary = document.createElement("div");
   primary.className = "run-roster-meta";
-  const stageLabel =
-    member.promotionStage === "high" ? "高阶" : member.promotionStage === "mid" ? "中阶" : member.promotionStage === "low" ? "低阶" : "";
   const levelText = `Lv${member.level}${member.nextLevelExp && member.nextLevelExp > 0 ? ` ${member.exp ?? 0}/${(member.exp ?? 0) + member.nextLevelExp}` : ""}`;
-  primary.textContent = `${member.name}${stageLabel ? ` · ${stageLabel}` : ""} · ${levelText}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
+  primary.textContent = `${member.name} · ${levelText}${member.isDead ? " · 阵亡" : ` · HP ${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`}`;
   wrapper.append(primary);
 
   const summary = member.buildSummary ?? [];
@@ -160,19 +158,6 @@ function createRosterInfo(member: RunSnapshot["team"][number]) {
   }
 
   return wrapper;
-}
-
-function formatPromotionStage(stage?: "low" | "mid" | "high") {
-  if (stage === "high") {
-    return "高阶";
-  }
-  if (stage === "mid") {
-    return "中阶";
-  }
-  if (stage === "low") {
-    return "低阶";
-  }
-  return "-";
 }
 
 function formatBattleSummaryDelta(change: { delta: number; format: "flat" | "bp_pct" }) {
@@ -232,18 +217,8 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
 
     const header = document.createElement("div");
     header.className = "run-roster-meta";
-    const promotionChanged = levelUp.promotionStageBefore !== levelUp.promotionStageAfter;
-    header.textContent = promotionChanged
-      ? `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`
-      : `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`;
+    header.textContent = `${levelUp.heroName} · Lv${levelUp.levelBefore} -> Lv${levelUp.levelAfter}`;
     card.append(header);
-
-    if (promotionChanged) {
-      const promotionRow = document.createElement("div");
-      promotionRow.className = "run-build-summary";
-      promotionRow.textContent = `进阶: ${formatPromotionStage(levelUp.promotionStageBefore)} -> ${formatPromotionStage(levelUp.promotionStageAfter)}`;
-      card.append(promotionRow);
-    }
 
     const skillCards = levelUp.gainedSkillCards ?? [];
     const skillRow = document.createElement("div");
@@ -459,68 +434,66 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     const title = document.createElement("div");
     title.className = "panel-title";
     title.textContent =
-      snapshot.rewardState.kind === "battle_levelup"
-        ? "选择职业卡"
+      snapshot.rewardState.kind === "feat_levelup"
+        ? "队伍升级"
         : snapshot.rewardState.kind === "node_recruit"
           ? "选择职业卡"
           : "选择奖励";
     host.append(title);
-    if (snapshot.rewardState.kind === "battle_levelup") {
+    if (snapshot.rewardState.kind === "feat_levelup") {
+      const featState = snapshot.rewardState;
+      const subtitle = document.createElement("div");
+      subtitle.className = "run-roster-meta";
+      const pendingHint =
+        featState.pendingLevels > 1 ? `（剩余 ${featState.pendingLevels} 次升级）` : "";
+      subtitle.textContent = `请为队伍中一名英雄选择 1 张专长${pendingHint}`;
+      host.append(subtitle);
+
       const grid = document.createElement("div");
       grid.className = "reward-card-grid";
-      snapshot.rewardState.options.forEach((option, index) => {
-        const tags = option.featTags ?? [];
-        const isRisk = tags.includes("risk");
+      const featOptions = featState.options as FeatOption[];
+      featOptions.forEach((option, index) => {
+        const tier = option.tier ?? "small";
+        const tierLabel = tier === "high" ? "高阶" : tier === "medium" ? "中阶" : "小";
+        const isSubclassCore = option.isSubclassCore === true;
         const heroName = option.heroName ?? "未知";
-        const fromStage =
-          option.promotionStageBefore === "high"
-            ? "高阶"
-            : option.promotionStageBefore === "mid"
-              ? "中阶"
-              : option.promotionStageBefore === "low"
-                ? "低阶"
-                : "未持有";
-        const toStage =
-          option.promotionStageAfter === "high"
-            ? "高阶"
-            : option.promotionStageAfter === "mid"
-              ? "中阶"
-              : option.promotionStageAfter === "low"
-                ? "低阶"
-                : "-";
-        const featName = option.featName ?? option.label;
-        const featCode = option.featCode ?? option.description ?? "";
+        const featName = option.featName ?? `Feat ${option.featId}`;
+        const featDesc = option.featDescription ?? "";
 
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = `reward-card${isRisk ? " reward-card--risk" : ""}`;
+        btn.className = `reward-card${isSubclassCore ? " feat-card--subclass-core" : ""}`;
         btn.addEventListener("click", () => controls.handlers.onChooseReward(index + 1));
 
         const header = document.createElement("div");
         header.className = "reward-card__header";
         const hero = document.createElement("div");
         hero.className = "reward-card__hero";
-        hero.textContent = heroName;
+        hero.textContent = `为 ${heroName} 选择 Lv${option.level} 天赋`;
         const lv = document.createElement("div");
         lv.className = "reward-card__level";
-        lv.textContent = `${fromStage} → ${toStage}`;
+        lv.textContent = `${tierLabel}${isSubclassCore ? " · 子职核心" : ""}`;
         header.append(hero, lv);
 
         const feat = document.createElement("div");
         feat.className = "reward-card__feat";
-        feat.textContent = featName;
+        feat.textContent = `#${option.featId} ${featName}`;
 
         const desc = document.createElement("div");
         desc.className = "reward-card__desc";
-        desc.textContent = featCode;
+        desc.textContent = featDesc;
 
         const tagRow = document.createElement("div");
         tagRow.className = "reward-card__tags";
-        for (const tag of tags) {
-          const badge = document.createElement("span");
-          badge.className = `reward-tag${tag === "risk" ? " reward-tag--risk" : ""}`;
-          badge.textContent = tag;
-          tagRow.append(badge);
+        const tierBadge = document.createElement("span");
+        tierBadge.className = `reward-tag reward-tag--tier-${tier}`;
+        tierBadge.textContent = tierLabel;
+        tagRow.append(tierBadge);
+        if (isSubclassCore) {
+          const coreBadge = document.createElement("span");
+          coreBadge.className = "reward-tag reward-tag--subclass-core";
+          coreBadge.textContent = "子职核心";
+          tagRow.append(coreBadge);
         }
 
         btn.append(header, feat, desc, tagRow);
@@ -528,7 +501,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       });
       host.append(grid);
     } else {
-      snapshot.rewardState.options.forEach((option, index) => {
+      const options = snapshot.rewardState.options as RewardOption[];
+      options.forEach((option, index) => {
         host.append(
           makeButton(`${option.label}${option.description ? ` · ${option.description}` : ""}`, false, () =>
             controls.handlers.onChooseReward(index + 1),

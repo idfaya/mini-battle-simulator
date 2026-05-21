@@ -17,6 +17,28 @@ local RoguelikeBattleBridge = {}
 
 local FRONT_POSITIONS = { 2, 1, 3 }
 local BACK_POSITIONS = { 5, 4, 6 }
+
+-- 队伍 EXP 改造后，state.partyLevel 反映 partyExp 跨过的阈值（可一次跳 +N），
+-- 但实际每次升级三选一只让 1 名英雄升级，因此存活英雄的真实平均等级会显著低于 partyLevel。
+-- 用真实存活均值来缩放敌人等级 / budget，避免单场战斗后立刻把敌人按高 partyLevel 拉飞，
+-- 导致还没把所有英雄升满的队伍 team_wipe。
+local function computeAlivePartyLevel(runState)
+    local total = 0
+    local count = 0
+    for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(runState) or {}) do
+        if not unit.isDead and (tonumber(unit.currentHp) or 0) > 0 then
+            total = total + (tonumber(unit.level) or 1)
+            count = count + 1
+        end
+    end
+    if count == 0 then
+        return tonumber(runState and runState.partyLevel) or 1
+    end
+    -- 用 floor 而非 round 取保守均值：Lv2/Lv2/Lv3/Lv3 平均 2.5 → 取 2，
+    -- 避免 partyLevel 跨阈值跳级 + 单场只升 1 名英雄时让敌人提前进入下一档强度。
+    return math.max(1, math.floor(total / count))
+end
+
 local function roundInt(value)
     local v = tonumber(value) or 0
     if v >= 0 then
@@ -216,7 +238,7 @@ local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
         enemyMetas[#enemyMetas + 1] = EnemyData.GetChallengeMeta(enemyId)
     end
     local report = RunEncounterBudget.BuildReport(
-        tonumber(runState and runState.partyLevel) or tonumber(battleProfileLike.level) or 1,
+        tonumber(battleProfileLike.partyLevelOverride) or tonumber(runState and runState.partyLevel) or tonumber(battleProfileLike.level) or 1,
         aliveCount,
         enemyMetas,
         budget.difficulty or "deadly",
@@ -392,12 +414,15 @@ local function buildBattleConfig(runState, battle, battleProfile)
     end
 
     local teamRight = {}
+    -- 用存活英雄的实际平均等级来缩放敌人，避免 partyLevel 跨阈值跳级后单场拉飞。
+    local effectivePartyLevel = computeAlivePartyLevel(runState)
     local battleProfileForBudget = {
         -- Use the full battle footprint so reserve waves still contribute to overall pressure.
         -- The final scalar is intentionally clamped in buildBattleBudgetAdjust.
         enemyIds = flattenBattleEnemyIds(battle),
         budget = battleProfile and battleProfile.budget or nil,
-        level = tonumber(battleProfile and battleProfile.level) or tonumber(runState and runState.partyLevel) or 1,
+        level = tonumber(battleProfile and battleProfile.level) or effectivePartyLevel,
+        partyLevelOverride = effectivePartyLevel,
     }
     local budgetAdjust = buildBattleBudgetAdjust(runState, battleProfileForBudget, #teamLeft)
     runState.currentBattleBudget = budgetAdjust.report
@@ -405,7 +430,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
     -- Keep enemy level close to the party's recommended level.
     -- Battle profiles still define "intended" pacing (battleProfile.level), but we cap how far
     -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
-    local partyLevel = tonumber(runState and runState.partyLevel) or tonumber(battleProfile and battleProfile.level) or 1
+    local partyLevel = effectivePartyLevel
     local baseLevel = tonumber(battleProfile and battleProfile.level) or partyLevel
     local kindOffset = 0
     local battleKind = battleProfile and battleProfile.kind or battle.kind
@@ -419,11 +444,22 @@ local function buildBattleConfig(runState, battle, battleProfile)
         -- Normal fights keep density for atmosphere; allow level to sit up to 4 below party
         -- so balance can be tuned by stats instead of reducing unit count.
         minEnemyLevel = partyLevel - 4
+    elseif battleKind == "elite" then
+        -- 阶段 1 修复：roguelike 路线允许跳过战斗（shop/camp/recruit），到达 elite
+        -- 时 partyLevel 可能比 battle profile 高 2 级。如果再强制把怪等级抬到
+        -- partyLevel-1，等同于把 elite 进一步拔高，会让 economy-heavy 路线必然
+        -- wipe。允许 elite 怪等级最低与 battle profile 持平（差 2 级）。
+        minEnemyLevel = partyLevel - 2
     elseif battleKind == "boss" then
         -- Boss still stays above normal pressure, but should honor battle profile level tuning.
         minEnemyLevel = partyLevel - 3
     end
     local effectiveEnemyLevel = clamp(baseLevel, math.max(1, minEnemyLevel), partyLevel + 1 + kindOffset)
+    if os.getenv("BATTLE_DIAG") then
+        print(string.format("[BATTLE_DIAG] kind=%s baseLevel=%s partyLevel=%s effEnemyLv=%s hpMul=%.2f atkMul=%.2f hit=%d",
+            tostring(battleKind), tostring(baseLevel), tostring(partyLevel), tostring(effectiveEnemyLevel),
+            budgetAdjust.hpMul or 1.0, budgetAdjust.atkMul or 1.0, budgetAdjust.hitDelta or 0))
+    end
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
     for index, enemyId in ipairs(openingEnemyIds or {}) do
@@ -467,6 +503,9 @@ local function applyLeftEnergyBonus(extraEnergy)
     end
 end
 
+-- 战斗后休整：恢复 HP / 复活 / 清冷却 / 重置奥义充能。
+-- 改造说明：本函数原先在 ResolveBattle 内部隐式调用，现迁出为公开 API，
+-- 由 RoguelikeRun.Tick 在"金币→掉落→partyExp→FeatPicker→rest"显式管道里调用。
 local function applyPostBattleRest(runState)
     local chapter = RunChapterConfig.GetChapter(runState.chapterId) or {}
     local rest = chapter.postBattleRest or {}
@@ -539,6 +578,10 @@ function RoguelikeBattleBridge.GetSnapshot()
     return BattleRuntime.getSnapshot()
 end
 
+function RoguelikeBattleBridge.ApplyPostBattleRest(runState)
+    applyPostBattleRest(runState)
+end
+
 function RoguelikeBattleBridge.ResolveBattle(runState, battle, battleProfile)
     local snapshot = RoguelikeBattleBridge.GetSnapshot()
     if not snapshot or not snapshot.result then
@@ -605,7 +648,8 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, battleProfile)
                 end
             end
         end
-        applyPostBattleRest(runState)
+        -- 注意：postBattleRest 已迁出为 RoguelikeBattleBridge.ApplyPostBattleRest，
+        -- 由 RoguelikeRun 在显式管道里在 FeatPicker 之后调用。
     end
 
     runState.lastBattleSummary = {

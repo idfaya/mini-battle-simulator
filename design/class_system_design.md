@@ -79,8 +79,7 @@
 | `character_group` | enum | `physical` / `caster` |
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
-| `promotion_stage` | enum | `low` / `mid` / `high` |
-| `promotion_pending_target` | enum? | 挂起进阶目标；`mid` / `high` / `nil` |
+| `promotion_stage` | enum | `low` / `mid` / `high`（已 deprecated；HeroData 仍保留默认值用于向后兼容） |
 | `team_state` | enum | `active` / `bench` / `dead` |
 | `battle_slot` | enum | `front` / `back` / `none` |
 | `recommended_slot` | enum | `front` / `back` / `flex` |
@@ -95,8 +94,7 @@
 
 补充约定：
 
-- `promotion_stage` 的数据值统一为 `low` / `mid` / `high`；展示层可渲染为 `低阶` / `中阶` / `高阶`，但配置、存档、接口一律使用英文值。
-- `promotion_pending_target` 表示“重复职业卡已拿到，但下一段进阶尚未兑现”；只允许 `nil` / `mid` / `high`。
+- `promotion_stage` 已 deprecated（从 character_progression_design.md 阶段 3 起）：进阶逻辑由 partyExp + FeatPicker 替代；HeroData 默认值保留只为向后兼容老存档读写，不再驱动任何运行时行为。
 - `team_state` 的数据值统一为 `active` / `bench` / `dead`。
 - `character_group` 数据值统一为 `physical` / `caster`，决定职业核心技文档归属。
 
@@ -243,20 +241,19 @@ Class 单位可从以下来源获得经验：
 
 ### 5.5 战后经验结算
 
-战斗胜利后按以下顺序处理经验：
+战斗胜利后按以下顺序处理经验（partyExp + FeatPicker 模型，参见 character_progression_design.md §3）：
 
 ```text
 读取 battle.exp_reward
-→ 发放给上阵且存活的 Class 单位
-→ 检查等级阈值
-→ 可连续提升多个等级
-→ 检查是否满足挂起进阶门槛
-→ 若满足则自动兑现 promotion_pending_target
+→ 累加到 state.partyExp（不再写 unit.exp）
+→ FeatPicker.BeginSession 检查跨阈值
+→ 若产生升级会话则进入三选一 reward
+→ 玩家选中后对应英雄 +1 级 + 写入 feat
 → 刷新 5e 派生属性
 → 再进入固定恢复与节点奖励
 ```
 
-经验采用累计值，不采用“当前等级内经验”。UI 可通过 `next_level_exp - exp` 显示距离下一级的差值。
+经验采用累计值（state.partyExp）。UI 通过 `next_level_exp - level_progress_exp` 显示距离下一级差值。挂起进阶 / promotion_pending_target 已废弃。
 
 ---
 
@@ -296,17 +293,12 @@ Class 单位升级时，统一执行：
 - `等级` 不直接决定进阶与转职。
 - `等级` 不改变 `class_id`。
 - `等级` 不替换技能槽结构。
-- `等级` 不自动改变 `promotion_stage`。
 
-### 6.5 等级与进阶边界
+### 6.5 等级与进阶边界（已 deprecated）
 
-- 新职业单位进入队伍时，初始等级统一为 `Lv1`。
-- `promotion_stage` 可提供最低等级兜底，但不得覆盖单位真实 `level`。
-- 进阶保留当前 `level` 与 `exp`。
-- 升级只负责数值成长；进阶只负责槽位、技能包与职业阶段。
-- `low → mid` 的等级门槛固定为 `Lv3`。
-- `mid → high` 的等级门槛固定为 `Lv6`。
-- 若单位已持有重复职业卡但等级未达门槛，则记录到 `promotion_pending_target`，待后续升级时自动兑现。
+`promotion_stage` 与 `promotion_pending_target` 体系已 deprecated（character_progression_design.md 阶段 3）。
+新的进阶通过 partyExp + FeatPicker 三选一驱动，详见 character_progression_design.md §3 / §9。
+HeroData 仍保留 `promotion_stage` 默认值用于向后兼容老存档。
 
 ---
 
@@ -339,7 +331,6 @@ Class 单位进阶时，统一执行：
 - 保留当前 `exp`
 - 替换当前技能包
 - 应用进阶属性修正
-- 清空已兑现的 `promotion_pending_target`
 
 ### 7.4 进阶职责
 
@@ -590,8 +581,7 @@ Run 层至少保留以下字段：
 | `unit_id` | string | 单位唯一编号 |
 | `class_id` | string | 职业编号 |
 | `team_state` | enum | `active` / `bench` / `dead` |
-| `promotion_stage` | enum | `low` / `mid` / `high` |
-| `promotion_pending_target` | enum? | 挂起进阶目标；`mid` / `high` / `nil` |
+| `promotion_stage` | enum | `low` / `mid` / `high`（已 deprecated；HeroData 默认值） |
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
 | `current_hp` | integer | 当前生命 |

@@ -220,11 +220,28 @@ local function generateOnce(chapterId, seed, profile)
             }
         end
 
+        local floorForcedLanes = {}
         local function overrideFloorType(targetFloor, forcedType)
             if floor ~= targetFloor or #floorNodes <= 0 or not forcedType then
                 return
             end
-            local pickIndex = rng:nextInt(1, #floorNodes)
+            -- 阶段 1 修复：避免后续 override（如 elite）覆盖前一次的 override（如 shop），
+            -- 用 forcedLanes 集合跟踪本层已被强制覆写的 lane，新覆写从未占用 lane 中挑选。
+            local availableLanes = {}
+            for index = 1, #floorNodes do
+                if not floorForcedLanes[index] then
+                    availableLanes[#availableLanes + 1] = index
+                end
+            end
+            if #availableLanes <= 0 then
+                -- 全部被占用时退化到原行为：随机挑选（极端情况，不会破坏运行）。
+                local pickIndex = rng:nextInt(1, #floorNodes)
+                floorNodes[pickIndex].nodeType = forcedType
+                floorNodes[pickIndex].title = buildNodeTitle(forcedType, floor)
+                return
+            end
+            local pickIndex = availableLanes[rng:nextInt(1, #availableLanes)]
+            floorForcedLanes[pickIndex] = true
             floorNodes[pickIndex].nodeType = forcedType
             floorNodes[pickIndex].title = buildNodeTitle(forcedType, floor)
         end
@@ -254,6 +271,46 @@ local function generateOnce(chapterId, seed, profile)
             node.nextNodeIds = uniqueList(node.nextNodeIds)
         end
     end
+
+    -- 阶段 1 修复：里程碑节点（shop/camp/recruit）必须从其上一层的所有 lane 可达。
+    -- 否则在窄走廊地图中（lane K -> lane K / K+1 单向连接），玩家若过早走向高
+    -- lane，则放在低 lane 的 shop/camp 永远不可达，导致 act1 测试 shopSeen 失败。
+    local function findFloorNodeOfType(floor, nodeType)
+        for _, candidate in ipairs(floors[floor] or {}) do
+            if candidate.nodeType == nodeType then
+                return candidate
+            end
+        end
+        return nil
+    end
+    local function forceConvergeFromPrevFloor(targetFloor, nodeType)
+        if not targetFloor or targetFloor <= 1 then
+            return
+        end
+        local target = findFloorNodeOfType(targetFloor, nodeType)
+        if not target then
+            return
+        end
+        local prevFloorNodes = floors[targetFloor - 1]
+        if not prevFloorNodes then
+            return
+        end
+        for _, prev in ipairs(prevFloorNodes) do
+            local already = false
+            for _, nid in ipairs(prev.nextNodeIds) do
+                if nid == target.id then
+                    already = true
+                    break
+                end
+            end
+            if not already then
+                prev.nextNodeIds[#prev.nextNodeIds + 1] = target.id
+            end
+        end
+    end
+    forceConvergeFromPrevFloor(shopFloor, "shop")
+    forceConvergeFromPrevFloor(campFloor, "camp")
+    forceConvergeFromPrevFloor(recruitFloor, "recruit")
 
     for floor = 1, floorCount - 1 do
         for _, node in ipairs(floors[floor]) do

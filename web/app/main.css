@@ -581,6 +581,42 @@ body {
   background: rgba(255, 92, 92, 0.12);
 }
 
+/* 子职核心专长卡：金色边框，强调"build 决定性"特征 */
+.feat-card--subclass-core {
+  border-color: rgba(255, 200, 80, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.45) inset, 0 0 12px rgba(255, 200, 80, 0.18);
+  background: linear-gradient(180deg, rgba(98, 70, 12, 0.55), rgba(45, 30, 8, 0.55));
+}
+
+.feat-card--subclass-core:hover {
+  border-color: rgba(255, 220, 120, 1);
+  box-shadow: 0 0 0 1px rgba(255, 220, 120, 0.7) inset, 0 0 16px rgba(255, 200, 80, 0.35);
+}
+
+.reward-tag--subclass-core {
+  border-color: rgba(255, 200, 80, 0.7);
+  color: #ffe7a8;
+  background: rgba(255, 200, 80, 0.16);
+}
+
+.reward-tag--tier-high {
+  border-color: rgba(180, 220, 255, 0.55);
+  color: #e2efff;
+  background: rgba(60, 120, 200, 0.18);
+}
+
+.reward-tag--tier-medium {
+  border-color: rgba(160, 200, 160, 0.45);
+  color: #d8eedd;
+  background: rgba(60, 130, 90, 0.16);
+}
+
+.reward-tag--tier-small {
+  border-color: rgba(200, 200, 200, 0.32);
+  color: #d9e2ec;
+  background: rgba(40, 50, 70, 0.32);
+}
+
 .diagnostics,
 .fatal-error {
   min-height: 240px;

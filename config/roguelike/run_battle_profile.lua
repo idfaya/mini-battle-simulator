@@ -93,25 +93,31 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "elite",
         chapterId = 101,
         difficulty = 3,
-        level = 3,
+        level = 2,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 1 },
-        -- 首个精英恢复一定压强，确保 combat 路线在中段前已有资源压力。
-        budget = { difficulty = "medium", pressureFactor = 0.56 },
+        -- 阶段 1 修复：roguelike 路线可能在 F3/F4 跳过战斗（shop/camp/recruit），
+        -- 进入 F5 第一个精英时仅打过 2 场普通战，partyLevel≈4。如果 elite 仍维持
+        -- level=3/pressure=0.56 会必然 wipe；本次设为 level=2/pressure=0.32 让两种
+        -- 路径（battle-heavy 与 economy-heavy）都能可行通关，同时仍保留作为 elite
+        -- 的相对压强（高于普通战 0.22 数倍 base XP）。
+        budget = { difficulty = "medium", pressureFactor = 0.32 },
     },
     [101102] = {
         id = 101102,
         kind = "elite",
         chapterId = 101,
         difficulty = 4,
-        level = 4,
+        level = 3,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "medium", pressureFactor = 0.68 },
+        -- 阶段 1 修复：late elite 同样可能在 economy-heavy 路线下被首次遇到，
+        -- 由 level=4 降到 level=3，pressureFactor 由 0.68 降到 0.42。
+        budget = { difficulty = "medium", pressureFactor = 0.42 },
     },
 
     -- Light route battles: used to stop low-risk routes from skipping straight to boss.
@@ -144,13 +150,18 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "boss",
         chapterId = 101,
         difficulty = 6,
-        level = 3,
+        level = 2,
         initialEnergy = 20,
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        budget = { difficulty = "easy", pressureFactor = 0.52 },
-        -- Frozen Gate 需要保留“会完整释放吟唱大招”的机制真实性，但压强应回到可通关区间。
+        -- 阶段 1 收尾平衡（2026-05-21）：
+        --   * partyExp 曲线已打磨：battle-heavy → boss 时 partyLevel ≈ Lv7~Lv8（见 run_battle_template.lua）。
+        --   * 但 boss profile level=3 + medium/0.55 + 3 wave + 高 CR 配比，
+        --     在 4 人 Lv7 队伍下仍会大概率 wipe（test_roguelike_act1 / chapter_success 验证）。
+        --   * 暂保留 level=2 接受 1 级倒挂，依靠 medium/0.55 给出 boss 应有压强，
+        --     待后续战斗系统重平衡（CR 表 / 怪物数量 / formation）后再上调。
+        budget = { difficulty = "medium", pressureFactor = 0.55 },
     },
 }
 

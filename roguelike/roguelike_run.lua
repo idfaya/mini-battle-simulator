@@ -11,31 +11,20 @@ local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local HeroData = require("config.hero_data")
 local ClassRoleConfig = require("config.tables.classes")
-local FeatBuildConfig = require("config.tables.feats")
-local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
+local FeatPicker = require("roguelike.feat_picker")
+local BuildConstraints = require("roguelike.build_constraints")
+local LevelCurve = require("config.roguelike.level_curve")
 
 local RoguelikeRun = {}
 local state = nil
 local cachedBattleSnapshot = nil
-local STARTER_LEVEL = 1
+local STARTER_LEVEL = LevelCurve.STARTER_LEVEL
 -- 5e growth: no star progression.
 local STARTER_STAR = 1
-local CHAPTER_LEVEL_CAP = 10
+local CHAPTER_LEVEL_CAP = LevelCurve.CHAPTER_LEVEL_CAP
 local DEFAULT_STARTER_TEAM_SIZE = 4
 local DEFAULT_STARTER_FRONT_COUNT = 2
-local LEVEL_EXP_THRESHOLDS = {
-    [1] = 0,
-    [2] = 8,
-    [3] = 20,
-    [4] = 36,
-    [5] = 58,
-    [6] = 86,
-    [7] = 120,
-    [8] = 160,
-    [9] = 208,
-    [10] = 264,
-}
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)
@@ -69,58 +58,17 @@ local function contains(list, value)
     return false
 end
 
-local function addUnique(list, value)
-    if not contains(list, value) then
-        list[#list + 1] = value
-    end
-end
-
 local function getExpThreshold(level)
-    local lv = math.max(1, tonumber(level) or 1)
-    return LEVEL_EXP_THRESHOLDS[lv] or LEVEL_EXP_THRESHOLDS[CHAPTER_LEVEL_CAP] or 0
+    return LevelCurve.GetExpThreshold(level)
 end
 
 local function getExpToNextLevel(level)
-    local lv = math.max(1, tonumber(level) or 1)
-    if lv >= (state and state.levelCap or CHAPTER_LEVEL_CAP) then
-        return 0
-    end
-    return math.max(1, getExpThreshold(lv + 1) - getExpThreshold(lv))
-end
-
-local function getNodeExp(_nodeType)
-    -- Non-battle node exp is reserved by design; current MVP only grants battle.expReward.
-    return 0
+    return LevelCurve.GetExpToNextLevel(level, state and state.levelCap or CHAPTER_LEVEL_CAP)
 end
 
 local function getLevelForExp(exp, cap)
-    local current = STARTER_LEVEL
-    local levelCap = math.max(STARTER_LEVEL, tonumber(cap) or CHAPTER_LEVEL_CAP)
-    local totalExp = math.max(0, math.floor(tonumber(exp) or 0))
-    for lv = STARTER_LEVEL + 1, levelCap do
-        if totalExp >= getExpThreshold(lv) then
-            current = lv
-        else
-            break
-        end
-    end
-    return current
+    return LevelCurve.GetLevelForExp(exp, cap or CHAPTER_LEVEL_CAP)
 end
-
-local LEVELUP_STAT_FIELDS = {
-    { key = "maxHp", label = "HP上限", format = "flat" },
-    { key = "def", label = "防御", format = "flat" },
-    { key = "ac", label = "护甲等级", format = "flat" },
-    { key = "hit", label = "命中", format = "flat" },
-    { key = "spellDC", label = "法术DC", format = "flat" },
-    { key = "saveFort", label = "强韧豁免", format = "flat" },
-    { key = "saveRef", label = "敏捷豁免", format = "flat" },
-    { key = "saveWill", label = "意志豁免", format = "flat" },
-    { key = "speed", label = "速度", format = "flat" },
-    { key = "critRate", label = "暴击率", format = "bp_pct" },
-    { key = "blockRate", label = "格挡率", format = "bp_pct" },
-    { key = "healBonus", label = "治疗加成", format = "bp_pct" },
-}
 
 local function cloneArray(input)
     local result = {}
@@ -130,180 +78,6 @@ local function cloneArray(input)
     return result
 end
 
-local function resolveFeatEntry(featId)
-    return FeatBuildConfig.GetFeat(featId)
-end
-
-local function resolveOwnedFeatIds(unitOrState)
-    if type(unitOrState) ~= "table" then
-        return {}
-    end
-    if type(unitOrState.buildState) == "table" and type(unitOrState.buildState.featIds) == "table" then
-        return cloneArray(unitOrState.buildState.featIds)
-    end
-    return cloneArray(unitOrState.feats or unitOrState.selectedFeatIds)
-end
-
-local function captureUnitLevelState(unit)
-    if type(unit) ~= "table" then
-        return nil
-    end
-    local stats = {}
-    for _, field in ipairs(LEVELUP_STAT_FIELDS) do
-        stats[field.key] = tonumber(unit[field.key]) or 0
-    end
-    return {
-        rosterId = tonumber(unit.rosterId) or 0,
-        unitId = unit.unitId,
-        heroName = unit.name or "职业单位",
-        classId = tonumber(unit.classId) or 0,
-        level = tonumber(unit.level) or STARTER_LEVEL,
-        promotionStage = HeroData.NormalizePromotionStage(unit.promotionStage),
-        stats = stats,
-        feats = resolveOwnedFeatIds(unit),
-    }
-end
-
-local function buildLevelUpStatChanges(beforeState, afterUnit)
-    local changes = {}
-    local beforeStats = beforeState and beforeState.stats or {}
-    for _, field in ipairs(LEVELUP_STAT_FIELDS) do
-        local afterValue = tonumber(afterUnit and afterUnit[field.key]) or 0
-        local beforeValue = tonumber(beforeStats[field.key]) or 0
-        local delta = afterValue - beforeValue
-        if delta ~= 0 then
-            changes[#changes + 1] = {
-                key = field.key,
-                label = field.label,
-                format = field.format,
-                delta = delta,
-                before = beforeValue,
-                after = afterValue,
-            }
-        end
-    end
-    return changes
-end
-
-local function buildLevelUpFeatChanges(beforeState, afterUnit)
-    local result = {}
-    local ownedBefore = {}
-    for _, featId in ipairs(resolveOwnedFeatIds(beforeState)) do
-        ownedBefore[tonumber(featId) or 0] = true
-    end
-    for _, featId in ipairs(resolveOwnedFeatIds(afterUnit)) do
-        local id = tonumber(featId) or 0
-        if id > 0 and not ownedBefore[id] then
-            local feat = resolveFeatEntry(id)
-            result[#result + 1] = {
-                featId = id,
-                name = feat and feat.name or ("Feat " .. tostring(id)),
-                description = feat and (feat.description or feat.code) or "",
-            }
-        end
-    end
-    return result
-end
-
-local function buildLevelUpSkillCardsFromFeats(gainedFeats)
-    local cards = {}
-    local seen = {}
-    for _, featGain in ipairs(gainedFeats or {}) do
-        local feat = resolveFeatEntry(featGain.featId)
-        for _, effect in ipairs((feat and feat.effects) or {}) do
-            local skillId = nil
-            if effect.type == "grant_skill" then
-                skillId = tonumber(effect.skill) or 0
-            elseif effect.type == "replace_skill" then
-                skillId = tonumber(effect.newSkill) or 0
-            end
-            if skillId and skillId > 0 and not seen[skillId] then
-                seen[skillId] = true
-                local skill = SkillRuntimeConfig.Get(skillId)
-                if skill and skill.hidden ~= true then
-                    cards[#cards + 1] = {
-                        skillId = skillId,
-                        name = skill.name or ("Skill " .. tostring(skillId)),
-                        runtimeKind = skill.runtimeKind or "active",
-                    }
-                end
-            end
-        end
-    end
-    return cards
-end
-
-local function buildLevelUpDetail(beforeState, afterUnit)
-    if not beforeState or not afterUnit then
-        return nil
-    end
-    local gainedFeats = buildLevelUpFeatChanges(beforeState, afterUnit)
-    return {
-        rosterId = beforeState.rosterId,
-        unitId = beforeState.unitId,
-        heroName = beforeState.heroName,
-        classId = beforeState.classId,
-        levelBefore = tonumber(beforeState.level) or STARTER_LEVEL,
-        levelAfter = tonumber(afterUnit.level) or STARTER_LEVEL,
-        promotionStageBefore = beforeState.promotionStage,
-        promotionStageAfter = HeroData.NormalizePromotionStage(afterUnit.promotionStage),
-        statChanges = buildLevelUpStatChanges(beforeState, afterUnit),
-        gainedFeats = gainedFeats,
-        gainedSkillCards = buildLevelUpSkillCardsFromFeats(gainedFeats),
-    }
-end
-
-local function buildLevelUpDetails(beforeState, afterUnit)
-    if not beforeState or not afterUnit then
-        return {}
-    end
-    local finalLevel = tonumber(afterUnit.level) or STARTER_LEVEL
-    local finalStage = HeroData.NormalizePromotionStage(afterUnit.promotionStage)
-    local currentState = deepCopyTable(beforeState)
-    local details = {}
-    for targetLevel = (tonumber(beforeState.level) or STARTER_LEVEL) + 1, finalLevel do
-        local targetStage = currentState.promotionStage
-        if targetStage == "low"
-            and (finalStage == "mid" or finalStage == "high")
-            and targetLevel >= HeroData.GetPromotionStageLevel("mid") then
-            targetStage = "mid"
-        end
-        if targetStage == "mid"
-            and finalStage == "high"
-            and targetLevel >= HeroData.GetPromotionStageLevel("high") then
-            targetStage = "high"
-        end
-
-        local stepUnit
-        if targetLevel == finalLevel then
-            stepUnit = afterUnit
-        else
-            stepUnit = HeroData.CreateClassUnit(beforeState.classId, {
-                rosterId = beforeState.rosterId,
-                unitId = beforeState.unitId,
-                promotionStage = targetStage,
-                level = targetLevel,
-                teamState = "active",
-                source = "battle_level_preview",
-            })
-            if stepUnit then
-                stepUnit.rosterId = beforeState.rosterId
-                stepUnit.unitId = beforeState.unitId
-                stepUnit.name = beforeState.heroName
-            end
-        end
-
-        if stepUnit then
-            local detail = buildLevelUpDetail(currentState, stepUnit)
-            if detail then
-                details[#details + 1] = detail
-                currentState = captureUnitLevelState(stepUnit) or currentState
-            end
-        end
-    end
-    return details
-end
-
 local function mergeLastBattleSummary(fields)
     state.lastBattleSummary = state.lastBattleSummary or {}
     for key, value in pairs(fields or {}) do
@@ -311,147 +85,83 @@ local function mergeLastBattleSummary(fields)
     end
 end
 
-local function refreshUnitLevel(unit, newLevel, newExp)
-    if not unit then
-        return false
-    end
-    local oldLevel = tonumber(unit.level) or STARTER_LEVEL
-    local oldMaxHp = tonumber(unit.maxHp) or 1
-    local oldCurrentHp = tonumber(unit.currentHp) or 0
-    local isDead = unit.isDead == true or oldCurrentHp <= 0 or unit.teamState == "dead"
-    HeroData.RefreshClassUnit(unit, {
-        level = newLevel,
-        exp = newExp,
-        currentHp = oldCurrentHp,
-        isDead = isDead,
-        teamState = unit.teamState,
-        promotionStage = unit.promotionStage,
-        source = unit.source,
-    })
-    if not isDead then
-        local deltaHp = (tonumber(unit.maxHp) or oldMaxHp) - oldMaxHp
-        unit.currentHp = math.max(1, math.min(unit.maxHp or oldCurrentHp, oldCurrentHp + math.max(0, deltaHp)))
-        unit.hp = unit.currentHp
-    end
-    return (tonumber(unit.level) or oldLevel) > oldLevel
-end
-
-local function shouldOpenBattleClassCardReward(node)
-    if not node then
-        return false
-    end
-    return node.nodeType == "battle_elite" or node.nodeType == "boss"
-end
-
 local function grantBattleEquipmentDrop(node, battleProfile)
     local equipmentId = RoguelikeReward.RollBattleEquipmentDrop(node and node.nodeType or nil, battleProfile)
     if not equipmentId then
         return nil
     end
-    state.equipmentIds = state.equipmentIds or {}
-    addUnique(state.equipmentIds, equipmentId)
+    local ok = BuildConstraints.AddEquipment(state, equipmentId)
+    if not ok then
+        return nil
+    end
     return equipmentId
 end
 
+-- 战斗祝福掉落：唯一入库 + 去重。规则由 RollBattleBlessingDrop 决定（精英 50% / boss 必掉）。
+local function grantBattleBlessingDrop(node, battleProfile)
+    local blessingId = RoguelikeReward.RollBattleBlessingDrop(node and node.nodeType or nil, battleProfile)
+    if not blessingId then
+        return nil
+    end
+    local ok = BuildConstraints.AddBlessing(state, blessingId)
+    if not ok then
+        return nil
+    end
+    return blessingId
+end
+
+-- 战斗节点掉落入口：装备 + 祝福各最多 1 件。
+-- 规则映射（设计文档：character_progression_design.md 阶段 2）：
+--   battle_normal : 装备 0 / 祝福 0
+--   battle_elite  : 装备 1 / 祝福 50%
+--   boss          : 装备 1（boss tier）/ 祝福 1（boss tier）
 local function grantBattleLoot(node, battleProfile)
     if not node then
-        return 0
+        return { equipmentDropCount = 0, blessingDropCount = 0 }
     end
-    local rollCount = 0
-    if node.nodeType == "battle_normal" then
-        rollCount = 1
-    elseif node.nodeType == "battle_elite" then
-        rollCount = math.max(1, tonumber(battleProfile and battleProfile.eliteBonus and battleProfile.eliteBonus.equipmentRoll) or 1)
+    local equipmentDropCount = 0
+    if grantBattleEquipmentDrop(node, battleProfile) then
+        equipmentDropCount = 1
     end
-    local dropCount = 0
-    for _ = 1, rollCount do
-        if grantBattleEquipmentDrop(node, battleProfile) then
-            dropCount = dropCount + 1
-        end
+    local blessingDropCount = 0
+    if grantBattleBlessingDrop(node, battleProfile) then
+        blessingDropCount = 1
     end
-    return dropCount
+    return {
+        equipmentDropCount = equipmentDropCount,
+        blessingDropCount = blessingDropCount,
+    }
 end
 
 local function grantBattleExp(battle)
     local expReward = math.max(0, math.floor(tonumber(battle and battle.expReward) or 0))
     state.lastBattleExpReward = expReward
-    state.lastLevelUpUnits = {}
-    state.lastBattleLevelUpDetails = {}
-    if expReward <= 0 then
-        return {}
+    -- 队伍升级三选一通道：unit.exp 已废弃，所有战斗经验全部进入 state.partyExp。
+    -- 个人升级仅通过 FeatPicker 选中后 +1 实现，不再按存活分配 EXP。
+    if expReward > 0 then
+        state.partyExp = (state.partyExp or 0) + expReward
+        state.lastActionMessage = string.format("战斗胜利，队伍获得 %d 经验", expReward)
     end
-    local leveledUnits = {}
-    local levelUpDetails = {}
-    local recipients = 0
-    for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
-        if unit.teamState == "active" and unit.isDead ~= true and (tonumber(unit.currentHp) or 0) > 0 then
-            local oldLevel = tonumber(unit.level) or STARTER_LEVEL
-            local beforeState = captureUnitLevelState(unit)
-            local newExp = (tonumber(unit.exp) or 0) + expReward
-            local newLevel = getLevelForExp(newExp, state.levelCap)
-            refreshUnitLevel(unit, newLevel, newExp)
-            RoguelikeReward.ResolvePendingPromotion(state, unit, "battle_level")
-            recipients = recipients + 1
-            if newLevel > oldLevel then
-                leveledUnits[#leveledUnits + 1] = unit.unitId or unit.name or tostring(unit.rosterId)
-                for _, detail in ipairs(buildLevelUpDetails(beforeState, unit)) do
-                    levelUpDetails[#levelUpDetails + 1] = detail
-                end
-            end
-        end
-    end
-    state.partyExp = (state.partyExp or 0) + expReward
-    state.lastLevelUpUnits = leveledUnits
-    state.lastBattleLevelUpDetails = levelUpDetails
-    if recipients <= 0 then
-        return levelUpDetails
-    end
-    if #leveledUnits > 0 then
-        state.lastActionMessage = string.format("战斗胜利，获得 %d 经验，%d 名单位升级", expReward, #leveledUnits)
-    else
-        state.lastActionMessage = string.format("战斗胜利，获得 %d 经验", expReward)
-    end
-    return levelUpDetails
+    return expReward
 end
 
-local function grantRunExp(amount, sourceLabel)
-    local gain = math.max(0, math.floor(tonumber(amount) or 0))
-    if gain <= 0 then
-        return 0
-    end
-    state.partyExp = (state.partyExp or 0) + gain
-    state.lastActionMessage = string.format("%s，获得 %d 经验", sourceLabel or "获得经验", gain)
-    return gain
-end
-
-local function recalcRecommendedLevel()
-    -- 推荐等级 = 存活成员等级的平均值，向下取整；用于敌人缩放与新兵接入基准。
-    local total, count = 0, 0
-    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
-        if not hero.isDead then
-            total = total + (tonumber(hero.level) or 1)
-            count = count + 1
+-- 队伍当前应处的等级 = 在 partyExp 跨越的最大阈值；不再按存活成员等级平均。
+local function recalcPartyLevel()
+    local exp = math.max(0, math.floor(tonumber(state.partyExp) or 0))
+    local cap = math.max(STARTER_LEVEL, tonumber(state.levelCap) or CHAPTER_LEVEL_CAP)
+    local level = STARTER_LEVEL
+    for lv = STARTER_LEVEL + 1, cap do
+        if exp >= getExpThreshold(lv) then
+            level = lv
+        else
+            break
         end
     end
-    if count == 0 then
-        state.partyLevel = STARTER_LEVEL
-    else
-        state.partyLevel = math.max(STARTER_LEVEL, math.floor(total / count))
-    end
-    local sampleExp = 0
-    local sampleCount = 0
-    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
-        if not hero.isDead then
-            sampleExp = sampleExp + (tonumber(hero.exp) or 0)
-            sampleCount = sampleCount + 1
-        end
-    end
-    if sampleCount > 0 then
-        sampleExp = math.floor(sampleExp / sampleCount)
-    end
-    local currentThreshold = getExpThreshold(state.partyLevel or STARTER_LEVEL)
-    state.levelProgressExp = math.max(0, sampleExp - currentThreshold)
-    state.nextLevelExp = getExpToNextLevel(state.partyLevel or STARTER_LEVEL)
+    state.partyLevel = level
+    local currentThreshold = getExpThreshold(level)
+    state.levelProgressExp = math.max(0, exp - currentThreshold)
+    state.nextLevelExp = getExpToNextLevel(level)
+    return level
 end
 
 local function buildStarterRoster(runState, heroIds)
@@ -464,9 +174,7 @@ local function buildStarterRoster(runState, heroIds)
             local unit = HeroData.CreateClassUnit(classId, {
                 rosterId = rosterId,
                 unitId = string.format("class_unit_%d_%d", classId, rosterId),
-                promotionStage = "low",
                 level = STARTER_LEVEL,
-                exp = 0,
                 teamState = "active",
                 source = "starter",
                 ultimateCharges = 1,
@@ -667,17 +375,6 @@ local function openReward(groupId)
     return true
 end
 
-local function openBattleLevelUpReward()
-    local rewardState = RoguelikeReward.GenerateLevelUpRewardState(state)
-    if not rewardState or #(rewardState.options or {}) == 0 then
-        -- 无可升级成员（全员已到等级上限），直接返回地图。
-        return false, "levelup_unavailable"
-    end
-    state.phase = "reward"
-    state.rewardState = rewardState
-    return true
-end
-
 local function leaveNodeBackToMap()
     state.rewardState = nil
     state.eventState = nil
@@ -844,31 +541,49 @@ function RoguelikeRun.Tick(deltaMs)
             local node = getNode(state.currentNodeId)
             local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId))
             local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
-            local levelUpDetails = grantBattleExp(battle)
-            local equipmentDropCount = grantBattleLoot(node, battleProfile)
-            recalcRecommendedLevel()
+            -- 战斗胜利显式管道：节点金币（已由 ResolveBattle 写入）→ 节点掉落 → partyExp →
+            -- FeatPicker 升级三选一 → 战斗后休整 → 进入下一房间。
+            local lootSummary = grantBattleLoot(node, battleProfile)
+            local expReward = grantBattleExp(battle)
+            -- BeginSession 内部根据 partyExp 与各 hero.level 推导 pendingPicks，并写回 state.partyLevel；
+            -- 此处保留 recalcPartyLevel 调用，是为了同步 levelProgressExp / nextLevelExp 到当前阈值，
+            -- 以便 UI 即时刷新进度条。两个 partyLevel 写入是一致结果（前后等价）。
+            local session = FeatPicker.BeginSession(state)
+            recalcPartyLevel()
             mergeLastBattleSummary({
-                expReward = state.lastBattleExpReward or 0,
-                levelUps = levelUpDetails or {},
-                equipmentDropCount = equipmentDropCount or 0,
+                expReward = expReward or 0,
+                levelUps = {},
+                equipmentDropCount = lootSummary.equipmentDropCount or 0,
+                blessingDropCount = lootSummary.blessingDropCount or 0,
             })
+
+            -- 启动升级三选一会话；若产生 session 则停在 reward 阶段，由 ChooseReward 链推进；
+            -- 若未跨等级则继续后续 rest+前进。
+            if session then
+                if node and node.nodeType == "boss" then
+                    local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+                    local clearRewards = chapter.chapterClearRewards or {}
+                    state.gold = (state.gold or 0) + (clearRewards.gold or 0)
+                    state.rewardReturnMode = "chapter_result"
+                else
+                    state.rewardReturnMode = "map"
+                end
+                state.phase = "reward"
+                return events or {}
+            end
+
+            -- 无升级会话：直接做战斗后休整，再前进/进入章节结算。
+            RoguelikeBattleBridge.ApplyPostBattleRest(state)
             if node and node.nodeType == "boss" then
                 local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                 local clearRewards = chapter.chapterClearRewards or {}
                 state.gold = (state.gold or 0) + (clearRewards.gold or 0)
-                state.rewardReturnMode = "chapter_result"
-                local opened = shouldOpenBattleClassCardReward(node) and openBattleLevelUpReward()
-                if not opened then
-                    enterChapterResult()
-                end
+                enterChapterResult()
                 return events or {}
             end
 
             state.rewardReturnMode = "map"
-            local opened = shouldOpenBattleClassCardReward(node) and openBattleLevelUpReward()
-            if not opened then
-                leaveNodeBackToMap()
-            end
+            leaveNodeBackToMap()
         else
             state.phase = "failed"
             state.chapterResult = {
@@ -892,11 +607,36 @@ function RoguelikeRun.ChooseReward(index)
     if state.phase ~= "reward" then
         return false, "not_in_reward"
     end
+
+    local rewardKind = state.rewardState and state.rewardState.kind or nil
+    -- 升级三选一会话由 FeatPicker 处理，且可能链式触发下一会话；
+    -- 仅在 session 完全消费完毕后再进入战斗后休整 + 推进路线。
+    if rewardKind == "feat_levelup" then
+        local ok, result = FeatPicker.Pick(state, tonumber(index) or 0)
+        if not ok then
+            return false, result
+        end
+        recalcPartyLevel()
+        if state.featPickerSession then
+            -- 还有挂起会话，继续停在 reward 阶段。
+            state.phase = "reward"
+            return true
+        end
+        -- session 已耗尽：补做战斗后休整，再按 returnMode 路由。
+        RoguelikeBattleBridge.ApplyPostBattleRest(state)
+        if state.rewardReturnMode == "chapter_result" then
+            enterChapterResult()
+            return true
+        end
+        leaveNodeBackToMap()
+        return true
+    end
+
     local ok, reason = RoguelikeReward.ApplyReward(state, state.rewardState, tonumber(index) or 0)
     if not ok then
         return false, reason
     end
-    recalcRecommendedLevel()
+    recalcPartyLevel()
     if state.rewardReturnMode == "chapter_result" then
         enterChapterResult()
         return true
@@ -927,9 +667,6 @@ function RoguelikeRun.ChooseEventOption(optionId)
 
     local result = resultOrReason or {}
     if result.kind == "done" then
-        if node then
-            grantRunExp(getNodeExp(node.nodeType), "完成事件")
-        end
         leaveNodeBackToMap()
         return true
     end
@@ -937,20 +674,12 @@ function RoguelikeRun.ChooseEventOption(optionId)
         return openReward(result.rewardGroupId)
     end
     if result.kind == "blessing" then
-        state.blessingIds = state.blessingIds or {}
-        addUnique(state.blessingIds, result.blessingId)
-        if node then
-            grantRunExp(getNodeExp(node.nodeType), "完成事件")
-        end
+        BuildConstraints.AddBlessing(state, result.blessingId)
         leaveNodeBackToMap()
         return true
     end
     if result.kind == "equipment" then
-        state.equipmentIds = state.equipmentIds or {}
-        addUnique(state.equipmentIds, result.equipmentId)
-        if node then
-            grantRunExp(getNodeExp(node.nodeType), "完成事件")
-        end
+        BuildConstraints.AddEquipment(state, result.equipmentId)
         leaveNodeBackToMap()
         return true
     end
@@ -958,9 +687,6 @@ function RoguelikeRun.ChooseEventOption(optionId)
         local added, reason = RoguelikeReward.AddRecruit(state, result.heroId)
         if not added then
             return false, reason
-        end
-        if node then
-            grantRunExp(getNodeExp(node.nodeType), "完成事件")
         end
         leaveNodeBackToMap()
         return true
@@ -1025,10 +751,6 @@ function RoguelikeRun.ShopLeave()
     if state.phase ~= "shop" then
         return false, "not_in_shop"
     end
-    local node = getNode(state.currentNodeId)
-    if node then
-        grantRunExp(getNodeExp(node.nodeType), "完成商店节点")
-    end
     leaveNodeBackToMap()
     return true
 end
@@ -1042,7 +764,6 @@ function RoguelikeRun.CampChoose(actionId)
     if not ok then
         return false, reason
     end
-    grantRunExp(getNodeExp(node.nodeType), "完成营地节点")
     leaveNodeBackToMap()
     return true
 end
