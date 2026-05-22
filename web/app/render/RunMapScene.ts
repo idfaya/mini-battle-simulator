@@ -1,23 +1,33 @@
-import type { RunSnapshot } from "../types/roguelike";
+import type { RunMapNodeState, RunSnapshot } from "../types/roguelike";
+
+type FloorBucket = {
+  floor: number;
+  nodes: RunMapNodeState[];
+  gridW: number;
+  gridH: number;
+};
+
+const HEADER_HEIGHT = 110;
+const ROOM_SIZE = 64;
+const ROOM_GAP = 22;
+const SIDE_PADDING = 32;
+const BOTTOM_PADDING = 48;
 
 export class RunMapScene {
   /**
-   * Used by CanvasRenderer to decide whether we should grow the canvas and rely on native scrolling.
-   * Only meaningful for portrait/mobile layouts where vertical map may exceed the viewport.
+   * Used by CanvasRenderer to decide whether we should grow the canvas.
+   * 单层平面图通常一屏可以放下，但窄屏 / 大网格仍可能溢出。
    */
   getPreferredCanvasHeight(width: number, snapshot: RunSnapshot | null) {
     if (!snapshot?.map) {
       return null;
     }
-    // Portrait/mobile: floors stacked vertically.
-    const isPortrait = width <= 720;
-    if (!isPortrait) {
+    const bucket = pickActiveFloor(snapshot);
+    if (!bucket) {
       return null;
     }
-    const top = 110;
-    const bottom = 64;
-    const floorGap = 112;
-    return top + (snapshot.map.floorCount - 1) * floorGap + bottom;
+    const layout = computeFloorLayout(width, bucket);
+    return layout.totalHeight;
   }
 
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, snapshot: RunSnapshot | null) {
@@ -31,94 +41,84 @@ export class RunMapScene {
       return;
     }
 
-    const map = snapshot.map;
-    const nodesByFloor = new Map<number, typeof map.nodes>();
-    for (const node of map.nodes) {
-      const bucket = nodesByFloor.get(node.floor) ?? [];
-      bucket.push(node);
-      nodesByFloor.set(node.floor, bucket);
+    const bucket = pickActiveFloor(snapshot);
+    if (!bucket) {
+      ctx.fillStyle = "#f8f9fa";
+      ctx.font = "16px sans-serif";
+      ctx.fillText("地图无房间", 42, 140);
+      return;
     }
 
-    const nodePositions = new Map<number, { x: number; y: number }>();
-    const isPortrait = width <= 720;
-    const top = 110;
-    const left = 120;
-    const right = 120;
-    const floorGap = 112;
+    const layout = computeFloorLayout(width, bucket);
 
-    if (isPortrait) {
-      // Vertical map: floors stacked from top -> bottom, lanes spread on X.
-      for (let floor = 1; floor <= map.floorCount; floor += 1) {
-        const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
-        const usableWidth = Math.max(1, width - left - right);
-        const maxGap = 160;
-        const laneGap =
-          floorNodes.length <= 1 ? 0 : Math.min(maxGap, Math.floor(usableWidth / Math.max(1, floorNodes.length - 1)));
-        const startX = width / 2 - ((floorNodes.length - 1) * laneGap) / 2;
-        for (let index = 0; index < floorNodes.length; index += 1) {
-          const node = floorNodes[index];
-          nodePositions.set(node.id, {
-            x: startX + index * laneGap,
-            y: top + (floor - 1) * floorGap,
-          });
-        }
-      }
-    } else {
-      // Desktop map: keep the original left->right layout.
-      for (let floor = 1; floor <= map.floorCount; floor += 1) {
-        const floorNodes = [...(nodesByFloor.get(floor) ?? [])].sort((a, b) => a.lane - b.lane);
-        const laneGap = floorNodes.length <= 1 ? 0 : 160;
-        const startY = height / 2 - ((floorNodes.length - 1) * laneGap) / 2;
-        for (let index = 0; index < floorNodes.length; index += 1) {
-          const node = floorNodes[index];
-          nodePositions.set(node.id, {
-            x: left + (floor - 1) * floorGap,
-            y: startY + index * laneGap,
-          });
-        }
-      }
+    // Position lookup
+    const nodePositions = new Map<number, { x: number; y: number; revealed: boolean }>();
+    for (const placement of layout.placements) {
+      nodePositions.set(placement.node.id, {
+        x: placement.x,
+        y: placement.y,
+        revealed: placement.node.revealed,
+      });
     }
 
-    for (const edge of map.edges ?? []) {
+    // Floor plate
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillRect(layout.plateX, layout.plateY, layout.plateW, layout.plateH);
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      layout.plateX + 0.5,
+      layout.plateY + 0.5,
+      layout.plateW - 1,
+      layout.plateH - 1,
+    );
+
+    // Doors（迷雾两端的门完全隐藏；至少一端可见才显示，强度按可见度差异化）
+    for (const edge of snapshot.map.edges ?? []) {
       const from = nodePositions.get(edge.fromNodeId);
-      if (!from) {
-        continue;
-      }
       const to = nodePositions.get(edge.toNodeId);
-      if (!to) {
+      if (!from || !to) {
         continue;
       }
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (isPortrait) {
-        ctx.moveTo(from.x, from.y + 18);
-        ctx.lineTo(to.x, to.y - 18);
-      } else {
-        ctx.moveTo(from.x + 18, from.y);
-        ctx.lineTo(to.x - 18, to.y);
+      if (!from.revealed && !to.revealed) {
+        continue;
       }
+      const bothRevealed = from.revealed && to.revealed;
+      ctx.strokeStyle = bothRevealed ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.16)";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
       ctx.stroke();
     }
 
-    for (const node of map.nodes) {
-      const pos = nodePositions.get(node.id);
-      if (!pos) {
-        continue;
+    // Rooms
+    for (const placement of layout.placements) {
+      if (placement.node.revealed) {
+        this.drawRoom(ctx, placement.x, placement.y, placement.node, layout.cellSize);
+      } else {
+        this.drawFogRoom(ctx, placement.x, placement.y, layout.cellSize);
       }
-      this.drawNode(ctx, pos.x, pos.y, node);
     }
 
+    // Header
     ctx.fillStyle = "#f8f9fa";
     ctx.font = "bold 28px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
     ctx.fillText(`Act 1 · Chapter ${snapshot.chapterId}`, 42, 50);
-    ctx.font = "14px sans-serif";
-    ctx.fillText(`金币 ${snapshot.gold} · 装备 ${snapshot.equipments.length} · 祝福 ${snapshot.blessings.length}`, 42, 74);
 
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = "13px sans-serif";
-    // Put the hint near the header so it stays visible even when the canvas becomes scrollable.
-    ctx.fillText("地图为竖向推进（手机可上下滑动查看）。", 42, 96);
+    ctx.font = "14px sans-serif";
+    ctx.fillText(
+      `金币 ${snapshot.gold} · 装备 ${snapshot.equipments.length} · 祝福 ${snapshot.blessings.length}`,
+      42,
+      74,
+    );
+
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText(`第 ${bucket.floor} 层 · ${countRevealed(bucket)} / ${bucket.nodes.length} 房间已探索`, 42, 96);
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -129,32 +129,61 @@ export class RunMapScene {
     ctx.fillRect(0, 0, width, height);
   }
 
-  private drawNode(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    node: RunSnapshot["map"]["nodes"][number],
-  ) {
+  private drawRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, node: RunMapNodeState, cellSize: number) {
     const color = this.getNodeColor(node.nodeType);
+    const half = cellSize / 2;
     ctx.save();
+
     ctx.beginPath();
-    ctx.arc(x, y, 24, 0, Math.PI * 2);
+    ctx.rect(cx - half, cy - half, cellSize, cellSize);
     ctx.fillStyle = node.current ? "#ffd166" : color.fill;
     ctx.fill();
-    ctx.lineWidth = node.selectable ? 4 : node.visited ? 2 : 1;
+
+    ctx.lineWidth = node.selectable ? 4 : node.visited ? 2 : 1.5;
     ctx.strokeStyle = node.selectable ? "#80ed99" : color.stroke;
     ctx.stroke();
 
     ctx.fillStyle = "#0b1320";
-    ctx.font = "bold 12px sans-serif";
+    ctx.font = "bold 16px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(this.getNodeShortLabel(node.nodeType), x, y);
+    ctx.fillText(this.getNodeShortLabel(node.nodeType), cx, cy - 2);
 
     const title = node.titleVisible ? node.title : this.getNodeTypeLabel(node.nodeType);
-    ctx.fillStyle = node.selectable || node.current ? "#f8f9fa" : "rgba(255,255,255,0.6)";
-    ctx.font = "12px sans-serif";
-    ctx.fillText(title, x, y + 42);
+    ctx.fillStyle = node.selectable || node.current ? "#f8f9fa" : "rgba(255,255,255,0.7)";
+    ctx.font = "11px sans-serif";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(title, cx, cy + half + 14);
+
+    if (node.visited && !node.current) {
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillRect(cx - half, cy - half, cellSize, cellSize);
+    }
+
+    ctx.restore();
+  }
+
+  private drawFogRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, cellSize: number) {
+    const half = cellSize / 2;
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.rect(cx - half, cy - half, cellSize, cellSize);
+    ctx.fillStyle = "rgba(20, 28, 40, 0.55)";
+    ctx.fill();
+
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("?", cx, cy);
+
     ctx.restore();
   }
 
@@ -174,6 +203,14 @@ export class RunMapScene {
         return "募";
       case "boss":
         return "B";
+      case "equip":
+        return "装";
+      case "stair_up":
+        return "↑";
+      case "stair_down":
+        return "↓";
+      case "empty":
+        return "·";
       default:
         return "?";
     }
@@ -195,6 +232,13 @@ export class RunMapScene {
         return { fill: "#ff9f1c", stroke: "#ffd6a5" };
       case "boss":
         return { fill: "#8338ec", stroke: "#d0b3ff" };
+      case "equip":
+        return { fill: "#bdb2ff", stroke: "#e0d7ff" };
+      case "stair_up":
+      case "stair_down":
+        return { fill: "#adb5bd", stroke: "#e9ecef" };
+      case "empty":
+        return { fill: "#3a4756", stroke: "#7a8694" };
       default:
         return { fill: "#65748b", stroke: "#d9e2ec" };
     }
@@ -216,8 +260,135 @@ export class RunMapScene {
         return "招募";
       case "boss":
         return "Boss";
+      case "equip":
+        return "装备";
+      case "stair_up":
+        return "上楼梯";
+      case "stair_down":
+        return "下楼梯";
+      case "empty":
+        return "空房间";
       default:
         return "未知";
     }
   }
+}
+
+function bucketByFloor(nodes: RunMapNodeState[]): Map<number, FloorBucket> {
+  const map = new Map<number, FloorBucket>();
+  for (const node of nodes) {
+    const floor = node.floor ?? 1;
+    let bucket = map.get(floor);
+    if (!bucket) {
+      bucket = { floor, nodes: [], gridW: node.floorGridW ?? 4, gridH: node.floorGridH ?? 4 };
+      map.set(floor, bucket);
+    }
+    bucket.nodes.push(node);
+    if (node.floorGridW && node.floorGridW > bucket.gridW) {
+      bucket.gridW = node.floorGridW;
+    }
+    if (node.floorGridH && node.floorGridH > bucket.gridH) {
+      bucket.gridH = node.floorGridH;
+    }
+  }
+  for (const bucket of map.values()) {
+    if (!bucket.nodes.some((node) => node.gridX != null)) {
+      // 配置缺失 grid 时退化为单行布局，避免画面空白。
+      bucket.nodes.sort((a, b) => (a.lane ?? 0) - (b.lane ?? 0));
+      bucket.nodes.forEach((node, index) => {
+        node.gridX = index + 1;
+        node.gridY = 1;
+      });
+      bucket.gridW = bucket.nodes.length;
+      bucket.gridH = 1;
+    }
+  }
+  return map;
+}
+
+function pickActiveFloor(snapshot: RunSnapshot): FloorBucket | null {
+  const map = snapshot.map;
+  if (!map || map.nodes.length === 0) {
+    return null;
+  }
+  const buckets = bucketByFloor(map.nodes);
+  const explicit = snapshot.currentFloorDepth;
+  if (explicit != null && buckets.has(explicit)) {
+    return buckets.get(explicit) ?? null;
+  }
+  // Fallback：从当前节点反推楼层。
+  if (snapshot.currentNodeId != null) {
+    const current = map.nodes.find((node) => node.id === snapshot.currentNodeId);
+    if (current && buckets.has(current.floor)) {
+      return buckets.get(current.floor) ?? null;
+    }
+  }
+  // 最后再退化到最低楼层。
+  const sorted = [...buckets.values()].sort((a, b) => a.floor - b.floor);
+  return sorted[0] ?? null;
+}
+
+function countRevealed(bucket: FloorBucket) {
+  let n = 0;
+  for (const node of bucket.nodes) {
+    if (node.revealed) {
+      n++;
+    }
+  }
+  return n;
+}
+
+type FloorRenderLayout = {
+  plateX: number;
+  plateY: number;
+  plateW: number;
+  plateH: number;
+  cellSize: number;
+  totalHeight: number;
+  placements: { node: RunMapNodeState; x: number; y: number }[];
+};
+
+function computeFloorLayout(width: number, bucket: FloorBucket): FloorRenderLayout {
+  const gridW = Math.max(1, bucket.gridW);
+  const gridH = Math.max(1, bucket.gridH);
+
+  const usableWidth = Math.max(120, width - SIDE_PADDING * 2);
+  let cellSize = ROOM_SIZE;
+  if (gridW * (ROOM_SIZE + ROOM_GAP) - ROOM_GAP > usableWidth) {
+    cellSize = Math.max(28, Math.floor((usableWidth - ROOM_GAP * (gridW - 1)) / gridW));
+  }
+  const stepX = cellSize + ROOM_GAP;
+  const stepY = cellSize + ROOM_GAP;
+  const floorWidth = gridW * stepX - ROOM_GAP;
+  const floorHeight = gridH * stepY - ROOM_GAP;
+
+  // 横向居中
+  const plateX = Math.max(SIDE_PADDING - 8, Math.floor((width - floorWidth) / 2) - 8);
+  const plateY = HEADER_HEIGHT;
+  const plateW = floorWidth + 16;
+  const plateH = floorHeight + 16 + 12;
+
+  const originX = plateX + 8 + cellSize / 2;
+  const originY = plateY + 8 + cellSize / 2;
+
+  const placements: { node: RunMapNodeState; x: number; y: number }[] = [];
+  for (const node of bucket.nodes) {
+    const gx = Math.max(1, node.gridX ?? 1);
+    const gy = Math.max(1, node.gridY ?? 1);
+    placements.push({
+      node,
+      x: originX + (gx - 1) * stepX,
+      y: originY + (gy - 1) * stepY,
+    });
+  }
+
+  return {
+    plateX,
+    plateY,
+    plateW,
+    plateH,
+    cellSize,
+    totalHeight: plateY + plateH + BOTTOM_PADDING,
+    placements,
+  };
 }

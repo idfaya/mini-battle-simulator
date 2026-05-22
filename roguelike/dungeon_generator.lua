@@ -426,6 +426,8 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                     templateId = template.id,
                     isBossFloor = template.isBoss == true,
                     isHidden = template.isHidden == true,
+                    gridW = template.gridW or 4,
+                    gridH = template.gridH or 4,
                     rooms = rooms,
                     doors = doorList,
                     startRoomId = startRoomId,

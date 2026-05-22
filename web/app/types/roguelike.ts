@@ -10,12 +10,27 @@ export type RunPhase =
   | "chapter_result"
   | "failed";
 
-export type RunNodeType = "battle_normal" | "battle_elite" | "event" | "shop" | "camp" | "boss" | "recruit";
+export type RunNodeType =
+  | "battle_normal"
+  | "battle_elite"
+  | "event"
+  | "shop"
+  | "camp"
+  | "boss"
+  | "recruit"
+  | "equip"
+  | "empty"
+  | "stair_up"
+  | "stair_down";
 
 export type RunMapNodeState = {
   id: number;
   floor: number;
   lane: number;
+  gridX?: number;
+  gridY?: number;
+  floorGridW?: number;
+  floorGridH?: number;
   nodeType: RunNodeType;
   title: string;
   visited: boolean;
@@ -220,6 +235,7 @@ export type ChapterResult = {
 export type RunSnapshot = {
   phase: RunPhase;
   chapterId: number;
+  currentFloorDepth?: number | null;
   currentNodeId: number | null;
   maxHeroCount: number;
   partyLevel: number;

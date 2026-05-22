@@ -32,6 +32,10 @@ local function buildNodeView(room, floor, chapterId)
             local idx = (room.id % 1000)
             return idx
         end)(),
+        gridX = room.gridX,
+        gridY = room.gridY,
+        floorGridW = floor.gridW,
+        floorGridH = floor.gridH,
         nodeType = room.roomType,
         title = room.title or "",
         nextNodeIds = nextNodeIds,
