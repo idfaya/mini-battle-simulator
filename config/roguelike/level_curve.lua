@@ -1,57 +1,47 @@
 -- ==========================================================================
--- 队伍 EXP 阈值
--- 唯一权威来源（SSOT）：所有运行时模块统一从本文件读取等级曲线，禁止散写。
---
--- D1.5 迷宫节奏重调（2026-05-22）：完整 3 章约 38~39 场战斗，
--- 10 级上限只需要 9 次队伍等级提升。固定 20 EXP/级，配合单战
--- expReward <= 8，确保单场战斗最多只跨 1 个 partyLevel。
-local LEVEL_STEP_EXP = 20
+-- 队伍 EXP 阈值（转发 5e SSOT：config/roguelike/exp_5e.lua）
+-- ==========================================================================
+local Exp5e = require("config.roguelike.exp_5e")
+
+---@class LevelCurveModule
+---@field LEVEL_EXP_THRESHOLDS table<integer, integer>
+---@field STARTER_LEVEL integer
+---@field CHAPTER_LEVEL_CAP integer
+---@field LEVEL_STEP_EXP number|nil
+---@field GetExpThreshold fun(level: integer): integer
+---@field GetExpToNextLevel fun(level: integer, cap?: integer): integer
+---@field GetLevelForExp fun(exp: integer, cap?: integer): integer
 
 local function buildThresholds(cap)
-    local t = { [1] = 0 }
-    for lv = 2, cap do
-        t[lv] = (lv - 1) * LEVEL_STEP_EXP
+    local t = {}
+    for lv = 1, cap do
+        t[lv] = Exp5e.GetCharacterExpThreshold(lv)
     end
     return t
 end
 
-local CHAPTER_LEVEL_CAP = 10
+local CHAPTER_LEVEL_CAP = Exp5e.MAX_CHARACTER_LEVEL
 
+---@type LevelCurveModule
 local M = {
-    LEVEL_EXP_THRESHOLDS = buildThresholds(CHAPTER_LEVEL_CAP),
-    STARTER_LEVEL = 1,
+    STARTER_LEVEL = Exp5e.STARTER_LEVEL,
     CHAPTER_LEVEL_CAP = CHAPTER_LEVEL_CAP,
+    LEVEL_EXP_THRESHOLDS = buildThresholds(CHAPTER_LEVEL_CAP),
 }
 
--- 累计经验阈值：超出 cap 时回退到 cap 阈值。
 function M.GetExpThreshold(level)
-    local lv = math.max(M.STARTER_LEVEL, tonumber(level) or M.STARTER_LEVEL)
-    return M.LEVEL_EXP_THRESHOLDS[lv] or M.LEVEL_EXP_THRESHOLDS[M.CHAPTER_LEVEL_CAP] or 0
+    return Exp5e.GetCharacterExpThreshold(level)
 end
 
--- 当前等级跨入下一级所需的增量经验；已达 cap 时返回 0。
 function M.GetExpToNextLevel(level, cap)
-    local lv = math.max(M.STARTER_LEVEL, tonumber(level) or M.STARTER_LEVEL)
-    local levelCap = math.max(M.STARTER_LEVEL, tonumber(cap) or M.CHAPTER_LEVEL_CAP)
-    if lv >= levelCap then
-        return 0
-    end
-    return math.max(1, M.GetExpThreshold(lv + 1) - M.GetExpThreshold(lv))
+    return Exp5e.GetExpToNextLevel(level, cap)
 end
 
--- 根据累计经验推导对应的等级（≤ cap）。
 function M.GetLevelForExp(exp, cap)
-    local levelCap = math.max(M.STARTER_LEVEL, tonumber(cap) or M.CHAPTER_LEVEL_CAP)
-    local totalExp = math.max(0, math.floor(tonumber(exp) or 0))
-    local current = M.STARTER_LEVEL
-    for lv = M.STARTER_LEVEL + 1, levelCap do
-        if totalExp >= M.GetExpThreshold(lv) then
-            current = lv
-        else
-            break
-        end
-    end
-    return current
+    return Exp5e.GetLevelForExp(exp, cap)
 end
+
+-- 兼容旧测试：Lv1→2 的增量（随 PARTY_EXP_SCALE 变化）。
+M.LEVEL_STEP_EXP = M.GetExpToNextLevel(1, CHAPTER_LEVEL_CAP)
 
 return M

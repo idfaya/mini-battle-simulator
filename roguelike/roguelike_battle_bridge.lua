@@ -9,6 +9,7 @@ local ClassRoleConfig = require("config.tables.classes")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
+local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
@@ -431,30 +432,15 @@ local function buildBattleConfig(runState, battle, battleProfile)
     -- Battle profiles still define "intended" pacing (battleProfile.level), but we cap how far
     -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
     local partyLevel = effectivePartyLevel
-    local baseLevel = tonumber(battleProfile and battleProfile.level) or partyLevel
-    local kindOffset = 0
     local battleKind = battleProfile and battleProfile.kind or battle.kind
-    if battleKind == "elite" then
-        kindOffset = 1
-    elseif battleKind == "boss" then
-        kindOffset = 2
-    end
-    local minEnemyLevel = partyLevel - 1
-    if battleKind == "normal" or battleKind == "event_battle" then
-        -- Normal fights keep density for atmosphere; allow level to sit up to 4 below party
-        -- so balance can be tuned by stats instead of reducing unit count.
-        minEnemyLevel = partyLevel - 4
-    elseif battleKind == "elite" then
-        -- 阶段 1 修复：roguelike 路线允许跳过战斗（shop/camp/recruit），到达 elite
-        -- 时 partyLevel 可能比 battle profile 高 2 级。如果再强制把怪等级抬到
-        -- partyLevel-1，等同于把 elite 进一步拔高，会让 economy-heavy 路线必然
-        -- wipe。允许 elite 怪等级最低与 battle profile 持平（差 2 级）。
-        minEnemyLevel = partyLevel - 2
-    elseif battleKind == "boss" then
-        -- Boss still stays above normal pressure, but should honor battle profile level tuning.
-        minEnemyLevel = partyLevel - 3
-    end
-    local effectiveEnemyLevel = clamp(baseLevel, math.max(1, minEnemyLevel), partyLevel + 1 + kindOffset)
+    local floorDepth = tonumber(runState.dungeonState and runState.dungeonState.currentFloorDepth) or 1
+    local effectiveEnemyLevel = EncounterLevelCurve.ResolveEnemyLevel({
+        chapterId = tonumber(runState.chapterId) or 101,
+        floorDepth = floorDepth,
+        battleKind = battleKind,
+        profileLevel = tonumber(battleProfile and battleProfile.level) or partyLevel,
+        partyLevel = partyLevel,
+    })
     if os.getenv("BATTLE_DIAG") then
         print(string.format("[BATTLE_DIAG] kind=%s baseLevel=%s partyLevel=%s effEnemyLv=%s hpMul=%.2f atkMul=%.2f hit=%d",
             tostring(battleKind), tostring(baseLevel), tostring(partyLevel), tostring(effectiveEnemyLevel),
@@ -490,7 +476,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
         seedArray = buildDeterministicSeedArray(runState, battleProfile or battle),
         initialEnergy = (battleProfile and battleProfile.initialEnergy) or 40,
         disableDefaultRenderer = true,
-    }, modifiers
+    }, modifiers, effectiveEnemyLevel
 end
 
 local function applyLeftEnergyBonus(extraEnergy)
@@ -539,7 +525,7 @@ local function applyPostBattleRest(runState)
 end
 
 function RoguelikeBattleBridge.StartBattle(runState, battle, battleProfile)
-    local config, modifiers, reason = buildBattleConfig(runState, battle, battleProfile)
+    local config, modifiers, enemyLevel, reason = buildBattleConfig(runState, battle, battleProfile)
     if not config then
         return false, reason
     end
@@ -547,6 +533,8 @@ function RoguelikeBattleBridge.StartBattle(runState, battle, battleProfile)
     local snapshot = BattleRuntime.init(config)
     applyLeftEnergyBonus(modifiers.extraEnergy)
     runState.currentBattleModifiers = modifiers
+    runState.currentBattleEnemyIds = flattenBattleEnemyIds(battle)
+    runState.currentBattleEnemyLevel = enemyLevel
     return true, snapshot
 end
 

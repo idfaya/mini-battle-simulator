@@ -58,6 +58,21 @@ end
 local function chooseRewardIndex(s)
     local r = s and s.rewardState
     if not r or not r.options then return 1 end
+    if r.kind == "feat_levelup" then
+        local levelByRoster = {}
+        for _, hero in ipairs(s.team or {}) do
+            levelByRoster[tonumber(hero.rosterId) or 0] = tonumber(hero.level) or 1
+        end
+        local bestIndex, bestLevel
+        for index, option in ipairs(r.options) do
+            local lv = levelByRoster[tonumber(option.rosterId) or 0] or 99
+            if not bestLevel or lv < bestLevel then
+                bestLevel = lv
+                bestIndex = index
+            end
+        end
+        return bestIndex or 1
+    end
     local priority = { equipment = 1, blessing = 2, gold = 3 }
     local bestIdx, bestScore = 1, 99
     for i, opt in ipairs(r.options) do
@@ -65,6 +80,21 @@ local function chooseRewardIndex(s)
         if sc < bestScore then bestIdx, bestScore = i, sc end
     end
     return bestIdx
+end
+
+local function acceptAllRewards()
+    local guard = 0
+    while guard < 32 do
+        guard = guard + 1
+        local s = Run.GetSnapshot()
+        if s.phase ~= "reward" then
+            return s
+        end
+        local idx = chooseRewardIndex(s)
+        assert(Run.ChooseReward(idx) == true,
+            "reward should resolve (kind=" .. tostring(s.rewardState and s.rewardState.kind) .. ")")
+    end
+    error("reward chain did not finish within guard limit")
 end
 
 -- BFS 寻路：从 current 到目标 predicate 的最短路径，返回下一跳；stair_up 仅作终点不作中转。
@@ -214,10 +244,10 @@ while guard < 300 do
     elseif snapshot.phase == "battle" then
         snapshot = runBattle(900)
         if snapshot.phase == "reward" then
-            assert(Run.ChooseReward(chooseRewardIndex(snapshot)) == true, "reward should resolve")
+            snapshot = acceptAllRewards()
         end
     elseif snapshot.phase == "reward" then
-        assert(Run.ChooseReward(chooseRewardIndex(snapshot)) == true, "reward should resolve")
+        snapshot = acceptAllRewards()
     elseif snapshot.phase == "camp" then
         -- camp short_rest 可能因约束（如 duplicate_blessing）失败，按可用列表 fallback。
         local actions = (snapshot.campState and snapshot.campState.actions) or {}

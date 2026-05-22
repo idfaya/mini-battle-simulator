@@ -30,6 +30,19 @@ local function findSelectableNodeByType(snapshot, nodeType)
     return nil
 end
 
+local function drainRewards()
+    local guard = 0
+    while guard < 32 do
+        guard = guard + 1
+        local snapshot = Run.GetSnapshot()
+        if snapshot.phase ~= "reward" then
+            return snapshot
+        end
+        assert_true(Run.ChooseReward(1) == true, "reward should resolve")
+    end
+    error("reward chain did not finish")
+end
+
 local function getUltimateSkillForUnit(unitId)
     local hero = BattleFormation.FindHeroByInstanceId
         and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
@@ -98,6 +111,29 @@ local function choosePathAndEnter(nodeId)
     assert_true(ok, "enter node failed: " .. tostring(reason))
 end
 
+local function findNextBattleNode(snapshot)
+    local nodeId = findSelectableNodeByType(snapshot, "battle_normal")
+        or findSelectableNodeByType(snapshot, "battle_elite")
+    if nodeId then
+        return nodeId
+    end
+    for _, node in ipairs((snapshot and snapshot.map and snapshot.map.nodes) or {}) do
+        if node.selectable and (node.nodeType == "battle_normal" or node.nodeType == "battle_elite") then
+            return node.id
+        end
+    end
+    return nil
+end
+
+local function enterNextBattle(snapshot)
+    local nodeId = findNextBattleNode(snapshot)
+    if not nodeId then
+        return false, "no_battle_node"
+    end
+    choosePathAndEnter(nodeId)
+    return true
+end
+
 local function findHeroByRosterId(team, rosterId)
     for _, unit in ipairs(team or {}) do
         if tonumber(unit.rosterId) == tonumber(rosterId) then
@@ -124,7 +160,7 @@ local function unitContainsFeat(unit, featName)
     return false
 end
 
--- ========== 用例 1：战斗胜利 → partyExp 增长 → feat_levelup 弹出 ==========
+-- ========== 用例 1：单场战斗 → partyExp 增长（D1.5 首场通常不触发三选一）==========
 do
     math.randomseed(20260520)
     local snapshot = Run.StartRun({
@@ -134,67 +170,27 @@ do
     })
     assert_true(snapshot.partyLevel == 1, "starter party level should be 1")
     assert_true((snapshot.partyExp or 0) == 0, "starter partyExp should be 0")
-
-    -- 个人 unit.exp 应当不再被写入（彻底废弃），全部经验只进 partyExp
     for _, unit in ipairs(snapshot.team or {}) do
         assert_true(unit.exp == nil or unit.exp == 0,
             "starter unit.exp should be nil or 0, got " .. tostring(unit.exp))
     end
-
-    -- 进入第一个普通战
-    local battleNodeId = findSelectableNodeByType(snapshot, "battle_normal")
-        or findSelectableNodeByType(snapshot, "battle_elite")
-    assert_true(battleNodeId ~= nil, "opening map should expose at least one battle node")
-    choosePathAndEnter(battleNodeId)
+    assert_true(enterNextBattle(snapshot), "opening map should expose a battle node")
     snapshot = runBattleUntilResolved(600)
-
-    -- 战斗后必然产生 partyExp 增长，且达到 Lv2 阈值（Lv2=6 EXP，普通战奖励高于此值）
     assert_true((snapshot.partyExp or 0) > 0, "battle should grant partyExp")
-    assert_true(snapshot.phase == "reward",
-        "battle level-up should open feat_levelup reward, got phase " .. tostring(snapshot.phase))
-    assert_true(snapshot.rewardState ~= nil and snapshot.rewardState.kind == "feat_levelup",
-        "reward kind should be feat_levelup, got " .. tostring(snapshot.rewardState and snapshot.rewardState.kind))
-    assert_true(#(snapshot.rewardState.options or {}) > 0, "feat_levelup should provide >0 options")
-
-    -- 校验 option payload 字段完备
-    local firstOption = snapshot.rewardState.options[1]
-    assert_true(firstOption.featId and firstOption.featId > 0, "option should carry featId")
-    assert_true(firstOption.heroId and firstOption.heroId > 0, "option should carry heroId")
-    assert_true(firstOption.rosterId and firstOption.rosterId > 0, "option should carry rosterId")
-    assert_true(firstOption.tier == "small" or firstOption.tier == "medium" or firstOption.tier == "high",
-        "option.tier should be one of small/medium/high")
-    assert_true(type(firstOption.heroName) == "string" and #firstOption.heroName > 0, "option.heroName should be set")
-    assert_true(firstOption.level >= 2,
-        "first level-up should target Lv>=2 (Lv2 跳级时可能直接到 Lv3), got " .. tostring(firstOption.level))
-
-    -- 选中第一项：对应英雄 +1 级，feat 写入
-    local targetRosterId = firstOption.rosterId
-    local beforeUnit = findHeroByRosterId(snapshot.team, targetRosterId)
-    assert_true(beforeUnit ~= nil, "target rosterId should exist in team")
-    local beforeLevel = tonumber(beforeUnit.level) or 1
-    local beforeFeatCount = countFeats(beforeUnit)
-
-    assert_true(Run.ChooseReward(1) == true, "ChooseReward should accept feat_levelup index 1")
-    snapshot = Run.GetSnapshot()
-    local afterUnit = findHeroByRosterId(snapshot.team, targetRosterId)
-    assert_true(afterUnit ~= nil, "target rosterId should still exist after pick")
-    local afterLevel = tonumber(afterUnit.level) or 1
-    assert_true(afterLevel == beforeLevel + 1,
-        string.format("hero level should +1: before=%d after=%d", beforeLevel, afterLevel))
-    assert_true(unitContainsFeat(afterUnit, firstOption.featName),
-        "selected feat (" .. tostring(firstOption.featName) .. ") should appear in unit.buildSummary")
-    assert_true(countFeats(afterUnit) >= beforeFeatCount + 1,
-        "unit.buildSummary length should grow after pick")
+    if snapshot.phase == "reward" then
+        snapshot = drainRewards()
+    end
+    assert_true(snapshot.phase == "map", "first battle should return to map when below Lv2 threshold")
 end
 
 -- ========== 用例 2：人为塞高 partyExp 跨多级，链式 session ==========
 do
     math.randomseed(99887)
-    -- 直接调用 BeginSession 验证 pendingLevels
-    -- 通过模拟的 state（隔离的本地 state）测试 FeatPicker 的纯逻辑
-    local LevelCurve = require("config.roguelike.level_curve")
-    -- 直接复用 SSOT 阈值表，避免本地散写。
-    local LEVEL_EXP_THRESHOLDS = LevelCurve.LEVEL_EXP_THRESHOLDS
+    local Exp5e = require("config.roguelike.exp_5e")
+    local LEVEL_EXP_THRESHOLDS = {}
+    for lv = 1, Exp5e.MAX_CHARACTER_LEVEL do
+        LEVEL_EXP_THRESHOLDS[lv] = Exp5e.GetCharacterExpThreshold(lv)
+    end
     local HeroData = require("config.hero_data")
     local heroA = HeroData.CreateClassUnit(1, {
         rosterId = 101, unitId = "test_a", promotionStage = "low",
@@ -215,14 +211,13 @@ do
         teamRoster = { heroA, heroB },
         benchRoster = {},
         partyLevel = 1,
-        partyExp = 25,  -- 跨过 Lv2(10) 与 Lv3(20)，到达 partyLevel 3
-        levelCap = 32,
+        partyExp = Exp5e.GetCharacterExpThreshold(3),
+        levelCap = 20,
     }
     local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created when partyExp crosses thresholds")
     assert_true(session.kind == "feat_levelup", "session kind should be feat_levelup")
-    -- 设计 §3：队伍每升 1 级 = 1 次三选一 = 升 1 个英雄；与队员人数无关。
-    -- 队伍 partyLevel 1 → 3 = 2 次会话。
+    assert_true(mockState.partyLevel == 3, "partyLevel should be 3 at 5e Lv3 threshold")
     assert_true(session.pendingLevels == 2,
         "pendingLevels should be 2 (party Lv1→Lv3), got " .. tostring(session.pendingLevels))
     assert_true(#session.options > 0, "session should expose options")

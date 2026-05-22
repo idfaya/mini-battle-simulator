@@ -24,6 +24,15 @@ Default workflow after Lua changes:
 
 1. Edit source Lua files.
 2. Run `npm run export:lua` to refresh the Web mirror.
+3. Run web E2E（改完须自测，不要只跑 bin）：
+
+```bash
+cd web && npm run export:lua && npm run test:playwright
+```
+
+- 首次环境：`cd web && npx playwright install chromium`
+- Playwright 默认**不复用**已有 dev 服（`playwright.config.ts`）；本地调试可 `PW_REUSE_SERVER=1 npm run test:playwright`
+- 若 5173 被旧进程占用导致 `.lua` 返回 HTML，先结束该进程再跑测试
 
 ## Documentation
 
@@ -72,4 +81,5 @@ When changing skill behavior:
 
 ## Quick Commands
 
-- Refresh web Lua mirror: `npm run export:lua`
+- Refresh web Lua mirror: `cd web && npm run export:lua`
+- Web E2E（Playwright）: `cd web && npm run test:playwright`

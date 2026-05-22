@@ -34,8 +34,8 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_normal_early",
         name = "Act1 Normal Early",
         kind = "normal",
-        -- D1.5：迷宫每章约 13 场战斗，普通早期 4 EXP，单战不跨多级。
-        expReward = 4,
+        -- 第一章 F1 普通：约 1 场 1 级（20 EXP/级步长）。
+        expReward = 20,
         waveCountMin = 1,
         waveCountMax = 2,
         refreshTurns = 0,
@@ -53,8 +53,8 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_normal_mid",
         name = "Act1 Normal Mid",
         kind = "normal",
-        -- D1.5：中期普通 4 EXP，维持约 4~5 场升 1 级。
-        expReward = 4,
+        -- 中期普通：略慢于早期，约 1.4 场 / 级。
+        expReward = 14,
         waveCountMin = 3,
         waveCountMax = 3,
         refreshTurns = 0,
@@ -74,8 +74,8 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_normal_late",
         name = "Act1 Normal Late",
         kind = "normal",
-        -- D1.5：晚期普通略高，仍远低于 20 EXP/级步长。
-        expReward = 5,
+        -- 晚期普通：约 2 场 / 级。
+        expReward = 10,
         waveCountMin = 3,
         waveCountMax = 3,
         refreshTurns = 0,
@@ -93,8 +93,7 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_elite_mid",
         name = "Act1 Elite Mid",
         kind = "elite",
-        -- D1.5：精英奖励高于普通，但不能直接跳级。
-        expReward = 6,
+        expReward = 16,
         -- 阶段 1 修复：早期 elite 在 economy-heavy 路线（F3/F4 跳过战斗）时玩家
         -- 仅 partyLevel≈4，多波累积 ≥8 个怪足以 wipe。统一为单波 4 怪：仍保持
         -- 高 CR 怪物的精英压强，但不会因数量碾压低战力路线。
@@ -115,8 +114,7 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_elite_late",
         name = "Act1 Elite Late",
         kind = "elite",
-        -- D1.5：晚期精英奖励上限仍小于 20 EXP/级步长。
-        expReward = 7,
+        expReward = 12,
         -- 阶段 1 修复：与 201101 同因，将 wave 数下调到 1，避免 economy-heavy 路线
         -- 在 F5 第一个 elite 必然 wipe；保留更高 baseLevel/pressure 以体现"late"。
         waveCountMin = 1,
@@ -137,8 +135,7 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_boss",
         name = "Act1 Boss",
         kind = "boss",
-        -- D1.5：Boss 有奖励感，但单场绝不超过 1 级。
-        expReward = 8,
+        expReward = 14,
         waveCountMin = 2,
         waveCountMax = 2,
         refreshTurns = 0,
@@ -158,8 +155,7 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_event_battle_skirmish",
         name = "Act1 Event Battle Skirmish",
         kind = "event_battle",
-        -- D1.5：事件战略低于同期普通战。
-        expReward = 3,
+        expReward = 12,
         waveCountMin = 3,
         waveCountMax = 3,
         refreshTurns = 0,
@@ -177,8 +173,7 @@ RunBattleTemplate.TEMPLATES = {
         code = "act1_event_battle_ritual",
         name = "Act1 Event Battle Ritual",
         kind = "event_battle",
-        -- D1.5：事件战晚期等同普通中期。
-        expReward = 4,
+        expReward = 10,
         waveCountMin = 3,
         waveCountMax = 3,
         refreshTurns = 0,

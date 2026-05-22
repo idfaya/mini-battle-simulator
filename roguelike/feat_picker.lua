@@ -254,8 +254,6 @@ local function buildOptions(heroEntries)
 end
 
 -- 计算队伍当前应处的等级（按 partyExp 跨阈值，统一走 LevelCurve）。
--- 注意：partyLevel 的上限是 LevelCurve.CHAPTER_LEVEL_CAP（≈32），与 hero level cap（chapter.targetMaxLevel=8）解耦。
--- 新模型下 partyLevel = 累计三选一次数 + 1，可超过 hero cap，4 人队 Lv8 时 partyLevel ≈ 29。
 local function computePartyLevel(state, _heroLevelCap)
     local exp = math.max(0, math.floor(tonumber(state and state.partyExp) or 0))
     return LevelCurve.GetLevelForExp(exp, LevelCurve.CHAPTER_LEVEL_CAP)
@@ -281,9 +279,6 @@ function FeatPicker.BeginSession(state, thresholds)
     local newPartyLevel = computePartyLevel(state, levelCap)
     state.partyLevel = newPartyLevel
 
-    -- 队伍每升 1 级 = 1 次三选一会话；与存活英雄数无关。
-    -- state.partyLevelOwed 累积"已增长但尚未消费"的 picks，
-    -- 避免在 hero cap / 全员阵亡场景下丢失 picks（后续战斗复活/治疗后可再补抽）。
     local newOwed = (tonumber(state.partyLevelOwed) or 0) + math.max(0, newPartyLevel - oldPartyLevel)
     state.partyLevelOwed = newOwed
     if newOwed <= 0 then

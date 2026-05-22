@@ -1,0 +1,56 @@
+-- 战斗胜利队伍 EXP：5e 遭遇 XP（CR 表 + 数量倍率）+ 敌方等级缩放。
+local Exp5e = require("config.roguelike.exp_5e")
+local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
+local EnemyData = require("config.enemy_data")
+
+---@class BattleExpRewardOptions
+---@field enemyIds integer[]
+---@field partySize integer
+---@field partyLevel integer
+---@field levelCap integer|nil
+---@field enemyLevel integer|nil
+---@field chapterMultiplier number|nil
+
+---@class BattleExpRewardModule
+---@field ENEMY_LEVEL_XP_FACTOR number
+---@field ComputeVictoryExp fun(opts: BattleExpRewardOptions): integer, table
+
+---@type BattleExpRewardModule
+local M = {}
+
+-- 遭遇内怪物「生成等级」高于 1 时，在 5e CR 经验上按级递增（非 RAW，用于 Run 内成长同步）。
+-- 怪物生成等级对 5e 遭遇 XP 的加成（非 RAW；配合 encounter_level_curve 抬第一章节奏）。
+M.ENEMY_LEVEL_XP_FACTOR = 0.44
+
+---@param opts BattleExpRewardOptions
+---@return integer expReward
+---@return table report RunEncounterBudget report
+function M.ComputeVictoryExp(opts)
+    opts = opts or {}
+    local enemyIds = opts.enemyIds or {}
+    local partySize = math.max(1, math.floor(tonumber(opts.partySize) or 4))
+    local partyLevel = math.max(1, math.floor(tonumber(opts.partyLevel) or 1))
+    local levelCap = tonumber(opts.levelCap) or Exp5e.MAX_CHARACTER_LEVEL
+    local enemyLevel = math.max(1, math.floor(tonumber(opts.enemyLevel) or 1))
+    local chapterMult = tonumber(opts.chapterMultiplier) or 1.0
+
+    local metas = {}
+    for _, enemyId in ipairs(enemyIds) do
+        metas[#metas + 1] = EnemyData.GetChallengeMeta(enemyId)
+    end
+
+    local report = RunEncounterBudget.BuildReport(partyLevel, partySize, metas, "medium", 1.0)
+    local levelScale = 1 + (enemyLevel - 1) * M.ENEMY_LEVEL_XP_FACTOR
+    local scaled = math.floor(report.adjustedXp * Exp5e.PARTY_EXP_SCALE * levelScale * chapterMult + 0.5)
+
+    -- 遭遇怪物等级高于队伍时，单场 EXP 上限随怪物等级放宽（仍不超过 partyLevel+4 档的步长）。
+    local capLevel = math.max(partyLevel, math.min(enemyLevel, partyLevel + 4))
+    local maxSingle = Exp5e.GetExpToNextLevel(capLevel, levelCap)
+    if maxSingle > 0 then
+        scaled = math.min(scaled, maxSingle)
+    end
+
+    return math.max(0, scaled), report
+end
+
+return M

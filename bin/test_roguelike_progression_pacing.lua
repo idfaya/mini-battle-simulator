@@ -6,64 +6,88 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local DungeonGenerator = require("roguelike.dungeon_generator")
 local LevelCurve = require("config.roguelike.level_curve")
-local RunBattleConfig = require("config.roguelike.run_battle_config")
+local Exp5e = require("config.roguelike.exp_5e")
+local BattleExpReward = require("config.roguelike.battle_exp_reward")
 local RunBattlePool = require("config.roguelike.run_battle_pool")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
+local RunBattleConfig = require("config.roguelike.run_battle_config")
+local RunEnemyGroup = require("config.roguelike.run_enemy_group")
+local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 
-local EXPECTED_TEMPLATE_EXP = {
-    [201001] = 4,
-    [201002] = 4,
-    [201003] = 5,
-    [201101] = 6,
-    [201102] = 7,
-    [201201] = 8,
-    [201301] = 3,
-    [201302] = 4,
-}
-
-local EXPECTED_BATTLE_EXP = {
-    [101001] = 4,
-    [101002] = 4,
-    [101003] = 5,
-    [101101] = 6,
-    [101102] = 7,
-    [101103] = 3,
-    [101104] = 4,
-    [101201] = 8,
+local CHAPTER_BATTLE_EXP_MULTIPLIER = {
+    [101] = 1.00,
+    [102] = 0.50,
+    [103] = 0.35,
 }
 
 local function assertEq(actual, expected, message)
     assert(actual == expected, string.format("%s: expected %s, got %s", message, tostring(expected), tostring(actual)))
 end
 
-local function assertLevelCurve()
-    assertEq(LevelCurve.CHAPTER_LEVEL_CAP, 10, "chapter level cap")
-    for level = 1, 9 do
-        assertEq(LevelCurve.GetExpToNextLevel(level), 20, "level step " .. tostring(level))
-    end
-    assertEq(LevelCurve.GetExpToNextLevel(10), 0, "cap next level exp")
+local function assertLevelCurve5e()
+    assertEq(LevelCurve.CHAPTER_LEVEL_CAP, 20, "chapter level cap")
+    assertEq(Exp5e.GetCharacterExpThreshold(2), math.floor(300 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv2 threshold")
+    assertEq(Exp5e.GetExpToNextLevel(1), math.floor(300 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv1 step")
+    assertEq(Exp5e.GetExpToNextLevel(2), math.floor(600 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv2 step")
+    assertEq(Exp5e.GetExpToNextLevel(11), math.floor(15000 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv11 step")
     assertEq(LevelCurve.GetLevelForExp(0), 1, "level at 0 exp")
-    assertEq(LevelCurve.GetLevelForExp(179), 9, "level at 179 exp")
-    assertEq(LevelCurve.GetLevelForExp(180), 10, "level at 180 exp")
+    assertEq(LevelCurve.GetLevelForExp(Exp5e.GetCharacterExpThreshold(12)), 12, "level at lv12 threshold")
 end
 
-local function assertBattleRewards()
-    local step = LevelCurve.GetExpToNextLevel(1)
-    for templateId, expectedExp in pairs(EXPECTED_TEMPLATE_EXP) do
-        local template = RunBattleTemplate.GetTemplate(templateId)
-        assert(template, "missing battle template " .. tostring(templateId))
-        assertEq(template.expReward, expectedExp, "template expReward " .. tostring(templateId))
-        assert(template.expReward <= step, "template expReward must not exceed one level step: " .. tostring(templateId))
+local function appendEnemyGroupIds(target, groupId)
+    local group = RunEnemyGroup.GetGroup(tonumber(groupId))
+    if not group then
+        return
     end
-    for battleId, expectedExp in pairs(EXPECTED_BATTLE_EXP) do
-        local battle = RunBattleConfig.GetBattle(battleId)
-        assert(battle, "missing direct battle config " .. tostring(battleId))
-        assertEq(battle.expReward, expectedExp, "direct battle expReward " .. tostring(battleId))
-        assert(battle.expReward <= step, "direct battle expReward must not exceed one level step: " .. tostring(battleId))
+    local function push(id)
+        local n = tonumber(id)
+        if n then
+            target[#target + 1] = n
+        end
+    end
+    for _, enemyId in ipairs(group.front or {}) do
+        push(enemyId)
+    end
+    for _, enemyId in ipairs(group.back or {}) do
+        push(enemyId)
+    end
+    for _, enemyId in ipairs(group.elite or {}) do
+        push(enemyId)
+    end
+    push(group.boss)
+    for _, enemyId in ipairs(group.guards or {}) do
+        push(enemyId)
     end
 end
 
-local function getPoolAverageExp(poolId)
+local function flattenBattleEnemyIds(battle)
+    local enemyIds = {}
+    if not battle then
+        return enemyIds
+    end
+    for _, groupId in ipairs(battle.waveGroupIds or {}) do
+        appendEnemyGroupIds(enemyIds, groupId)
+    end
+    return enemyIds
+end
+
+local function enemyIdsForTemplate(template)
+    local enemyIds = {}
+    for _, entry in ipairs(template.battleEntries or {}) do
+        local battle = RunBattleConfig.GetBattle(entry.battleId)
+        if battle then
+            for _, id in ipairs(flattenBattleEnemyIds(battle)) do
+                enemyIds[#enemyIds + 1] = id
+            end
+        end
+    end
+    if template.bossEnemyId then
+        enemyIds[#enemyIds + 1] = template.bossEnemyId
+    end
+    return enemyIds
+end
+
+local function getPoolAverageEncounterExp(poolId, partyLevel, enemyLevel, chapterMult)
     local pool = RunBattlePool.GetPool(poolId)
     assert(pool, "missing battle pool " .. tostring(poolId))
     local totalWeight = 0
@@ -72,51 +96,88 @@ local function getPoolAverageExp(poolId)
         local template = RunBattleTemplate.GetTemplate(entry.battleTemplateId)
         assert(template, "missing battle template " .. tostring(entry.battleTemplateId))
         local weight = math.max(0, tonumber(entry.weight) or 0)
+        local enemyIds = enemyIdsForTemplate(template)
+        assert(#enemyIds > 0, "template has no enemies: " .. tostring(entry.battleTemplateId))
+        local exp = BattleExpReward.ComputeVictoryExp({
+            enemyIds = enemyIds,
+            partySize = 4,
+            partyLevel = partyLevel,
+            enemyLevel = enemyLevel,
+            chapterMultiplier = chapterMult,
+        })
         totalWeight = totalWeight + weight
-        weightedExp = weightedExp + weight * (tonumber(template.expReward) or 0)
+        weightedExp = weightedExp + weight * exp
     end
     assert(totalWeight > 0, "empty battle pool " .. tostring(poolId))
     return weightedExp / totalWeight
 end
 
-local function estimateRunExp(seed)
+local function estimateChapterExp(chapterId, seedFrom, seedTo)
+    local mult = CHAPTER_BATTLE_EXP_MULTIPLIER[chapterId] or 1.0
     local totalExp = 0
     local totalBattles = 0
-    for _, chapterId in ipairs({ 101, 102, 103 }) do
+    local runs = seedTo - seedFrom + 1
+    local partyLevel = 1
+    for seed = seedFrom, seedTo do
         local state, reason = DungeonGenerator.Generate(seed, chapterId, { id = chapterId * 1000 + 1 })
         assert(state, "dungeon generation failed: " .. tostring(reason))
-        for _, floor in pairs(state.floors or {}) do
+        local runExp = 0
+        local runBattles = 0
+        for floorIndex, floor in ipairs(state.floors or {}) do
             for _, room in pairs(floor.rooms or {}) do
                 if room.roomType == "battle_normal" or room.roomType == "battle_elite" or room.roomType == "boss" then
-                    totalBattles = totalBattles + 1
-                    totalExp = totalExp + getPoolAverageExp(room.payload and room.payload.battlePoolId)
+                    runBattles = runBattles + 1
+                    local roomKind = room.roomType == "battle_elite" and "elite"
+                        or (room.roomType == "boss" and "boss" or "normal")
+                    local enemyLevel = EncounterLevelCurve.GetFloorExpLevel(101, floorIndex)
+                    local gain = getPoolAverageEncounterExp(room.payload.battlePoolId, partyLevel, enemyLevel, mult)
+                    runExp = runExp + gain
+                    partyLevel = LevelCurve.GetLevelForExp(runExp, LevelCurve.CHAPTER_LEVEL_CAP)
                 end
             end
         end
-    end
-    return totalExp, totalBattles
-end
-
-local function assertDungeonPacing()
-    local totalExp = 0
-    local totalBattles = 0
-    local runs = 200
-    for seed = 10001, 10000 + runs do
-        local runExp, runBattles = estimateRunExp(seed)
         totalExp = totalExp + runExp
         totalBattles = totalBattles + runBattles
     end
-    local avgExp = totalExp / runs
-    local avgBattles = totalBattles / runs
-    local avgFinalLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
-    assert(avgFinalLevel >= 9 and avgFinalLevel <= 10,
-        string.format("average final level should be Lv9-Lv10, got Lv%d at %.1f exp", avgFinalLevel, avgExp))
-    assert(avgBattles >= 35 and avgBattles <= 42,
-        string.format("average 3-chapter battle count should stay near current maze baseline, got %.2f", avgBattles))
-    print(string.format("[OK] pacing avgExp=%.1f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgFinalLevel))
+    return totalExp / runs, totalBattles / runs
 end
 
-assertLevelCurve()
-assertBattleRewards()
-assertDungeonPacing()
-print("[OK] roguelike progression pacing")
+local function assertAct1Pacing5e()
+    local avgExp, avgBattles = estimateChapterExp(101, 10001, 10200)
+    local avgLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
+    assert(avgBattles >= 6 and avgBattles <= 20,
+        string.format("act1 battle count out of range: %.2f", avgBattles))
+    assert(avgLevel >= 10 and avgLevel <= 13,
+        string.format("act1 Boss前目标约 Lv12，期望 Lv10-Lv13，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
+    print(string.format("[OK] act1 5e avgExp=%.0f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgLevel))
+end
+
+local function assertEscalatingSteps()
+    local step1 = Exp5e.GetExpToNextLevel(1)
+    local step5 = Exp5e.GetExpToNextLevel(5)
+    local step10 = Exp5e.GetExpToNextLevel(10)
+    assert(step5 > step1, "mid levels need more exp per level")
+    assert(step10 > step5, "high levels need more exp per level")
+end
+
+local function assertSingleBattleCap()
+    local partyLevel = 1
+    local enemyLevel = 10
+    local capLevel = math.max(partyLevel, math.min(enemyLevel, partyLevel + 4))
+    local cap = Exp5e.GetExpToNextLevel(capLevel)
+    local gain = BattleExpReward.ComputeVictoryExp({
+        enemyIds = { 910006, 910007, 910006, 910007 },
+        partySize = 4,
+        partyLevel = partyLevel,
+        enemyLevel = enemyLevel,
+        chapterMultiplier = 1,
+    })
+    assert(gain <= cap,
+        string.format("high enemy level relaxes cap: gain=%d cap=%d (capLv=%d)", gain, cap, capLevel))
+end
+
+assertLevelCurve5e()
+assertEscalatingSteps()
+assertSingleBattleCap()
+assertAct1Pacing5e()
+print("[OK] roguelike progression pacing (5e)")

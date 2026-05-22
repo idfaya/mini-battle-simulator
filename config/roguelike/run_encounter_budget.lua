@@ -1,17 +1,9 @@
+local Exp5e = require("config.roguelike.exp_5e")
+
 local RunEncounterBudget = {}
 
-RunEncounterBudget.CR_XP = {
-    ["0"] = 10,
-    ["1/8"] = 25,
-    ["1/4"] = 50,
-    ["1/2"] = 100,
-    ["1"] = 200,
-    ["2"] = 450,
-    ["3"] = 700,
-    ["4"] = 1100,
-    ["5"] = 1800,
-    ["6"] = 2300,
-}
+-- 与 exp_5e.MONSTER_XP_BY_CR 同源（DMG）。
+RunEncounterBudget.CR_XP = Exp5e.MONSTER_XP_BY_CR
 
 RunEncounterBudget.THRESHOLDS_BY_LEVEL = {
     [1] = { easy = 25,  medium = 50,   hard = 75,   deadly = 100 },
@@ -26,25 +18,8 @@ RunEncounterBudget.THRESHOLDS_BY_LEVEL = {
     [10] = { easy = 600, medium = 1200, hard = 1900, deadly = 2800 },
 }
 
-local function normalizeCrKey(cr)
-    if cr == nil then
-        return "0"
-    end
-    if type(cr) == "number" then
-        if math.abs(cr - 0.125) < 0.0001 then return "1/8" end
-        if math.abs(cr - 0.25) < 0.0001 then return "1/4" end
-        if math.abs(cr - 0.5) < 0.0001 then return "1/2" end
-        return tostring(math.floor(cr))
-    end
-    local s = tostring(cr)
-    if s == "" then
-        return "0"
-    end
-    return s
-end
-
 function RunEncounterBudget.GetCrXp(cr)
-    return RunEncounterBudget.CR_XP[normalizeCrKey(cr)] or 0
+    return Exp5e.GetMonsterXpByCr(cr)
 end
 
 function RunEncounterBudget.GetCountMultiplier(monsterCount, partySize)

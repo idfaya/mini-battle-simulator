@@ -63,10 +63,8 @@ end
 do
     -- 阶段 3：FeatPicker 升级三选一应能为 Lv2 fighter 暴露 fighter 候选 feat
     -- 设计：character_progression_design.md §3
-    local LEVEL_EXP_THRESHOLDS = {
-        [1] = 0, [2] = 8, [3] = 20, [4] = 36, [5] = 58, [6] = 86,
-        [7] = 120, [8] = 160, [9] = 208, [10] = 264,
-    }
+    local LevelCurve = require("config.roguelike.level_curve")
+    local LEVEL_EXP_THRESHOLDS = LevelCurve.LEVEL_EXP_THRESHOLDS
     local fighter = HeroData.CreateClassUnit(2, {
         rosterId = 1,
         unitId = "fbp_fighter_lv2",
@@ -85,11 +83,11 @@ do
         teamRoster = { fighter },
         benchRoster = {},
         partyLevel = 2,
-        partyExp = 20,  -- 跨过 Lv3 阈值
+        partyExp = 40,
         levelCap = 10,
     }
     local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
-    assert_true(session ~= nil, "Lv2 fighter should get a feat-pick session at partyExp=20")
+    assert_true(session ~= nil, "Lv2 fighter should get a feat-pick session at partyExp=40")
     local hasFighterOption = false
     for _, opt in ipairs(session.options or {}) do
         if tonumber(opt.classId) == 2 and tonumber(opt.rosterId) == 1 then

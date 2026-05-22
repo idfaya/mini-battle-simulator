@@ -16,6 +16,8 @@ local RoguelikeBattleResolver = require("roguelike.roguelike_battle_resolver")
 local FeatPicker = require("roguelike.feat_picker")
 local BuildConstraints = require("roguelike.build_constraints")
 local LevelCurve = require("config.roguelike.level_curve")
+local BattleExpReward = require("config.roguelike.battle_exp_reward")
+local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 
 local RoguelikeRun = {}
 local state = nil
@@ -134,11 +136,43 @@ local function grantBattleLoot(node, battleProfile)
     }
 end
 
-local function grantBattleExp(battle)
-    local expReward = math.max(0, math.floor(tonumber(battle and battle.expReward) or 0))
+-- 第二、三章战斗经验衰减（同模板池，避免三章叠加过快）；第一章 = 1.0。
+local CHAPTER_BATTLE_EXP_MULTIPLIER = {
+    [101] = 1.00,
+    [102] = 0.50,
+    [103] = 0.35,
+}
+
+local function countAliveTeamSize()
+    local count = 0
+    for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state) or {}) do
+        if not unit.isDead and (tonumber(unit.currentHp) or 0) > 0 then
+            count = count + 1
+        end
+    end
+    return math.max(1, count)
+end
+
+local function grantBattleExp(_battle)
+    local chapterId = tonumber(state.chapterId) or 101
+    local floorDepth = tonumber(state.dungeonState and state.dungeonState.currentFloorDepth) or 1
+    local combatEnemyLevel = tonumber(state.currentBattleEnemyLevel) or 1
+    local expEnemyLevel = math.max(
+        combatEnemyLevel,
+        EncounterLevelCurve.GetFloorExpLevel(chapterId, floorDepth)
+    )
+    local chapterMult = CHAPTER_BATTLE_EXP_MULTIPLIER[chapterId] or 1.0
+    local expReward = BattleExpReward.ComputeVictoryExp({
+        enemyIds = state.currentBattleEnemyIds or {},
+        partySize = countAliveTeamSize(),
+        partyLevel = tonumber(state.partyLevel) or STARTER_LEVEL,
+        levelCap = tonumber(state.levelCap) or CHAPTER_LEVEL_CAP,
+        enemyLevel = expEnemyLevel,
+        chapterMultiplier = chapterMult,
+    })
+    state.currentBattleEnemyIds = nil
+    state.currentBattleEnemyLevel = nil
     state.lastBattleExpReward = expReward
-    -- 队伍升级三选一通道：unit.exp 已废弃，所有战斗经验全部进入 state.partyExp。
-    -- 个人升级仅通过 FeatPicker 选中后 +1 实现，不再按存活分配 EXP。
     if expReward > 0 then
         state.partyExp = (state.partyExp or 0) + expReward
         state.lastActionMessage = string.format("战斗胜利，队伍获得 %d 经验", expReward)
@@ -146,9 +180,7 @@ local function grantBattleExp(battle)
     return expReward
 end
 
--- 队伍当前应处的等级 = 在 partyExp 跨越的最大阈值；不再按存活成员等级平均。
--- 设计 §3 新模型：partyLevel = 累计三选一次数 + 1，与 hero level cap（state.levelCap=chapter.targetMaxLevel）解耦。
--- 以 LevelCurve.CHAPTER_LEVEL_CAP（≈32）作为 partyLevel 上限，4 人队 Lv8 累计需 partyLevel≈29。
+-- 队伍当前应处的等级 = 在 partyExp 跨越的最大阈值。
 local function recalcPartyLevel()
     local exp = math.max(0, math.floor(tonumber(state.partyExp) or 0))
     local partyCap = LevelCurve.CHAPTER_LEVEL_CAP
@@ -435,6 +467,8 @@ local function leaveNodeBackToMap()
     state.phase = "map"
     state.currentBattleId = nil
     state.currentBattleConfig = nil
+    state.currentBattleEnemyIds = nil
+    state.currentBattleEnemyLevel = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end
@@ -629,9 +663,7 @@ function RoguelikeRun.Tick(deltaMs)
             -- FeatPicker 升级三选一 → 战斗后休整 → 进入下一房间。
             local lootSummary = grantBattleLoot(node, battleProfile)
             local expReward = grantBattleExp(battle)
-            -- BeginSession 内部根据 partyExp 与各 hero.level 推导 pendingPicks，并写回 state.partyLevel；
-            -- 此处保留 recalcPartyLevel 调用，是为了同步 levelProgressExp / nextLevelExp 到当前阈值，
-            -- 以便 UI 即时刷新进度条。两个 partyLevel 写入是一致结果（前后等价）。
+            -- BeginSession 内部根据 partyExp 写回 state.partyLevel；recalcPartyLevel 同步进度条字段。
             local session = FeatPicker.BeginSession(state)
             recalcPartyLevel()
             mergeLastBattleSummary({

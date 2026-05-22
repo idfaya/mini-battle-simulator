@@ -108,15 +108,19 @@ end
 local function acceptRewardIfPresent()
     local current = Run.GetSnapshot()
     local guard = 0
-    -- 队伍升级三选一改造后，pendingPicks = sum(partyLevel - hero.level)，
-    -- 4 名英雄 + partyLevel 跨 2 级时单次链可达 8 次连续 reward；放宽到 32 留余量。
+    -- 单场战斗可能跨多档 partyExp；FeatPicker 链式 pendingLevels 需全部 Pick 完。
     while current.phase == "reward" and guard < 32 do
+        local reward = current.rewardState
+        assert(reward and #(reward.options or {}) > 0,
+            "reward phase should expose options (kind=" .. tostring(reward and reward.kind) .. ")")
         local rewardIndex = chooseRewardIndex(current)
-        assert(Run.ChooseReward(rewardIndex) == true, "reward selection should succeed")
+        assert(Run.ChooseReward(rewardIndex) == true,
+            "reward selection should succeed (kind=" .. tostring(reward.kind) .. ", index=" .. tostring(rewardIndex) .. ")")
         current = autoPromoteBench()
         guard = guard + 1
     end
-    assert(current.phase == "map" or current.phase == "chapter_result", "reward chain should return to map or chapter_result")
+    assert(current.phase == "map" or current.phase == "chapter_result",
+        "reward chain should return to map or chapter_result, got " .. tostring(current.phase))
     return current
 end
 
@@ -457,8 +461,7 @@ local function runOnce(seed)
                 snapshot = acceptRewardIfPresent()
             end
         elseif snapshot.phase == "reward" then
-            assert(Run.ChooseReward(chooseRewardIndex(snapshot)) == true, "reward selection should resolve")
-            snapshot = autoPromoteBench()
+            snapshot = acceptRewardIfPresent()
             assertOwnedUnitViews(snapshot)
         elseif snapshot.phase == "camp" then
             -- 营地动作可能因重复祝福（duplicate_blessing）等约束失败，按可用列表逐个 fallback；

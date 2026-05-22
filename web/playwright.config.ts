@@ -14,7 +14,8 @@ export default defineConfig({
   webServer: {
     command: "npm run dev:full -- --host 127.0.0.1 --port 5173",
     url: "http://127.0.0.1:5173",
-    reuseExistingServer: true,
+    // 避免复用旧 dev 进程（未 export 或错误 base 时会 404→HTML，Lua preload 失败）。
+    reuseExistingServer: process.env.PW_REUSE_SERVER === "1",
     timeout: 60000,
   },
 });

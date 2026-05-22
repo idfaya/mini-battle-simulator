@@ -21,7 +21,9 @@
 
 - 战斗经验全部进入 `state.partyExp`，不再分发到个人 `unit.exp`。
 - 当 `partyExp` 达到下一级阈值 → 触发"队伍升级"。
-- `partyExp` 阈值与 5e 经验曲线对齐，由 `roguelike/roguelike_run.lua` 持有。
+- `partyExp` 阈值与 **PHB 角色升级表**对齐，SSOT：`config/roguelike/exp_5e.lua`（`PARTY_EXP_SCALE` 可整体缩放 Run 节奏）。
+- 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`；模板字段 `expReward` 仅作遗留标注，运行时不再使用。
+- 第一章怪物等级按楼层推进（`config/roguelike/encounter_level_curve.lua`）：**战斗等级**（`GetFloorCombatLevel`）与 **胜利 EXP 等级**（`GetFloorExpLevel`）分层，Boss 前队伍 EXP 目标与 `targetMaxLevel` 对齐。
 
 ---
 
