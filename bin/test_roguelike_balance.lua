@@ -889,6 +889,15 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             end
             autoPromoteBench()
             snapshot = Run.GetSnapshot()
+        elseif snapshot.phase == "stair" then
+            -- 楼梯房：balance 测试默认使用楼梯推进章节进度。
+            local stairOk, stairReason = Run.StairUse()
+            if not stairOk then
+                runReport.terminalReason = "stair_use_failed:" .. tostring(stairReason)
+                snapshot = Run.GetSnapshot()
+                break
+            end
+            snapshot = Run.GetSnapshot()
         end
 
         if snapshot.phase == "chapter_result" or snapshot.phase == "failed" then

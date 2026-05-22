@@ -322,16 +322,13 @@ local function enterNode(nodeId)
         if not state.dungeonState then
             return false, "no_dungeon_state"
         end
-        local ok, reason = FloorState.UseStair(state.dungeonState, "down")
-        if not ok then
-            return false, reason
-        end
-        FloorState.MarkRoomCleared(state.dungeonState, nodeId)
-        state.visitedNodeIds = {}
-        state.currentNodeId = state.dungeonState.currentRoomId
-        state.visitedNodeIds[state.currentNodeId] = true
-        state.phase = "map"
-        refreshAvailableNodes()
+        -- dungeon §4.2：楼梯房进入后弹出选择，可使用楼梯（上/下楼）或路过（仅作通路）。
+        state.phase = "stair"
+        state.stairState = {
+            direction = "down",
+            nodeId = nodeId,
+            currentFloorDepth = state.dungeonState.currentFloorDepth,
+        }
         return true
     end
 
@@ -339,15 +336,12 @@ local function enterNode(nodeId)
         if not state.dungeonState then
             return false, "no_dungeon_state"
         end
-        local ok, reason = FloorState.UseStair(state.dungeonState, "up")
-        if not ok then
-            return false, reason
-        end
-        state.visitedNodeIds = {}
-        state.currentNodeId = state.dungeonState.currentRoomId
-        state.visitedNodeIds[state.currentNodeId] = true
-        state.phase = "map"
-        refreshAvailableNodes()
+        state.phase = "stair"
+        state.stairState = {
+            direction = "up",
+            nodeId = nodeId,
+            currentFloorDepth = state.dungeonState.currentFloorDepth,
+        }
         return true
     end
 
@@ -836,6 +830,43 @@ function RoguelikeRun.CampLeave()
     if state.phase ~= "camp" then
         return false, "not_in_camp"
     end
+    leaveNodeBackToMap()
+    return true
+end
+
+-- 使用楼梯：根据 stairState.direction 触发上/下楼，并把当前房标 cleared。
+function RoguelikeRun.StairUse()
+    if state.phase ~= "stair" then
+        return false, "not_in_stair"
+    end
+    if not state.dungeonState then
+        return false, "no_dungeon_state"
+    end
+    local stair = state.stairState or {}
+    local direction = stair.direction or "down"
+    local prevNodeId = stair.nodeId or state.currentNodeId
+    local ok, reason = FloorState.UseStair(state.dungeonState, direction)
+    if not ok then
+        return false, reason
+    end
+    if direction == "down" and prevNodeId then
+        FloorState.MarkRoomCleared(state.dungeonState, prevNodeId)
+    end
+    state.visitedNodeIds = {}
+    state.currentNodeId = state.dungeonState.currentRoomId
+    state.visitedNodeIds[state.currentNodeId] = true
+    state.stairState = nil
+    state.phase = "map"
+    refreshAvailableNodes()
+    return true
+end
+
+-- 路过楼梯：不上下楼，把楼梯房当通路（标 cleared 后回 map）。
+function RoguelikeRun.StairLeave()
+    if state.phase ~= "stair" then
+        return false, "not_in_stair"
+    end
+    state.stairState = nil
     leaveNodeBackToMap()
     return true
 end

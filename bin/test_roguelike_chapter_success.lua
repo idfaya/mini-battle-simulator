@@ -67,20 +67,126 @@ local function chooseRewardIndex(s)
     return bestIdx
 end
 
+-- BFS 寻路：从 current 到目标 predicate 的最短路径，返回下一跳；stair_up 仅作终点不作中转。
+local function findPathNextHop(snapshot, predicate)
+    local nodes = (snapshot.map and snapshot.map.nodes) or {}
+    if #nodes == 0 then return nil end
+    local indexById, current = {}, nil
+    for _, n in ipairs(nodes) do
+        indexById[n.id] = n
+        if n.current then current = n end
+    end
+    if not current then return nil end
+    local queue, visited, parent = { current.id }, { [current.id] = true }, {}
+    local target
+    while #queue > 0 do
+        local id = table.remove(queue, 1)
+        local node = indexById[id]
+        if node ~= current and predicate(node) then target = node; break end
+        for _, nxt in ipairs(node.nextNodeIds or {}) do
+            local nb = indexById[nxt]
+            if nb and not visited[nxt] then
+                local block = (nb.nodeType == "stair_up") and (not predicate(nb))
+                if not block then
+                    visited[nxt] = true
+                    parent[nxt] = id
+                    queue[#queue + 1] = nxt
+                end
+            end
+        end
+    end
+    if not target then return nil end
+    local cur = target.id
+    while parent[cur] and parent[cur] ~= current.id do cur = parent[cur] end
+    return indexById[cur]
+end
+
+-- 复用 act1 同款 PREFERENCE 评分 + BFS 寻路：dungeon §4.2 cleared 房仅作通路。
+local PREFERENCE = {
+    shop          = 10,
+    camp          = 20,
+    event         = 30,
+    equip         = 40,
+    battle_normal = 60,
+    stair_down    = 80,
+    boss          = 90,
+    battle_elite  = 100,
+}
+local VISITED_SCORE = 200
+
 local function pickAggressiveNode(s)
     local sel = {}
     for _, n in ipairs((s.map and s.map.nodes) or {}) do
         if n.selectable then sel[#sel + 1] = n end
     end
     if #sel == 0 then return nil end
-    local prio = { camp = 1, shop = 2, event = 3, stair_down = 4, battle_normal = 5, battle_elite = 6, boss = 7 }
-    local function score(n)
-        local base = prio[n.nodeType] or 99
-        if n.visited then base = base + 100 end -- cleared 仅作通路，最末位
-        return base
+    local pl = tonumber(s.partyLevel) or 1
+    local currentFloor = 1
+    for _, n in ipairs((s.map and s.map.nodes) or {}) do
+        if n.current then currentFloor = tonumber(n.floor) or 1; break end
     end
-    table.sort(sel, function(a, b) return score(a) < score(b) end)
-    return sel[1]
+
+    -- 高 partyLevel 直接 BFS 找 boss / 本层 stair_down 的下一跳。
+    if pl >= currentFloor * 4 and pl >= 3 then
+        local hop = findPathNextHop(s, function(n) return n.nodeType == "boss" and not n.visited end)
+            or findPathNextHop(s, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        if hop then
+            for _, x in ipairs(sel) do if x.id == hop.id then return hop end end
+        end
+    end
+
+    -- selectable 全 visited 时按图 BFS 寻路一步。
+    local hasUnvisited = false
+    for _, n in ipairs(sel) do
+        if not n.visited and n.nodeType ~= "stair_up" then hasUnvisited = true; break end
+    end
+    if not hasUnvisited then
+        local hop
+        if pl >= 5 then
+            hop = findPathNextHop(s, function(n) return n.nodeType == "boss" and not n.visited end)
+                or findPathNextHop(s, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        else
+            hop = findPathNextHop(s, function(n) return not n.visited and n.nodeType ~= "stair_up" and n.nodeType ~= "empty" end)
+                or findPathNextHop(s, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        end
+        if hop then return hop end
+    end
+
+    local best, bestScore
+    for _, node in ipairs(sel) do
+        local score
+        local floorDepth = tonumber(node.floor) or 1
+        if node.visited then
+            -- cleared stair_down 仅作通路但比其他 visited 房更优（保持本层推进）。
+            if node.nodeType == "stair_down" and pl >= 3 then
+                score = 45
+            else
+                score = VISITED_SCORE
+            end
+        else
+            score = PREFERENCE[node.nodeType] or 99
+            if node.nodeType == "battle_elite" then
+                if pl < floorDepth * 2 then score = 100 else score = 60 end
+            elseif node.nodeType == "battle_normal" then
+                if pl < 3 then
+                    score = 5
+                elseif pl >= floorDepth * 6 then
+                    score = 70
+                end
+            elseif node.nodeType == "stair_down" then
+                if pl < 3 then score = 150
+                elseif pl >= floorDepth * 4 then score = 25 end
+            elseif node.nodeType == "boss" then
+                if pl >= 5 then score = 15 end
+            elseif node.nodeType == "stair_up" then
+                score = 220
+            end
+        end
+        if not bestScore or score < bestScore then
+            best = node; bestScore = score
+        end
+    end
+    return best or sel[1]
 end
 
 local SEED = 10101
@@ -94,7 +200,7 @@ local snapshot = Run.StartRun({
 assert(snapshot.phase == "map", "run should start on map")
 
 local guard = 0
-while guard < 200 do
+while guard < 300 do
     guard = guard + 1
     snapshot = Run.GetSnapshot()
     if snapshot.phase == "chapter_result" then break end
@@ -113,13 +219,38 @@ while guard < 200 do
     elseif snapshot.phase == "reward" then
         assert(Run.ChooseReward(chooseRewardIndex(snapshot)) == true, "reward should resolve")
     elseif snapshot.phase == "camp" then
-        assert(Run.CampChoose(2) == true, "camp short rest should succeed")
+        -- camp short_rest 可能因约束（如 duplicate_blessing）失败，按可用列表 fallback。
+        local actions = (snapshot.campState and snapshot.campState.actions) or {}
+        local resolved = false
+        for _, preferId in ipairs({ 2, 1, 3 }) do
+            for _, action in ipairs(actions) do
+                if tonumber(action.id) == preferId and action.available ~= false then
+                    if Run.CampChoose(preferId) == true then resolved = true; break end
+                end
+            end
+            if resolved then break end
+        end
+        if not resolved then
+            assert(Run.CampLeave() == true, "camp leave should succeed when no action available")
+        end
     elseif snapshot.phase == "shop" then
         assert(Run.ShopLeave() == true, "shop leave should succeed")
     elseif snapshot.phase == "event" then
         local opts = snapshot.eventState and snapshot.eventState.options or {}
         assert(opts[1], "event should have at least one option")
         assert(Run.ChooseEventOption(opts[1].id) == true, "event option should resolve")
+    elseif snapshot.phase == "stair" then
+        -- 楼梯方向感知：down 直接下楼推进；up 仅在 partyLevel 不足时主动回补，否则路过当通路。
+        local stair = snapshot.stairState or {}
+        local depth = tonumber(stair.currentFloorDepth) or 1
+        local pl = tonumber(snapshot.partyLevel) or 1
+        if stair.direction == "down" then
+            assert(Run.StairUse() == true, "stair down use should succeed")
+        elseif stair.direction == "up" and pl < depth * 2 then
+            assert(Run.StairUse() == true, "stair up use should succeed")
+        else
+            assert(Run.StairLeave() == true, "stair leave should succeed")
+        end
     else
         error("unsupported phase: " .. tostring(snapshot.phase))
     end

@@ -239,6 +239,8 @@ end
 
 -- dungeon §4.2：cleared 房仅作通路；按计划 §3.1 PREFERENCE 表评分；
 -- §3.2 难度模型：partyLevel < floorDepth × 2 时把 battle_elite 降到末位。
+-- D1' 收尾补丁（2026-05-22 b31a852 后续）：partyLevel < 3 时把 battle_normal 提到最高优先级，
+--   防止队伍连续走 event/shop/camp 不升级、首战 wipe（seed=10101 实证：3×event → battle_normal team_wipe）。
 local PREFERENCE = {
     shop          = 10,
     camp          = 20,
@@ -251,25 +253,128 @@ local PREFERENCE = {
 }
 local VISITED_SCORE = 200 -- visited_any：cleared 房仅作通路，统一 200 一档
 
+-- BFS 寻路：从 currentNodeId 到目标 predicate 的最短路径，返回下一跳 node。
+-- dungeon §4.2 cleared 房仅作通路 → visited 邻居可作中转，但 selectable 仅暴露当前房邻居，
+-- 所以测试在「同层资源吃完仍未达 stair_down」时需要按图寻路一步步逼近。
+local function findPathNextHop(snapshot, predicate)
+    local map = snapshot and snapshot.map
+    local nodes = map and map.nodes or {}
+    if #nodes == 0 then return nil end
+    local indexById = {}
+    for _, n in ipairs(nodes) do indexById[n.id] = n end
+    local current = nil
+    for _, n in ipairs(nodes) do if n.current then current = n; break end end
+    if not current then return nil end
+    -- 标准 BFS。stair_up 不能作为中转（一进即触发上楼，会偏离当前层目标），
+    -- 但它本身可以是终点（partyLevel 不足时主动回上层探索）。
+    local queue = { current.id }
+    local visited = { [current.id] = true }
+    local parent = {}
+    local target
+    while #queue > 0 do
+        local id = table.remove(queue, 1)
+        local node = indexById[id]
+        if node ~= current and predicate(node) then target = node; break end
+        for _, nxt in ipairs(node.nextNodeIds or {}) do
+            local nxtNode = indexById[nxt]
+            if nxtNode and not visited[nxt] then
+                -- stair_up 仅在它本身满足 predicate 时可被探索为终点（不作中转）。
+                local stopAtStairUp = (nxtNode.nodeType == "stair_up") and (not predicate(nxtNode))
+                if not stopAtStairUp then
+                    visited[nxt] = true
+                    parent[nxt] = id
+                    queue[#queue + 1] = nxt
+                end
+            end
+        end
+    end
+    if not target then return nil end
+    -- 回溯到当前的下一跳。
+    local cur = target.id
+    while parent[cur] and parent[cur] ~= current.id do cur = parent[cur] end
+    return indexById[cur]
+end
+
 local function chooseNextNode(snapshot, _routeState)
     local selectable = findSelectableNodes(snapshot)
     assert(#selectable > 0, "map should always expose at least one selectable node before completion")
     local partyLevel = tonumber(snapshot and snapshot.partyLevel) or 1
+    local currentFloor = nil
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if node.current then currentFloor = tonumber(node.floor) or 1; break end
+    end
+    currentFloor = currentFloor or 1
+
+    -- 高 partyLevel 时直接 BFS 找 stair_down/boss 的下一跳，避免被 shop/event 引诱进入"走廊死胡同"。
+    -- dungeon §4.2 cleared 房仅作通路：图上有些方向虽未访问但通向 stair_up 子图，需用 BFS 选有效路径。
+    if partyLevel >= currentFloor * 4 and partyLevel >= 3 then
+        local hop = findPathNextHop(snapshot, function(n) return n.nodeType == "boss" and not n.visited end)
+            or findPathNextHop(snapshot, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        if hop then
+            -- 验证 hop 在 selectable 中。
+            for _, s in ipairs(selectable) do if s.id == hop.id then return hop end end
+        end
+    end
+
+    -- 当本层资源已耗尽（selectable 全为 visited 或 stair_up），按需 BFS 朝
+    -- 未访问 battle_normal / stair_down / boss 寻路一步。
+    local hasUnvisited = false
+    for _, n in ipairs(selectable) do
+        if not n.visited and n.nodeType ~= "stair_up" then hasUnvisited = true; break end
+    end
+    if not hasUnvisited then
+        local hop
+        if partyLevel >= 5 then
+            hop = findPathNextHop(snapshot, function(n) return n.nodeType == "boss" and not n.visited end)
+                or findPathNextHop(snapshot, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        else
+            hop = findPathNextHop(snapshot, function(n) return not n.visited and n.nodeType ~= "stair_up" and n.nodeType ~= "empty" end)
+                or findPathNextHop(snapshot, function(n) return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor end)
+        end
+        if hop then return hop end
+    end
 
     local best, bestScore
     for _, node in ipairs(selectable) do
         local score
+        local floorDepth = tonumber(node.floor) or 1
         if node.visited then
-            score = VISITED_SCORE
+            -- cleared 房间仅作通路（dungeon §4.2）；stair_down 永远是有效通道，
+            -- 让 cleared stair_down/通道分数 < 其他 visited 类型，避免被 visited shop/event 困住。
+            if node.nodeType == "stair_down" and partyLevel >= 3 then
+                score = 45
+            else
+                score = VISITED_SCORE
+            end
         else
             score = PREFERENCE[node.nodeType] or 99
             if node.nodeType == "battle_elite" then
-                local floorDepth = tonumber(node.floor) or 1
                 if partyLevel < floorDepth * 2 then
                     score = 100
                 else
                     score = 60
                 end
+            elseif node.nodeType == "battle_normal" then
+                if partyLevel < 3 then
+                    -- 起步阶段：强制先打普通战升级，event/equip/shop 让位（避免首战 wipe）。
+                    score = 5
+                elseif partyLevel >= floorDepth * 6 then
+                    -- 等级远超本层时，普通战让位给 stair_down / boss，避免无意义刷。
+                    score = 70
+                end
+            elseif node.nodeType == "stair_down" then
+                if partyLevel < 3 then
+                    score = 150 -- 起步禁下楼。
+                elseif partyLevel >= floorDepth * 4 then
+                    -- 同层积累足够等级后，立刻下楼推进。
+                    score = 25
+                end
+            elseif node.nodeType == "boss" then
+                -- Boss 层：partyLevel 充足时立刻打。
+                if partyLevel >= 5 then score = 15 end
+            elseif node.nodeType == "stair_up" then
+                -- 永远不主动回上层（仅作通路）。
+                score = 220
             end
         end
         if not bestScore or score < bestScore then
@@ -308,7 +413,7 @@ local function runOnce(seed)
     local goldBeforeFirstBattle = nil
     local guard = 0
 
-    while guard < 80 do
+    while guard < 200 do
         guard = guard + 1
         snapshot = Run.GetSnapshot()
         assertOwnedUnitViews(snapshot)
@@ -337,8 +442,10 @@ local function runOnce(seed)
             elseif nextNode.nodeType == "event" then
                 assert(afterEnter.phase == "event", "event node should open event")
                 routeState.eventSeen = true
+            elseif nextNode.nodeType == "stair_down" or nextNode.nodeType == "stair_up" then
+                assert(afterEnter.phase == "stair", "stair node should open stair phase")
             end
-            -- stair_down / stair_up / equip / empty 等其他 nodeType 由 roguelike_run 直接处理（回 map 或 reward）。
+            -- equip / empty 等其他 nodeType 由 roguelike_run 直接处理（回 map 或 reward）。
         elseif snapshot.phase == "battle" then
             snapshot = runBattleUntilResolved(900)
             if not routeState.firstBattleResolved then
@@ -379,13 +486,25 @@ local function runOnce(seed)
             local options = snapshot.eventState and snapshot.eventState.options or {}
             assert(#options > 0, "event should expose options")
             assert(Run.ChooseEventOption(options[1].id) == true, "event option should resolve")
+        elseif snapshot.phase == "stair" then
+            -- 楼梯房：partyLevel 高于本层阈值时使用楼梯推进；否则路过当通路探索本层。
+            local stair = snapshot.stairState or {}
+            local depth = tonumber(stair.currentFloorDepth) or 1
+            local pl = tonumber(snapshot.partyLevel) or 1
+            if stair.direction == "down" and (pl >= depth * 3 or pl >= 3) then
+                assert(Run.StairUse() == true, "stair use should succeed")
+            elseif stair.direction == "up" and pl < depth * 2 then
+                assert(Run.StairUse() == true, "stair up use should succeed")
+            else
+                assert(Run.StairLeave() == true, "stair leave should succeed")
+            end
         else
             error("unsupported phase in act1 regression: " .. tostring(snapshot.phase))
         end
     end
 
     snapshot = Run.GetSnapshot()
-    assert(guard < 80, "act1 flow should resolve within guard limit (seed=" .. tostring(seed) .. ")")
+    assert(guard < 200, "act1 flow should resolve within guard limit (seed=" .. tostring(seed) .. ")")
     assert(routeState.firstBattleResolved, "act1 flow should include at least one battle (seed=" .. tostring(seed) .. ")")
     assert(routeState.shopSeen, "act1 flow should include at least one shop (seed=" .. tostring(seed) .. ")")
     assert(routeState.campSeen, "act1 flow should include at least one camp (seed=" .. tostring(seed) .. ")")

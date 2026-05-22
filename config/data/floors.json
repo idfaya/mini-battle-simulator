@@ -18,7 +18,7 @@
       "empty": 15
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
     "eventPoolIds": [101001, 101002, 101003],
     "shopId": 101001,
     "campId": 101001,
