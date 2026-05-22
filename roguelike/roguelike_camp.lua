@@ -98,6 +98,16 @@ function RoguelikeCamp.BuildCampState(campId, runState)
                 end
             end
         end
+        -- dungeon §4.2：cleared 房重入仅作通路；祝福已入库则该 action 不再可用，避免 duplicate_blessing 死锁。
+        if action.effectType == "grant_blessing" then
+            local blessingId = (action.params or {}).blessingId
+            if blessingId then
+                local ok = BuildConstraints.CanAddBlessing(runState, blessingId)
+                if not ok then
+                    available = false
+                end
+            end
+        end
 
         actions[#actions + 1] = {
             id = action.id,

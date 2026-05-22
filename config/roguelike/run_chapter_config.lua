@@ -1,6 +1,3 @@
----@alias RunChapterMapVision
----| "node_type_only"
-
 ---@class RunChapterClearRewards
 ---@field gold integer
 ---@field healPct number
@@ -17,17 +14,15 @@
 ---@field name string
 ---@field theme string
 ---@field floorCount integer
----@field startNodeId integer
----@field bossNodeId integer
+---@field floorTemplateIds integer[]
+---@field hiddenFloorTemplateId integer|nil
 ---@field startGold integer
 ---@field startFood integer
 ---@field targetMaxLevel integer
 ---@field initialHeroCount integer
 ---@field maxHeroCount integer
 ---@field reviveLimit integer
----@field mapVision RunChapterMapVision
 ---@field mapGenProfileId integer|nil
----@field routeBlueprint table<integer, integer[]>
 ---@field shopId integer
 ---@field campId integer
 ---@field chapterClearRewards RunChapterClearRewards
@@ -40,6 +35,18 @@
 ---@type RunChapterConfigModule
 local RunChapterConfig = {}
 
+local DEFAULT_POST_BATTLE_REST = {
+    healPct = 0.20,
+    clearCooldowns = true,
+    restoreUltimateCharges = true,
+    reviveDead = false,
+}
+
+local DEFAULT_CLEAR_REWARDS = {
+    gold = 90,
+    healPct = 0.00,
+}
+
 ---@type table<integer, RunChapterEntry>
 RunChapterConfig.CHAPTERS = {
     [101] = {
@@ -47,39 +54,60 @@ RunChapterConfig.CHAPTERS = {
         code = "act_1",
         name = "霜缚山道",
         theme = "ruins_snowfield",
-        floorCount = 8,
-        startNodeId = 101001,
-        bossNodeId = 101011,
+        floorCount = 5,
+        floorTemplateIds = { 10101, 10102, 10103, 10104, 10105 },
+        hiddenFloorTemplateId = 10901,
         startGold = 100,
         startFood = 1,
         targetMaxLevel = 8,
         initialHeroCount = 4,
         maxHeroCount = 6,
         reviveLimit = 1,
-        mapVision = "node_type_only",
         mapGenProfileId = 101001,
-        routeBlueprint = {
-            [1] = { 101001 },
-            [2] = { 101002, 101003 },
-            [3] = { 101004, 101005 },
-            [4] = { 101006, 101007 },
-            [5] = { 101008, 101009 },
-            [6] = { 101012, 101013 },
-            [7] = { 101010 },
-            [8] = { 101011 },
-        },
         shopId = 101001,
         campId = 101001,
-        postBattleRest = {
-            healPct = 0.20,
-            clearCooldowns = true,
-            restoreUltimateCharges = true,
-            reviveDead = false,
-        },
-        chapterClearRewards = {
-            gold = 90,
-            healPct = 0.00,
-        },
+        postBattleRest = DEFAULT_POST_BATTLE_REST,
+        chapterClearRewards = DEFAULT_CLEAR_REWARDS,
+    },
+    [102] = {
+        id = 102,
+        code = "act_2",
+        name = "灰烬幽谷",
+        theme = "ruins_ashland",
+        floorCount = 5,
+        floorTemplateIds = { 10201, 10202, 10203, 10204, 10205 },
+        hiddenFloorTemplateId = 10901,
+        startGold = 100,
+        startFood = 1,
+        targetMaxLevel = 8,
+        initialHeroCount = 4,
+        maxHeroCount = 6,
+        reviveLimit = 1,
+        mapGenProfileId = 102001,
+        shopId = 101001,
+        campId = 101001,
+        postBattleRest = DEFAULT_POST_BATTLE_REST,
+        chapterClearRewards = DEFAULT_CLEAR_REWARDS,
+    },
+    [103] = {
+        id = 103,
+        code = "act_3",
+        name = "深渊王座",
+        theme = "abyss_throne",
+        floorCount = 5,
+        floorTemplateIds = { 10301, 10302, 10303, 10304, 10305 },
+        hiddenFloorTemplateId = 10901,
+        startGold = 100,
+        startFood = 1,
+        targetMaxLevel = 8,
+        initialHeroCount = 4,
+        maxHeroCount = 6,
+        reviveLimit = 1,
+        mapGenProfileId = 103001,
+        shopId = 101001,
+        campId = 101001,
+        postBattleRest = DEFAULT_POST_BATTLE_REST,
+        chapterClearRewards = DEFAULT_CLEAR_REWARDS,
     },
 }
 

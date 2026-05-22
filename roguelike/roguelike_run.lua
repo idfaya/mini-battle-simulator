@@ -1,4 +1,5 @@
 local RoguelikeMap = require("roguelike.roguelike_map")
+local FloorState = require("roguelike.floor_state")
 local RoguelikeBattleBridge = require("roguelike.roguelike_battle_bridge")
 local RoguelikeReward = require("roguelike.roguelike_reward")
 local RoguelikeEvent = require("roguelike.roguelike_event")
@@ -275,12 +276,11 @@ local function resetRunState()
         levelCap = CHAPTER_LEVEL_CAP,
         shopRefreshCount = 0,
         shopSoldMap = {},
-        pendingRecruitHeroId = nil,
         maxHeroCount = 5,
         currentBattleId = nil,
         currentBattleConfig = nil,
         lastBattleSummary = nil,
-        mapState = nil,
+        dungeonState = nil,
         seed = nil,
         rewardReturnMode = "map",
         nextRosterId = 1,
@@ -291,7 +291,7 @@ state = resetRunState()
 cachedBattleSnapshot = nil
 
 local function refreshAvailableNodes()
-    local available = RoguelikeMap.GetAvailableNextNodeIds(state.currentNodeId, state.visitedNodeIds, state.chapterId, state.mapState)
+    local available = RoguelikeMap.GetAvailableNextNodeIds(state.currentNodeId, state.visitedNodeIds, state.chapterId, state.dungeonState)
     state.availableNextNodeIds = available
     if #available == 1 then
         state.selectedNextNodeId = available[1]
@@ -301,7 +301,7 @@ local function refreshAvailableNodes()
 end
 
 local function getNode(nodeId)
-    return RoguelikeMap.GetNode(nodeId, state and state.mapState or nil)
+    return RoguelikeMap.GetNode(nodeId, state and state.dungeonState or nil)
 end
 
 local function enterNode(nodeId)
@@ -313,6 +313,52 @@ local function enterNode(nodeId)
     state.visitedNodeIds[nodeId] = true
     state.lastActionMessage = ""
     state.lastBattleSummary = nil
+
+    if state.dungeonState then
+        state.dungeonState.currentRoomId = nodeId
+    end
+
+    if node.nodeType == "stair_down" then
+        if not state.dungeonState then
+            return false, "no_dungeon_state"
+        end
+        local ok, reason = FloorState.UseStair(state.dungeonState, "down")
+        if not ok then
+            return false, reason
+        end
+        FloorState.MarkRoomCleared(state.dungeonState, nodeId)
+        state.visitedNodeIds = {}
+        state.currentNodeId = state.dungeonState.currentRoomId
+        state.visitedNodeIds[state.currentNodeId] = true
+        state.phase = "map"
+        refreshAvailableNodes()
+        return true
+    end
+
+    if node.nodeType == "stair_up" then
+        if not state.dungeonState then
+            return false, "no_dungeon_state"
+        end
+        local ok, reason = FloorState.UseStair(state.dungeonState, "up")
+        if not ok then
+            return false, reason
+        end
+        state.visitedNodeIds = {}
+        state.currentNodeId = state.dungeonState.currentRoomId
+        state.visitedNodeIds[state.currentNodeId] = true
+        state.phase = "map"
+        refreshAvailableNodes()
+        return true
+    end
+
+    if node.nodeType == "equip" or node.nodeType == "empty" then
+        if state.dungeonState then
+            FloorState.MarkRoomCleared(state.dungeonState, nodeId)
+        end
+        state.phase = "map"
+        refreshAvailableNodes()
+        return true
+    end
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
         local battle, battleProfile, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
@@ -354,16 +400,6 @@ local function enterNode(nodeId)
         return true
     end
 
-    if node.nodeType == "recruit" then
-        local rewardState = RoguelikeReward.GenerateRecruitRewardState(state, node.recruitPoolId)
-        if not rewardState or #(rewardState.options or {}) == 0 then
-            return false, "recruit_unavailable"
-        end
-        state.phase = "reward"
-        state.rewardState = rewardState
-        return true
-    end
-
     return false, "unsupported_node"
 end
 
@@ -378,6 +414,13 @@ local function openReward(groupId)
 end
 
 local function leaveNodeBackToMap()
+    -- shop 房豁免 cleared，可重复进入；其余房间在离开时落 cleared 标记。
+    if state.dungeonState and state.currentNodeId then
+        local node = getNode(state.currentNodeId)
+        if node and node.nodeType ~= "shop" then
+            FloorState.MarkRoomCleared(state.dungeonState, state.currentNodeId)
+        end
+    end
     state.rewardState = nil
     state.eventState = nil
     state.shopState = nil
@@ -401,6 +444,34 @@ local function enterChapterResult()
             end
         end
     end
+    -- 章 1/2 boss 通关：切下一章并重生地牢；金币已在 Tick 里加，避免 double-count。
+    if state.chapterId < 103 then
+        local nextChapterId = state.chapterId + 1
+        local nextChapter = RoguelikeMap.GetChapter(nextChapterId)
+        if nextChapter then
+            state.chapterId = nextChapterId
+            state.levelCap = tonumber(nextChapter.targetMaxLevel) or state.levelCap
+            local dungeonState, reason = RoguelikeMap.GenerateChapterMap(nextChapterId, state.seed or 0)
+            if not dungeonState then
+                state.phase = "failed"
+                state.chapterResult = { success = false, reason = "next_chapter_gen_failed:" .. tostring(reason) }
+                return
+            end
+            state.dungeonState = dungeonState
+            state.currentNodeId = dungeonState.currentRoomId
+            state.visitedNodeIds = state.currentNodeId and { [state.currentNodeId] = true } or {}
+            state.selectedNextNodeId = nil
+            state.rewardState = nil
+            state.eventState = nil
+            state.shopState = nil
+            state.campState = nil
+            state.chapterResult = nil
+            state.phase = "map"
+            refreshAvailableNodes()
+            return
+        end
+    end
+    -- 章 3 boss 通关：终局
     state.phase = "chapter_result"
     state.rewardState = nil
     state.chapterResult = {
@@ -467,11 +538,15 @@ function RoguelikeRun.StartRun(config)
     state.levelCap = tonumber(chapter.targetMaxLevel) or CHAPTER_LEVEL_CAP
     state.nextLevelExp = getExpToNextLevel(STARTER_LEVEL)
     if chapter.mapGenProfileId then
-        local mapState, reason = RoguelikeMap.GenerateChapterMap(chapterId, state.seed or 0)
-        if not mapState then
+        local dungeonState, reason = RoguelikeMap.GenerateChapterMap(chapterId, state.seed or 0)
+        if not dungeonState then
             error("failed to generate roguelike map: " .. tostring(reason))
         end
-        state.mapState = mapState
+        state.dungeonState = dungeonState
+        if dungeonState.currentRoomId then
+            state.currentNodeId = dungeonState.currentRoomId
+            state.visitedNodeIds = { [state.currentNodeId] = true }
+        end
     end
 
     local starterHeroIds = cloneArray((config or {}).starterHeroIds)
@@ -685,14 +760,6 @@ function RoguelikeRun.ChooseEventOption(optionId)
         leaveNodeBackToMap()
         return true
     end
-    if result.kind == "recruit" then
-        local added, reason = RoguelikeReward.AddRecruit(state, result.heroId)
-        if not added then
-            return false, reason
-        end
-        leaveNodeBackToMap()
-        return true
-    end
     if result.kind == "battle" then
         state.phase = "battle"
         local battleId = tonumber(result.battleId)
@@ -725,12 +792,6 @@ function RoguelikeRun.ShopBuy(goodsId)
     local ok, reason = RoguelikeShop.Buy(state, node.shopId, tonumber(goodsId) or 0)
     if not ok then
         return false, reason
-    end
-    if type(reason) == "table" and reason.kind == "recruit" then
-        local added, addReason = RoguelikeReward.AddRecruit(state, reason.heroId, { forceBench = true })
-        if not added then
-            return false, addReason
-        end
     end
     state.shopState = RoguelikeShop.BuildShopState(state, node.shopId)
     return true
@@ -765,6 +826,15 @@ function RoguelikeRun.CampChoose(actionId)
     local ok, reason = RoguelikeCamp.ApplyAction(state, node.campId, tonumber(actionId) or 0)
     if not ok then
         return false, reason
+    end
+    leaveNodeBackToMap()
+    return true
+end
+
+-- dungeon §4.2：cleared camp 重入时若所有 action 都不可用，允许玩家直接离开（仅作通路）。
+function RoguelikeRun.CampLeave()
+    if state.phase ~= "camp" then
+        return false, "not_in_camp"
     end
     leaveNodeBackToMap()
     return true

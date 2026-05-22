@@ -13,7 +13,8 @@ const embeddedFiles = [
   "config/data/buffs.json",
   "config/data/skills.json",
   "config/data/passives.json",
-  "config/data/classes.json"
+  "config/data/classes.json",
+  "config/data/floors.json"
 ];
 
 function ensureDir(dir) {

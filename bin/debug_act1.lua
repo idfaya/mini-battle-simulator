@@ -14,7 +14,7 @@ local snapshot = Run.StartRun({
     seed = 10102,
 })
 
--- 简版 chooseNextNode：遵循"先 shop / 再 camp / 再 recruit / 再 event"，类似回归测试。
+-- 简版 chooseNextNode：遵循"先 shop / 再 camp / 再 event / 再 stair_down"，类似回归测试。
 local function pickNode(snap)
     for _, n in ipairs((snap.map and snap.map.nodes) or {}) do
         if n.selectable and n.nodeType == "shop" then return n end
@@ -23,10 +23,10 @@ local function pickNode(snap)
         if n.selectable and n.nodeType == "camp" then return n end
     end
     for _, n in ipairs((snap.map and snap.map.nodes) or {}) do
-        if n.selectable and n.nodeType == "recruit" then return n end
+        if n.selectable and n.nodeType == "event" then return n end
     end
     for _, n in ipairs((snap.map and snap.map.nodes) or {}) do
-        if n.selectable and n.nodeType == "event" then return n end
+        if n.selectable and n.nodeType == "stair_down" then return n end
     end
     for _, n in ipairs((snap.map and snap.map.nodes) or {}) do
         if n.selectable and n.nodeType == "battle_normal" then return n end

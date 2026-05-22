@@ -106,7 +106,7 @@ local function serializeBlessings(blessingIds)
 end
 
 local function serializeMap(runState)
-    local chapterMap = RoguelikeMap.BuildChapterMap(runState.chapterId, runState.mapState)
+    local chapterMap = RoguelikeMap.BuildChapterMap(runState.chapterId, runState.dungeonState)
     if not chapterMap then
         return nil
     end
@@ -162,6 +162,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
     return {
         phase = runState.phase,
         chapterId = runState.chapterId,
+        currentFloorDepth = runState.dungeonState and runState.dungeonState.currentFloorDepth or nil,
         currentNodeId = runState.currentNodeId,
         maxHeroCount = runState.maxHeroCount or 5,
         partyLevel = runState.partyLevel or 1,

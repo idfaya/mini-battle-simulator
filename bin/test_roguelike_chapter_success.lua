@@ -58,7 +58,7 @@ end
 local function chooseRewardIndex(s)
     local r = s and s.rewardState
     if not r or not r.options then return 1 end
-    local priority = { recruit = 1, equipment = 2, blessing = 3, gold = 4 }
+    local priority = { equipment = 1, blessing = 2, gold = 3 }
     local bestIdx, bestScore = 1, 99
     for i, opt in ipairs(r.options) do
         local sc = priority[opt.rewardType] or 99
@@ -73,8 +73,13 @@ local function pickAggressiveNode(s)
         if n.selectable then sel[#sel + 1] = n end
     end
     if #sel == 0 then return nil end
-    local prio = { boss = 1, camp = 2, shop = 3, recruit = 4, event = 5, battle_normal = 6, battle_elite = 7 }
-    table.sort(sel, function(a, b) return (prio[a.nodeType] or 99) < (prio[b.nodeType] or 99) end)
+    local prio = { camp = 1, shop = 2, event = 3, stair_down = 4, battle_normal = 5, battle_elite = 6, boss = 7 }
+    local function score(n)
+        local base = prio[n.nodeType] or 99
+        if n.visited then base = base + 100 end -- cleared 仅作通路，最末位
+        return base
+    end
+    table.sort(sel, function(a, b) return score(a) < score(b) end)
     return sel[1]
 end
 
@@ -89,7 +94,7 @@ local snapshot = Run.StartRun({
 assert(snapshot.phase == "map", "run should start on map")
 
 local guard = 0
-while guard < 50 do
+while guard < 200 do
     guard = guard + 1
     snapshot = Run.GetSnapshot()
     if snapshot.phase == "chapter_result" then break end
@@ -125,6 +130,7 @@ local result = snapshot.chapterResult
 assert(result, "chapter_result snapshot should expose chapterResult payload")
 assert(result.success == true, "chapter_result.success should be true on boss defeat path")
 assert(result.reason == "boss_defeated", string.format("chapter_result.reason should be boss_defeated, got %s", tostring(result.reason)))
+assert(snapshot.chapterId == 103, string.format("should clear all 3 chapters and end on chapterId=103, got %s", tostring(snapshot.chapterId)))
 assert(type(result.gold) == "number", "chapter_result.gold should be a number")
 assert(type(result.equipmentCount) == "number", "chapter_result.equipmentCount should be a number")
 assert(type(result.blessingCount) == "number", "chapter_result.blessingCount should be a number")

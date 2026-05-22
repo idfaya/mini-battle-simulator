@@ -1,7 +1,6 @@
 local RoguelikeConfig = {
     Chapter = require("config.roguelike.run_chapter_config"),
     MapGenProfiles = require("config.roguelike.run_map_gen_profile"),
-    Nodes = require("config.roguelike.run_node_pool"),
     Battles = require("config.roguelike.run_battle_config"),
     BattlePools = require("config.roguelike.run_battle_pool"),
     BattleTemplates = require("config.roguelike.run_battle_template"),

@@ -5,11 +5,9 @@ local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
 LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local Run = require("roguelike.roguelike_run")
-local RunNodePool = require("config.roguelike.run_node_pool")
 local RunShopGoods = require("config.roguelike.run_shop_goods")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local BattleFormation = require("modules.battle_formation")
-local HeroData = require("config.hero_data")
 
 --[[
 平衡测试工具
@@ -23,7 +21,7 @@ local HeroData = require("config.hero_data")
 
 默认策略:
   - 路线: chapter101 的 safe + combat
-  - 奖励: recruit > equipment > blessing > gold
+  - 奖励: equipment > blessing > gold
     - 商店: basic（优先买装备/治疗/祝福）
   - 营地: 优先 blessing，其次复活
   - 事件: 选 optionId=1
@@ -33,10 +31,10 @@ local HeroData = require("config.hero_data")
 local ROUTE_PRESETS = {
     [101] = {
         safe = {
-            "battle_normal", "recruit", "battle_normal", "camp", "battle_normal", "battle_normal", "recruit", "boss",
+            "shop", "camp", "event", "stair_down", "battle_normal", "boss",
         },
         combat = {
-            "battle_normal", "battle_normal", "battle_elite", "battle_normal", "battle_elite", "battle_normal", "recruit", "boss",
+            "battle_normal", "battle_elite", "stair_down", "battle_normal", "boss",
         },
     },
 }
@@ -55,10 +53,9 @@ local DEFAULT_CONFIG = {
 }
 
 local REWARD_PRIORITY = {
-    recruit = 1,
-    equipment = 2,
-    blessing = 3,
-    gold = 4,
+    equipment = 1,
+    blessing = 2,
+    gold = 3,
 }
 
 local SHOP_PRIORITY = {
@@ -301,7 +298,7 @@ end
 local function printUsage()
     print("roguelike balance tool")
     print("  --route=all|safe|combat|custom")
-    print("  --nodes=battle_normal,recruit,boss,...")
+    print("  --nodes=battle_normal,battle_elite,stair_down,boss,...")
     print("  --runs=10")
     print("  --seed=101")
     print("  --tick=800")
@@ -490,31 +487,6 @@ local function chooseRewardIndex(snapshot)
     local reward = snapshot.rewardState
     if not reward or not reward.options then
         return nil
-    end
-
-    if reward.kind == "node_recruit" then
-        local existing = {}
-        for _, hero in ipairs(snapshot.team or {}) do
-            existing[hero.heroId] = true
-        end
-        for _, hero in ipairs(snapshot.bench or {}) do
-            existing[hero.heroId] = true
-        end
-        local bestIndex, bestQuality
-        for index, option in ipairs(reward.options) do
-            local heroId = tonumber(option.refId)
-            if heroId and not existing[heroId] then
-                local heroInfo = HeroData.GetHeroInfo(heroId) or {}
-                local quality = tonumber(heroInfo.BaseQuality or heroInfo.Quality) or 1
-                if not bestQuality or quality > bestQuality then
-                    bestIndex = index
-                    bestQuality = quality
-                end
-            end
-        end
-        if bestIndex then
-            return bestIndex
-        end
     end
 
     local bestIndex, bestScore
