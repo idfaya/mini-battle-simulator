@@ -116,14 +116,14 @@ local function serializeMap(runState)
     for _, nodeId in ipairs(runState.availableNextNodeIds or {}) do
         available[nodeId] = true
     end
-    local chapter = RoguelikeMap.GetChapter(runState.chapterId) or {}
-    local hideNodeTitles = chapter.mapVision == "node_type_only"
     local edges = {}
 
     local nodes = {}
     for _, node in ipairs(chapterMap.nodes or {}) do
-        local visible = visited[node.id] == true or runState.currentNodeId == node.id or available[node.id] == true or node.id == chapterMap.startNodeId
-        local titleVisible = (not hideNodeTitles) or visible
+        -- revealed 仅基于"已踏足"——当前房 + 已访问。可选邻居只是 selectable，
+        -- 仍处于迷雾中（前端按 selectable 高亮虚线框，但不展示房间类型/标题）。
+        local visible = visited[node.id] == true or runState.currentNodeId == node.id
+        local titleVisible = visible
         nodes[#nodes + 1] = {
             id = node.id,
             floor = node.floor,

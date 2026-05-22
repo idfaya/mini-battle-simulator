@@ -98,7 +98,7 @@ export class RunMapScene {
       if (placement.node.revealed) {
         this.drawRoom(ctx, placement.x, placement.y, placement.node, layout.cellSize);
       } else {
-        this.drawFogRoom(ctx, placement.x, placement.y, layout.cellSize);
+        this.drawFogRoom(ctx, placement.x, placement.y, layout.cellSize, placement.node.selectable);
       }
     }
 
@@ -163,7 +163,7 @@ export class RunMapScene {
     ctx.restore();
   }
 
-  private drawFogRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, cellSize: number) {
+  private drawFogRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, cellSize: number, selectable: boolean) {
     const half = cellSize / 2;
     ctx.save();
 
@@ -173,12 +173,12 @@ export class RunMapScene {
     ctx.fill();
 
     ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = selectable ? "#80ed99" : "rgba(255,255,255,0.18)";
+    ctx.lineWidth = selectable ? 3 : 1.5;
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.fillStyle = selectable ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.45)";
     ctx.font = "bold 18px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
