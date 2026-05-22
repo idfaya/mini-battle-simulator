@@ -146,11 +146,13 @@ local function grantBattleExp(battle)
 end
 
 -- 队伍当前应处的等级 = 在 partyExp 跨越的最大阈值；不再按存活成员等级平均。
+-- 设计 §3 新模型：partyLevel = 累计三选一次数 + 1，与 hero level cap（state.levelCap=chapter.targetMaxLevel）解耦。
+-- 以 LevelCurve.CHAPTER_LEVEL_CAP（≈32）作为 partyLevel 上限，4 人队 Lv8 累计需 partyLevel≈29。
 local function recalcPartyLevel()
     local exp = math.max(0, math.floor(tonumber(state.partyExp) or 0))
-    local cap = math.max(STARTER_LEVEL, tonumber(state.levelCap) or CHAPTER_LEVEL_CAP)
+    local partyCap = LevelCurve.CHAPTER_LEVEL_CAP
     local level = STARTER_LEVEL
-    for lv = STARTER_LEVEL + 1, cap do
+    for lv = STARTER_LEVEL + 1, partyCap do
         if exp >= getExpThreshold(lv) then
             level = lv
         else

@@ -47,10 +47,10 @@ end
 -- 收集候选：对每名存活队员，列出"下一级"全部未选 feat。
 -- 若该等级无任何候选（典型：阶段 1 / 阶段 7 缺口职业 Lv2/Lv4 没有 feat），
 -- 则按"跳级"机制（设计 §3.1 允许跳级）向上找最近一个有 feat 的等级，但不超过 partyLevel + 1。
+-- 设计 §3：每次三选一只升 1 个英雄；hero.level 上限 = partyLevel。
 -- 返回 { heroes = [{unit, nextLevel, options=[{featId, feat}]}], levelCap }
 local function gatherCandidates(state)
     local levelCap = tonumber(state and state.levelCap) or 10
-    local partyLevel = tonumber(state and state.partyLevel) or 1
     local result = {}
     for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state) or {}) do
         if isAliveActive(unit) then
@@ -60,9 +60,11 @@ local function gatherCandidates(state)
                 owned[tonumber(featId) or 0] = true
             end
             local classId = tonumber(unit.classId) or 0
-            -- 寻找下一个有 feat 的等级；上限取 min(levelCap, partyLevel)。
-            -- 注意：partyLevel 是队伍 EXP 已跨过的阈值，不允许英雄超过队伍等级。
-            local searchCap = math.min(levelCap, math.max(currentLevel + 1, partyLevel))
+            -- 设计 §3：每次三选一只升 1 个英雄，hero.level += 1。
+            -- 仅当 currentLevel+1 没有 feat 时，才向上"跳过空白级"找最近一个有 feat 的等级；
+            -- searchCap = levelCap，与 partyLevel 解耦（partyLevel 在新模型里是累计升级次数，
+            -- 不再约束单次 pick 的 nextLevel）。
+            local searchCap = levelCap
             local foundLevel = nil
             local foundOptions = nil
             for nextLevel = currentLevel + 1, searchCap do
@@ -251,18 +253,20 @@ local function buildOptions(heroEntries)
     return options
 end
 
--- 计算队伍当前应处的等级（按 partyExp 跨阈值，统一走 LevelCurve）
-local function computePartyLevel(state, levelCap)
+-- 计算队伍当前应处的等级（按 partyExp 跨阈值，统一走 LevelCurve）。
+-- 注意：partyLevel 的上限是 LevelCurve.CHAPTER_LEVEL_CAP（≈32），与 hero level cap（chapter.targetMaxLevel=8）解耦。
+-- 新模型下 partyLevel = 累计三选一次数 + 1，可超过 hero cap，4 人队 Lv8 时 partyLevel ≈ 29。
+local function computePartyLevel(state, _heroLevelCap)
     local exp = math.max(0, math.floor(tonumber(state and state.partyExp) or 0))
-    local cap = math.max(1, tonumber(levelCap) or LevelCurve.CHAPTER_LEVEL_CAP)
-    return LevelCurve.GetLevelForExp(exp, cap)
+    return LevelCurve.GetLevelForExp(exp, LevelCurve.CHAPTER_LEVEL_CAP)
 end
 
 --- 检查并启动一次升级会话（partyExp 跨阈值时调用）
 --- 调用前应已经把战斗经验累加到 state.partyExp。
---- 设计 §8 / §3.1 语义：partyLevel 每增加 1 级，所有存活英雄都欠 1 次 level-up；
---- 当 hero.level < partyLevel 时，差值即该英雄的 pending 选秀次数。
---- pendingPicks = sum_over_alive_heroes(max(0, partyLevel - hero.level))
+--- 设计 §3 语义：partyLevel 每升 1 级 = 1 次三选一 = 升 1 个英雄；
+---   候选池 = 所有存活队员"下一个等级"可选 feat 的并集；玩家选中即给该英雄 +1 级。
+---   pendingLevels = newPartyLevel - oldPartyLevel（队伍升级次数，与队员人数无关）。
+---   partyLevel 在新模型里语义 ≈ "全队累计三选一次数"，而不是"角色平均等级"。
 --- @param state any
 --- @param thresholds table<integer, integer>|nil  保留参数兼容旧调用，新实现统一走 LevelCurve
 --- @return table|nil session  session 即新的 rewardState（kind="feat_levelup"）
@@ -273,21 +277,16 @@ function FeatPicker.BeginSession(state, thresholds)
     -- thresholds 参数已废弃但保留签名兼容；曲线统一从 LevelCurve 读取
     local _ = thresholds
     local levelCap = tonumber(state.levelCap) or LevelCurve.CHAPTER_LEVEL_CAP
+    local oldPartyLevel = tonumber(state.partyLevel) or (LevelCurve.STARTER_LEVEL or 1)
     local newPartyLevel = computePartyLevel(state, levelCap)
-    -- 由 caller 决定是否更新 state.partyLevel；此处只在生成会话时定一次。
     state.partyLevel = newPartyLevel
 
-    -- 累计所有存活英雄"欠的 level-up 次数"
-    local pendingPicks = 0
-    for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(state) or {}) do
-        if isAliveActive(unit) then
-            local lv = tonumber(unit.level) or 1
-            if lv < newPartyLevel then
-                pendingPicks = pendingPicks + (newPartyLevel - lv)
-            end
-        end
-    end
-    if pendingPicks <= 0 then
+    -- 队伍每升 1 级 = 1 次三选一会话；与存活英雄数无关。
+    -- state.partyLevelOwed 累积"已增长但尚未消费"的 picks，
+    -- 避免在 hero cap / 全员阵亡场景下丢失 picks（后续战斗复活/治疗后可再补抽）。
+    local newOwed = (tonumber(state.partyLevelOwed) or 0) + math.max(0, newPartyLevel - oldPartyLevel)
+    state.partyLevelOwed = newOwed
+    if newOwed <= 0 then
         return nil
     end
 
@@ -304,7 +303,7 @@ function FeatPicker.BeginSession(state, thresholds)
         kind = "feat_levelup",
         groupId = 0,
         options = options,
-        pendingLevels = pendingPicks,
+        pendingLevels = newOwed,
     }
     state.featPickerSession = session
     state.rewardState = session
@@ -355,9 +354,11 @@ function FeatPicker.Pick(state, optionIndex)
         target.feats[#target.feats + 1] = option.featId
     end
 
-    -- 升级到 option.level（设计允许跳级；这里仅 +1 由调用者保证）
+    -- 设计 §3：每次三选一只升 1 个英雄、严格 +1 级。
+    -- option.level 来自跳级搜索结果（≥ oldLevel+1），仅用于在 UI/feat 资源解锁判定上选取
+    -- 该 feat 的合法等级；hero 实际 level 严格 += 1，避免单次 pick 跨多级。
     local oldLevel = tonumber(target.level) or 1
-    local newLevel = math.max(oldLevel + 1, tonumber(option.level) or (oldLevel + 1))
+    local newLevel = oldLevel + 1
     local oldCurrentHp = tonumber(target.currentHp) or 0
     local oldMaxHp = tonumber(target.maxHp) or 0
     local oldUltCharges = tonumber(target.ultimateCharges) or 1
@@ -396,8 +397,9 @@ function FeatPicker.Pick(state, optionIndex)
         target.hp = target.currentHp
     end
 
-    -- 当前 session 消费一次 pendingLevels
+    -- 当前 session 消费一次 pendingLevels；同步扣减 state.partyLevelOwed（持久化欠债）。
     session.pendingLevels = math.max(0, (tonumber(session.pendingLevels) or 1) - 1)
+    state.partyLevelOwed = math.max(0, (tonumber(state.partyLevelOwed) or 0) - 1)
     state.featPickerSession = nil
     state.rewardState = nil
 

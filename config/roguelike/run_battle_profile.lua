@@ -150,18 +150,17 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "boss",
         chapterId = 101,
         difficulty = 6,
-        level = 2,
+        level = 1,
         initialEnergy = 20,
         speed = 1.0,
         gold = { min = 96, max = 118 },
         boss = { phaseGroupId = 101201 },
-        -- 阶段 1 收尾平衡（2026-05-21）：
-        --   * partyExp 曲线已打磨：battle-heavy → boss 时 partyLevel ≈ Lv7~Lv8（见 run_battle_template.lua）。
-        --   * 但 boss profile level=3 + medium/0.55 + 3 wave + 高 CR 配比，
-        --     在 4 人 Lv7 队伍下仍会大概率 wipe（test_roguelike_act1 / chapter_success 验证）。
-        --   * 暂保留 level=2 接受 1 级倒挂，依靠 medium/0.55 给出 boss 应有压强，
-        --     待后续战斗系统重平衡（CR 表 / 怪物数量 / formation）后再上调。
-        budget = { difficulty = "medium", pressureFactor = 0.55 },
+        -- 阶段 1 收尾平衡（2026-05-21 v3）：
+        --   * partyLevel 改语义为"累计三选一次数+1"；feats 仅配到 Lv5，
+        --     4 人队最终 lvSum 上限 = 20（4×Lv5）。boss 必须按此基线平衡。
+        --   * level=1 + easy/0.25 + waveCount=2（template）：
+        --     维持 boss 仍有压强，但避免 4×Lv5 必 wipe（test_roguelike_act1 验证）。
+        budget = { difficulty = "easy", pressureFactor = 0.25 },
     },
 }
 

@@ -61,7 +61,7 @@ do
     local rogue = makeUnit(1, 1, 11)
     local fighter = makeUnit(2, 1, 12)
     local cleric = makeUnit(3, 1, 13)
-    local state = makeMockState({ rogue, fighter, cleric }, 8)
+    local state = makeMockState({ rogue, fighter, cleric }, 4)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created")
     assert_true(#session.options <= 3, "options should be capped at 3 when 3 alive heroes")
@@ -94,7 +94,7 @@ do
         end
     end
     if #validUnits >= 4 then
-        local state = makeMockState(validUnits, 8)
+        local state = makeMockState(validUnits, 4)
         local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
         assert_true(session ~= nil, "session should be created with 4 alive heroes")
         assert_true(#session.options >= 4,
@@ -115,7 +115,7 @@ end
 do
     math.randomseed(9999)
     local rogue = makeUnit(1, 1, 31)
-    local state = makeMockState({ rogue }, 8)
+    local state = makeMockState({ rogue }, 4)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created")
     local rogueLv2Feats = FeatBuildConfig.GetFeatsByLevel(1, 2) or {}
@@ -139,7 +139,7 @@ end
 do
     math.randomseed(11111)
     local fighter = makeUnit(2, 1, 41)
-    local state = makeMockState({ fighter }, 25)  -- 跨过 Lv2(8), Lv3(20)
+    local state = makeMockState({ fighter }, 8)  -- 跨过 Lv2(4), Lv3(8)，新线性阈值（4/级）
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created at partyLevel 3")
     assert_true(state.partyLevel == 3, "partyLevel should compute to 3")
@@ -166,7 +166,8 @@ end
 do
     math.randomseed(33333)
     local rogue = makeUnit(1, 4, 61)  -- 升到 Lv5 触发 capstone（高阶 + isSubclassCore）
-    local state = makeMockState({ rogue }, 58)  -- partyLevel = 5
+    -- 新模型：partyLevel 与 hero.level 解耦；只需 partyExp 大于 0 触发 session 即可。
+    local state = makeMockState({ rogue }, 4)  -- partyLevel=2，触发 session
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv4→Lv5 session should be created")
     local hasSubclassCore = false

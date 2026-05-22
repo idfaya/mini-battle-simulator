@@ -164,8 +164,8 @@ do
     assert_true(firstOption.tier == "small" or firstOption.tier == "medium" or firstOption.tier == "high",
         "option.tier should be one of small/medium/high")
     assert_true(type(firstOption.heroName) == "string" and #firstOption.heroName > 0, "option.heroName should be set")
-    assert_true(firstOption.level == 2,
-        "first level-up should target Lv2, got " .. tostring(firstOption.level))
+    assert_true(firstOption.level >= 2,
+        "first level-up should target Lv>=2 (Lv2 跳级时可能直接到 Lv3), got " .. tostring(firstOption.level))
 
     -- 选中第一项：对应英雄 +1 级，feat 写入
     local targetRosterId = firstOption.rosterId
@@ -215,15 +215,16 @@ do
         teamRoster = { heroA, heroB },
         benchRoster = {},
         partyLevel = 1,
-        partyExp = 20,  -- 跨过 Lv2(6) 与 Lv3(14)，但未到 Lv4(24)
-        levelCap = 10,
+        partyExp = 10,  -- 跨过 Lv2(4) 与 Lv3(8)，到达 partyLevel 3
+        levelCap = 32,
     }
     local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created when partyExp crosses thresholds")
     assert_true(session.kind == "feat_levelup", "session kind should be feat_levelup")
-    -- 2 名队员 × (Lv3 - Lv1) 各欠 2 次 = 4 次
-    assert_true(session.pendingLevels == 4,
-        "pendingLevels should be 4 (2 heroes x 2 missing levels), got " .. tostring(session.pendingLevels))
+    -- 设计 §3：队伍每升 1 级 = 1 次三选一 = 升 1 个英雄；与队员人数无关。
+    -- 队伍 partyLevel 1 → 3 = 2 次会话。
+    assert_true(session.pendingLevels == 2,
+        "pendingLevels should be 2 (party Lv1→Lv3), got " .. tostring(session.pendingLevels))
     assert_true(#session.options > 0, "session should expose options")
 
     -- 选第一项后 pendingLevels -= 1，且自动开启下一轮 session
@@ -231,8 +232,8 @@ do
     assert_true(ok, "Pick should succeed")
     assert_true(result.sessionExhausted == false, "session should not be exhausted yet")
     assert_true(result.nextSession ~= nil, "next session should auto-launch when pendingLevels > 0")
-    assert_true(result.nextSession.pendingLevels == 3,
-        "next session.pendingLevels should be 3 after consuming 1")
+    assert_true(result.nextSession.pendingLevels == 1,
+        "next session.pendingLevels should be 1 after consuming 1")
 end
 
 print("party EXP level-up test passed")
