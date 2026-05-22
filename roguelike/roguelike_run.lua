@@ -849,7 +849,8 @@ function RoguelikeRun.StairUse()
     if not ok then
         return false, reason
     end
-    if direction == "down" and prevNodeId then
+    if prevNodeId then
+        -- 上下楼对称：使用楼梯离开时把原楼梯房标 cleared，回到该层时按 cleared 仅作通路处理。
         FloorState.MarkRoomCleared(state.dungeonState, prevNodeId)
     end
     state.visitedNodeIds = {}
