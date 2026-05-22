@@ -1,129 +1,83 @@
-# Mini Battle Simulator 使用指南
+# Mini Battle Simulator
+
+D&D 5e 风格的小队自动战斗 + Roguelike 原型。核心逻辑为 **Lua**（Unity/ToLua 与 CLI 共用），**Web** 通过 Fengari 在浏览器中运行同一套 Lua，用于可视化与 E2E 验证。
+
+## 文档入口
+
+| 入口 | 说明 |
+| --- | --- |
+| [design/README.md](design/README.md) | **策划设计**（玩法、数值、关卡、职业） |
+| [docs/README.md](docs/README.md) | **程序开发**（实现、工程约束、落地计划） |
+| [AGENTS.md](AGENTS.md) | 编码 Agent 规范（目录、export、5e、预算） |
 
 ## 快速开始
 
-### 1. 运行主程序
+### Web（推荐）
+
 ```bash
-cd MiniBattleSimulator
-lua55 main.lua
+cd web
+npm install
+npm run dev:full    # export:lua + Vite 开发服
 ```
 
-### 2. 可用的测试脚本
+浏览器打开开发服地址。URL 参数示例：
 
-#### 查看英雄属性（含Prop数组）
+- 默认：Roguelike 第一章
+- `?mode=battle`：单场战斗调试
+- `?mode=single-battle`：单战模式
+
+### Lua CLI 测试
+
+需本机 Lua 5.x（脚本入口在 `bin/`）：
+
 ```bash
-lua55 test_prop.lua
+lua bin/test_single_battle.lua
+lua bin/test_roguelike_act1.lua
+lua bin/test_party_exp_levelup.lua
 ```
 
-#### 测试战斗属性传递
+### Lua 改动后的必做步骤
+
 ```bash
-lua55 test_battle_attrs.lua
+cd web && npm run export:lua
 ```
 
-#### 运行完整战斗模拟
+会将 `core/`、`modules/`、`config/`、`skills/`、`roguelike/` 等同步到 `web/public/lua/project/`。**不要手改生成目录。**
+
+## 仓库结构
+
+```text
+core/           类型、枚举、事件
+modules/        战斗引擎（battle_main、buff、skill、5e）
+skills/         技能效果、被动、时间轴
+roguelike/      Run、地图、地牢生成、Feat 选择
+config/
+  data/         权威 JSON（skills、classes、heroes…）
+  tables/       JSON 加载与运行时表
+  skill/        单技能 Lua 逻辑
+  roguelike/    章节、战斗池、遭遇
+bin/            Lua 回归脚本
+web/            TypeScript + Vite + Playwright
+design/         策划设计文档（`legacy/` 禁止读/维护）
+docs/           程序开发文档
+```
+
+## 测试
+
 ```bash
-lua55 test_main_battle.lua
+# Web E2E
+cd web && npm run test:playwright
+
+# 示例 Lua 回归
+lua bin/test_fighter_build_pipeline.lua
+lua bin/test_roguelike_dungeon_generation.lua
 ```
 
-#### 运行带技能选择的战斗
-```bash
-lua55 run_skill_battle.lua
-```
+## 部署
 
-#### 调试行动顺序
-```bash
-lua55 test_debug_action.lua
-```
+`main` 分支 push 后通过 GitHub Actions 构建 `web/` 并发布 GitHub Pages（见 `.github/workflows/deploy-pages.yml`）。
 
-### 3. 模块说明
+## 非目标说明
 
-#### 核心模块 (core/)
-- `battle_types.lua` - 战斗类型定义
-- `battle_enum.lua` - 战斗枚举值
-- `battle_default_types.lua` - 默认类型
-
-#### 配置模块 (config/)
-- `ally_data.lua` - 英雄数据加载（从res_ally_info.json读取属性）
-- `enemy_data.lua` - 敌人数据加载
-- `skill_data.lua` - 技能数据加载
-- `buff_data.lua` - Buff数据加载
-
-#### 战斗模块 (modules/)
-- `battle_main.lua` - 战斗主控制器
-- `battle_formation.lua` - 战斗阵型管理
-- `battle_attribute.lua` - 战斗属性系统
-- `battle_action_order.lua` - 行动顺序系统
-- `battle_round.lua` - 回合管理
-- `battle_skill.lua` - 技能系统
-- `battle_buff.lua` - Buff系统
-- `battle_damage.lua` - 伤害计算
-- `battle_formula.lua` - 战斗公式
-
-### 4. 创建自定义战斗
-
-```lua
-local BattleMain = require("modules.battle_main")
-local HeroData = require("config.hero_data")
-local EnemyData = require("config.enemy_data")
-
--- 初始化数据
-HeroData.Init()
-EnemyData.Init()
-
--- 创建战斗配置
-local beginState = {
-    teamLeft = {},   -- 左侧队伍（英雄）
-    teamRight = {},  -- 右侧队伍（敌人）
-    seedArray = {123456789, 362436069, 521288629, 88675123}  -- 随机种子
-}
-
--- 添加英雄（heroId, level, star）
-local hero = HeroData.ConvertToHeroData(13101, 60, 5)
-table.insert(beginState.teamLeft, hero)
-
--- 添加敌人（enemyId, level）
-local enemy = EnemyData.CreateEnemyBattleData(20701, 60)
-table.insert(beginState.teamRight, enemy)
-
--- 启动战斗
-BattleMain.Start(beginState, function(result)
-    print("战斗结果: " .. (result.isWin and "胜利" or "失败"))
-    print("总回合: " .. result.totalRound)
-end)
-```
-
-### 5. 属性系统
-
-#### 标准属性（从Prop数组读取）
-- `spd` - 速度（属性ID 18）
-- `crt` - 暴击率（属性ID 21）
-- `crtd` - 暴击伤害（属性ID 22）
-- `hit` - 命中率（属性ID 24）
-- `res` - 闪避率（属性ID 25）
-- `blk` - 格挡率（属性ID 26）
-
-#### 额外属性（保存但不参与战斗）
-- 152, 153, 171, 181等 - 用于战力计算，不直接影响战斗
-
-### 6. 战斗流程
-
-1. **初始化阶段**
-   - 加载英雄/敌人数据
-   - 解析Prop数组属性
-   - 初始化BattleAttribute系统
-
-2. **战斗阶段**
-   - 行动顺序排序（基于速度）
-   - 回合循环
-   - 技能释放
-   - 伤害计算
-
-3. **结束阶段**
-   - 判断胜负
-   - 返回战斗结果
-
-## 注意事项
-
-1. 所有属性名称使用小写（atk, def, hp, spd, crt等）
-2. 速度从res_ally_info.json的Prop数组中读取（属性ID 18）
-3. 战斗公式使用简化版本：damage = atk - def
+- 根目录旧版 `README` 中的 `main.lua`、`res_ally_info.json`、`damage = atk - def` 等描述已废弃。
+- 完整规则与养成口径以 [design/README.md](design/README.md) 为准。

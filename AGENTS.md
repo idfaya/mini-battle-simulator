@@ -25,6 +25,13 @@ Default workflow after Lua changes:
 1. Edit source Lua files.
 2. Run `npm run export:lua` to refresh the Web mirror.
 
+## Documentation
+
+- **`design/`** — 策划设计文档（玩法、数值、关卡、职业）。导航：`design/README.md`
+- **`docs/`** — 程序开发文档（实现、工程约束、落地计划）。导航：`docs/README.md`
+- **`design/legacy/`** — 过时策划归档：**禁止阅读、禁止维护**
+- 改代码前：策划规则见 `design/`，实现口径见 `docs/implementation_guidelines.md` 与 `docs/*_IMPLEMENTATION.md`
+
 ## Key Paths
 
 - Roguelike config: `config/roguelike/`

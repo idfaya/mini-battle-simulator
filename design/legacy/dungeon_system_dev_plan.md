@@ -1,6 +1,10 @@
+> **ARCHIVED — 禁止阅读与维护。** 见 [`README.md`](./README.md)。
+
 # Dungeon 系统开发计划
 
-> 上位规则源：[`design/dungeon_design.md`](../../design/dungeon_design.md) + [`design/character_progression_design.md`](../../design/character_progression_design.md) + [`AGENTS.md`](../../AGENTS.md)
+> **已归档**：执行计划与实测进度请以 [`dungeon_system_overall_plan.md`](./dungeon_system_overall_plan.md) 为准。本文保留作历史拆解参考。
+
+> 上位规则源：[`design/dungeon_design.md`](../design/dungeon_design.md) + [`design/character_progression_design.md`](../design/character_progression_design.md) + [`AGENTS.md`](../AGENTS.md)
 >
 > 目标：把当前「单章 lane DAG（act_1，8 层）+ recruit/4 选 1 营地」的 Run 系统，重构为「3 章 × 5 层 + 房间迷宫 + 楼梯 + 5e 检定 + 章节 Trinket」的随机地牢系统。
 

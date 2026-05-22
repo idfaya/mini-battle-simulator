@@ -4,7 +4,7 @@
 
 - 本文档统一收敛当前物理职业的核心技设计，作为后续 `Feat -> Runtime Skill -> 5e Meta` 实现的规则源。
 - 目标是在保留 D&D 5e 风味的前提下，对职业核心技做足够简化，使其适配当前自动战斗与轻量技能系统。
-- 本文档按“低阶 / 中阶 / 高阶”三阶子职业方式拆解现有物理职业。
+- 本文档按 **Feat 档位（Lv2/Lv3/Lv4/Lv5）与子职业分支** 组织物理职业能力；技能槽名（`core_slot` / `mid_slot` / `high_slot`）仅作结构描述。
 - 所有能力优先复用各职业的基础攻击母技能，避免另起独立伤害链。
 
 ## 总体原则
@@ -18,27 +18,15 @@
   - 反应登记与后结算
 - 自动战斗场景下，职业技能设计必须和目标选择倾向同时定义；只设计结算规则而不设计目标选择，会导致职业手感显著失真。
 - 所有成长入口统一由 `Feat` 承载，后续落地时只使用 `grant_skill`、`modify_skill`、`replace_skill`。
-- 每个物理职业都拆成三阶子职业，与 `class_system_design.md` §2.4 的技能槽一一对应：
-  - `low`：启用 `basic_attack_slot` + `core_slot`（`1 普攻 + 1 核心被动`）
-  - `mid`：在 `low` 基础上追加 `mid_slot`（`1 主动` 或 `1 被动`）
-  - `high`：再追加 `high_slot`（改造后的旧大招或新设计的高阶能力）
+- 每个物理职业按技能槽组织（`class_system_design.md` §9）：起手 `basic_attack_slot` + `core_slot`；**Lv3 Feat** 解锁子职与 `mid_slot`；**Lv5 Feat** 为 capstone / `high_slot`。
 - 高阶能力不强制要求保留原大招形态；可以改写成更适合自动战斗和总纲模板的主动或被动。
-- 职业成长不写成固定战斗内等级，而应通过同职业进阶、装备与 Feat 链推进。
+- 职业成长在 Run 内通过 **队伍升级 Feat 三选一** 与装备 / bless 推进，见 [`character_progression_design.md`](./character_progression_design.md)。
 - `额外攻击`、`额外行动`、`命中后追击` 必须严格区分，避免实现时语义串线。
 
 ## 字段口径
 
 - 本文档采用 `class_system_design.md` 作为 Class 层字段规则源。
 - 本文档中的职业能力对象统一为 `Class 单位`，不再使用独立“角色”口径。
-- 阶段字段统一使用 `promotion_stage`。
-- `promotion_stage` 的数据值统一为：
-  - `low`
-  - `mid`
-  - `high`
-- 展示层可渲染为：
-  - `低阶`
-  - `中阶`
-  - `高阶`
 - 技能槽统一使用：
   - `basic_attack_slot`
   - `core_slot`
@@ -49,8 +37,7 @@
   - `core_slot` = 低阶核心能力
   - `mid_slot` = 中阶新增能力
   - `high_slot` = 高阶终局能力
-- 职业卡只推动 `Class 单位` 获得或进阶，不直接提供等级提升。
-- `等级` 只负责数值成长；`进阶` 只负责同职业阶段推进；`转职` 才改变 `class_id`。
+- `等级` 只负责 5e 数值成长；子职业与技能形态由 **Feat** 决定（Lv3 锁子职，Lv5 capstone）。
 
 ## 母技能映射
 
@@ -61,16 +48,11 @@
 - 圣骑：圣武打击
 - 野蛮人：狂斧劈砍
 
-## 三阶子职业结构
+## 技能槽与子职业分支
 
-- 每个职业都拆成 `low -> mid -> high` 三段。
-- 推荐结构：
-  - `low`：建立职业辨识度，只启用 `basic_attack_slot + core_slot`
-  - `mid`：在 `low` 基础上追加 `mid_slot`
-  - `high`：在 `mid` 基础上追加 `high_slot`
-- 推荐授予顺序：
-  - 初始获得 `low`
-  - 后续通过同职业进阶或关键 Feat 晋升到 `mid`、`high`
+- 起手：`basic_attack_slot` + `core_slot`（职业底盘）
+- Lv3 Feat：选定子职，启用 `mid_slot` 对应能力
+- Lv5 Feat：子职 capstone，启用 `high_slot`
 - 设计目的：
   - 开局立即建立职业辨识度
   - 中期补足职业差异和可观察联动

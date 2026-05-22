@@ -1,10 +1,8 @@
 # MiniBattle 随机地牢系统设计
 
-> 本文档与 [`character_progression_design.md`](./character_progression_design.md) 配套：
-> - 本文：层级地牢、房间迷宫、房间类型与奖励矩阵。
-> - 角色养成文档：队伍 EXP / 升级三选一 / Feat 档位 / Run 内死亡与复活。
-> 两份文档共同**取代** `expedition_progression_design.md`。
-> 上位规则源：`roguelike_run_system_design.md`。
+> **文档状态**：Run 地图与房间规则的**权威文档**。落地进度见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md)。
+
+> 配套 [`character_progression_design.md`](./character_progression_design.md)（养成）。旧节点图 Run 稿在 `design/legacy/`（禁止阅读维护）。
 
 ---
 
@@ -191,9 +189,7 @@ Floor = Maze(Room ⇄ Room)
 | Run 层（修改） | `roguelike/roguelike_reward.lua` | 修改 | Boss / 精英 / 装备房掉落 |
 | Web | `web/app/ui/dungeon.ts` | 新增 | 地牢 / 楼层 / 房间 UI |
 | Web | `web/tests/*.spec.ts` | 修改 | 新增地牢生成 / 房间触发回归 |
-| 文档（修订） | `roguelike_run_system_design.md` | 修订 | 章节结构改为"Run = 多层地牢" |
-| 文档（修订） | `roguelike_node_parameter_table.md` | 修订 | 节点 → 房间类型语义平移 |
-| 文档（修订） | `roguelike_random_map_parameter_table.md` | 修订 | 改为"层级 + 房间迷宫"参数 |
+| 文档 | `design/README.md` / `docs/README.md` | 活跃 | 策划 / 程序导航；旧 Run 参数表在 `design/legacy/` |
 
 ---
 

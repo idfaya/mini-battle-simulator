@@ -69,19 +69,20 @@
 - 在局内提供比职业卡更轻量、更频繁的强化反馈
 - 为商店、事件、战斗节点提供有价值的横向奖励
 
-### 5.2 与职业卡的分工
+### 5.2 与 Feat 成长的分工
 
-职业卡负责：
+Feat（升级三选一）负责：
 
-- 获取新职业单位
-- 职业单位进阶
-- 职业主成长线推进
+- 授予 / 修改 / 替换 `skill`
+- 子职业分支（Lv3 / Lv5）
 
 装备负责：
 
-- Run 内横向强化
+- Run 内横向强化（全局池，非逐角色穿戴）
 - 围绕职业 archetype 做定向增益
 - 提供数值与少量机制型补正
+
+见 [`character_progression_design.md`](./character_progression_design.md)。
 
 ### 5.3 与祝福的分工
 
@@ -641,12 +642,12 @@ Boss 奖励应从 `boss` 专属池中独立结算，避免与普通池混用。
 
 ### 19.2 已同步文档
 
-本次已同步以下文档，保证口径一致：
+本次已同步以下活跃文档：
 
-- `roguelike_run_system_design.md`
+- `dungeon_design.md`
+- `character_progression_design.md`
 - `class_system_design.md`
-- `class_promotion_design.md`
-- `implementation_guidelines.md`
+- `docs/implementation_guidelines.md`
 
 ## 20. 结论
 

@@ -42,12 +42,10 @@
   - `battle_slot`
   - `team_state`
 
-### 2.3 职业卡
+### 2.3 Run 内成长（Feat）
 
-- `职业卡` 是 Run 内获得 Class 单位或推动 Class 单位进阶的入口。
-- `职业卡` 规则由 `class_promotion_design.md` 定义。
-- `职业卡` 不直接提供等级提升。
-- `职业卡` 不直接替代转职入口。
+- 战后经验进入 `partyExp`；升级时从存活英雄的下一级 Feat 汇总池三选一。
+- 规则见 [`character_progression_design.md`](./character_progression_design.md)。**无职业卡、无 Run 内招募。**
 
 ### 2.4 技能
 
@@ -302,99 +300,20 @@ HeroData 仍保留 `promotion_stage` 默认值用于向后兼容老存档。
 
 ---
 
-## 7. 进阶系统
+## 7. 子职业与能力解锁（Feat）
 
-### 7.1 进阶阶段
+> 原「职业卡 / promotion_stage 进阶 / 转职」已废弃，见 [`character_progression_design.md`](./character_progression_design.md)。勿读 `design/legacy/`。
 
-Class 单位统一采用以下阶段：
-
-```text
-low
-→ mid
-→ high
-```
-
-### 7.2 进阶来源
-
-Class 单位可通过以下入口进入进阶结算：
-
-- 已满足等级门槛后的重复职业卡
-- 招募节点进阶结果
-- 事件节点进阶结果
-
-### 7.3 进阶结果
-
-Class 单位进阶时，统一执行：
-
-- 保留 `unit_id`
-- 保留当前 `level`
-- 保留当前 `exp`
-- 替换当前技能包
-- 应用进阶属性修正
-
-### 7.4 进阶职责
-
-- `进阶` 负责职业阶段变化。
-- `进阶` 负责技能包扩展。
-- `进阶` 不重置等级。
-- `进阶` 不改变 `class_id`。
-- `进阶` 不新增同名单位。
-
-### 7.5 进阶门槛
-
-统一门槛如下：
-
-| 晋升路径 | 等级要求 | 额外要求 |
-| --- | --- | --- |
-| `low → mid` | `Lv3` | 持有 1 次同职业重复卡 |
-| `mid → high` | `Lv6` | 持有 1 次同职业重复卡 |
-
-约束：
-
-- 只靠等级不会自动进阶。
-- 只靠重复职业卡也不会越级进阶。
-- 两个条件都满足时，进阶立即生效。
-- 若先拿到重复职业卡，再达成等级门槛，则在升级结算中自动触发进阶。
+- **子职业**：英雄在 **Lv3** 选中该职业的子职核心 Feat 后锁定分支；**Lv5** Feat 为该子职 capstone。
+- **能力单元**：所有战斗内能力由 Feat 授予或修改 `skill`，战前编译为 `BuildState`（[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md)）。
+- **技能槽语义**（`basic_attack_slot` / `core_slot` / `mid_slot` / `high_slot`）仍用于描述职业结构；具体启用哪条技能由已选 Feat 决定，不由 `promotion_stage` 驱动。
+- **本期**：Run 内固定 4 名起手英雄，无招募、无转职换 `class_id`。
 
 ---
 
 ## 8. 转职系统
 
-### 8.1 转职定义
-
-- `转职` 是 Class 单位从当前 `class_id` 切换到目标 `class_id` 的成长结算。
-
-### 8.2 转职入口
-
-Class 单位可通过以下入口触发转职：
-
-- 高阶进阶分支
-- 指定事件结果
-- 指定系统结算
-
-### 8.3 转职结果
-
-Class 单位转职时，统一执行：
-
-- 保留 `unit_id`
-- 替换 `class_id`
-- 保留当前 `level`
-- 保留当前 `exp`
-- 替换技能包
-- 重新计算职业属性模板
-- 保留已装备物品，按目标职业可用规则重新校验
-
-### 8.4 转职与进阶关系
-
-- `进阶` 是同职业内阶段推进。
-- `转职` 是职业编号切换。
-- 转职后 Class 单位继续参与等级成长与装备结算。
-
-### 8.5 转职结果约束
-
-- `转职` 后重新进入目标职业的阶段规则。
-- `转职` 后当前 `promotion_stage` 由转职规则定义。
-- `转职` 后技能槽结构保持统一，只替换技能内容。
+**本期不实现。** 若未来加入，须单独立稿并修订总纲术语表。
 
 ---
 
@@ -630,24 +549,13 @@ Class 单位进入战斗时，统一带入以下数据：
 
 | 系统 | 改变内容 | 不改变内容 |
 | --- | --- | --- |
-| `等级` | 属性数值、等级成长记录 | `class_id`、职业阶段、技能槽结构 |
-| `进阶` | 职业阶段、技能包、进阶修正 | `unit_id`、`class_id`、当前等级 |
-| `转职` | `class_id`、职业模板、技能包 | `unit_id`、当前等级、当前经验 |
+| `等级`（个人） | 5e 派生属性、已选 Feat 档位 | `class_id` |
+| `Feat` | 授予 / 修改 / 替换 `skill`、子职分支 | `unit_id`、`class_id` |
+| `装备` / `bless` | Run 级 Build 修正 | 跨 Run 保留 |
 
 ## 15. 文档关系
 
-- `class_system_design.md`
-  - 定义 Class 系统总规则
-- `class_promotion_design.md`
-  - 定义职业卡与进阶规则
-- `physical_class_core_skill_design.md`
-  - 定义物理职业能力包
-- `caster_class_core_skill_design.md`
-  - 定义法系职业能力包
-- `roguelike_run_system_design.md`
-  - 定义 Run、节点和奖励入口
-- `single_battle_design.md`
-  - 定义单场战斗规则
+见 [`README.md`](./README.md)。`design/legacy/` 禁止阅读维护。
 
 ---
 
@@ -656,13 +564,9 @@ Class 单位进入战斗时，统一带入以下数据：
 Class 单位统一采用以下成长结构：
 
 ```text
-获得职业卡
-→ 获得 Class 单位
-→ 战斗获取经验
-→ 等级提升
-→ 重复职业卡提供下一段进阶资格
-→ 达到等级门槛后兑现进阶
-→ 指定入口触发转职
-→ 装备持续修正单位能力
-→ 进入下一场战斗
+起手 4 名 Class 单位（Lv1 + 底盘 Feat）
+→ 战斗 → partyExp
+→ 升级 → Feat 三选一（Lv3 锁子职 / Lv5 capstone）
+→ 装备 / bless 修正 Build
+→ hero_build 编译 → 进入下一场战斗
 ```

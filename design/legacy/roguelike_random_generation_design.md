@@ -1,4 +1,9 @@
+> **ARCHIVED — 禁止阅读与维护。** 见 [`README.md`](./README.md)。
+
 # MiniBattle Roguelike 随机生成系统策划案
+
+> **文档状态**：地图/关卡/怪物三层与 `budget` 口径仍有效。  
+> **注意**：终态 Run 结构以 [`dungeon_design.md`](./dungeon_design.md)（房间迷宫）为准；本文的章节节点图随机与地牢稿并存，冲突时优先地牢稿。养成勿使用文内 `promotion_stage` 功能解锁描述，见 [`character_progression_design.md`](./character_progression_design.md)。
 
 ## 1. 文档范围
 

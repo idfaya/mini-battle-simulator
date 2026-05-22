@@ -1,4 +1,9 @@
+> **ARCHIVED — 禁止阅读与维护。** 见 [`README.md`](./README.md)。
+
 # MiniBattle Roguelike Run 系统设计文档
+
+> **文档状态**：战斗节点结算、服务节点、参数表接口仍有参考价值。  
+> **已过时**：职业卡三选一、招募扩编、章节 lane 节点图为主形态——见 [`character_progression_design.md`](./character_progression_design.md)（养成）与 [`dungeon_design.md`](./dungeon_design.md)（房间迷宫）。落地进度见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md)。
 
 ## 1. 文档范围
 

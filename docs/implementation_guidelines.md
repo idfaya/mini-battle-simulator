@@ -1,9 +1,15 @@
-# MiniBattle 实现规范
+# MiniBattle 程序实现规范
+
+> 本文档位于 **`docs/`**（程序开发文档）。策划规则见 [`design/README.md`](../design/README.md)。
 
 ## 1. 文档目的
 
-- 本文档用于沉淀 `design/legacy/` 中仍然有效的工程约束。
-- 本文档不替代 `minibattle_combat_design_document_v_1.md`、`class_system_design.md`、`class_promotion_design.md`、`physical_class_core_skill_design.md`、`caster_class_core_skill_design.md` 的规则定义。
+- 本文档沉淀工程侧必须遵守的实现约束（源自已归档策划稿中的有效部分）。
+- 本文档不替代 `design/` 下的策划规则源：
+  - `minibattle_combat_design_document_v_1.md`
+  - `class_system_design.md`
+  - `physical_class_core_skill_design.md`
+  - `caster_class_core_skill_design.md`
 - 本文档只负责统一：
   - 能力建模约束
   - 职业实现边界
@@ -204,18 +210,16 @@
 
 ## 9. 关联文档
 
-- `minibattle_combat_design_document_v_1.md`
-- `class_system_design.md`
-- `class_promotion_design.md`
-- `physical_class_core_skill_design.md`
-- `caster_class_core_skill_design.md`
-- `roguelike_run_system_design.md`
+- 程序导航：[`docs/README.md`](./README.md)
+- 策划导航：[`design/README.md`](../design/README.md)
+- 策划规则源：`design/minibattle_combat_design_document_v_1.md`、`design/class_system_design.md`、职业核心技稿、`design/dungeon_design.md`、`design/character_progression_design.md`
+- 模块实现：`SKILL_SYSTEM_IMPLEMENTATION.md`、`BUFF_SYSTEM_IMPLEMENTATION.md`
 
 ## 10. 归档来源
 
-- 本文档整理自以下 legacy 文档中的仍然有效部分：
-  - `legacy/feat_skill_refactor_program_design.md`
-  - `legacy/class_build_optimization_reference.md`
-  - `legacy/fighter_web_test_cases.md`
-  - `legacy/fighter_final_checklist.md`
-  - `legacy/web-visualization-plan.md`
+- 工程约束整理自 `design/legacy/` 中以下稿件（legacy 禁止维护）：
+  - `feat_skill_refactor_program_design.md`
+  - `class_build_optimization_reference.md`
+  - `fighter_web_test_cases.md`
+  - `fighter_final_checklist.md`
+  - `web-visualization-plan.md`

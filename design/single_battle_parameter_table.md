@@ -147,8 +147,8 @@ Boss 战额外字段：
 Run 节点统一通过以下关系接入战斗主表：
 
 ```text
-roguelike_run_system_design.md
-→ node.battle_id
+dungeon_design.md / config/roguelike/run_battle_*.lua
+→ battle_template / battle_id
 → single_battle_parameter_table.id
 ```
 

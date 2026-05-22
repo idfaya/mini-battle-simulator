@@ -1,3 +1,5 @@
+> **ARCHIVED — 禁止阅读与维护。** 见 [`README.md`](./README.md)。
+
 # MiniBattle Roguelike 服务节点参数表
 
 ## 1. 招募表

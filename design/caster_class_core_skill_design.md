@@ -10,7 +10,7 @@
   - 牧师（神术）
   - 邪术师（雷）
 - 所有能力优先复用统一母技能，避免引入完整法术位、专注槽、法术准备列表与复杂区域状态机。
-- 本文档按“低阶 / 中阶 / 高阶”三阶子职业方式拆解现有法系职业。
+- 本文档按 **Feat 档位与子职业分支** 组织法系能力；技能槽名仅作结构描述。
 
 ## 总体原则
 
@@ -39,7 +39,7 @@
   - `mid`：在 `low` 基础上追加 `mid_slot`（`1 主动` 或 `1 被动`）
   - `high`：再追加 `high_slot`（改造后的旧大招或新设计的高阶能力）
 - 高阶能力不强制要求保留原大招形态；可以改写成更适合自动战斗和总纲模板的主动或被动。
-- 职业成长不写成固定战斗内等级，而应通过同职业进阶、装备与 Feat 链推进。
+- Run 内成长见 [`character_progression_design.md`](./character_progression_design.md)。
 - 法系职业的高阶能力不追求翻桌，而是放大该职业主循环：
   - 法师放大控场
   - 术士放大点燃爆发
@@ -60,15 +60,6 @@
 
 - 本文档采用 `class_system_design.md` 作为 Class 层字段规则源。
 - 本文档中的职业能力对象统一为 `Class 单位`，不再使用独立“角色”口径。
-- 阶段字段统一使用 `promotion_stage`。
-- `promotion_stage` 的数据值统一为：
-  - `low`
-  - `mid`
-  - `high`
-- 展示层可渲染为：
-  - `低阶`
-  - `中阶`
-  - `高阶`
 - 技能槽统一使用：
   - `basic_attack_slot`
   - `core_slot`
@@ -79,7 +70,7 @@
   - `core_slot` = 低阶核心能力
   - `mid_slot` = 中阶新增能力
   - `high_slot` = 高阶终局能力
-- 职业卡只推动 `Class 单位` 获得或进阶，不直接提供等级提升。
+- 子职业与技能由 Feat 授予，见 [`character_progression_design.md`](./character_progression_design.md)。
 - `等级` 只负责数值成长；`进阶` 只负责同职业阶段推进；`转职` 才改变 `class_id`。
 - 项目内 `save_proficiency` 字段并不严格对应 5e 原典的六维豁免，统一按以下口径映射：
   - `fort` 对应抗负面状态（毒、力竭、衰弱、致死打击）
@@ -314,15 +305,11 @@
 
 ## 实现落点建议
 
-- `class_system_design.md`
-  - 提供 `Class 单位`、`promotion_stage`、技能槽和成长职责的统一字段口径
-- `config/tables/feats.lua`
-  - 为四个法系职业定义低阶 / 中阶 / 高阶三段 Feat 授予
-  - 后续成长统一使用 `grant_skill / modify_skill / replace_skill`
-- `config/class_build_progression.lua`
-  - 将同职业进阶、装备和 Feat 链映射到低阶 / 中阶 / 高阶的晋升
-- `config/class_build_progression.lua` 中的阶段推进必须直接对应 `promotion_stage = low / mid / high`
-- `skill_package_id` 的切换必须与 `basic_attack_slot / core_slot / mid_slot / high_slot` 的启用关系同步
+- `class_system_design.md` — Class 单位字段与技能槽
+- `config/tables/feats.lua` — Lv2~Lv5 档位 Feat；仅 `grant_skill` / `modify_skill` / `replace_skill`
+- `config/data/classes.json` — 起手 fixed feat / 底盘技能
+- `modules/hero_build.lua` — Feat + 装备 + bless → `BuildState`
+- `skill_package_id` 与 `basic_attack_slot / core_slot / mid_slot / high_slot` 由已选 Feat 同步
 - `config/tables/skill_runtime.lua`
   - 为四职业的中阶能力与高阶能力配置 `active/passive/cd/targeting` 语义
 - `config/tables/skill_meta.lua`

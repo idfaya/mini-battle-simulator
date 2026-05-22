@@ -1,17 +1,18 @@
-﻿﻿﻿﻿﻿﻿# MiniBattle 战斗系统总纲 V1.1
+﻿# MiniBattle 战斗系统总纲 V1.1
 
 ## 0. 文档定位
 
-- 本文档是 `MiniBattle` 战斗系统的**最高规则源**。
-- 所有下级文档（单场战斗、Roguelike Run、职业系统、参数表等）必须向本稿对齐，不得反向改写总纲。
+- 本文档是 `MiniBattle` 战斗系统的**最高规则源**（战场、术语、敌军波次、难度口径）。
+- Run 地图与养成见 [`dungeon_design.md`](./dungeon_design.md)、[`character_progression_design.md`](./character_progression_design.md)。**勿读** `design/legacy/`。
 - 本文档只定义**硬规则与术语**，不重复下级稿件中的参数值与示例。
 
 下级文档清单：
 
 - `single_battle_design.md` / `single_battle_parameter_table.md`
-- `roguelike_run_system_design.md` / `roguelike_node_parameter_table.md` / `roguelike_service_parameter_table.md`
-- `class_system_design.md` / `class_promotion_design.md`
+- `dungeon_design.md` / `character_progression_design.md`
+- `class_system_design.md`
 - `physical_class_core_skill_design.md` / `caster_class_core_skill_design.md`
+- `roguelike_random_battle_parameter_table.md` / `roguelike_monster_system_design.md`
 
 ---
 
@@ -43,15 +44,14 @@
 ### 2.1 Run 大循环
 
 ```text
-进入章节地图
-→ 选择节点
-→ 结算节点
-→ 战斗胜利 → 经验结算 → 固定恢复 → 条件满足时职业卡三选一
-→ 装备 / 金币 / 招募 / 营地共同修正队伍
-→ 章节 Boss
-→ 章节结算
-→ Run 结束
+进入地牢楼层（房间迷宫）
+→ 选择相邻房间 / 楼梯
+→ 结算房间（战斗 / 事件 / 商店 / 营地等）
+→ 战斗胜利 → 金币与掉落 → partyExp → 若升级则 Feat 三选一 → 固定恢复
+→ 章节 Boss 层通关 → 下一章或 Run 结束
 ```
+
+细则见 [`dungeon_design.md`](./dungeon_design.md) 与 [`character_progression_design.md`](./character_progression_design.md)。
 
 ### 2.2 单场战斗循环
 
@@ -93,21 +93,17 @@
 ### 3.4 成长
 
 - 战斗内无成长
-- 战斗胜利后先结算经验与自动升级，再执行固定恢复
-- 普通战胜利后不进入职业卡三选一；精英 / Boss / 招募 / 部分事件可进入
-- 职业卡结果允许三类：`新职业单位` / `同职业进阶` / `挂起进阶`
-- 职业卡不产出 `装备` / `祝福` / `金币`
-- 职业阶段只允许 `low / mid / high`
-- 进阶门槛：`low → mid` 需 `Lv3 + 重复卡`，`mid → high` 需 `Lv6 + 重复卡`
-- 高阶单位不再进入职业卡候选池
+- 战斗经验进入 `partyExp`；跨阈值触发**队伍升级**，从存活英雄「下一级可选 Feat」汇总池中随机三选一
+- 普通战：经验 + 金币，一般无装备 / bless
+- 精英战：经验 + 装备（必掉）+ 概率 bless
+- Boss：章节级经验 / 金币 / 装备 / bless（见 `dungeon_design.md`）
+- 子职业由 **Lv3 Feat** 锁定；**Lv5 Feat** 为子职 capstone；无职业卡、无挂起进阶、Run 内不扩编人数
 
 ### 3.5 装备与金币
 
-- 装备来源：商店、事件、战斗节点掉落
-- 普通战保留金币收益，并按概率掉落装备
-- 精英战在金币与装备掉落期望上高于普通战
-- 职业卡**不产出装备**，商店**不产出职业进阶**
-- 金币不直接结算为职业进阶
+- 装备 / bless：Run 级全局池，战斗前注入 Build；Run 结束清空
+- 来源：精英战、装备房、商店、事件、Boss（见 `dungeon_design.md` / `equipment_system_design_v0_1.md`）
+- 金币：房间与战斗结算；用于商店（含复活卷轴）
 
 ---
 
@@ -229,9 +225,8 @@
 ## 9. 玩家操作边界
 
 - 玩家只操作：
-  - 地图路线选择
-  - 节点内服务选择（招募 / 商店 / 事件 / 营地）
-  - 职业卡三选一
+  - 地牢房间 / 楼梯选择
+  - 房间内交互（商店购买、事件选项、营地结算、升级 Feat 三选一）
 - 玩家**不操作**角色技能、战场走位、增援刷新时机
 
 > 战术技能系统（全局级主动技能）在 MVP 阶段暂不做。后续若纳入，必须单独立稿，并在总纲加入条目。
@@ -240,30 +235,17 @@
 
 ## 10. MVP 范围
 
-- 1 张章节地图（Act 1）
-- 2 条主路线：`safe` / `high_pressure`
-- 7 类节点：`battle_normal / battle_elite / boss / recruit / shop / event / camp`
-- 物理 6 职业 + 法系 4 职业（详见 `class_promotion_design.md`）
-- 每个职业低 / 中 / 高三阶技能包
-- 战斗后经验升级 + 固定恢复 + 条件触发职业卡三选一
-- 装备由商店、事件、战斗掉落产出
+- 3 章 × 5 层随机地牢（房间迷宫 + 楼梯），见 `dungeon_design.md`
+- 房间类型：普通战 / 精英 / 装备 / 事件 / 营地 / 商店 / 楼梯 / Boss
+- 10 职业（物理 6 + 法系 4），能力由 Feat → skill 驱动，见 `class_system_design.md` 与职业核心技稿
+- 起手 4 人固定；`partyExp` + 升级 Feat 三选一；精英装备 + 概率 bless
+- 实现进度见 `docs/dungeon_system_overall_plan.md`
 
 ---
 
 ## 11. 文档关系
 
-```text
-minibattle_combat_design_document_v_1.md  ← 规则源
-├── single_battle_design.md               ← 战场结构、回合、增援、胜负
-│   └── single_battle_parameter_table.md
-├── roguelike_run_system_design.md        ← Run 主循环、章节、路线
-│   ├── roguelike_node_parameter_table.md
-│   └── roguelike_service_parameter_table.md
-└── class_system_design.md                ← 职业规则
-    ├── class_promotion_design.md
-    ├── physical_class_core_skill_design.md
-    └── caster_class_core_skill_design.md
-```
+见 [`README.md`](./README.md)。
 
 ---
 
@@ -272,11 +254,9 @@ minibattle_combat_design_document_v_1.md  ← 规则源
 ```text
 固定 3 前排 + 3 后排
 自动回合制
-按波次刷新敌军（支持第 2 波 / 第 3 波）
-战斗后固定恢复
-条件触发职业卡三选一（新职业单位 / 同职业进阶 / 挂起进阶）
-职业阶段 low → mid → high
-装备由商店、事件、战斗掉落产出
-路线分 safe / high_pressure / boss_path
-Boss 通关即章节结算
+按波次刷新敌军（清场立刷）
+战斗后：partyExp → Feat 三选一 → 固定恢复
+地牢房间迷宫，精英装备 + 概率 bless
+起手 4 人，Run 内无招募扩编
+Boss 层通关 → 章节推进
 ```

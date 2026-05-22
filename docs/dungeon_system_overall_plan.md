@@ -2,7 +2,7 @@
 
 > 上位规则：[`design/dungeon_design.md`](../../design/dungeon_design.md) + [`design/character_progression_design.md`](../../design/character_progression_design.md) + [`AGENTS.md`](../../AGENTS.md)
 >
-> 取代既有计划：[`dungeon_system_master_plan.md`](./dungeon_system_master_plan.md) 与 [`dungeon_system_dev_plan.md`](./dungeon_system_dev_plan.md) 的执行链；架构决策（AD-1..AD-11、AD-A..AD-G）继续沿用，本文不再重复。
+> 取代既有计划（已归档至 `design/legacy/dungeon_system_dev_plan.md`，禁止维护）。架构决策（AD-1..AD-11、AD-A..AD-G）继续沿用，本文不再重复。
 
 ---
 
@@ -54,7 +54,7 @@
 | --- | --- | --- |
 | D2 房间事件 / 5e 检定 / 商店扩展 / Web 重写 | ⏸️ | 无 5e 检定路径；事件 4 档结果不全；商店无复活卷轴；Web `RunMapScene` 未按楼层迷宫重写 |
 | D3 Trinket / Boss 大额奖励 / 隐藏层入口 | ⏸️ | 无 trinket 数据 / 模块；Boss 奖励量级未对齐 dungeon §4.7；隐藏层入口未挂事件 |
-| D4 文档同步 | ⏸️ | `design/roguelike_run_system_design.md` 等 4 份待修订 |
+| D4 文档同步 | ✅ | 旧 Run 稿已移入 `design/legacy/`；活跃导航见 `design/README.md` |
 
 ### 2.4 当前迷宫战斗次数与 EXP 问题
 
@@ -278,9 +278,8 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 | 文件 | 操作 |
 | --- | --- |
-| [`design/roguelike_run_system_design.md`](../../design/roguelike_run_system_design.md) | ✏️ Run = 多层地牢 |
-| [`design/roguelike_node_parameter_table.md`](../../design/roguelike_node_parameter_table.md) | ✏️ 节点 → 房间类型语义平移 |
-| [`design/roguelike_random_map_parameter_table.md`](../../design/roguelike_random_map_parameter_table.md) | ✏️ 改写为「房间迷宫 + 楼梯」 |
+| `design/legacy/*` | 🗑️ 旧 Run / 节点参数表已归档，禁止阅读维护 |
+| [`design/README.md`](../design/README.md) | ✅ 活跃设计导航已更新 |
 | [`design/roguelike_random_battle_parameter_table.md`](../../design/roguelike_random_battle_parameter_table.md) | ✏️ 难度公式 + 章 2/3 模板 + 隐藏层 |
 
 ---

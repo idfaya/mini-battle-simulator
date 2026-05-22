@@ -1,3 +1,5 @@
+> **ARCHIVED — 禁止阅读与维护。** 见 [`README.md`](./README.md)。
+
 # MiniBattle Roguelike 随机地图参数表
 
 ## 1. 文档范围
