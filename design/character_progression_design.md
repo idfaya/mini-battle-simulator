@@ -23,7 +23,8 @@
 - 当 `partyExp` 达到下一级阈值 → 触发"队伍升级"。
 - `partyExp` 阈值与 **PHB 角色升级表**对齐，SSOT：`config/roguelike/exp_5e.lua`（`PARTY_EXP_SCALE` 可整体缩放 Run 节奏）。
 - 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`；模板字段 `expReward` 仅作遗留标注，运行时不再使用。
-- 第一章怪物等级按楼层推进（`config/roguelike/encounter_level_curve.lua`）：**战斗等级**（`GetFloorCombatLevel`）与 **胜利 EXP 等级**（`GetFloorExpLevel`）分层，Boss 前队伍 EXP 目标与 `targetMaxLevel` 对齐。
+- 第一章**怪物等级固定**：F1–F5 → Lv1–Lv5（`encounter_level_curve.lua`），优先于队伍等级目标。
+- 第一章**队伍** `targetMaxLevel = 8`（`run_chapter_config`），与 5e 遭遇 + 低怪等级下的实测节奏一致；不再以 Boss 前 Lv12 为硬指标。
 
 ---
 

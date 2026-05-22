@@ -129,7 +129,7 @@ local function estimateChapterExp(chapterId, seedFrom, seedTo)
                     runBattles = runBattles + 1
                     local roomKind = room.roomType == "battle_elite" and "elite"
                         or (room.roomType == "boss" and "boss" or "normal")
-                    local enemyLevel = EncounterLevelCurve.GetFloorExpLevel(101, floorIndex)
+                    local enemyLevel = EncounterLevelCurve.GetFloorCombatLevel(101, floorIndex)
                     local gain = getPoolAverageEncounterExp(room.payload.battlePoolId, partyLevel, enemyLevel, mult)
                     runExp = runExp + gain
                     partyLevel = LevelCurve.GetLevelForExp(runExp, LevelCurve.CHAPTER_LEVEL_CAP)
@@ -147,8 +147,8 @@ local function assertAct1Pacing5e()
     local avgLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
     assert(avgBattles >= 6 and avgBattles <= 20,
         string.format("act1 battle count out of range: %.2f", avgBattles))
-    assert(avgLevel >= 10 and avgLevel <= 13,
-        string.format("act1 Boss前目标约 Lv12，期望 Lv10-Lv13，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
+    assert(avgLevel >= 4 and avgLevel <= 8,
+        string.format("act1 怪物 Lv1-5 节奏下期望队伍 Lv4-Lv8，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
     print(string.format("[OK] act1 5e avgExp=%.0f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgLevel))
 end
 

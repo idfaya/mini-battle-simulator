@@ -1,4 +1,4 @@
--- Run 遭遇怪物等级：战斗缩放与胜利 EXP 可分层（第一章前几层战斗偏低、EXP 按目标抬高）。
+-- Run 遭遇怪物等级：按章节楼层推进（第一章 F1–F5 对应怪物 Lv1–Lv5）。
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 
 ---@class EncounterLevelCurveModule
@@ -9,20 +9,33 @@ local RunChapterConfig = require("config.roguelike.run_chapter_config")
 
 local M = {}
 
+local function clampFloorDepth(chapterId, floorDepth)
+    local chapter = RunChapterConfig.GetChapter(chapterId)
+    local floors = math.max(1, math.floor(tonumber(chapter and chapter.floorCount) or 5))
+    return math.max(1, math.min(floors, math.floor(tonumber(floorDepth) or 1)))
+end
+
+--- 胜利结算 EXP 用的怪物等级（第一章与战斗等级一致：楼层 = 等级）。
 ---@param chapterId integer
 ---@param floorDepth integer
 ---@return integer
 function M.GetFloorExpLevel(chapterId, floorDepth)
+    return M.GetFloorCombatLevel(chapterId, floorDepth)
+end
+
+---@param chapterId integer
+---@param floorDepth integer
+---@return integer
+function M.GetFloorCombatLevel(chapterId, floorDepth)
+    local depth = clampFloorDepth(chapterId, floorDepth)
+
+    if chapterId == 101 then
+        return depth
+    end
+
     local chapter = RunChapterConfig.GetChapter(chapterId)
     local target = math.max(2, math.floor(tonumber(chapter and chapter.targetMaxLevel) or 12))
     local floors = math.max(1, math.floor(tonumber(chapter and chapter.floorCount) or 5))
-    local depth = math.max(1, math.min(floors, math.floor(tonumber(floorDepth) or 1)))
-
-    if chapterId == 101 then
-        local act1Exp = { 10, 12, 14, 16, 18 }
-        return act1Exp[depth] or act1Exp[#act1Exp]
-    end
-
     local startLevel = math.max(2, math.floor(target * 0.35 + 0.5))
     if floors <= 1 then
         return target
@@ -31,20 +44,6 @@ function M.GetFloorExpLevel(chapterId, floorDepth)
     return math.max(1, math.floor(startLevel + (target - startLevel) * t + 0.5))
 end
 
----@param chapterId integer
----@param floorDepth integer
----@return integer
-function M.GetFloorCombatLevel(chapterId, floorDepth)
-    if chapterId == 101 then
-        local floors = math.max(1, math.floor(tonumber(RunChapterConfig.GetChapter(101).floorCount) or 5))
-        local depth = math.max(1, math.min(floors, math.floor(tonumber(floorDepth) or 1)))
-        local act1Combat = { 2, 5, 10, 14, 17 }
-        return act1Combat[depth] or act1Combat[#act1Combat]
-    end
-    return M.GetFloorExpLevel(chapterId, floorDepth)
-end
-
---- 战斗缩放用楼层基线（同 GetFloorCombatLevel）。
 function M.GetFloorBaseline(chapterId, floorDepth)
     return M.GetFloorCombatLevel(chapterId, floorDepth)
 end
