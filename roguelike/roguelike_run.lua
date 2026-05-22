@@ -336,6 +336,23 @@ local function getNode(nodeId)
     return RoguelikeMap.GetNode(nodeId, state and state.dungeonState or nil)
 end
 
+local CLEARED_PASS_THROUGH_TYPES = {
+    battle_normal = true,
+    battle_elite = true,
+    boss = true,
+    event = true,
+}
+
+local function enterClearedRoomPassThrough(nodeId)
+    state.phase = "map"
+    state.eventState = nil
+    state.currentBattleId = nil
+    state.currentBattleConfig = nil
+    state.lastActionMessage = "该房间已完成，仅作通路"
+    refreshAvailableNodes()
+    return true
+end
+
 local function enterNode(nodeId)
     local node = getNode(nodeId)
     if not node then
@@ -357,6 +374,12 @@ local function enterNode(nodeId)
 
     if state.dungeonState then
         state.dungeonState.currentRoomId = nodeId
+    end
+
+    if state.dungeonState
+        and FloorState.IsRoomCleared(state.dungeonState, nodeId)
+        and CLEARED_PASS_THROUGH_TYPES[node.nodeType] then
+        return enterClearedRoomPassThrough(nodeId)
     end
 
     if node.nodeType == "stair_down" then

@@ -1,4 +1,4 @@
--- Run 遭遇怪物等级：按章节楼层推进（第一章 F1–F5 对应怪物 Lv1–Lv5）。
+-- Run 遭遇怪物等级：第一章 F1–F5 普通怪固定 Lv1–Lv5；精英/Boss 在楼层基线上加成。
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 
 ---@class EncounterLevelCurveModule
@@ -15,11 +15,14 @@ local function clampFloorDepth(chapterId, floorDepth)
     return math.max(1, math.min(floors, math.floor(tonumber(floorDepth) or 1)))
 end
 
---- 胜利结算 EXP 用的怪物等级（第一章与战斗等级一致：楼层 = 等级）。
+--- 胜利结算 EXP 用的怪物等级（第一章按楼层 1–5，与战斗普通怪一致）。
 ---@param chapterId integer
 ---@param floorDepth integer
 ---@return integer
 function M.GetFloorExpLevel(chapterId, floorDepth)
+    if chapterId == 101 then
+        return clampFloorDepth(chapterId, floorDepth)
+    end
     return M.GetFloorCombatLevel(chapterId, floorDepth)
 end
 
@@ -30,6 +33,7 @@ function M.GetFloorCombatLevel(chapterId, floorDepth)
     local depth = clampFloorDepth(chapterId, floorDepth)
 
     if chapterId == 101 then
+        -- 普通遭遇：楼层深度即怪物等级（F1→1 … F5→5）。
         return depth
     end
 
@@ -66,6 +70,12 @@ function M.ResolveEnemyLevel(opts)
     local battleKind = opts.battleKind or "normal"
 
     local floorBaseline = M.GetFloorCombatLevel(chapterId, floorDepth)
+
+    -- 第一章普通战：严格按楼层 1–5，不被 profile / 队伍等级抬高或压低。
+    if chapterId == 101 and (battleKind == "normal" or battleKind == "event_battle") then
+        return floorBaseline
+    end
+
     local baseLevel = math.max(profileLevel, floorBaseline)
 
     local kindOffset = 0
