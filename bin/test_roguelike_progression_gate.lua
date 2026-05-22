@@ -22,11 +22,11 @@ local function assert_true(cond, msg)
     end
 end
 
--- 注：FeatPicker 内部统一从 LevelCurve（线性 4 EXP/级）读取阈值，
+-- 注：FeatPicker 内部统一从 LevelCurve（线性 10 EXP/级）读取阈值，
 -- 此本地表仅作历史兼容入参；用例中的 partyExp 必须按新线性阈值校准。
 local LEVEL_EXP_THRESHOLDS = {
-    [1] = 0, [2] = 4, [3] = 8, [4] = 12, [5] = 16, [6] = 20,
-    [7] = 24, [8] = 28, [9] = 32, [10] = 36,
+    [1] = 0, [2] = 10, [3] = 20, [4] = 30, [5] = 40, [6] = 50,
+    [7] = 60, [8] = 70, [9] = 80, [10] = 90,
 }
 
 local function makeUnit(classId, level, rosterId)
@@ -70,10 +70,10 @@ end
 do
     math.randomseed(12001)
     local fighter = makeUnit(2, 1, 201)
-    local state = makeMockState({ fighter }, 4)  -- 跨过 Lv2 阈值（线性 4/级）
+    local state = makeMockState({ fighter }, 10)  -- 跨过 Lv2 阈值（线性 10/级）
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv1 to Lv2 session should be created")
-    assert_true(state.partyLevel == 2, "partyLevel should be 2 after partyExp=4")
+    assert_true(state.partyLevel == 2, "partyLevel should be 2 after partyExp=10")
     assert_true(#session.options > 0, "session should expose options")
     for _, opt in ipairs(session.options) do
         assert_true(opt.tier == "small",
@@ -85,12 +85,12 @@ end
 -- ========== 用例 2：Lv2 → Lv3 升级时，候选可含 tier="medium" + isSubclassCore=true ==========
 do
     math.randomseed(12002)
-    -- Lv2 fighter；partyExp=8 跨过 Lv3 阈值（线性 4/级）
+    -- Lv2 fighter；partyExp=20 跨过 Lv3 阈值（线性 10/级）
     local fighter = makeUnit(2, 2, 202)
-    local state = makeMockState({ fighter }, 8)
+    local state = makeMockState({ fighter }, 20)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv2 to Lv3 session should be created")
-    assert_true(state.partyLevel == 3, "partyLevel should be 3 at partyExp=8")
+    assert_true(state.partyLevel == 3, "partyLevel should be 3 at partyExp=20")
     -- Lv3 fighter feats 数据：fighter Lv3 是子职业核心档（fighting style）
     -- 候选池中至少存在一个 medium + isSubclassCore=true 的 feat
     local fighterLv3Feats = FeatBuildConfig.GetFeatsByLevel(2, 3) or {}
@@ -118,10 +118,10 @@ do
     math.randomseed(12003)
     -- 选择 rogue（classId=1）：Lv5 capstone（high + isSubclassCore=true）已在 feat_picker 测试验证存在
     local rogue = makeUnit(1, 4, 203)
-    local state = makeMockState({ rogue }, 16)  -- partyLevel = 5（线性 4/级，Lv5=16）
+    local state = makeMockState({ rogue }, 40)  -- partyLevel = 5（线性 10/级，Lv5=40）
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv4 to Lv5 session should be created")
-    assert_true(state.partyLevel == 5, "partyLevel should be 5 at partyExp=16")
+    assert_true(state.partyLevel == 5, "partyLevel should be 5 at partyExp=40")
     local hasHighTier = false
     for _, opt in ipairs(session.options) do
         if opt.tier == "high" then
@@ -142,7 +142,7 @@ do
     dead.isDead = true
     dead.teamState = "dead"
     dead.currentHp = 0
-    local state = makeMockState({ alive, dead }, 4)
+    local state = makeMockState({ alive, dead }, 10)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created with at least 1 alive hero")
     for _, opt in ipairs(session.options) do
@@ -155,7 +155,7 @@ end
 do
     math.randomseed(12005)
     local fighter = makeUnit(2, 1, 206)
-    local state = makeMockState({ fighter }, 4)
+    local state = makeMockState({ fighter }, 10)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv1 to Lv2 session should be created")
     assert_true(#session.options > 0, "should have at least 1 option")
@@ -165,7 +165,7 @@ do
     local ok, result = FeatPicker.Pick(state, 1)
     assert_true(ok, "Pick should succeed: " .. tostring(result))
     -- 重置 partyExp 让队伍再次升级（提升到 Lv3，触发新 session）
-    state.partyExp = 8
+    state.partyExp = 20
     state.partyLevel = 2  -- 重置 partyLevel（FeatPicker 内部会按 thresholds 重算）
     local nextSession = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     -- 第二个 session 中 fighter 的下一级是 Lv3（已是 Lv2），候选应该是 Lv3 feats

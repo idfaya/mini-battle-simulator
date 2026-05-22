@@ -2,16 +2,13 @@
 -- 队伍 EXP 阈值
 -- 唯一权威来源（SSOT）：所有运行时模块统一从本文件读取等级曲线，禁止散写。
 --
--- 阶段 1 收尾打磨（2026-05-21 v3）：partyLevel 语义改为"已发生的三选一次数 + 1"。
---   设计 §3：每次三选一只升 1 个英雄；4 人队全员 Lv1→Lv8 = 28 次升级，
---   故 CHAPTER_LEVEL_CAP = 32（留 4 次余量给死亡复活补抽）。
---   阈值采用线性 +4 EXP/级步长（6→4 缩短，避免 expReward 累积不足以解锁全部 picks）。
---   配合 run_battle_template.lua 的 expReward，battle-heavy 路径 boss 时累计升级 ≈ 28 次（4 人≈Lv8）。
---
--- 注意：runtime 中 partyLevel 不再代表"角色平均等级"；hero.level 由 FeatPicker.Pick 单独 +1。
--- ==========================================================================
-
-local LEVEL_STEP_EXP = 4
+-- 阶段 1 收尾打磨（2026-05-21 v4）：partyLevel 语义为"已发生的三选一次数 + 1"。
+--   设计 §3：每次三选一只升 1 个英雄；4 人队全员 Lv1→Lv5 = 16 次升级，
+--   故 CHAPTER_LEVEL_CAP = 32（保持余量给死亡复活补抽 / 多战 owed）。
+--   阈值采用线性 +10 EXP/级步长：搭配 expReward (40/50/60/84/108/120) 让单战
+--   触发的升级次数 ≈ 队伍人数（4 人队 第一战 4 次升级），避免一战暴涨 10+ 级。
+--   超出 owe 的 picks 进入 state.partyLevelOwed 欠债池，下一战 / 后续 pick 吸收。
+local LEVEL_STEP_EXP = 10
 
 local function buildThresholds(cap)
     local t = { [1] = 0 }

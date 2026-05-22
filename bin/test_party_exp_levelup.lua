@@ -215,7 +215,7 @@ do
         teamRoster = { heroA, heroB },
         benchRoster = {},
         partyLevel = 1,
-        partyExp = 10,  -- 跨过 Lv2(4) 与 Lv3(8)，到达 partyLevel 3
+        partyExp = 25,  -- 跨过 Lv2(10) 与 Lv3(20)，到达 partyLevel 3
         levelCap = 32,
     }
     local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
