@@ -15,6 +15,7 @@ export type UnitState = {
   classId: number;
   className: string;
   classIcon: string;
+  level: number;
   hp: number;
   maxHp: number;
   tempHp?: number;

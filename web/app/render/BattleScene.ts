@@ -770,7 +770,27 @@ export class BattleScene {
 
     ctx.fillStyle = "#f8f9fa";
     ctx.font = compact ? "bold 11px sans-serif" : "bold 18px sans-serif";
-    ctx.fillText(unit.name, nameX, y + (compact ? 21 : 26), width - (compact ? 38 : 52));
+    const levelText = `Lv${Math.max(1, Math.floor(Number(unit.level) || 1))}`;
+    const levelWidth = compact ? 30 : 42;
+    const levelHeight = compact ? 14 : 20;
+    const levelX = x + width - levelWidth - (compact ? 8 : 12);
+    const levelY = y + (compact ? 8 : 11);
+    ctx.fillText(unit.name, nameX, y + (compact ? 21 : 26), Math.max(20, levelX - nameX - 6));
+
+    ctx.fillStyle = unit.team === "left" ? "rgba(128, 237, 153, 0.18)" : "rgba(255, 209, 102, 0.16)";
+    ctx.strokeStyle = unit.team === "left" ? "rgba(128, 237, 153, 0.56)" : "rgba(255, 209, 102, 0.52)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(levelX, levelY, levelWidth, levelHeight, levelHeight / 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f8f9fa";
+    ctx.font = compact ? "bold 8px sans-serif" : "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(levelText, levelX + levelWidth / 2, levelY + levelHeight / 2 + 0.5, levelWidth - 4);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
 
     const hpY = micro ? y + height - 22 : tight ? y + height - 26 : compact ? y + height - 30 : y + 52;
     const hpRate = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
