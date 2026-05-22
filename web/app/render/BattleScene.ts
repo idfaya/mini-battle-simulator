@@ -1,6 +1,6 @@
 import { createFloatingText, drawFloatingText, type FloatingText } from "./animations";
 import type { BattleStoreState } from "../state/battleStore";
-import type { ActionOrderState, AnimationEvent, UnitState } from "../types/battle";
+import type { AnimationEvent, UnitState } from "../types/battle";
 import {
   applyPendingReactionHoldsToClash,
   createReactionHoldIntent,
@@ -171,10 +171,6 @@ type FormationMetrics = {
 
 const TOP_BAR_TEXT_Y = 36;
 const COMPACT_TOP_BAR_TEXT_Y = 22;
-const ACTION_ORDER_BAR_Y = 50;
-const COMPACT_ACTION_ORDER_BAR_Y = 30;
-const ACTION_ORDER_BAR_HEIGHT = 56;
-const COMPACT_ACTION_ORDER_BAR_HEIGHT = 36;
 const BATTLEFIELD_TOP_SAFE_GAP = 22;
 const COMPACT_BATTLEFIELD_TOP_SAFE_GAP = 4;
 const BATTLEFIELD_BOTTOM_SAFE_Y = 0;
@@ -206,9 +202,6 @@ export class BattleScene {
   private pendingPreciseTargetsByHero = new Map<string, { until: number; targetId: string }>();
   private pendingReactionHolds: ReactionHoldIntent[] = [];
   private pendingGuardIntercepts: PendingGuardIntercept[] = [];
-  private actionOrderRound: number | null = null;
-  private actionOrderRosterKey = "";
-  private actionOrderIds: string[] = [];
   private observedCounterOverlapKeys = new Set<string>();
   private observedGuardCounterOverlapKeys = new Set<string>();
   private lastResolvedLayouts: Array<{
@@ -265,7 +258,6 @@ export class BattleScene {
     this.drawImpactBursts(ctx, allLayouts, now);
     this.drawUnitPulses(ctx, allLayouts, now);
     this.drawTopBar(ctx, width, state);
-    this.drawActionOrderBar(ctx, width, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
 
@@ -424,17 +416,10 @@ export class BattleScene {
     return this.isCompactViewport(width) ? COMPACT_TOP_BAR_TEXT_Y : TOP_BAR_TEXT_Y;
   }
 
-  private getActionOrderBarY(width: number) {
-    return this.isCompactViewport(width) ? COMPACT_ACTION_ORDER_BAR_Y : ACTION_ORDER_BAR_Y;
-  }
-
-  private getActionOrderBarHeight(width: number) {
-    return this.isCompactViewport(width) ? COMPACT_ACTION_ORDER_BAR_HEIGHT : ACTION_ORDER_BAR_HEIGHT;
-  }
-
   private getBattlefieldTopSafeY(width: number) {
     const gap = this.isCompactViewport(width) ? COMPACT_BATTLEFIELD_TOP_SAFE_GAP : BATTLEFIELD_TOP_SAFE_GAP;
-    return this.getActionOrderBarY(width) + this.getActionOrderBarHeight(width) + gap;
+    const topBarReserve = this.isCompactViewport(width) ? 40 : 52;
+    return this.getTopBarTextY(width) + topBarReserve + gap;
   }
 
   private layoutTeam(team: UnitState[], metrics: FormationMetrics, formationSide: FormationSide): UnitLayout[] {
@@ -1083,115 +1068,6 @@ export class BattleScene {
         TOP_BAR_TEXT_Y + 14,
       );
     }
-  }
-
-  private drawActionOrderBar(ctx: CanvasRenderingContext2D, width: number, state: BattleStoreState) {
-    const snapshot = state.snapshot;
-    if (!snapshot) {
-      return;
-    }
-
-    const compact = this.isCompactViewport(width);
-    const allUnits = [...snapshot.leftTeam, ...snapshot.rightTeam];
-    const order = this.resolveActionOrder(snapshot, allUnits);
-    const outerPadding = compact ? 8 : 48;
-    const panelWidth = Math.max(220, Math.min(760, width - outerPadding * 2));
-    const x = Math.round((width - panelWidth) / 2);
-    const y = this.getActionOrderBarY(width);
-    const actionOrderBarHeight = this.getActionOrderBarHeight(width);
-    const trackInset = compact ? 22 : 34;
-    const trackX = x + trackInset;
-    const trackY = y + actionOrderBarHeight / 2;
-    const trackWidth = Math.max(120, panelWidth - trackInset * 2);
-    const iconSize = compact ? 22 : width < 560 ? 24 : 28;
-
-    ctx.save();
-    ctx.fillStyle = "rgba(11, 19, 32, 0.9)";
-    ctx.strokeStyle = "rgba(255,255,255,0.14)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(x, y, panelWidth, actionOrderBarHeight, compact ? 8 : 10);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.16)";
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(trackX, trackY);
-    ctx.lineTo(trackX + trackWidth, trackY);
-    ctx.stroke();
-
-    const step = order.length > 1 ? trackWidth / (order.length - 1) : 0;
-    for (let index = 0; index < order.length; index += 1) {
-      const item = order[index];
-      const isActive = snapshot.activeHeroId === item.id;
-      const badge = this.getClassBadge(item.classId);
-      const iconCenterX = trackX + Math.round(step * index);
-      const laneY = trackY;
-      const iconX = Math.max(trackX - iconSize / 2, Math.min(trackX + trackWidth - iconSize / 2, iconCenterX - iconSize / 2));
-      const iconY = laneY - iconSize / 2;
-      const teamStroke = item.team === "left" ? "#4cc9f0" : "#ef476f";
-
-      ctx.globalAlpha = item.isAlive ? 1 : 0.32;
-      if (isActive) {
-        ctx.shadowColor = "rgba(255, 209, 102, 0.65)";
-        ctx.shadowBlur = 12;
-        ctx.strokeStyle = "#ffd166";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(iconCenterX, laneY, iconSize / 2 + 8, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-      }
-
-      this.drawClassIconBadge(ctx, iconX, iconY, iconSize, badge, item.classIcon);
-
-      ctx.strokeStyle = isActive ? "#ffd166" : teamStroke;
-      ctx.lineWidth = isActive ? 3 : 2;
-      ctx.beginPath();
-      ctx.roundRect(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, 7);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.restore();
-  }
-
-  private resolveActionOrder(snapshot: NonNullable<BattleStoreState["snapshot"]>, units: UnitState[]): ActionOrderState[] {
-    const rosterKey = units
-      .map((unit) => `${unit.id}:${unit.team}:${unit.classId}:${unit.initiative}`)
-      .join("|");
-
-    if (this.actionOrderRound !== snapshot.round || this.actionOrderRosterKey !== rosterKey || this.actionOrderIds.length === 0) {
-      this.actionOrderRound = snapshot.round;
-      this.actionOrderRosterKey = rosterKey;
-      this.actionOrderIds = units
-        .filter((unit) => unit.isAlive)
-        .sort((a, b) => {
-          if (b.initiative !== a.initiative) {
-            return b.initiative - a.initiative;
-          }
-          return a.id.localeCompare(b.id);
-        })
-        .map((unit) => unit.id);
-    }
-
-    const unitById = new Map(units.map((unit) => [unit.id, unit]));
-    return this.actionOrderIds
-      .map((id) => unitById.get(id))
-      .filter((unit): unit is UnitState => Boolean(unit))
-      .map((unit) => ({
-        id: unit.id,
-        name: unit.name,
-        team: unit.team,
-        classId: unit.classId,
-        classIcon: unit.classIcon,
-        progress: unit.actionBar ?? 0,
-        max: unit.actionBarMax ?? 1000,
-        initiative: unit.initiative ?? 0,
-        isAlive: unit.isAlive,
-      }));
   }
 
   private drawBuffSummary(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
