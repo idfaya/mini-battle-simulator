@@ -248,7 +248,7 @@ local function serializeHero(hero)
         classId = classId,
         className = className or "Unknown",
         classIcon = ClassRoleConfig.GetIcon(classId),
-        level = tonumber(hero.level or hero._level) or 1,
+        level = tonumber(hero._level or hero.level) or 1,
         hp = hero.hp or 0,
         maxHp = hero.maxHp or 0,
         tempHp = hero.tempHp or 0,

@@ -493,6 +493,7 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         _monsterType = monsterType,
         _monsterTypeName = EnemyData.GetMonsterTypeName(monsterType),
         _challenge = EnemyData.GetChallengeMeta(enemyId),
+        level = level,
         _level = level,
         _star = star,
         _quality = quality,

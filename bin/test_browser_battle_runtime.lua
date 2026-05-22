@@ -14,6 +14,10 @@ local snapshot = Runtime.init({
 })
 assert(snapshot.phase == "running", "battle should start in running phase")
 
+for _, unit in ipairs(snapshot.rightTeam or {}) do
+    assert(unit.level == 3, string.format("enemy card level should be 3, got %s (%s)", tostring(unit.level), tostring(unit.name)))
+end
+
 local sawReady = false
 for _ = 1, 5000 do
     local events = Runtime.tick(80)

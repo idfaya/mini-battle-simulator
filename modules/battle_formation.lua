@@ -153,8 +153,8 @@ local function CreateHero(heroData, wpType, isLeft)
         camp = isLeft and E_CAMP_TYPE.A or E_CAMP_TYPE.B,
         isLeft = isLeft,
         
-        -- 等级和基础属性
-        level = heroData.level or 1,
+        -- 等级和基础属性（怪物 ConvertToHeroData 历史上只写 _level）
+        level = heroData.level or heroData._level or 1,
         hp = heroData.hp or heroData.curHp or 0,
         maxHp = heroData.maxHp or heroData.hp or 100,
         def = heroData.def or 0,
@@ -848,7 +848,7 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         leftLife = life or 3,  -- 默认存活3回合
         
         -- 基础属性（简化版，实际应继承主人属性）
-        level = owner.level or 1,
+        level = owner.level or owner._level or 1,
         hp = tokenConfig.hp,
         maxHp = tokenConfig.hp,
         def = tokenConfig.def,
