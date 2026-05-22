@@ -726,6 +726,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
         terminalReason = nil,
         finalHpPct = 0,
         finalAlive = 0,
+        maxPartyLevelDelta = 0,
     }
 
     for index, wantedNodeType in ipairs(route.nodeTypes or {}) do
@@ -772,6 +773,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
 
         snapshot = Run.GetSnapshot()
         if snapshot.phase == "battle" then
+            local beforePartyLevel = tonumber(snapshot.partyLevel) or 1
             local beforeHp, beforeMaxHp, beforeAlive = getBattleTeamStats(snapshot)
             local debugBattle = nil
             if actualNode.nodeType == "boss" then
@@ -794,7 +796,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 or (resolved.chapterResult and resolved.chapterResult.reason)
                 or resolved.phase
 
-            runReport.battles[#runReport.battles + 1] = {
+            local battleReport = {
                 nodeId = actualNodeId,
                 title = actualNode.title,
                 plannedType = wantedNodeType,
@@ -812,7 +814,12 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 afterHp = afterHp,
                 afterMaxHp = afterMaxHp,
                 afterAlive = afterAlive,
+                beforePartyLevel = beforePartyLevel,
+                afterPartyLevel = beforePartyLevel,
+                partyLevelDelta = 0,
+                expReward = 0,
             }
+            runReport.battles[#runReport.battles + 1] = battleReport
 
             if timedOut or (resolved.phase ~= "reward" and resolved.phase ~= "map" and resolved.phase ~= "chapter_result") then
                 runReport.terminalReason = battleReason
@@ -829,6 +836,16 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
                 end
             end
             snapshot = Run.GetSnapshot()
+            battleReport.afterPartyLevel = tonumber(snapshot.partyLevel) or beforePartyLevel
+            battleReport.partyLevelDelta = math.max(0, battleReport.afterPartyLevel - beforePartyLevel)
+            battleReport.expReward = tonumber(snapshot.lastBattleSummary and snapshot.lastBattleSummary.expReward) or 0
+            if battleReport.partyLevelDelta > runReport.maxPartyLevelDelta then
+                runReport.maxPartyLevelDelta = battleReport.partyLevelDelta
+            end
+            if battleReport.partyLevelDelta > 1 then
+                runReport.terminalReason = "party_level_delta_exceeded"
+                break
+            end
         elseif snapshot.phase == "event" then
             local eventOk, eventReason = Run.ChooseEventOption(1)
             if not eventOk then
@@ -924,6 +941,8 @@ local function summarizeRoute(route, runReports)
         wins = 0,
         totalFinalHpPct = 0,
         totalBattles = 0,
+        maxPartyLevelDelta = 0,
+        levelDeltaViolations = 0,
         nodeStats = {},
         terminalReasons = {},
     }
@@ -934,9 +953,15 @@ local function summarizeRoute(route, runReports)
         end
         stats.totalFinalHpPct = stats.totalFinalHpPct + report.finalHpPct
         stats.totalBattles = stats.totalBattles + #report.battles
+        if (report.maxPartyLevelDelta or 0) > stats.maxPartyLevelDelta then
+            stats.maxPartyLevelDelta = report.maxPartyLevelDelta or 0
+        end
         addCount(stats.terminalReasons, report.terminalReason or "unknown")
 
         for _, battle in ipairs(report.battles) do
+            if (battle.partyLevelDelta or 0) > 1 then
+                stats.levelDeltaViolations = stats.levelDeltaViolations + 1
+            end
             local nodeStat = ensureNodeStat(stats, battle.nodeId, battle.title)
             nodeStat.appearances = nodeStat.appearances + 1
             nodeStat.totalTicks = nodeStat.totalTicks + (battle.ticks or 0)
@@ -959,12 +984,14 @@ local function summarizeRoute(route, runReports)
     print(string.format("Route: %s", route.name))
     print(string.rep("=", 72))
     print(string.format(
-        "Runs=%d  Wins=%d  WinRate=%s  AvgFinalHp=%s  AvgBattles=%.2f",
+        "Runs=%d  Wins=%d  WinRate=%s  AvgFinalHp=%s  AvgBattles=%.2f  MaxLevelDelta=%d  LevelDeltaViolations=%d",
         stats.runs,
         stats.wins,
         formatPct(stats.wins, stats.runs),
         formatPct(stats.totalFinalHpPct, stats.runs),
-        stats.runs > 0 and (stats.totalBattles / stats.runs) or 0
+        stats.runs > 0 and (stats.totalBattles / stats.runs) or 0,
+        stats.maxPartyLevelDelta,
+        stats.levelDeltaViolations
     ))
     print("Nodes:")
 
@@ -1015,6 +1042,7 @@ local function summarizeRoute(route, runReports)
     end
     table.sort(reasons)
     print("Terminal: " .. table.concat(reasons, ", "))
+    return stats
 end
 
 local function printVerboseRuns(route, runReports)
@@ -1032,7 +1060,7 @@ local function printVerboseRuns(route, runReports)
         ))
         for _, battle in ipairs(report.battles) do
             print(string.format(
-                "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d missing=%d -> %d reason=%s",
+                "    %-18s phase=%s ticks=%d round=%d->%d spent=%d hp=%d/%d -> %d/%d missing=%d -> %d exp=%d level=%d->%d delta=%d reason=%s",
                 battle.title,
                 battle.phase,
                 battle.ticks,
@@ -1045,6 +1073,10 @@ local function printVerboseRuns(route, runReports)
                 battle.afterMaxHp,
             getMissingHp(battle.beforeHp, battle.beforeMaxHp),
             getMissingHp(battle.afterHp, battle.afterMaxHp),
+                battle.expReward or 0,
+                battle.beforePartyLevel or 1,
+                battle.afterPartyLevel or 1,
+                battle.partyLevelDelta or 0,
                 battle.reason
             ))
         end

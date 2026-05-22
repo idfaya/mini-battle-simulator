@@ -49,10 +49,74 @@
 6. ~~T8.2~~ ✅ 改三个 bin：补 stair phase 分支 + PREFERENCE+BFS 路径选择 + camp fallback。
 7. ~~T9~~ ✅ `npm run export:lua` + 核心 bin 通过。
 
-**遗留议题**（D1' 之外、独立排期）：
-- act1 seed=10102 在 floor=4 真实战斗 wipe（partyLevel=23 vs 难度公式 monster_level=4×0.8+1=4.2 偏紧）→ 难度调优议题，与楼梯/路由解耦。
+**遗留议题**（纳入 D1.5 平衡收尾）：
+- act1 seed=10102 在 floor=4 真实战斗 wipe：根因不是楼梯/路由，而是旧 EXP 曲线按 lane DAG 少战斗数设计，迁移到迷宫后单战 2~5 级、等级/数值节奏失真；按 §1.2 统一重设。
 
 Stage D2 / D3 沿用本文 §4 的清单，无变更。
+
+### 1.2 D1.5 升级速度与战斗数值再平衡（新增）
+
+> 目标：按当前迷宫房间生成后的实际战斗次数重设 EXP 与难度，确保**单场战斗最多只跨 1 个 partyLevel**，同时让 10 级上限、Lv3 子职业、Lv5 峰值、Lv7/9 自动授予节奏成立。
+
+#### 当前迷宫战斗次数基线
+
+统计口径：`DungeonGenerator.Generate(seed, chapter)`，seed `10001..10200`，统计每章全部房间中的 `battle_normal / battle_elite / boss`。
+
+| 章节 | 平均总战斗 | 最小 | 最大 | 平均普通 | 平均精英 | Boss | 楼层均值 `[F1,F2,F3,F4,F5]` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 101 | 13.12 | 6 | 19 | 9.96 | 2.15 | 1.00 | `[2.99,2.69,3.23,3.21,1.00]` |
+| 102 | 12.74 | 7 | 19 | 9.70 | 2.04 | 1.00 | `[2.73,2.62,3.26,3.12,1.00]` |
+| 103 | 12.47 | 5 | 19 | 9.31 | 2.16 | 1.00 | `[2.56,2.56,3.21,3.15,1.00]` |
+
+设计结论：
+- 当前每章约 13 场战斗，完整 3 章约 38~39 场；不能再沿用旧版 10 EXP/级 + 25~50 EXP/战的 lane DAG 节奏。
+- 目标全 Run 从 Lv1 到 Lv10 只需要 9 次队伍等级提升，平均约每 4 场战斗提升 1 次。
+- 单战 EXP 必须小于等于等级步长，才能从任意 `levelProgressExp` 状态最多只跨 1 个等级阈值。
+
+#### 新 EXP 曲线
+
+| 项 | 新值 | 说明 |
+| --- | ---: | --- |
+| `LEVEL_STEP_EXP` | 20 | 固定线性步长，保持 SSOT 在 `config/roguelike/level_curve.lua` |
+| `CHAPTER_LEVEL_CAP` | 10 | 对齐 10 级上限；如运行时仍需欠抽缓冲，可保留内部 cap，但展示/成长规则以 10 为硬上限 |
+| Lv2 | 20 | 约第 4~5 场战斗 |
+| Lv3 | 40 | 约 Act1 F3/F4，触发子职业选择 |
+| Lv5 | 80 | 约 Act2 前半，形成第一波主要强度峰值 |
+| Lv7 | 120 | 约 Act2 Boss / Act3 开局，自动授予节点 |
+| Lv9 | 160 | 约 Act3 中后段，自动授予节点 |
+| Lv10 | 180 | 约 Act3 Boss / 隐藏层前后达到上限 |
+
+#### 新战斗 EXP 奖励表
+
+| 模板 | 当前 EXP | 新 EXP | 目的 |
+| --- | ---: | ---: | --- |
+| `201001 act1_normal_early` | 30 | 4 | 教学/早期普通战，约 5 场升 1 级 |
+| `201002 act1_normal_mid` | 25 | 4 | 中期普通战，维持稳定进度 |
+| `201003 act1_normal_late` | 30 | 5 | 后期普通战略高，但仍远低于 1 级 |
+| `201101 act1_elite_mid` | 35 | 6 | 精英给明显奖励，不直接跳级 |
+| `201102 act1_elite_late` | 40 | 7 | 后期精英奖励上限仍小于等级步长 |
+| `201201 act1_boss` | 50 | 8 | Boss 有奖励感，但单场绝不超过 1 级 |
+| `201301 act1_event_battle_skirmish` | 20 | 3 | 事件战略低于普通战 |
+| `201302 act1_event_battle_ritual` | 25 | 4 | 事件战晚期等同普通中期 |
+
+按当前平均战斗结构估算：单章约 `10×4 + 2×6~7 + 1×8 = 60~62 EXP`；完整 3 章约 `180~186 EXP`，正好覆盖 Lv1→Lv10。
+
+#### 难度与奖励联动
+
+| 项 | 调整方向 | 说明 |
+| --- | --- | --- |
+| 普通战 | `budget.difficulty="easy"`，`pressureFactor` 随章节缓升 | 不再用高 EXP 快速补强玩家；通过低压强保证连续迷宫战斗可承受 |
+| 精英战 | 保持单波，`pressureFactor` 约普通战 +0.08~0.14 | 精英是资源消耗点，不是必杀点；seed=10102 floor=4 不应因首次精英必 wipe |
+| Boss 战 | 章节 Boss 以机制/波次给压强，不靠 EXP 补偿 | Boss EXP=8 只提供一次可见推进，不改变整章平衡 |
+| 章节差异 | 章 2/3 优先调 `battle profile level` 与 `budget.pressureFactor` | 遵守 AGENTS.md：不叠 ad-hoc 倍率 |
+
+#### D1.5 执行任务
+
+1. D1.5-T1：修改 `config/roguelike/level_curve.lua`：`LEVEL_STEP_EXP=20`，展示/成长上限按 10 级校准。
+2. D1.5-T2：修改 `config/roguelike/run_battle_template.lua`：按上表下调所有 `expReward` 与注释。
+3. D1.5-T3：补 `bin/test_roguelike_progression_pacing.lua`：断言任意单场 `expReward <= LevelCurve.GetExpToNextLevel(level)`，且完整 3 章平均到达 Lv9~Lv10。
+4. D1.5-T4：扩 `bin/test_roguelike_balance.lua`：记录每 run 战斗次数、partyLevel 曲线、单战 level delta；出现 `delta > 1` 直接失败。
+5. D1.5-T5：复测 seed `10101 / 10102` 与 `--runs=20`，验收标准见 §6.5。
 
 ---
 
@@ -341,7 +405,23 @@ cd web; npx playwright test roguelike-dungeon.spec.ts; npx playwright test rogue
 - bin 至少 3 个回归脚本（地牢生成 / 房间一次性 / Boss 奖励）已落地；
 - web/tests/ e2e 覆盖完整下钻流程。
 
-### 6.5 风险检查（dungeon §9）
+### 6.5 D1.5 升级/平衡验收
+
+```powershell
+lua bin/test_roguelike_progression_pacing.lua
+lua bin/test_roguelike_act1.lua --seed=10101
+lua bin/test_roguelike_act1.lua --seed=10102
+lua bin/test_roguelike_balance.lua --runs=20
+```
+
+通过条件：
+- 任意单场战斗 `partyLevelDelta <= 1`；
+- `run_battle_template.lua` 任意 `expReward <= 20`；
+- 3 章完整通关样本最终 `partyLevel` 落在 Lv9~Lv10；
+- Lv3 出现在 Act1 中段附近，Lv5 出现在 Act2 前半附近，Lv7/Lv9 分别落在 Act2 末 / Act3 中后段；
+- seed=10102 不再在 floor=4 因等级断层必然 wipe。
+
+### 6.6 风险检查（dungeon §9）
 
 | 风险 | 自检 |
 | --- | --- |
