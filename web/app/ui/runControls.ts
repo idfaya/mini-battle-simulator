@@ -568,10 +568,38 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     title.textContent = "选择下一个节点";
     host.append(title);
 
+    const currentNode = snapshot.currentNodeId
+      ? snapshot.map.nodes.find((item) => item.id === snapshot.currentNodeId) ?? null
+      : null;
     const selectable = snapshot.map.nodes.filter((item) => item.selectable);
+
+    const directionOf = (target: typeof selectable[number]) => {
+      if (!currentNode || currentNode.gridX == null || currentNode.gridY == null
+        || target.gridX == null || target.gridY == null) {
+        return "";
+      }
+      const dx = target.gridX - currentNode.gridX;
+      const dy = target.gridY - currentNode.gridY;
+      if (dx === 0 && dy < 0) return "上";
+      if (dx === 0 && dy > 0) return "下";
+      if (dy === 0 && dx < 0) return "左";
+      if (dy === 0 && dx > 0) return "右";
+      return "";
+    };
+
+    // 同方向去重：跨层楼梯等极端情况下若多个邻居在同一方位，加序号区分。
+    const usedDirs = new Map<string, number>();
     for (const node of selectable) {
+      const dir = directionOf(node);
+      let dirLabel = dir;
+      if (dir) {
+        const count = (usedDirs.get(dir) ?? 0) + 1;
+        usedDirs.set(dir, count);
+        dirLabel = count > 1 ? `${dir}${count}` : dir;
+      }
       // 未踏足的房间不暴露类型/标题；已访问过的（迂回回头路）才显示原标题。
-      const label = node.revealed && node.titleVisible && node.title ? node.title : "未知房间";
+      const knownTitle = node.revealed && node.titleVisible && node.title ? node.title : "未知房间";
+      const label = dirLabel ? `${dirLabel} · ${knownTitle}` : knownTitle;
       host.append(
         makeButton(label, false, async () => {
           // 选择即进入，避免手机端多一步操作
