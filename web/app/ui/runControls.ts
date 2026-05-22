@@ -570,9 +570,10 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
 
     const selectable = snapshot.map.nodes.filter((item) => item.selectable);
     for (const node of selectable) {
-      const label = node.titleVisible && node.title ? node.title : node.nodeType;
+      // 未踏足的房间不暴露类型/标题；已访问过的（迂回回头路）才显示原标题。
+      const label = node.revealed && node.titleVisible && node.title ? node.title : "未知房间";
       host.append(
-        makeButton(`${label} · ${node.nodeType}`, false, async () => {
+        makeButton(label, false, async () => {
           // 选择即进入，避免手机端多一步操作
           await controls.handlers.onChooseNode(node.id);
           await controls.handlers.onEnterNode();
