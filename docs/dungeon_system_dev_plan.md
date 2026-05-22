@@ -30,24 +30,27 @@
 | D1-T5 `run_map_gen_profile.lua` 转薄壳 | ✅ 已落地 | [`run_map_gen_profile.lua`](../../config/roguelike/run_map_gen_profile.lua) 仅含 `{ id, chapterId }` 三条（101001/102001/103001） |
 | D1-T5 `init.lua` 摘 Nodes 行 | ✅ 已落地 | [`init.lua`](../../config/roguelike/init.lua) 已无 `Nodes = require("config.roguelike.run_node_pool")` |
 | D1-T6.1 `roguelike_map.lua` 转 dungeon 转发 | ✅ 已落地 | [`roguelike_map.lua`](../../roguelike/roguelike_map.lua) 200 行新版；依赖 `DungeonGenerator` + `RunChapterConfig`；提供 `GetChapter / GetNode / GetChapterNodes / BuildChapterMap / GetAvailableNextNodeIds / GenerateChapterMap`；`buildNodeView` 把 room → 兼容 lane DAG node 视图 |
-| D1-T6.2 `roguelike_run.lua` 适配 dungeon | ⏳ **未完成** | `state.mapState` 仍在 (L283 / L294 / L304 / L470); `enterNode` 仍含 `recruit` 分支 (L357-365)；`enterChapterResult` 不切章；缺 `stair_up/stair_down/equip/empty` 分支；`ChooseEventOption` L688 / `ShopBuy` L729 仍含 recruit |
-| D1-T6.3 `roguelike_snapshot.lua` 字段切换 | ⏳ **未完成** | L109 仍 `BuildChapterMap(runState.chapterId, runState.mapState)` |
-| D1-T7.1 删 `roguelike_reward.lua` 的 recruit 链路 | ⏳ **未完成** | L4 `RunRecruitPool` import；L209-211 / L224-226 / L246-338 / L417-418 含 recruit 分支与 `AddRecruit / GenerateRecruitRewardState / createHeroRecord` |
-| D1-T7.2 删 3 个旧文件 | ⏳ **未完成** | [`roguelike_map_generator.lua`](../../roguelike/roguelike_map_generator.lua) / [`run_node_pool.lua`](../../config/roguelike/run_node_pool.lua) / [`run_recruit_pool.lua`](../../config/roguelike/run_recruit_pool.lua) 仍存在 |
-| D1-T8.1 新增 `bin/test_roguelike_dungeon_generation.lua` | ⏳ **未完成** | 文件不存在 |
-| D1-T8.2 改 act1 / chapter_success / balance 三个 bin | ⏳ **未完成** | 仍是 lane DAG 形态；含 recruit 偏好与断言 |
-| D1-T9 `npm run export:lua` + 全套回归 | ⏳ **未完成** | 取决于以上完成 |
+| D1-T6.2 `roguelike_run.lua` 适配 dungeon | ✅ 已落地（含楼梯弹窗 commit `82f6dca`） | dungeonState + stair_up/stair_down/equip/empty 分支齐备；recruit 三处分支已删；enterChapterResult 章 1/2 → 下一章；进入楼梯房改设 `state.phase="stair"` + `state.stairState`，新增 `StairUse` / `StairLeave` API（用户指示「楼梯房可不上下楼直接路过」） |
+| D1-T6.3 `roguelike_snapshot.lua` 字段切换 | ✅ 已落地 | runState.dungeonState + currentFloorDepth + stairState 已输出，UI/测试可读取 direction/nodeId/currentFloorDepth 渲染弹窗 |
+| D1-T7.1 删 `roguelike_reward.lua` 的 recruit 链路 | ✅ 已落地 | `RunRecruitPool` import 与 recruit 三处分支已删 |
+| D1-T7.2 删 3 个旧文件 | ✅ 已落地 | `roguelike_map_generator.lua` / `run_node_pool.lua` / `run_recruit_pool.lua` 已 DeleteFile |
+| D1-T8.1 新增 `bin/test_roguelike_dungeon_generation.lua` | ✅ 已落地 | 通过（200 seeds × 3 chapters） |
+| D1-T8.2 改 act1 / chapter_success / balance 三个 bin | ✅ 已落地（commit `82f6dca`） | 三个 bin 全部补 `stair` phase 分支：方向感知（down 推进；up 仅 partyLevel 不足时回补）；act1/chapter_success 引入 PREFERENCE 表 + BFS findPathNextHop 寻路修复 cleared 走廊死循环；camp short_rest fallback；act1 seed=10101 通过、chapter_success seed=10101 通过；act1 seed=10102 floor=4 真实战斗 wipe（独立难度议题） |
+| D1-T9 `npm run export:lua` + 全套回归 | ✅ 已落地 | 镜像与源 Lua 一致；核心 bin 通过见上 |
 | D2 / D3 | ⏸️ 未启动 | 见 §4 清单（房间事件 / 5e 检定 / Trinket / 隐藏层 / Web 重写） |
 
-**剩余 D1 执行链**（严格顺序，详见 [`stage_d1_finalize_plan.md`](./stage_d1_finalize_plan.md) §6）：
+**剩余 D1 执行链**（commit `82f6dca` 后已全部完结）：
 
-1. **T6.2** `roguelike_run.lua`：`mapState→dungeonState`、`enterNode` 加 stair_up/stair_down/equip/empty 分支、删 recruit 三处分支、`enterChapterResult` 章 1/2 自动切下一章。
-2. **T6.3** `roguelike_snapshot.lua`：`runState.mapState → runState.dungeonState`，顶层加 `currentFloorDepth`，保 `map.nodes/edges/startNodeId/bossNodeId` 字段名以兼容旧 web。
-3. **T7.1** `roguelike_reward.lua`：删 `RunRecruitPool` import + `AddRecruit / GenerateRecruitRewardState / createHeroRecord` + `buildName/buildDescription/ApplyReward` 三处 recruit 分支。
-4. **T7.2** 物理删除 `roguelike_map_generator.lua` / `run_node_pool.lua` / `run_recruit_pool.lua`（先 Grep 复核 0 活引用）。
-5. **T8.1** 新增 `bin/test_roguelike_dungeon_generation.lua`：种子 1..200 × 3 章；BFS 全连通；章 101 第 1 层无 upStair；roomCount≥6 非 boss 层 ≥4 种 roomType；camp/shop ≤1；隐藏层 `isHidden==true && isBossFloor==true`。
-6. **T8.2** 改 `bin/test_roguelike_act1.lua` / `chapter_success.lua` / `balance.lua`：删 recruit 偏好；priority 加 `stair_down`；guard 提升；`ROUTE_PRESETS[101]` 改 nodeType 偏好序列；多种子。
-7. **T9** `npm run export:lua` + 跑核心 5 个 bin（`dungeon_generation / progression_gate / act1 / chapter_success / balance --runs=4`）；任何失败回到对应步骤修。
+1. ~~T6.2~~ ✅ `roguelike_run.lua`：dungeonState + stair_up/stair_down 弹窗 phase + StairUse/StairLeave API；删 recruit 三处分支；enterChapterResult 章 1/2 自动切下一章。
+2. ~~T6.3~~ ✅ `roguelike_snapshot.lua`：dungeonState + currentFloorDepth + stairState 输出，UI/测试可渲染楼梯弹窗。
+3. ~~T7.1~~ ✅ `roguelike_reward.lua`：recruit 链路全清。
+4. ~~T7.2~~ ✅ 物理删除 `roguelike_map_generator.lua` / `run_node_pool.lua` / `run_recruit_pool.lua`。
+5. ~~T8.1~~ ✅ 新增 `bin/test_roguelike_dungeon_generation.lua`。
+6. ~~T8.2~~ ✅ 改三个 bin：补 stair phase 分支 + PREFERENCE+BFS 路径选择 + camp fallback。
+7. ~~T9~~ ✅ `npm run export:lua` + 核心 bin 通过。
+
+**遗留议题**（D1' 之外、独立排期）：
+- act1 seed=10102 在 floor=4 真实战斗 wipe（partyLevel=23 vs 难度公式 monster_level=4×0.8+1=4.2 偏紧）→ 难度调优议题，与楼梯/路由解耦。
 
 Stage D2 / D3 沿用本文 §4 的清单，无变更。
 

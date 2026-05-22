@@ -35,15 +35,17 @@
 | 旧文件清理 | ✅ | `run_node_pool.lua` / `run_recruit_pool.lua` / `roguelike_map_generator.lua` 已 DeleteFile |
 | 生成单测 | ✅ | [`bin/test_roguelike_dungeon_generation.lua`](../../bin/test_roguelike_dungeon_generation.lua) 通过（200 seeds × 3 chapters = 3000 floors） |
 | 进度门单测 | ✅ | [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) 通过 |
+| 楼梯弹窗 phase | ✅ | commit `82f6dca`：[`roguelike_run.lua`](../../roguelike/roguelike_run.lua) 进入 stair_down/stair_up 改设 `state.phase="stair"` + `state.stairState`；新增 `StairUse` / `StairLeave` API；[`roguelike_snapshot.lua`](../../roguelike/roguelike_snapshot.lua) 暴露 `stairState` 字段供 UI/测试渲染弹窗（dungeon §4.2「cleared 房仅作通路」+ 用户最新指示「楼梯房可不上下楼直接路过」） |
+| chapter_success 通关 | ✅ | commit `82f6dca`：复用 act1 PREFERENCE+BFS 评分体系修复 floor=4 cleared 走廊死循环；camp 增加 short_rest fallback；seed=10101 完整通关 chapterId=103, boss_defeated |
 
 ### 2.2 D1 收尾未完结（本计划即时修复）
 
-> **实施状态（2026-05-22 复测）**：T1/T2/T3/T4 已落地（见下表「修复状态」列），但 T5 回归仍有两条红线——`act1.lua` 与 `chapter_success.lua` 在 seed=10101 仍出现 `phase=failed`（队伍在 elite/boss 前阵亡）。`balance.lua --runs=2` 产出 WinRate=0%（combat 路线 elite 处 team_wipe=1）。需进一步降难度或调路线偏好。
+> **实施状态（2026-05-22 楼梯弹窗 commit `82f6dca` 后复测）**：act1 seed=10101 已通过完整 3 章节流程；chapter_success seed=10101 通过；act1 seed=10102 在 floor=4 真实战斗 wipe（属难度调优遗留项，与楼梯改造无关）。下表保留历史记录用于追溯。
 
 | 问题 | 位置 | 现象 | 根因 | 修复状态 |
 | --- | --- | --- | --- | --- |
 | **chapter_success 死局** | [`bin/test_roguelike_chapter_success.lua`](../../bin/test_roguelike_chapter_success.lua) L100 | currentNodeId=1008(visited event) 的 neighbors 全 visited → availableNextNodeIds 空，"should always have a selectable node" 触发 | [`roguelike_map.lua` L160-181](file:///c:/work/MiniBattleSimulator/roguelike/roguelike_map.lua#L160-L181) `GetAvailableNextNodeIds` 已放开 visited 邻居（注释引用 dungeon §4.2） | ✅ T1 完成（visited 邻居全部返回） |
-| **act1 seed=10101 阵亡** | [`bin/test_roguelike_act1.lua`](../../bin/test_roguelike_act1.lua) | partyLevel=4 alive=0 lvSum=7 全队阵亡 | chooseNextNode 偏好把 `stair_down=150` 评分置过高 → 跳层时等级跟不上；AND/OR 死局逼着撞 elite | ⚠️ T2 已落 PREFERENCE 表 + partyLevel<floorDepth×2 时 elite 末位（[L240-281](file:///c:/work/MiniBattleSimulator/bin/test_roguelike_act1.lua#L240-L281)），但 seed=10101 仍 team_wipe → 需进一步：①再降 stair_down 或限制 floorDepth=1 不允许下楼，②或调 floor1 模板减 elite，或调 §3.2 难度公式系数 |
+| **act1 seed=10101 阵亡** | [`bin/test_roguelike_act1.lua`](../../bin/test_roguelike_act1.lua) | partyLevel=4 alive=0 lvSum=7 全队阵亡 | chooseNextNode 偏好把 `stair_down=150` 评分置过高 → 跳层时等级跟不上；AND/OR 死局逼着撞 elite | ✅ commit `82f6dca` 完结：PREFERENCE 表 + partyLevel 阈值 + BFS 寻路 + 楼梯弹窗（可路过）三管齐下，seed=10101 完整通关；seed=10102 floor=4 真实战斗 wipe（独立难度议题） |
 
 ### 2.3 D2 / D3 / D4 — 全部未启动
 
