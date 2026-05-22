@@ -6,6 +6,7 @@ export type RunPhase =
   | "event"
   | "shop"
   | "camp"
+  | "stair"
   | "reward"
   | "chapter_result"
   | "failed";
@@ -224,6 +225,12 @@ export type CampState = {
   actions: CampActionState[];
 };
 
+export type StairState = {
+  direction: "up" | "down";
+  nodeId: number;
+  currentFloorDepth?: number | null;
+};
+
 export type ChapterResult = {
   success: boolean;
   reason: string;
@@ -253,6 +260,7 @@ export type RunSnapshot = {
   eventState: EventState | null;
   shopState: ShopState | null;
   campState: CampState | null;
+  stairState: StairState | null;
   rewardState: RewardState | null;
   lastBattleSummary?: LastBattleSummary | null;
   battleSnapshot: BattleSnapshot | null;

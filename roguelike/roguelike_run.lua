@@ -309,6 +309,15 @@ local function enterNode(nodeId)
     if not node then
         return false, "node_not_found"
     end
+    -- 从楼梯房直接选邻居房 = 路过：清空 stairState 并把楼梯房标 cleared，避免下次仍弹出楼梯选项。
+    if state.phase == "stair" then
+        local prevId = state.stairState and state.stairState.nodeId or state.currentNodeId
+        if state.dungeonState and prevId then
+            FloorState.MarkRoomCleared(state.dungeonState, prevId)
+        end
+        state.stairState = nil
+        state.phase = "map"
+    end
     state.currentNodeId = nodeId
     state.visitedNodeIds[nodeId] = true
     state.lastActionMessage = ""
@@ -329,6 +338,8 @@ local function enterNode(nodeId)
             nodeId = nodeId,
             currentFloorDepth = state.dungeonState.currentFloorDepth,
         }
+        -- 刷新邻居：楼梯房 UI 与 map 一样并排显示「上下左右房间」选项。
+        refreshAvailableNodes()
         return true
     end
 
@@ -342,6 +353,7 @@ local function enterNode(nodeId)
             nodeId = nodeId,
             currentFloorDepth = state.dungeonState.currentFloorDepth,
         }
+        refreshAvailableNodes()
         return true
     end
 
@@ -566,7 +578,8 @@ function RoguelikeRun.GetSnapshot()
 end
 
 function RoguelikeRun.ChoosePath(nodeId)
-    if state.phase ~= "map" then
+    -- 楼梯房与普通 map 一致：玩家可直接选择"路过"到相邻房（前端按钮 = 上下楼 + 上下左右房）。
+    if state.phase ~= "map" and state.phase ~= "stair" then
         return false, "not_in_map"
     end
     local targetId = tonumber(nodeId)
@@ -582,7 +595,7 @@ function RoguelikeRun.ChoosePath(nodeId)
 end
 
 function RoguelikeRun.EnterCurrentNode()
-    if state.phase ~= "map" then
+    if state.phase ~= "map" and state.phase ~= "stair" then
         return false, "not_in_map"
     end
     local nodeId = state.selectedNextNodeId

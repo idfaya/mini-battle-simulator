@@ -183,6 +183,14 @@ export class LuaBattleHost {
     return this.callApi<RunActionResponse>("camp_choose", { actionId });
   }
 
+  async stairUse(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("stair_use");
+  }
+
+  async stairLeave(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("stair_leave");
+  }
+
   async queueRunBattleCommand(command: BattleCommand): Promise<boolean> {
     const result = this.callApi<{ accepted: boolean }>("queue_run_battle_command", command);
     return result.accepted;

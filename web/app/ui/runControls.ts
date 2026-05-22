@@ -11,6 +11,8 @@ type RunHandlers = {
   onPromoteBenchHero: (benchRosterId: number) => void;
   onSwapBenchWithTeam: (benchRosterId: number, teamRosterId: number) => void;
   onCampChoose: (actionId: number) => void;
+  onStairUse: () => void;
+  onStairLeave: () => void;
   onRestart: () => void;
 };
 
@@ -111,7 +113,7 @@ export function createRunControls(handlers: RunHandlers): RunControls {
     // phase 切换意味着新的操作场景，统一把玩家引导到 info（营地/商店/事件/奖励）或 map
     if (phase === "event" || phase === "reward" || phase === "shop" || phase === "camp") {
       setScreen("info");
-    } else if (phase === "map") {
+    } else if (phase === "map" || phase === "stair") {
       setScreen("map");
     } else if (phase === "chapter_result" || phase === "failed") {
       setScreen("info");
@@ -562,11 +564,20 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
-  if (snapshot.phase === "map" && snapshot.map) {
+  if ((snapshot.phase === "map" || snapshot.phase === "stair") && snapshot.map) {
     const title = document.createElement("div");
     title.className = "panel-title";
-    title.textContent = "选择下一个节点";
+    title.textContent = snapshot.phase === "stair" ? "楼梯房：选择行动" : "选择下一个节点";
     host.append(title);
+
+    // 楼梯房：把上/下楼按钮直接作为「方位」选项与房间选择按钮并列。
+    if (snapshot.phase === "stair" && snapshot.stairState) {
+      const dir = snapshot.stairState.direction;
+      const dirLabel = dir === "up" ? "上楼" : "下楼";
+      host.append(
+        makeButton(`${dirLabel} · 进入下一层`, false, () => controls.handlers.onStairUse()),
+      );
+    }
 
     const currentNode = snapshot.currentNodeId
       ? snapshot.map.nodes.find((item) => item.id === snapshot.currentNodeId) ?? null

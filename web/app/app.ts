@@ -456,6 +456,14 @@ async function bootstrapRunMode(
       await host.campChoose(actionId);
       syncRunSnapshot(await host.getRunSnapshot());
     },
+    onStairUse: async () => {
+      await host.stairUse();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
+    onStairLeave: async () => {
+      await host.stairLeave();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
     onRestart: async () => {
       if (!hasPinnedRunSeed) {
         runSeed = allocateRunSeed();

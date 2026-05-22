@@ -318,6 +318,26 @@ function MiniBattleWebApi.camp_choose(payloadJson)
     end)
 end
 
+function MiniBattleWebApi.stair_use()
+    return safeCall(function()
+        local ok, reason = RunRuntime.StairUse()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
+function MiniBattleWebApi.stair_leave()
+    return safeCall(function()
+        local ok, reason = RunRuntime.StairLeave()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
 function MiniBattleWebApi.queue_run_battle_command(payloadJson)
     return safeCall(function()
         local payload = JSON.JsonDecode(payloadJson)
