@@ -130,16 +130,15 @@ RunBlessingConfig.BLESSINGS = {
         id = 101006,
         code = "spell_ward",
         name = "法术防护",
-        description = "全队豁免 +1，额外获得 2 点法术减伤。",
+        description = "全队豁免 +1（5e：对抗法术效应时提高豁免成功率）。",
         rarity = "boss",
         scope = "team",
         effectType = "class_spell_protection",
         params = {
             classIds = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
             saveDelta = 1,
-            spellDamageReduce = 2,
         },
-        tags = { "team_buff", "save_buff", "spell_dr", "boss_drop" },
+        tags = { "team_buff", "save_buff", "boss_drop" },
         mutuallyExclusiveGroup = "team_spell_protection",
     },
     -- 扩展两件，使总池 > BLESSING_TOTAL_LIMIT(6)，玩家在刷新时仍有真选择空间。

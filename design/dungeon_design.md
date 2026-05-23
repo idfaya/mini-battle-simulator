@@ -1,6 +1,6 @@
 # MiniBattle 随机地牢系统设计
 
-> **文档状态**：Run 地图与房间规则的**权威文档**。落地进度见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md)。
+> **文档状态**：Run 地图与房间规则的**权威文档**。D1–D3（地牢生成 / 房间事件 / 章节 trinket / 隐藏层）已落地；进度与回归见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md) §2.4–§2.5。
 
 > 配套 [`character_progression_design.md`](./character_progression_design.md)（养成）。旧节点图 Run 稿在 `design/legacy/`（禁止阅读维护）。
 
@@ -66,8 +66,13 @@ pressureFactor  = 1.0 + 0.06 × floor_depth
 
 ### 3.3 隐藏层（可选）
 
-- 每章有概率出现 1 个**隐藏层入口**（事件房大成功 / 特定 Curio 解锁）。
-- 隐藏层 = 极小型地牢（3~5 房间），固定 Boss + trinket 奖励。
+- 每章可通过事件房**检定大成功**解锁 1 次隐藏层（非每层固定刷新）。
+- 隐藏层 = 极小型地牢（**3~5 房间**），固定隐藏 Boss；击杀后发放**双倍章节 trinket**（第二件从同章池再 roll，去重）。
+- **入口**：解锁后在**当前主线楼层、当前房间的一格相邻房**改写为 `stair_down`（标题「隐藏层入口」）；玩家须走到该格并 `StairUse` 下楼（不可隔空触发）。
+- **楼层**：运行时 `HIDDEN_FLOOR_DEPTH = 9`（`dungeon_generator.lua`）；模板 `config/data/floors.json` `id=10901`（`isHidden: true`）。
+- **返回**：隐藏层 `stair_up` 回到解锁时记录的主线 `hiddenReturnDepth` / `hiddenReturnRoomId`；隐藏 Boss **不**触发章节 `chapter_result`（与章末 Boss 区分）。
+- **示例事件**：`config/data/events.json` `101099`「远古裂隙」— 选项「离开」为零风险；「解读裂隙符文」为调查 DC14，大成功 `unlock_hidden_floor`。
+- **实现**：[`roguelike/roguelike_run.lua`](../roguelike/roguelike_run.lua) `injectHiddenFloor` / `EventChoose`；[`roguelike/floor_state.lua`](../roguelike/floor_state.lua) `UseStair`；回归 [`bin/test_roguelike_hidden_floor.lua`](../bin/test_roguelike_hidden_floor.lua)。
 
 ---
 
@@ -123,7 +128,9 @@ Floor = Maze(Room ⇄ Room)
 | 失败 | 无事 / 触发陷阱 |
 | 大失败 | 触发战斗 / 受负面祝福 |
 
-- 每个事件至少有 1 种"零风险使用方式"（消耗特定道具 / 直接放弃），让玩家可主动规避。
+- 每个事件至少有 1 种"零风险使用方式"（`zeroRisk` 选项 / 直接离开），让玩家可主动规避。
+- **配置 SSOT**：`config/data/events.json` → [`config/tables/events.lua`](../config/tables/events.lua)；结算 [`roguelike/event_resolver.lua`](../roguelike/event_resolver.lua)（`1d20 + 5e 修正 vs DC`，nat20/nat1 四档）。
+- **回归**：[`bin/test_roguelike_event_skill_check.lua`](../bin/test_roguelike_event_skill_check.lua)、[`bin/test_events_json_loader.lua`](../bin/test_events_json_loader.lua)。
 
 ### 4.5 营地房（Camp）
 
@@ -133,6 +140,7 @@ Floor = Maze(Room ⇄ Room)
   - 复活 1 名阵亡角色（满血）。
 - 无营火点数、无 4 选 1 选项。
 - 营地结算后房间置为 `cleared`，重复进入仅作通路。
+- **实现**：[`roguelike/roguelike_camp.lua`](../roguelike/roguelike_camp.lua) `ApplyReviveFullRest`；进入营地房即结算并回 map。回归 [`bin/test_roguelike_camp_full_rest.lua`](../bin/test_roguelike_camp_full_rest.lua)。
 
 ### 4.6 商店房（Shop）
 
@@ -145,6 +153,7 @@ Floor = Maze(Room ⇄ Room)
 
 - 商店是**唯一可重复交互**的房间类型；每次回访保留库存（不刷新）。
 - 复活卷轴是 Run 内复活的稳定金币入口（详见 [`character_progression_design.md`](./character_progression_design.md) §4）。
+- **货品配置**：[`config/roguelike/run_shop_goods.lua`](../config/roguelike/run_shop_goods.lua)（无独立 `shops.json`）；复活卷轴动态价（常规章 ×3 / 章末 ×4 普通装备价）。回归 [`bin/test_roguelike_shop_revive_scroll.lua`](../bin/test_roguelike_shop_revive_scroll.lua)。
 
 ### 4.7 Boss 房
 
@@ -153,8 +162,9 @@ Floor = Maze(Room ⇄ Room)
   - **章节级经验大额奖励**；
   - **章节级金币大额奖励**；
   - **章节装备 ×1~2 件**；
-  - **章节 trinket 必掉**（特殊装备，作为下一章诱因）；
+  - **章节 trinket 必掉**（特殊装备，作为下一章诱因；**不进** `equipmentIds`，独立 `state.trinketIds`）；
   - **章节 bless ×1**。
+- **实现**：[`roguelike/trinket.lua`](../roguelike/trinket.lua) `GrantChapterBoss`；效果 SSOT 为 `config/data/trinkets.json` 的 `effectType` + `params`，由 [`roguelike/trinket_effects.lua`](../roguelike/trinket_effects.lua) 解释（战斗 / 事件检定 / 战后加金回满 / 隐藏 Boss 第三件）。回归 [`bin/test_roguelike_boss_trinket.lua`](../bin/test_roguelike_boss_trinket.lua)、[`bin/test_roguelike_trinket_effects.lua`](../bin/test_roguelike_trinket_effects.lua)。
 
 ---
 
@@ -177,21 +187,22 @@ Floor = Maze(Room ⇄ Room)
 
 ## 6. 数据 / 模块影响矩阵
 
-| 类别 | 文件 | 修改 | 说明 |
+| 类别 | 文件 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| 配置（新增） | `config/data/floors.json` | 新增 | 每层模板（房间数、权重、Boss 标记） |
-| 配置（新增） | `config/data/events.json` | 新增 | 事件房剧本 + 5e 检定 DC |
-| 配置（新增） | `config/data/shops.json` | 新增 | 商店货品池（含复活卷轴） |
-| 配置（新增） | `config/data/trinkets.json` | 新增 | 章节 trinket（特殊装备） |
-| Run 层（新增） | `roguelike/dungeon_generator.lua` | 新增 | 多层地牢 / 房间迷宫生成 |
-| Run 层（新增） | `roguelike/floor_state.lua` | 新增 | 单层房间状态机（cleared / locked） |
-| Run 层（新增） | `roguelike/event_resolver.lua` | 新增 | 事件房剧本 + 5e 检定结算 |
-| Run 层（新增） | `roguelike/shop.lua` | 新增 | 商店交互（含复活卷轴） |
-| Run 层（修改） | `roguelike/roguelike_run.lua` | 修改 | Run 持有表新增层 / 房间状态 |
-| Run 层（修改） | `roguelike/roguelike_reward.lua` | 修改 | Boss / 精英 / 装备房掉落 |
-| Web | `web/app/ui/dungeon.ts` | 新增 | 地牢 / 楼层 / 房间 UI |
-| Web | `web/tests/*.spec.ts` | 修改 | 新增地牢生成 / 房间触发回归 |
-| 文档 | `design/README.md` / `docs/README.md` | 活跃 | 策划 / 程序导航；旧 Run 参数表在 `design/legacy/` |
+| 配置 | `config/data/floors.json` | ✅ | 每层模板 + `10901` 隐藏层 |
+| 配置 | `config/data/events.json` | ✅ | 事件房剧本 + 5e 检定 DC |
+| 配置 | `config/data/trinkets.json` | ✅ | 章节 trinket 池 |
+| 配置 | `config/roguelike/run_shop_goods.lua` | ✅ | 商店货品（含复活卷轴动态价） |
+| 配置 | `config/roguelike/run_trinket_config.lua` | ✅ | 按章 trinket 池与 roll |
+| Run | `roguelike/dungeon_generator.lua` | ✅ | 多层迷宫 + `GenerateHiddenFloor` |
+| Run | `roguelike/floor_state.lua` | ✅ | cleared / 楼梯（含 depth=9 隐藏层） |
+| Run | `roguelike/event_resolver.lua` | ✅ | 5e 四档检定 |
+| Run | `roguelike/trinket.lua` | ✅ | `state.trinketIds` 发放 |
+| Run | `roguelike/roguelike_shop.lua` / `roguelike_camp.lua` | ✅ | 商店 / 营地 |
+| Run | `roguelike/roguelike_run.lua` | ✅ | 主状态机、事件 `unlock_hidden_floor`、Boss trinket |
+| Web | `web/app/render/RunMapScene.ts`、`ui/runControls.ts` | ✅ | 楼层网格、检定 UI、trinket / 隐藏层提示 |
+| Web | `web/tests/roguelike-act1.spec.ts`、`roguelike-dungeon.spec.ts` | ✅ | 章节 smoke + 地牢切片 E2E |
+| 文档 | `design/README.md` / `docs/README.md` | 活跃 | 策划 / 程序导航 |
 
 ---
 
@@ -199,25 +210,19 @@ Floor = Maze(Room ⇄ Room)
 
 > 角色养成相关阶段（1~3 / 7）见 [`character_progression_design.md`](./character_progression_design.md) §7。
 
-### 7.1 阶段 4：层级地牢生成
+### 7.1 阶段 4：层级地牢生成 — ✅
 
-- 实现 `dungeon_generator.lua`：3 章 × 5 层骨架 + 楼梯连通。
-- 实现 `floor_state.lua`：房间一次性触发 + 楼梯互通。
-- 旧节点系统保留作为占位，仅替换"地图视图"。
-- 回归：`bin/test_roguelike_balance.lua` + 新地牢生成单测。
+- `dungeon_generator.lua`：3 章 × 5 层 + 楼梯；`bin/test_roguelike_dungeon_generation.lua`。
 
-### 7.2 阶段 5：房间事件全套
+### 7.2 阶段 5：房间事件全套 — ✅
 
-- 实现 `event_resolver.lua` + `events.json`（5e 检定接入）。
-- 实现 `shop.lua` + `shops.json`（含复活卷轴）。
-- 实现营地房（直接结算：回满 + 清状态 + 复活 1 名）。
-- Web 重做地图视图（房间网格 + 楼梯按钮）。
+- `events.json` + `event_resolver.lua` + `roguelike_event.lua`；营地 / 商店；Web 楼层网格与检定 UI。
+- 回归：`test_roguelike_event_skill_check`、`test_roguelike_camp_full_rest`、`test_roguelike_shop_revive_scroll`、`web/tests/roguelike-dungeon.spec.ts`。
 
-### 7.3 阶段 6：Boss 层 + 章节 Trinket
+### 7.3 阶段 6：Boss 层 + 章节 Trinket + 隐藏层 — ✅
 
-- Boss 层独立模板（少量房间 + Boss 必掉 trinket）。
-- 章节末尾 trinket 池预告。
-- 隐藏层入口（事件房大成功解锁）。
+- `trinkets.json` + `roguelike/trinket.lua`；章末 Boss 必掉 trinket；事件 `101099` 大成功 → 相邻房隐藏入口 → depth=9 双倍 trinket。
+- 回归：`test_roguelike_boss_trinket`、`test_roguelike_hidden_floor`。
 
 ---
 
@@ -226,9 +231,10 @@ Floor = Maze(Room ⇄ Room)
 - **房间多样性**：单层地牢内出现 ≥ 4 种房间类型。
 - **回头探索率**：玩家平均每 Run 至少 1 次回到上一层（验证商店 / 营地的回头价值）。
 - **Boss 触达率**：MVP 配置下 ≥ 60% 的 Run 能打到第 1 章 Boss。
-- **测试覆盖**：
-  - `bin/` 新增至少 3 个回归脚本（地牢生成 / 房间一次性 / Boss 奖励）。
-  - `web/tests/` 新增 e2e 用例覆盖完整下钻流程。
+- **测试覆盖**（已满足）：
+  - `bin/`：生成 / 一次性 / 检定 / 营地 / 商店 / Boss trinket / 隐藏层（见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md) §2.4）。
+  - `web/tests/`：`roguelike-act1.spec.ts`（章节 smoke）、`roguelike-dungeon.spec.ts`（地图 + 商店 + 检定 UI）。
+  - 全三章固定种子自动 `chapter_result` 仍不稳定；`test_roguelike_chapter_success` 使用 `ForceBossChapterResultForTest` 验契约。
 
 ---
 

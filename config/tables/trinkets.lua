@@ -1,5 +1,19 @@
 local ConfigJsonLoader = require("config.json_loader")
 
+---@alias RunTrinketEffectType
+---| "team_save_delta"
+---| "team_damage_resistance"
+---| "elite_victory_bonus_gold"
+---| "event_skill_check_bonus"
+---| "boss_victory_full_heal"
+---| "hidden_boss_extra_trinket_roll"
+
+---@class RunTrinketParams
+---@field saveDelta integer|nil
+---@field damageKind string|nil
+---@field gold integer|nil
+---@field bonus integer|nil
+
 ---@class RunTrinketEntry
 ---@field id integer
 ---@field chapterId integer
@@ -7,6 +21,8 @@ local ConfigJsonLoader = require("config.json_loader")
 ---@field name string
 ---@field rarity string
 ---@field description string
+---@field effectType RunTrinketEffectType|nil
+---@field params RunTrinketParams|nil
 ---@field tags string[]
 
 ---@class TrinketsModule
@@ -33,6 +49,8 @@ local function normalizeEntry(raw)
         name = raw.name or ("Trinket " .. tostring(id)),
         rarity = raw.rarity or "boss",
         description = raw.description or "",
+        effectType = raw.effectType,
+        params = type(raw.params) == "table" and raw.params or nil,
         tags = raw.tags or { "trinket" },
     }
 end

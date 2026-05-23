@@ -1,4 +1,5 @@
 local RunTrinketConfig = require("config.roguelike.run_trinket_config")
+local TrinketEffects = require("roguelike.trinket_effects")
 
 local RoguelikeTrinket = {}
 
@@ -51,6 +52,12 @@ function RoguelikeTrinket.GrantChapterBoss(runState, chapterId, isHidden)
         local secondId = RunTrinketConfig.RollChapterTrinket(chapterId, seedOffset + 7)
         if secondId and secondId ~= trinketId then
             RoguelikeTrinket.Grant(runState, secondId)
+        end
+        if TrinketEffects.HasHiddenBossExtraTrinketRoll(runState) then
+            local thirdId = RunTrinketConfig.RollChapterTrinket(chapterId, seedOffset + 13)
+            if thirdId then
+                RoguelikeTrinket.Grant(runState, thirdId)
+            end
         end
     end
     return ok, reason

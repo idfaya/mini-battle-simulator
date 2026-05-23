@@ -83,8 +83,9 @@ end
 
 ---@param hero table
 ---@param skillCheck table
+---@param extraModifier integer|nil  Run 层加值（如 trinket 事件检定 +1）
 ---@return table|nil, string|nil
-function EventResolver.ResolveSkillCheck(hero, skillCheck)
+function EventResolver.ResolveSkillCheck(hero, skillCheck, extraModifier)
     if type(skillCheck) ~= "table" then
         return nil, "invalid_skill_check"
     end
@@ -96,7 +97,8 @@ function EventResolver.ResolveSkillCheck(hero, skillCheck)
     local dc = math.max(1, math.floor(tonumber(skillCheck.dc) or 10))
     local modifier, abilityMod, proficiency = EventResolver.GetSkillModifier(hero, skillName)
     local roll, meta = Dice.RollD20("normal")
-    local total = roll + modifier
+    local extra = tonumber(extraModifier) or 0
+    local total = roll + modifier + extra
     local tier = EventResolver.ClassifyTier(roll, total, dc)
 
     local results = skillCheck.results or {}
@@ -113,6 +115,7 @@ function EventResolver.ResolveSkillCheck(hero, skillCheck)
         abilityMod = abilityMod,
         proficiencyBonus = proficiency,
         modifier = modifier,
+        trinketBonus = extra ~= 0 and extra or nil,
         total = total,
         tier = tier,
         nat20 = meta and meta.nat20 == true,
@@ -163,7 +166,9 @@ function EventResolver.ResolveOptionOutcome(runState, hero, option)
         if not actor then
             return nil, nil, nil, "no_alive_hero"
         end
-        local outcome, reason = EventResolver.ResolveSkillCheck(actor, option.skillCheck)
+        local TrinketEffects = require("roguelike.trinket_effects")
+        local trinketBonus = TrinketEffects.GetEventSkillCheckBonus(runState)
+        local outcome, reason = EventResolver.ResolveSkillCheck(actor, option.skillCheck, trinketBonus)
         if not outcome then
             return nil, nil, nil, reason or "skill_check_failed"
         end

@@ -12,7 +12,7 @@ local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
-local RunTrinketConfig = require("config.roguelike.run_trinket_config")
+local TrinketEffects = require("roguelike.trinket_effects")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeBattleBridge = {}
@@ -107,6 +107,7 @@ local function buildBattleModifiers(runState, battleProfile)
         healingFlatBonusByClass = {},
         damageReduceByClass = {},
         spellDamageReduceByClass = {},
+        teamResistances = {},
         bonusGold = 0,
         postBattleHealPct = 0,
     }
@@ -150,23 +151,10 @@ local function buildBattleModifiers(runState, battleProfile)
             applyClassFlat(result.damageReduceByClass, params.classIds, params.damageReduce)
         elseif blessing and blessing.effectType == "class_spell_protection" then
             applyClassFlat(result.saveDeltaByClass, params.classIds, params.saveDelta)
-            applyClassFlat(result.spellDamageReduceByClass, params.classIds, params.spellDamageReduce)
         end
     end
 
-    for _, trinketId in ipairs(runState.trinketIds or {}) do
-        local trinket = RunTrinketConfig.GetTrinket(trinketId)
-        local code = trinket and trinket.code or ""
-        if code == "frost_shard" then
-            for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(runState) or {}) do
-                applyClassFlat(result.saveDeltaByClass, { unit.classId }, 1)
-            end
-        elseif code == "ember_sigil" then
-            for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(runState) or {}) do
-                applyClassFlat(result.spellDamageReduceByClass, { unit.classId }, 0.05)
-            end
-        end
-    end
+    TrinketEffects.ApplyBattleModifiers(runState, result)
 
     return result
 end
@@ -217,6 +205,14 @@ local function buildHeroForBattle(rosterHero, modifiers)
     heroData.healingFlatBonus = math.max(0, math.floor((heroData.healingFlatBonus or 0) + (modifiers.healingFlatBonusByClass[rosterHero.classId] or 0)))
     heroData.damageReduce = math.max(0, math.floor((heroData.damageReduce or 0) + (modifiers.damageReduceByClass[rosterHero.classId] or 0)))
     heroData.spellDamageReduce = math.max(0, math.floor((heroData.spellDamageReduce or 0) + (modifiers.spellDamageReduceByClass[rosterHero.classId] or 0)))
+    if modifiers.teamResistances and next(modifiers.teamResistances) then
+        heroData.resistances = heroData.resistances or {}
+        for kind, active in pairs(modifiers.teamResistances) do
+            if active then
+                heroData.resistances[kind] = true
+            end
+        end
+    end
     heroData.tempHp = math.max(0, math.floor((heroData.tempHp or 0) + (tonumber(modifiers.battleStartTempHp) or 0)))
     heroData.blessBattleRoundsHitDelta = math.max(0, math.floor(tonumber(modifiers.battleRoundsHitDelta) or 0))
     heroData.blessBattleRoundsSaveDelta = math.max(0, math.floor(tonumber(modifiers.battleRoundsSaveDelta) or 0))
@@ -643,6 +639,10 @@ function RoguelikeBattleBridge.ResolveBattle(runState, battle, battleProfile)
     if won then
         earnedGold = earnedGold + (modifiers.bonusGold or 0)
         runState.gold = (runState.gold or 0) + earnedGold
+        TrinketEffects.ApplyBattleVictory(runState, {
+            won = true,
+            nodeType = TrinketEffects.GetCurrentBattleNodeType(runState),
+        })
         if (modifiers.postBattleHealPct or 0) > 0 then
             for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
                 if not hero.isDead then

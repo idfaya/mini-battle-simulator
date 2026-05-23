@@ -148,6 +148,7 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
         reducedDamage = math.max(0, reducedDamage - flatReduce)
     end
     local damageKind = tostring(params.damageKind or "direct")
+    -- 遗留字段：非 5e flat 法术减伤，新内容请用 resistances（伤害减半）或豁免加值。
     if damageKind == "spell" then
         local spellReduce = math.max(0, math.floor(tonumber(target.spellDamageReduce) or 0))
         if spellReduce > 0 then

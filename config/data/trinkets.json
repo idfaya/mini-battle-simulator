@@ -5,7 +5,9 @@
     "code": "ember_sigil",
     "name": "余烬符印",
     "rarity": "boss",
-    "description": "Boss 章节 trinket：队伍法术伤害减免 +5%。",
+    "description": "Boss 章节 trinket：全队对火焰伤害具有抗性（5e：受到火焰伤害减半）。",
+    "effectType": "team_damage_resistance",
+    "params": { "damageKind": "fire" },
     "tags": ["trinket", "chapter_101"]
   },
   {
@@ -15,6 +17,8 @@
     "name": "霜裂碎片",
     "rarity": "boss",
     "description": "Boss 章节 trinket：全队豁免 +1。",
+    "effectType": "team_save_delta",
+    "params": { "saveDelta": 1 },
     "tags": ["trinket", "chapter_101"]
   },
   {
@@ -23,7 +27,9 @@
     "code": "ash_crown",
     "name": "灰烬王冠",
     "rarity": "boss",
-    "description": "Boss 章节 trinket：精英战后额外金币。",
+    "description": "Boss 章节 trinket：精英战后额外 +25 金币。",
+    "effectType": "elite_victory_bonus_gold",
+    "params": { "gold": 25 },
     "tags": ["trinket", "chapter_102"]
   },
   {
@@ -33,6 +39,8 @@
     "name": "虚空灯笼",
     "rarity": "boss",
     "description": "Boss 章节 trinket：事件检定 +1。",
+    "effectType": "event_skill_check_bonus",
+    "params": { "bonus": 1 },
     "tags": ["trinket", "chapter_102"]
   },
   {
@@ -41,7 +49,9 @@
     "code": "abyss_heart",
     "name": "深渊之心",
     "rarity": "boss",
-    "description": "Boss 章节 trinket：Boss 战后全队回满。",
+    "description": "Boss 章节 trinket：任意 Boss 战后存活队员回满 HP。",
+    "effectType": "boss_victory_full_heal",
+    "params": {},
     "tags": ["trinket", "chapter_103"]
   },
   {
@@ -50,7 +60,9 @@
     "code": "throne_key",
     "name": "王座之钥",
     "rarity": "boss",
-    "description": "Boss 章节 trinket：隐藏层双倍 trinket 资格。",
+    "description": "Boss 章节 trinket：隐藏 Boss 再额外掉落 1 件同章 trinket。",
+    "effectType": "hidden_boss_extra_trinket_roll",
+    "params": {},
     "tags": ["trinket", "chapter_103", "hidden"]
   }
 ]

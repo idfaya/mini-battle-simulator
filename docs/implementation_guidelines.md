@@ -157,6 +157,35 @@
 - `enterNode` 对已 cleared 的 `battle_*` / `boss` / `event` 仅作通路（`phase=map`，不二次开战/弹事件）。
 - 回归：`bin/test_roguelike_room_one_shot.lua`。
 
+### 5.3 事件房 5e 检定（dungeon §4.4）
+
+| 模块 | 路径 | 说明 |
+| --- | --- | --- |
+| 事件 SSOT | `config/data/events.json` | 选项 `skillCheck`（ability / dc / 四档 results）、`zeroRisk` |
+| Loader | `config/tables/events.lua` | JSON → Lua |
+| 检定 | `roguelike/event_resolver.lua` | `1d20` + `modules/ability_5e` 修正；nat20/nat1 覆盖 success/failure |
+| 接入 | `roguelike/roguelike_event.lua` | `ResolveOption` → `resultType`（含 `unlock_hidden_floor`） |
+| 回归 | `bin/test_roguelike_event_skill_check.lua`、`bin/test_events_json_loader.lua` | |
+
+- 大成功 `unlock_hidden_floor`：[`roguelike_run.lua`](../roguelike/roguelike_run.lua) `EventChoose` → `injectHiddenFloor()`（见 §5.4）。
+
+### 5.4 章节 Trinket 与隐藏层（dungeon §3.3、§4.7）
+
+| 模块 | 路径 | 说明 |
+| --- | --- | --- |
+| Trinket SSOT | `config/data/trinkets.json` | 按 `chapterId` 分池 |
+| 发放 | `roguelike/trinket.lua` | `GrantChapterBoss(run, chapterId, isHidden)`；隐藏 Boss 双倍 roll |
+| Run 状态 | `state.trinketIds` | **不**写入 `equipmentIds`；快照 `RoguelikeSnapshot` / Web `RunSnapshot.trinkets` |
+| 隐藏层 | `dungeon_generator.HIDDEN_FLOOR_DEPTH`（9） | 模板 `floors.json` `10901`；主线**相邻房** `stair_down` + `payload.stairTarget=hidden` |
+| 楼梯 | `roguelike/floor_state.lua` | 下楼进隐藏层；`stair_up` 回 `hiddenReturnDepth` / `hiddenReturnRoomId` |
+| Boss 区分 | `isChapterClearBossNode` | 隐藏层 Boss 不进入 `chapter_result` |
+| 效果解释 | `roguelike/trinket_effects.lua` | `effectType` + `params`（对齐 blessing 模式，非 Feat `effects[]`） |
+| 战斗 | `team_save_delta` / `team_damage_resistance` | `ApplyBattleModifiers` → `heroData.resistances`（5e 伤害减半，非 flat 法术减伤） |
+| 事件 | `event_skill_check_bonus` | `EventResolver.ResolveSkillCheck(..., trinketBonus)` |
+| 战后 | `elite_victory_bonus_gold` / `boss_victory_full_heal` | `ApplyBattleVictory`（`ResolveBattle` 内） |
+| 隐藏 | `hidden_boss_extra_trinket_roll` | `GrantChapterBoss(..., isHidden)` 第三件 roll |
+| 回归 | `bin/test_roguelike_trinket_effects.lua` + boss/hidden 脚本 | 隐藏 Boss 战斗用 `TestForceCurrentBattleVictory`（bin only） |
+
 ## 6. Web 可观测性约束
 
 ### 6.1 表现必须对齐规则语义

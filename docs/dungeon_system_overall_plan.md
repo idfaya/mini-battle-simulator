@@ -18,7 +18,7 @@
 - **D1.5 — 升级速度 + 数值平衡**：✅ 5e SSOT（`exp_5e` / `battle_exp_reward` / `encounter_level_curve`）；`progression_pacing` / `room_one_shot` 通过。
 - **D2 — 房间事件全套**（dungeon §7.2）：✅ T1～T8（bin + Web `runControls` / `roguelike-dungeon.spec.ts`；`RunMapScene` 楼层网格为增量渲染）。
 - **D3 — Boss 层 + 章节 Trinket + 隐藏层**（dungeon §7.3）：✅ trinket 数据/模块、Boss 发放、事件 `101099` 隐藏层、`battle_bridge` 饰品修正。
-- **D4 — 策划稿同步**（dungeon §6 设计矩阵）：✅ 活跃导航 + `dungeon_design` / `character_progression` / `roguelike_random_battle_parameter_table` 已按地牢口径重写；`design/legacy/` 仅归档。
+- **D4 — 策划稿同步**（dungeon §6 设计矩阵）：✅ `dungeon_design` §3.3/§4.4–§7.3 实现引用；`implementation_guidelines` §5.3–§5.4；`design/legacy/` 仅归档。
 
 ---
 
@@ -321,16 +321,17 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 ### 3.4 Stage D4 — 策划稿维护（与 D2/D3 并行）
 
-> **进度（2026-05-23）**：活跃 `design/` 已与地牢 / 5e EXP 对齐；**D3 落地后**再补 trinket / 隐藏层 / Boss 掉落表段落。
+> **进度（2026-05-23）**：✅ D3 落地后已回写 trinket / 隐藏层 / 事件 / 商店实现引用。
 
 | 文件 | 状态 |
 | --- | --- |
 | `design/legacy/*` | ✅ 归档，禁止维护 |
-| [`design/README.md`](../design/README.md) | ✅ |
-| [`design/dungeon_design.md`](../design/dungeon_design.md) | ✅ §4.2 实现引用 + 回归链接 |
-| [`design/character_progression_design.md`](../design/character_progression_design.md) | ✅ §2 5e partyExp |
+| [`design/README.md`](../design/README.md) | ✅ 摘要含 trinket / 隐藏层 |
+| [`design/dungeon_design.md`](../design/dungeon_design.md) | ✅ §3.3 隐藏层、§4.4–§4.7 实现 + 回归链接、§6–§7 矩阵 |
+| [`design/character_progression_design.md`](../design/character_progression_design.md) | ✅ §2 5e partyExp + trinket 交叉引用 |
 | [`design/roguelike_random_battle_parameter_table.md`](../design/roguelike_random_battle_parameter_table.md) | ✅ 模板池 + budget（非 lane DAG） |
-| trinket / 隐藏层专节 | ⏸️ 待 D3 代码落地后回写 |
+| [`docs/implementation_guidelines.md`](./implementation_guidelines.md) | ✅ §5.3 事件检定、§5.4 trinket / 隐藏层 |
+| [`docs/README.md`](./README.md) | ✅ D2/D3 bin 命令与策划对照表 |
 
 ---
 
@@ -367,17 +368,17 @@ lua bin/test_roguelike_balance.lua --runs=4
 2. ✅ `progression_pacing` / `progression_gate` / `party_exp_levelup` / `room_one_shot`。
 3. ✏️ 持续：压强用 `run_battle_profile.budget`；节奏用 `ENEMY_LEVEL_XP_FACTOR` 与 `PARTY_EXP_SCALE`，勿改模板 `expReward`。
 
-### Stage D2（当前 sprint）
+### Stage D2 — ✅
 
-严格按 §3.2 **D2-T1 → T8**；每完成 T2/T4/T5 可各提交一次；T8 前必须 `cd web && npm run export:lua`。
+§3.2 D2-T1～T8 已落地；`export:lua` + `roguelike-dungeon.spec.ts` 通过。
 
-### Stage D3
+### Stage D3 — ✅
 
-D3-T1..T8：trinket data → trinket.lua → reward 改 → run boss 调用 → 隐藏层入口 → Web → 测试 → 导出。
+trinket 数据/模块、Boss 发放、事件 `101099` 隐藏层闭环、`test_roguelike_hidden_floor.lua`。
 
-### Stage D4
+### Stage D4 — ✅
 
-D3 合并后补 trinket/隐藏层策划段落；与代码 PR 同批。
+策划 / 程序文档与 §3.3、§5.3–§5.4 对齐（2026-05-23）。
 
 > 建议：D1' 先单 PR（T6+T5）；D2 按 T1/T2–T3/T4–T5/T7–T8 拆 PR。
 
@@ -466,8 +467,5 @@ ls web/public/lua/project/roguelike_map_generator.lua     → **不存在**
 
 ## 9. 下一步（执行顺序）
 
-1. **D1' T6**：修 `test_roguelike_act1` / `chapter_success` 与 cleared 通路（§3.1）→ **T5** 全绿。
-2. ~~**D2-T1～T3**~~：events.json + `event_resolver` + `roguelike_event` 检定（✅）。
-3. **D2-T6 → T8**：回归 + Web 网格 / 检定 UI → Playwright。
-4. **D3**：trinket 数据与 Boss/隐藏层（§3.3）。
-5. **D4**：D3 后补策划 trinket/隐藏层专节。
+1. ~~**D1'～D4**~~：地牢骨架、5e EXP、房间事件、trinket/隐藏层、文档同步 — **已完成**（2026-05-23）。
+2. **后续（非本计划阻塞）**：全三章固定种子自动 `chapter_result`；`balance` WinRate；trinket 战斗效果扩面；`design/roguelike_feat_skill_fill_sheet` 等独立排期。

@@ -24,6 +24,8 @@
 | Class / 5e | `design/class_system_design.md` |
 | Run 养成 / partyExp | `design/character_progression_design.md` §2 |
 | 地牢 / 房间 / cleared 通路 | `design/dungeon_design.md` §4.2 |
+| 事件 5e 检定 / 营地 / 商店 | `design/dungeon_design.md` §4.4–§4.6 |
+| 章节 trinket / 隐藏层 | `design/dungeon_design.md` §3.3、§4.7 |
 | 遭遇预算 | `design/roguelike_random_battle_parameter_table.md` |
 
 ## 仓库路径（代码）
@@ -34,7 +36,8 @@
 | 技能 / 被动 | `skills/` |
 | Roguelike | `roguelike/` |
 | Run EXP / 楼层等级 | `config/roguelike/exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua` |
-| 权威配置 | `config/data/*.json` → `config/tables/*.lua`（含 `events.json` → `tables/events.lua`） |
+| 权威配置 | `config/data/*.json` → `config/tables/*.lua`（含 `events.json`、`trinkets.json` → `tables/events.lua`、`tables/trinkets.lua`） |
+| Run trinket 池 | `config/roguelike/run_trinket_config.lua` |
 | 单技能逻辑 | `config/skill/skill_*.lua` |
 | Web 镜像 | `web/public/lua/project/`（`npm run export:lua` 生成） |
 | Lua 回归 | `bin/test_*.lua` |
@@ -54,6 +57,13 @@ lua bin/test_party_exp_levelup.lua
 lua bin/test_roguelike_room_one_shot.lua
 lua bin/test_events_json_loader.lua
 lua bin/test_roguelike_act1.lua
+lua bin/test_roguelike_chapter_success.lua
+lua bin/test_roguelike_event_skill_check.lua
+lua bin/test_roguelike_camp_full_rest.lua
+lua bin/test_roguelike_shop_revive_scroll.lua
+lua bin/test_roguelike_boss_trinket.lua
+lua bin/test_roguelike_trinket_effects.lua
+lua bin/test_roguelike_hidden_floor.lua
 
 # 战斗 / 职业 build
 lua bin/test_single_battle.lua
