@@ -37,7 +37,7 @@ cd web && npm run export:lua && npm run test:playwright
 ## Documentation
 
 - **`design/`** — 策划设计文档（玩法、数值、关卡、职业）。导航：`design/README.md`
-- **`docs/`** — 程序开发文档（实现、工程约束、落地计划）。导航：`docs/README.md`
+- **`docs/`** — 程序开发文档（实现、工程约束、落地计划）。导航：`docs/README.md`；Run 养成 / 地牢 SSOT 见 `docs/implementation_guidelines.md` §5
 - **`design/legacy/`** — 过时策划归档：**禁止阅读、禁止维护**
 - 改代码前：策划规则见 `design/`，实现口径见 `docs/implementation_guidelines.md` 与 `docs/*_IMPLEMENTATION.md`
 
@@ -83,3 +83,4 @@ When changing skill behavior:
 
 - Refresh web Lua mirror: `cd web && npm run export:lua`
 - Web E2E（Playwright）: `cd web && npm run test:playwright`
+- Roguelike 文档回归：`lua bin/test_roguelike_room_one_shot.lua`、`lua bin/test_roguelike_progression_pacing.lua`

@@ -34,6 +34,8 @@ npm run dev:full    # export:lua + Vite 开发服
 lua bin/test_single_battle.lua
 lua bin/test_roguelike_act1.lua
 lua bin/test_party_exp_levelup.lua
+lua bin/test_roguelike_progression_pacing.lua
+lua bin/test_roguelike_room_one_shot.lua
 ```
 
 ### Lua 改动后的必做步骤

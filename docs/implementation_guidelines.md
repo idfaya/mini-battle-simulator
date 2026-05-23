@@ -138,6 +138,25 @@
 - 若某职业下一等级是 `fixed` 节点，该固定 `Feat` 也必须进入候选池。
 - 否则职业会在成长节点上漏掉关键底盘能力，导致 Build 状态不完整。
 
+### 5.1 队伍 EXP（5e SSOT，2026-05）
+
+| 模块 | 路径 | 说明 |
+| --- | --- | --- |
+| PHB 阈值 / 怪物 CR XP | `config/roguelike/exp_5e.lua` | `partyExp` 升级阈值；`MONSTER_XP_BY_CR` |
+| 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `ENEMY_LEVEL_XP_FACTOR`（当前 `0.58`）；单场封顶见 `GetExpToNextLevel` |
+| 阈值转发 | `config/roguelike/level_curve.lua` | 转发 `exp_5e`，供 FeatPicker |
+| 楼层怪物等级 | `config/roguelike/encounter_level_curve.lua` | 第一章普通战 F1–F5 → Lv1–Lv5；精英/Boss +1/+2 |
+| 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 用 `max(战斗等级, GetFloorExpLevel)`；**不读**模板 `expReward` |
+
+- 第一章 `run_chapter_config` `targetMaxLevel = 8`（与低怪等级下实测节奏一致，非 Boss 前 Lv12）。
+- 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua`，勿在 `run_battle_template.expReward` 手填。
+
+### 5.2 房间一次性（dungeon §4.2）
+
+- `leaveNodeBackToMap` 对非 shop 房写 `clearedRoomIds`。
+- `enterNode` 对已 cleared 的 `battle_*` / `boss` / `event` 仅作通路（`phase=map`，不二次开战/弹事件）。
+- 回归：`bin/test_roguelike_room_one_shot.lua`。
+
 ## 6. Web 可观测性约束
 
 ### 6.1 表现必须对齐规则语义

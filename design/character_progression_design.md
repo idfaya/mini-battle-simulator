@@ -25,6 +25,7 @@
 - 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`；模板字段 `expReward` 仅作遗留标注，运行时不再使用。
 - 第一章**普通怪等级**：F1–F5 → Lv1–Lv5（`encounter_level_curve.lua`，普通战不按 profile 抬高）；精英/Boss 在楼层基线 +1/+2。EXP 等级系数见 `battle_exp_reward.lua` 的 `ENEMY_LEVEL_XP_FACTOR`。
 - 第一章**队伍** `targetMaxLevel = 8`（`run_chapter_config`），与 5e 遭遇 + 低怪等级下的实测节奏一致；不再以 Boss 前 Lv12 为硬指标。
+- 程序实现与回归：[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5.1；节奏模拟 [`bin/test_roguelike_progression_pacing.lua`](../bin/test_roguelike_progression_pacing.lua)。
 
 ---
 

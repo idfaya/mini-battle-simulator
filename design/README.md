@@ -39,6 +39,6 @@ minibattle_combat_design_document_v_1.md     ← 术语 + 战场硬规则
 ## 产品口径摘要
 
 - **战斗**：3+3、自动回合、波次清场立刷、单场无成长。
-- **养成**：`partyExp` + Feat 三选一；无职业卡、无招募扩编。
+- **养成**：`partyExp`（5e PHB 阈值）+ Feat 三选一；无职业卡、无招募扩编。第一章普通怪 F1–F5 = Lv1–Lv5，队伍章末约 Lv6–8。
 - **地牢**：3×5 房间迷宫；精英装备 + 概率 bless。
 - **难度**：仅 `budget.difficulty` + `budget.pressureFactor`。

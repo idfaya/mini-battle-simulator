@@ -1,6 +1,7 @@
-# Dungeon 系统整体开发计划（基于 2026-05-22 实测）
+# Dungeon / Run 系统整体开发计划（mini-battle-simulator，2026-05 实测）
 
-> 上位规则：[`design/dungeon_design.md`](../../design/dungeon_design.md) + [`design/character_progression_design.md`](../../design/character_progression_design.md) + [`AGENTS.md`](../../AGENTS.md)
+> 上位规则：[`design/dungeon_design.md`](../design/dungeon_design.md) + [`design/character_progression_design.md`](../design/character_progression_design.md) + [`AGENTS.md`](../AGENTS.md)  
+> 程序 SSOT 摘要：[`implementation_guidelines.md`](./implementation_guidelines.md) §5.1–5.2
 >
 > 取代既有计划（已归档至 `design/legacy/dungeon_system_dev_plan.md`，禁止维护）。架构决策（AD-1..AD-11、AD-A..AD-G）继续沿用，本文不再重复。
 
@@ -13,10 +14,10 @@
 按 dungeon_design §7 推进 4 个阶段，每阶段独立验收（bin 回归 + Web Playwright），Lua 改动后必须 `cd web; npm run export:lua` 刷新 [`web/public/lua/project/`](../../web/public/lua/project/)：
 
 - **D1 — 地牢生成骨架 + 收尾**（dungeon §7.1）：迷宫生成、3×5 章节配置、Run 切换、楼梯 phase、bin 回归已落地；seed=10102 的 floor=4 wipe 转入 D1.5 平衡处理。
-- **D1.5 — 升级速度 + 数值平衡**（新增）：按当前迷宫每章约 13 场战斗重设 EXP 曲线与 `expReward`，硬约束单场战斗最多升 1 个 partyLevel。
+- **D1.5 — 升级速度 + 数值平衡**：✅ 已落地 5e SSOT（`exp_5e` / `battle_exp_reward` / `encounter_level_curve`）；模板 `expReward` 仅遗留字段；单场 EXP 有封顶。
 - **D2 — 房间事件全套**（dungeon §7.2）：5e 检定 / 文字事件 / 营地一键 / 商店扩展（含复活卷轴）/ Web 房间网格视图——**未启动**。
 - **D3 — Boss 层 + 章节 Trinket + 隐藏层**（dungeon §7.3）——**未启动**。
-- **D4 — 文档同步与下游清理**（dungeon §6 影响矩阵的 design/ 修订）——**未启动**。
+- **D4 — 文档同步与下游清理**（dungeon §6 影响矩阵的 design/ 修订）——**部分完成**（`docs/`、`character_progression_design` §2、`dungeon_design` §4.2 已与 5e EXP / 怪物 1–5 / cleared 通路对齐）。
 
 ---
 
@@ -38,6 +39,9 @@
 | 进度门单测 | ✅ | [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) 通过 |
 | 楼梯弹窗 phase | ✅ | commit `82f6dca`：[`roguelike_run.lua`](../../roguelike/roguelike_run.lua) 进入 stair_down/stair_up 改设 `state.phase="stair"` + `state.stairState`；新增 `StairUse` / `StairLeave` API；[`roguelike_snapshot.lua`](../../roguelike/roguelike_snapshot.lua) 暴露 `stairState` 字段供 UI/测试渲染弹窗（dungeon §4.2「cleared 房仅作通路」+ 用户最新指示「楼梯房可不上下楼直接路过」） |
 | chapter_success 通关 | ✅ | commit `82f6dca`：复用 act1 PREFERENCE+BFS 评分体系修复 floor=4 cleared 走廊死循环；camp 增加 short_rest fallback；seed=10101 完整通关 chapterId=103, boss_defeated |
+| 5e 队伍 EXP | ✅ | `exp_5e.lua` + `battle_exp_reward.lua` + `grantBattleExp`；`progression_gate` / `progression_pacing` / `party_exp_levelup` |
+| 第一章怪物等级 | ✅ | `encounter_level_curve.lua`：普通 F1–F5 → Lv1–Lv5；`targetMaxLevel=8`（`run_chapter_config` 101） |
+| 房间一次性（战斗/事件） | ✅ | `enterNode` cleared 通路；`bin/test_roguelike_room_one_shot.lua` |
 
 ### 2.2 D1 收尾未完结（本计划即时修复）
 
@@ -56,20 +60,26 @@
 | D3 Trinket / Boss 大额奖励 / 隐藏层入口 | ⏸️ | 无 trinket 数据 / 模块；Boss 奖励量级未对齐 dungeon §4.7；隐藏层入口未挂事件 |
 | D4 文档同步 | ✅ | 旧 Run 稿已移入 `design/legacy/`；活跃导航见 `design/README.md` |
 
-### 2.4 当前迷宫战斗次数与 EXP 问题
+### 2.4 当前迷宫战斗次数与 EXP（2026-05 实测）
 
-统计口径：`DungeonGenerator.Generate(seed, chapter)`，seed `10001..10200`，统计每章全部房间中的 `battle_normal / battle_elite / boss`。
+统计口径：`DungeonGenerator.Generate(seed, chapter)`，seed `10001..10200`；EXP 由 `battle_exp_reward.ComputeVictoryExp`（5e 遭遇 + 楼层怪物等级系数）。
 
-| 章节 | 平均总战斗 | 最小 | 最大 | 平均普通 | 平均精英 | Boss | 楼层均值 `[F1,F2,F3,F4,F5]` |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 101 | 13.12 | 6 | 19 | 9.96 | 2.15 | 1.00 | `[2.99,2.69,3.23,3.21,1.00]` |
-| 102 | 12.74 | 7 | 19 | 9.70 | 2.04 | 1.00 | `[2.73,2.62,3.26,3.12,1.00]` |
-| 103 | 12.47 | 5 | 19 | 9.31 | 2.16 | 1.00 | `[2.56,2.56,3.21,3.15,1.00]` |
+| 章节 | 平均总战斗 | 第一章队伍终局 Lv（模拟） | 怪物等级（101 普通战） |
+| --- | ---: | ---: | --- |
+| 101 | 13.12 | 约 **Lv7**（`targetMaxLevel=8`） | F1–F5 → **Lv1–Lv5** |
+| 102 | 12.74 | 按章 `targetMaxLevel` 曲线 | 按 `targetMaxLevel` 插值 |
+| 103 | 12.47 | 同上 | 同上 |
 
-结论：
-- 完整 3 章约 38~39 场战斗，10 级上限只需要 9 次队伍等级提升，平均约每 4 场战斗升 1 次。
-- 当前 `LEVEL_STEP_EXP=10`，而 `expReward=20~50`，单场会跨 2~5 个等级阈值，不符合「单场战斗不要升超过 1 级」。
-- D1.5 必须同时改 `level_curve.lua` 与 `run_battle_template.lua`，不能只降低战斗难度。
+**已实现（取代旧 `LEVEL_STEP_EXP` + 模板 `expReward`）**：
+
+| 文件 | 职责 |
+| --- | --- |
+| [`exp_5e.lua`](../../config/roguelike/exp_5e.lua) | PHB 累计阈值；DMG 按 CR 的 XP |
+| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | 胜利 EXP；`ENEMY_LEVEL_XP_FACTOR=0.58`；单场封顶 |
+| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | 战斗等级；101 普通战严格按楼层 1–5 |
+| [`level_curve.lua`](../../config/roguelike/level_curve.lua) | 转发 `exp_5e` 供 FeatPicker |
+
+策划口径见 [`character_progression_design.md`](../design/character_progression_design.md) §2。
 
 ---
 
@@ -154,36 +164,30 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 通过条件：5 个 bin 全 0 退出。
 
-### 3.1.5 Stage D1.5 — 升级速度 + 数值平衡（新增）
+### 3.1.5 Stage D1.5 — 升级速度 + 数值平衡（✅ 已落地）
 
-> **目标**：按当前迷宫战斗次数重设成长节奏；任何单场战斗的 `partyLevelDelta` 必须 `<= 1`。
+> **状态（2026-05）**：5e 队伍 EXP 与第一章怪物 1–5 已接入；`bin/test_roguelike_progression_pacing.lua` 断言 101 章终局约 Lv4–Lv8。
 
-#### 配置层
+#### 配置层（当前 SSOT）
 
-| 文件 | 操作 | 内容 |
+| 文件 | 状态 | 内容 |
 | --- | --- | --- |
-| [`config/roguelike/level_curve.lua`](../../config/roguelike/level_curve.lua) | ✏️ | `LEVEL_STEP_EXP=20`；成长展示硬上限按 10 级校准 |
-| [`config/roguelike/run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) | ✏️ | 下调 `expReward`：普通 4/4/5，精英 6/7，Boss 8，事件战 3/4 |
-| [`config/roguelike/run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✏️ | 只通过 `budget.difficulty` + `budget.pressureFactor` 调整压强；禁止引入额外倍率 |
-
-#### 成长里程碑
-
-| 目标等级 | 累计 EXP | 预期位置 |
-| --- | ---: | --- |
-| Lv2 | 20 | Act1 F2 前后 |
-| Lv3 | 40 | Act1 F3/F4，触发子职业选择 |
-| Lv5 | 80 | Act2 前半，主强度峰值 |
-| Lv7 | 120 | Act2 Boss / Act3 开局 |
-| Lv9 | 160 | Act3 中后段 |
-| Lv10 | 180 | Act3 Boss / 隐藏层前后 |
+| [`exp_5e.lua`](../../config/roguelike/exp_5e.lua) | ✅ | PHB `CHARACTER_LEVEL_EXP`；`MONSTER_XP_BY_CR`；`PARTY_EXP_SCALE` |
+| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | ✅ | `ComputeVictoryExp`；`ENEMY_LEVEL_XP_FACTOR=0.58` |
+| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 101 普通 F1–F5 = Lv1–Lv5；精英/Boss 楼层 +1/+2 |
+| [`level_curve.lua`](../../config/roguelike/level_curve.lua) | ✅ | 转发 `exp_5e` |
+| [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` |
+| [`run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) | 遗留 | `expReward` 字段**运行时不用**；勿再据此调节奏 |
+| [`run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✏️ 持续 | 压强仅 `budget.difficulty` + `budget.pressureFactor` |
 
 #### 测试
 
-| 文件 | 操作 | 内容 |
+| 文件 | 状态 | 内容 |
 | --- | --- | --- |
-| [`bin/test_roguelike_progression_pacing.lua`](../../bin/test_roguelike_progression_pacing.lua) | 🆕 | 断言所有 `expReward <= 20`，任意单场 `partyLevelDelta <= 1`，完整 3 章最终 Lv9~Lv10 |
-| [`bin/test_roguelike_balance.lua`](../../bin/test_roguelike_balance.lua) | ✏️ | 输出每 run 战斗次数、partyLevel 曲线、单战 level delta；`delta > 1` 失败 |
-| [`bin/test_roguelike_act1.lua`](../../bin/test_roguelike_act1.lua) | ✏️ | 固定覆盖 seed `10101 / 10102`，seed=10102 不再因 floor=4 等级断层必 wipe |
+| [`bin/test_roguelike_progression_pacing.lua`](../../bin/test_roguelike_progression_pacing.lua) | ✅ | 101 模拟终局 Lv4–Lv8；5e 阈值递增 |
+| [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) | ✅ | FeatPicker 与 5e 阈值 |
+| [`bin/test_party_exp_levelup.lua`](../../bin/test_party_exp_levelup.lua) | ✅ | 战斗 → `partyExp` → reward 链 |
+| [`bin/test_roguelike_room_one_shot.lua`](../../bin/test_roguelike_room_one_shot.lua) | ✅ | cleared 战斗/事件不重触发 |
 
 ### 3.2 Stage D2 — 房间事件全套（dungeon §7.2）
 
@@ -208,7 +212,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 | [`roguelike/roguelike_event.lua`](../../roguelike/roguelike_event.lua) | ✏️ | `ResolveOption` 检测 option.skillCheck → 路由 event_resolver；按 4 档 result 取 payload；扩展现有 5 类 resultType |
 | [`roguelike/roguelike_camp.lua`](../../roguelike/roguelike_camp.lua) | ✏️ | 简化为只处理 `revive_full_rest`；删除 `grant_blessing` / `revive_one` 旧分支 |
 | [`roguelike/roguelike_shop.lua`](../../roguelike/roguelike_shop.lua) | ✏️ | 新增 `applyReviveScroll(payload.healPct=0.5)`；保留库存不刷新（dungeon §4.6） |
-| [`roguelike/roguelike_run.lua`](../../roguelike/roguelike_run.lua) | ✏️ | 验证 enterNode shop 分支：visited 房间允许重入（visited 不影响 shop phase 启动）；leaveNodeBackToMap 已正确（shop 不写 cleared） |
+| [`roguelike/roguelike_run.lua`](../../roguelike/roguelike_run.lua) | ✏️ | shop 可重复进入；cleared 的 battle/event 在 `enterNode` 仅作通路（✅）；`leaveNodeBackToMap` shop 不写 cleared |
 
 #### Web 层
 
@@ -224,7 +228,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 | 文件 | 操作 | 内容 |
 | --- | --- | --- |
 | [`bin/test_roguelike_event_skill_check.lua`](../../bin/test_roguelike_event_skill_check.lua) | 🆕 | 1d20+mod vs DC 4 档分布（10000 次）；零风险跳骰 |
-| [`bin/test_roguelike_room_one_shot.lua`](../../bin/test_roguelike_room_one_shot.lua) | 🆕 | 战斗/事件/营地房 cleared 后再进入仅作通路；shop 可重复进入 |
+| [`bin/test_roguelike_room_one_shot.lua`](../../bin/test_roguelike_room_one_shot.lua) | ✅ | 战斗/事件 cleared 后再进入仅作通路；shop 可重复进入 |
 | [`bin/test_roguelike_camp_full_rest.lua`](../../bin/test_roguelike_camp_full_rest.lua) | 🆕 | 全队 heal 100% + 清全队负面 + 复活 1 |
 | [`web/tests/roguelike-dungeon.spec.ts`](../../web/tests/roguelike-dungeon.spec.ts) | 🆕 | 完整下钻 e2e（多层 + 楼梯 + shop 二次 + 5e 检定 UI） |
 | [`web/tests/roguelike-act1.spec.ts`](../../web/tests/roguelike-act1.spec.ts) | ✏️ | preferredTypes 删 recruit；`chooseNodeAndEnter` 改为 room + stair |
@@ -296,8 +300,10 @@ lua bin/test_roguelike_balance.lua --runs=4
 | AD-OVR-4 | D2 的 `events.json` 沿用平铺三层架构（data/tables/skills 同模式），不复用现有 `run_event_config.lua` 的 Lua 内联表 | 用户偏好：静态配置强偏好 JSON / 单一事实来源 |
 | AD-OVR-5 | D2 的复活卷轴定价规则：常规章 ×3 普通装备价格，章末 ×4；与 dungeon §4.6「高额金币」对齐 | 防止商店复活刷子；金币只来自战斗（dungeon §9 风险对策） |
 | AD-OVR-6 | D3 trinket 不进 `equipmentIds`，独立 `state.trinketIds`；展示与装备系统隔离 | 与 DD1 trinket 文化对齐；UI 单独区域突出"质变"奖励 |
-| AD-OVR-7 | D1.5 采用 `LEVEL_STEP_EXP=20` + 单战 `expReward<=8` 的低粒度 EXP 模型 | 当前迷宫完整 3 章约 38~39 场战斗；9 次升级需要平均约 4 场战斗升 1 级 |
-| AD-OVR-8 | 单战最多升 1 级作为硬验收，不依赖 UI 节流掩盖多级跨越 | 根因必须在 EXP 曲线和奖励配置解决，避免连续 Feat Picker 和战力暴涨 |
+| AD-OVR-7 | ~~`LEVEL_STEP_EXP=20` + 模板 `expReward`~~ → **5e SSOT**（`exp_5e` + `battle_exp_reward` + 楼层等级系数） | 101 章约 13 战 → 队伍 Lv7；`targetMaxLevel=8` |
+| AD-OVR-8 | 单场 EXP 封顶（`battle_exp_reward` 按 `GetExpToNextLevel` 与怪物等级放宽 cap） | 避免一场战斗 raw 掉落跨多档阈值 |
+| AD-OVR-9 | 101 普通怪等级 = 楼层深度（1–5），不按 profile 抬高 | 保低难度；EXP 靠 `ENEMY_LEVEL_XP_FACTOR` 维持升级 |
+| AD-OVR-10 | cleared `battle_*` / `event` 在 `enterNode` 短路为通路 | 对齐 dungeon §4.2；`room_one_shot` 回归 |
 
 ---
 
@@ -311,13 +317,11 @@ lua bin/test_roguelike_balance.lua --runs=4
 4. ✏️ **T4** [`bin/test_roguelike_chapter_success.lua`](../../bin/test_roguelike_chapter_success.lua) `pickAggressiveNode` prio 调整。
 5. 🟢 **T5** `cd web; npm run export:lua` → 跑 5 bin → 任何失败回到对应步骤修。
 
-### Stage D1.5
+### Stage D1.5（✅ 已完成，后续仅微调系数）
 
-1. ✏️ **T1** [`config/roguelike/level_curve.lua`](../../config/roguelike/level_curve.lua) 改为 20 EXP/级，并校准 10 级上限展示。
-2. ✏️ **T2** [`config/roguelike/run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) 按 §3.1.5 新表下调 `expReward`。
-3. ✏️ **T3** [`config/roguelike/run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) 用 budget/pressure 微调 seed=10102 floor=4 压强。
-4. 🆕 **T4** 新增 `bin/test_roguelike_progression_pacing.lua`，并扩展 `test_roguelike_balance.lua` 的等级曲线输出。
-5. 🟢 **T5** 跑 seed `10101 / 10102` + `balance --runs=20`；任意单战升超过 1 级即失败。
+1. ✅ `exp_5e.lua` / `battle_exp_reward.lua` / `encounter_level_curve.lua` / `grantBattleExp`。
+2. ✅ `progression_pacing` / `progression_gate` / `party_exp_levelup` / `room_one_shot`。
+3. ✏️ 持续：压强用 `run_battle_profile.budget`；节奏用 `ENEMY_LEVEL_XP_FACTOR` 与 `PARTY_EXP_SCALE`，勿改模板 `expReward`。
 
 ### Stage D2
 

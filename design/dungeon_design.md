@@ -89,7 +89,9 @@ Floor = Maze(Room ⇄ Room)
 
 - 进入未探索房间 → 触发事件 → 房间状态置为 `cleared`。
 - 再次进入 `cleared` 房间：仅作通路，不再触发事件 / 战斗。
-- **唯一例外**：商店房保留库存，可重复进入购物（详见 §4.6）。
+- **实现**：[`roguelike/roguelike_run.lua`](../roguelike/roguelike_run.lua) `enterNode` 检测 `FloorState.IsRoomCleared`；`battle_normal` / `battle_elite` / `boss` / `event` 重入保持 `phase=map`，不二次开战/弹事件（回归 [`bin/test_roguelike_room_one_shot.lua`](../bin/test_roguelike_room_one_shot.lua)）。
+- **程序口径**：[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5.2。
+- **唯一例外**：商店房保留库存，可重复进入购物（详见 §4.6）；shop 离开时不写 cleared。
 
 ### 4.3 房间类型与权重
 
