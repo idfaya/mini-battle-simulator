@@ -1,8 +1,9 @@
 local ConfigJsonLoader = require("config.json_loader")
-local SkillConfig = require("config.tables.skills")
 local ClassRoleConfig = require("config.tables.classes")
-local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local FeatBuildConfig = require("config.tables.feats")
 local Ability5e = require("modules.ability_5e")
+local HeroBuild = require("modules.hero_build")
+local SkillRuntime = require("modules.skill_runtime")
 
 ---@class EnemyAbilityScores
 ---@field str integer
@@ -42,7 +43,6 @@ local EnemyData = {}
 
 local enemyData = {}
 local isLoaded = false
-local skillConfigInited = false
 
 ---@type table<integer, string>
 local MONSTER_TYPE_NAMES = {
@@ -86,77 +86,90 @@ local MONSTER_TYPE_TEMPLATES = {
     [2] = { acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
 }
 
-local function BuildConfiguredSkillIds(enemy)
-    local result = {}
-    local seen = {}
-
-    local function Add(skillId)
-        if not skillId or seen[skillId] then
-            return
-        end
-        seen[skillId] = true
-        table.insert(result, skillId)
-    end
-
-    for _, skillId in ipairs(enemy.SkillIDs or {}) do
-        Add(skillId)
-    end
-
-    return result
-end
-
-local function resolveSkillTypeFromConfigs(skillId, skillConfig)
-    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
-    if runtimeEntry then
-        local runtimeData = runtimeEntry.runtimeData or {}
-        if runtimeData.skillType ~= nil then
-            return runtimeData.skillType, runtimeData.skillCost or 0
-        end
-        if runtimeEntry.runtimeKind == "passive" then
-            return E_SKILL_TYPE_PASSIVE, 0
-        end
-        if runtimeEntry.runtimeKind == "active" then
-            return E_SKILL_TYPE_ACTIVE, 0
-        end
-    end
-
-    local resolvedType = E_SKILL_TYPE_PASSIVE
-    local resolvedCost = 0
-    if skillConfig then
-        if skillConfig.skillType == 1 then
-            resolvedType = E_SKILL_TYPE_NORMAL
-        elseif skillConfig.skillType == 2 then
-            resolvedType = E_SKILL_TYPE_ACTIVE
-        elseif skillConfig.skillType == 3 then
-            resolvedType = E_SKILL_TYPE_LIMITED
-            resolvedCost = skillConfig.skillCost or 100
-        elseif skillConfig.skillType == 4 then
-            resolvedType = E_SKILL_TYPE_PASSIVE
-        end
-    elseif skillId >= 800010000 and skillId < 800013000 then
-        local lastDigit = (math.floor(skillId / 100)) % 10
-        if lastDigit == 1 or lastDigit == 2 then
-            resolvedType = E_SKILL_TYPE_NORMAL
-        elseif lastDigit >= 3 then
-            resolvedType = E_SKILL_TYPE_LIMITED
-            resolvedCost = 100
-        end
-    end
-    return resolvedType, resolvedCost
-end
-
-local function resolveSkillDisplayName(skillId, skillConfig)
-    local runtimeEntry = SkillRuntimeConfig.Get(skillId)
-    if runtimeEntry and runtimeEntry.name and runtimeEntry.name ~= "" then
-        return runtimeEntry.name
-    end
-    if skillConfig and skillConfig.name and skillConfig.name ~= "" then
-        return skillConfig.name
-    end
-    return "Skill_" .. tostring(skillId)
-end
-
 local ENEMY_LEVEL_MAX = 20
+
+--- 技能解锁等级：普通怪=战斗等级；精英 +1、Boss +2（design/roguelike_monster_system_design.md §5.2）。
+local function resolveEnemySkillUnlockLevel(battleLevel, monsterType)
+    local lv = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(battleLevel) or 1))
+    local mt = tonumber(monsterType) or 0
+    if mt == 1 then
+        lv = lv + 1
+    elseif mt == 2 then
+        lv = lv + 2
+    end
+    return math.max(1, math.min(ENEMY_LEVEL_MAX, lv))
+end
+
+local function sortFeatDefs(list)
+    table.sort(list, function(a, b)
+        local aid = tonumber(a and a.id) or 0
+        local bid = tonumber(b and b.id) or 0
+        if aid ~= bid then
+            return aid < bid
+        end
+        return tostring(a and a.name or "") < tostring(b and b.name or "")
+    end)
+    return list
+end
+
+--- 与 HeroData 一致：各 choiceGroup 取排序后第一项作为敌人默认分支。
+local function collectCanonicalEnemyFeatIds(classId, buildLevel)
+    local selected = {}
+    if not ClassRoleConfig.GetProgression(classId) then
+        return selected
+    end
+    local maxLevel = math.max(1, tonumber(buildLevel) or 1)
+    for stageLevel = 1, maxLevel do
+        local entry = ClassRoleConfig.GetLevelEntry(classId, stageLevel)
+        if entry and entry.choiceGroup then
+            local pool = sortFeatDefs(FeatBuildConfig.GetFeatsByLevel(classId, stageLevel, entry.choiceGroup) or {})
+            if pool[1] and pool[1].id then
+                selected[#selected + 1] = pool[1].id
+            end
+        end
+    end
+    return selected
+end
+
+local function applyBuildStatMods(target, buildState)
+    if not buildState or type(buildState.statMods) ~= "table" then
+        return
+    end
+    for key, delta in pairs(buildState.statMods) do
+        local numDelta = tonumber(delta) or 0
+        if numDelta ~= 0 then
+            local resolvedKey = (key == "atk") and "hit" or key
+            if resolvedKey == "maxHp" then
+                target.hp = math.max(1, (target.hp or 1) + numDelta)
+            else
+                target[resolvedKey] = (tonumber(target[resolvedKey]) or 0) + numDelta
+            end
+        end
+    end
+    target.atk = target.hit or target.atk
+end
+
+---@return table|nil buildState
+---@return integer buildLevel
+---@return integer[] selectedFeatIds
+local function compileEnemyBuild(enemy, battleLevel)
+    local classId = tonumber(enemy.Class) or 0
+    local buildLevel = resolveEnemySkillUnlockLevel(battleLevel or enemy.Level or 1, enemy.MonsterType)
+    local selectedFeatIds = {}
+    if type(enemy.FeatIDs) == "table" and #enemy.FeatIDs > 0 then
+        for _, featId in ipairs(enemy.FeatIDs) do
+            local id = tonumber(featId) or 0
+            if id > 0 then
+                selectedFeatIds[#selectedFeatIds + 1] = id
+            end
+        end
+    else
+        selectedFeatIds = collectCanonicalEnemyFeatIds(classId, buildLevel)
+    end
+    local buildState = HeroBuild.TryCompileBuild(classId, buildLevel, selectedFeatIds)
+    return buildState, buildLevel, selectedFeatIds
+end
+
 ---@type integer[]
 local ENEMY_TIER_STARTS = { 1, 5, 11, 17, ENEMY_LEVEL_MAX + 1 }
 
@@ -329,14 +342,11 @@ local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
     }
 end
 
-local function EnemyHasSkills(enemy)
+local function EnemyHasClassBuild(enemy)
     if not enemy then
         return false
     end
-    if enemy.SkillIDs and #enemy.SkillIDs > 0 then
-        return true
-    end
-    return false
+    return ClassRoleConfig.GetProgression(tonumber(enemy.Class) or 0) ~= nil
 end
 
 function EnemyData.Init()
@@ -433,11 +443,6 @@ function EnemyData.GetChallengeMeta(enemyId)
 end
 
 function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
-    if not skillConfigInited then
-        SkillConfig.Init()
-        skillConfigInited = true
-    end
-
     local enemy = EnemyData.GetEnemy(enemyId)
     if not enemy then
         print(string.format("[EnemyData] Enemy not found: %s", tostring(enemyId)))
@@ -499,38 +504,23 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         _quality = quality,
     }
 
-    local skillList = {}
-    local skillsConfig = {}
-    local processedSkillIds = {}
-
-    local function AddSkill(skillId)
-        if not skillId or processedSkillIds[skillId] then
-            return
+    local buildState, buildLevel, buildFeatIds = compileEnemyBuild(enemy, level)
+    if buildState then
+        applyBuildStatMods(heroData, buildState)
+        heroData.skillsConfig = SkillRuntime.BuildSkillsConfig(buildState)
+        heroData.skills = {}
+        for _, cfg in ipairs(heroData.skillsConfig) do
+            heroData.skills[#heroData.skills + 1] = {
+                skillId = cfg.skillId,
+                level = tonumber(cfg.level) or 1,
+            }
         end
-
-        processedSkillIds[skillId] = true
-        table.insert(skillList, skillId)
-
-        local skillConfig = SkillConfig.GetSkillConfig(skillId)
-        local skillType, skillCost = resolveSkillTypeFromConfigs(skillId, skillConfig)
-
-        table.insert(skillsConfig, {
-            skillId = skillId,
-            skillType = skillType,
-            name = resolveSkillDisplayName(skillId, skillConfig),
-            skillCost = skillCost,
-        })
+        heroData.buildFeatIds = buildFeatIds
+        heroData._buildLevel = buildLevel
+    else
+        heroData.skills = {}
+        heroData.skillsConfig = {}
     end
-
-    for _, skillId in ipairs(BuildConfiguredSkillIds(enemy)) do
-        AddSkill(skillId)
-    end
-
-    heroData.skills = {}
-    for _, skillId in ipairs(skillList) do
-        table.insert(heroData.skills, { skillId = skillId, level = 1 })
-    end
-    heroData.skillsConfig = skillsConfig
 
     return heroData
 end
@@ -574,7 +564,7 @@ function EnemyData.GetAllNormalEnemyIds()
     EnemyData.Init()
     local result = {}
     for id, enemy in pairs(enemyData) do
-        if type(id) == "number" and enemy.MonsterType == 0 and EnemyHasSkills(enemy) then
+        if type(id) == "number" and enemy.MonsterType == 0 and EnemyHasClassBuild(enemy) then
             table.insert(result, id)
         end
     end
@@ -585,7 +575,7 @@ function EnemyData.GetAllBossIds()
     EnemyData.Init()
     local result = {}
     for id, enemy in pairs(enemyData) do
-        if type(id) == "number" and enemy.MonsterType == 2 and EnemyHasSkills(enemy) then
+        if type(id) == "number" and enemy.MonsterType == 2 and EnemyHasClassBuild(enemy) then
             table.insert(result, id)
         end
     end

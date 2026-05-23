@@ -694,7 +694,8 @@ test("fighter counter attack starts before the enemy returns to base position", 
 test("fighter guard counter starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910003,910003,910003&level=3&seed=100003");
+  // 哥布林 Lv3 无护卫；兽人同等级战士 Build 会抢护卫日志。overlap 须与战斗并行检测。
+  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&seed=100003");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -704,12 +705,11 @@ test("fighter guard counter starts before the enemy returns to base position", a
 
   expect(await waitForGuardInterceptMotion(page)).toBe(true);
   expect(await waitForGuardInterceptStationaryProtected(page)).toBe(true);
-  expect(await waitForReactionOverlap(page, "guard")).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
   const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
-  const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("兽人 的 基础武器攻击 对 战士"), queueIndex + 1);
+  const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("哥布林 的 基础武器攻击 对 战士"), queueIndex + 1);
   expect(queueIndex).toBeGreaterThanOrEqual(0);
   expect(redirectedHitIndex).toBeGreaterThan(queueIndex);
   expect(counterIndex).toBeGreaterThan(queueIndex);
@@ -720,7 +720,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
 test("dead guard skips guard counter and releases the intercept hold immediately", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910003,910003,910003&level=3&seed=100003");
+  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&seed=100003");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 

@@ -996,6 +996,27 @@ local function collectCanonicalFeatSelections(classId, level)
     return collectCanonicalBuildSelections(classId, level)
 end
 
+local function resolveClassUnitBuildLevel(promotionStage, combatLevel)
+    local stage = normalizePromotionStage(promotionStage)
+    local resolvedCombatLevel = math.max(1, tonumber(combatLevel) or getPromotionStageLevel(stage))
+    local stageBuildLevel = getPromotionStageBuildLevel(stage)
+    return math.max(stageBuildLevel, resolvedCombatLevel)
+end
+
+local function resolveClassUnitBuildState(classId, buildLevel, selectedFeatIds)
+    local resolvedClassId = tonumber(classId) or 0
+    local resolvedLevel = math.max(1, tonumber(buildLevel) or 1)
+    local featIds = cloneArray(selectedFeatIds or {})
+    local buildState = HeroBuild.TryCompileBuild(resolvedClassId, resolvedLevel, featIds)
+    if buildState then
+        return buildState, featIds
+    end
+
+    local canonicalFeatIds = collectCanonicalFeatSelections(resolvedClassId, resolvedLevel)
+    buildState = HeroBuild.TryCompileBuild(resolvedClassId, resolvedLevel, canonicalFeatIds)
+    return buildState, canonicalFeatIds
+end
+
 local function buildPromotionAbilityScores(classId, heroId, promotionStage)
     local base = getHeroAbilityScores(heroId, classId)
     local result = {
@@ -1063,7 +1084,7 @@ function HeroData.GetClassCardSummaryKey(classId, promotionStage)
     return string.format("class_%d_%s", tonumber(classId) or 0, normalizePromotionStage(promotionStage))
 end
 
-function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
+function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel, options)
     Init()
     local resolvedClassId = tonumber(classId) or 0
     local heroId = HeroData.GetRepresentativeHeroId(resolvedClassId)
@@ -1071,14 +1092,18 @@ function HeroData.BuildClassUnitHeroData(classId, promotionStage, explicitLevel)
         return nil
     end
 
+    options = options or {}
     local stage = normalizePromotionStage(promotionStage)
     local combatLevel = math.floor(tonumber(explicitLevel) or getPromotionStageLevel(stage))
     combatLevel = math.max(1, combatLevel)
-    local buildLevel = getPromotionStageBuildLevel(stage)
+    local buildLevel = resolveClassUnitBuildLevel(stage, combatLevel)
     local abilityScores = buildPromotionAbilityScores(resolvedClassId, heroId, stage)
-    local selectedFeatIds = collectCanonicalFeatSelections(resolvedClassId, buildLevel)
+    local buildState, selectedFeatIds = resolveClassUnitBuildState(
+        resolvedClassId,
+        buildLevel,
+        options.buildFeatIds
+    )
 
-    local buildState = HeroBuild.TryCompileBuild(resolvedClassId, buildLevel, selectedFeatIds)
     local builtHero = HeroData.ConvertToHeroData(heroId, combatLevel, 1, {
         abilityScores = abilityScores,
         buildState = buildState,
@@ -1097,7 +1122,9 @@ function HeroData.CreateClassUnit(classId, options)
     local resolvedClassId = tonumber(classId) or 0
     local stage = options and options.promotionStage or "low"
     local level = tonumber(options and options.level) or getPromotionStageLevel(stage)
-    local heroData = HeroData.BuildClassUnitHeroData(resolvedClassId, stage, level)
+    local heroData = HeroData.BuildClassUnitHeroData(resolvedClassId, stage, level, {
+        buildFeatIds = options and options.buildFeatIds,
+    })
     if not heroData then
         return nil
     end
@@ -1194,6 +1221,7 @@ function HeroData.RefreshClassUnit(classUnit, updates)
         ultimateCharges = ultimateCharges,
         ultimateChargesMax = ultimateChargesMax,
         skillCooldowns = patch.skillCooldowns or classUnit.skillCooldowns,
+        buildFeatIds = patch.buildFeatIds or classUnit.feats,
     })
     if not rebuilt then
         return nil
@@ -1211,7 +1239,12 @@ function HeroData.ConvertClassUnitToHeroData(classUnit)
     if type(classUnit) ~= "table" then
         return nil
     end
-    local heroData = HeroData.BuildClassUnitHeroData(classUnit.classId, classUnit.promotionStage, classUnit.level)
+    local heroData = HeroData.BuildClassUnitHeroData(
+        classUnit.classId,
+        classUnit.promotionStage,
+        classUnit.level,
+        { buildFeatIds = classUnit.feats }
+    )
     if not heroData then
         return nil
     end
