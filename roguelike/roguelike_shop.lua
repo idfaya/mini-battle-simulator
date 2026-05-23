@@ -15,10 +15,13 @@ local function contains(list, value)
     return false
 end
 
-local function addUnique(list, value)
-    if not contains(list, value) then
-        list[#list + 1] = value
+local function hasDeadTeamHero(runState)
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
+        if hero.isDead then
+            return true
+        end
     end
+    return false
 end
 
 local function applyTeamHeal(runState, healPct)
@@ -41,7 +44,24 @@ local function reviveOne(runState, healPct)
     return false
 end
 
-local function resolveShopGoodsDisplay(item)
+local function resolveGoodsPrice(runState, shopId, goods)
+    return RunShopGoods.ResolveGoodsPrice(runState.chapterId or 101, shopId, goods)
+end
+
+local function validateServicePurchase(runState, goods)
+    if not goods or goods.goodsType ~= "service" then
+        return true
+    end
+    local payload = goods.payload or {}
+    if payload.effectType == "revive_one" then
+        if not hasDeadTeamHero(runState) then
+            return false, "no_dead_hero"
+        end
+    end
+    return true
+end
+
+local function resolveShopGoodsDisplay(item, price)
     if not item then
         return nil, ""
     end
@@ -55,10 +75,10 @@ local function resolveShopGoodsDisplay(item)
     end
     if item.goodsType == "service" then
         if item.code == "team_heal_30" then
-            return "队伍治疗", "全队恢复 30% 生命"
+            return "治疗药水", "全队恢复 30% 生命"
         end
-        if item.code == "revive_one_40" then
-            return "战地复苏", "复活 1 名阵亡单位并恢复 20% 生命"
+        if item.code == "revive_scroll" then
+            return "复活卷轴", string.format("复活 1 名阵亡队友（%d 金币，恢复 50%% 生命）", tonumber(price) or 0)
         end
         if item.code == "remove_one_curse" then
             return "净化仪式", "移除 1 个负面诅咒"
@@ -86,7 +106,8 @@ function RoguelikeShop.BuildShopState(runState, shopId)
     for _, goodsId in ipairs(shop.stock or {}) do
         local item = RoguelikeShop.GetGoods(goodsId)
         if item then
-            local name, description = resolveShopGoodsDisplay(item)
+            local price = resolveGoodsPrice(runState, shopId, item)
+            local name, description = resolveShopGoodsDisplay(item, price)
             goods[#goods + 1] = {
                 goodsId = goodsId,
                 goodsType = item.goodsType,
@@ -94,7 +115,7 @@ function RoguelikeShop.BuildShopState(runState, shopId)
                 code = item.code,
                 name = name,
                 description = description,
-                price = item.price or 0,
+                price = price,
                 rarity = item.rarity or "common",
                 sold = (runState.shopSoldMap or {})[goodsId] == true,
             }
@@ -123,12 +144,6 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
         return false, "sold_out"
     end
 
-    local price = tonumber(goods.price) or 0
-    if (runState.gold or 0) < price then
-        return false, "not_enough_gold"
-    end
-
-    -- 装备/祝福类商品：先做 BuildConstraints 预检，避免扣完金币才发现冲突。
     if goods.goodsType == "equipment" then
         local ok, reason = BuildConstraints.CanAddEquipment(runState, goods.refId)
         if not ok then
@@ -139,6 +154,16 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
         if not ok then
             return false, reason
         end
+    else
+        local ok, reason = validateServicePurchase(runState, goods)
+        if not ok then
+            return false, reason
+        end
+    end
+
+    local price = resolveGoodsPrice(runState, shopId, goods)
+    if (runState.gold or 0) < price then
+        return false, "not_enough_gold"
     end
 
     runState.gold = (runState.gold or 0) - price
@@ -163,20 +188,26 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
             return true
         end
         if effectType == "revive_one" then
-            local revived = reviveOne(runState, payload.healPct or 0.4)
+            local revived = reviveOne(runState, payload.healPct or 0.5)
             if not revived then
+                runState.gold = (runState.gold or 0) + price
+                runState.shopSoldMap[goodsId] = nil
                 return false, "no_dead_hero"
             end
-            runState.lastActionMessage = "商店复活"
+            runState.lastActionMessage = "使用复活卷轴"
             return true
         end
         if effectType == "remove_one_curse" then
             runState.lastActionMessage = "移除诅咒(占位)"
             return true
         end
+        runState.gold = (runState.gold or 0) + price
+        runState.shopSoldMap[goodsId] = nil
         return false, "unsupported_service"
     end
 
+    runState.gold = (runState.gold or 0) + price
+    runState.shopSoldMap[goodsId] = nil
     return false, "unsupported_goods"
 end
 

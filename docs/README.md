@@ -34,7 +34,7 @@
 | 技能 / 被动 | `skills/` |
 | Roguelike | `roguelike/` |
 | Run EXP / 楼层等级 | `config/roguelike/exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua` |
-| 权威配置 | `config/data/*.json` → `config/tables/*.lua` |
+| 权威配置 | `config/data/*.json` → `config/tables/*.lua`（含 `events.json` → `tables/events.lua`） |
 | 单技能逻辑 | `config/skill/skill_*.lua` |
 | Web 镜像 | `web/public/lua/project/`（`npm run export:lua` 生成） |
 | Lua 回归 | `bin/test_*.lua` |
@@ -52,6 +52,7 @@ lua bin/test_roguelike_progression_pacing.lua
 lua bin/test_roguelike_progression_gate.lua
 lua bin/test_party_exp_levelup.lua
 lua bin/test_roguelike_room_one_shot.lua
+lua bin/test_events_json_loader.lua
 lua bin/test_roguelike_act1.lua
 
 # 战斗 / 职业 build

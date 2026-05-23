@@ -1,4 +1,4 @@
-import type { FeatOption, RewardOption, RunSnapshot } from "../types/roguelike";
+import type { FeatOption, RewardOption, RunSnapshot, RunTeamMember } from "../types/roguelike";
 
 type RunHandlers = {
   onChooseNode: (nodeId: number) => void;
@@ -386,8 +386,21 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     <div class="setup-field run-compact-field"><span>食物</span><strong>${snapshot.food}</strong></div>
     <div class="setup-field run-compact-field"><span>装备</span><strong>${snapshot.equipments.length}</strong></div>
     <div class="setup-field run-compact-field"><span>祝福</span><strong>${snapshot.blessings.length}</strong></div>
+    <div class="setup-field run-compact-field"><span>Trinket</span><strong>${snapshot.trinkets?.length ?? 0}</strong></div>
   `;
   generalSection.append(stats);
+
+  if ((snapshot.trinkets?.length ?? 0) > 0) {
+    const trinketSection = document.createElement("div");
+    trinketSection.className = "run-blessing-list";
+    snapshot.trinkets?.forEach((trinket) => {
+      const card = document.createElement("div");
+      card.className = "run-blessing-card run-blessing-card--boss";
+      card.textContent = `${trinket.name} · ${trinket.description ?? trinket.code}`;
+      trinketSection.append(card);
+    });
+    generalSection.append(trinketSection);
+  }
 
   if (snapshot.blessings.length > 0) {
     const blessingSection = document.createElement("div");
@@ -427,9 +440,50 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     title.className = "panel-title";
     title.textContent = `事件 · ${snapshot.eventState.title}`;
     host.append(title);
+
+    const lastCheck = snapshot.eventState.lastSkillCheck;
+    if (lastCheck) {
+      const outcome = document.createElement("div");
+      outcome.className = "run-roster-meta";
+      outcome.textContent = `检定结果：${lastCheck.ability ?? "?"} d20(${lastCheck.roll ?? "?"})+${lastCheck.modifier ?? "?"}=${lastCheck.total ?? "?"} vs DC${lastCheck.dc ?? "?"} → ${lastCheck.tier ?? "?"}`;
+      host.append(outcome);
+    }
+
+    const modFor = (ability: string) => {
+      const key = (ability || "investigation").toLowerCase();
+      const table: Record<string, keyof RunTeamMember> = {
+        athletics: "str",
+        acrobatics: "dex",
+        stealth: "dex",
+        investigation: "int",
+        arcana: "int",
+        religion: "wis",
+        perception: "wis",
+        deception: "cha",
+        persuasion: "cha",
+      };
+      const stat = table[key] ?? "int";
+      let best = -99;
+      for (const hero of snapshot.team) {
+        if (hero.isDead) continue;
+        const score = Number(hero[stat] ?? 10);
+        const mod = Math.floor((score - 10) / 2);
+        if (mod > best) best = mod;
+      }
+      return best;
+    };
+
     for (const option of snapshot.eventState.options) {
+      if (option.skillCheck) {
+        const mod = modFor(option.skillCheck.ability);
+        const hint = document.createElement("div");
+        hint.className = "run-roster-meta";
+        hint.textContent = `检定 ${option.skillCheck.ability} DC${option.skillCheck.dc} · 队伍最佳修正约 +${mod >= 0 ? mod : mod}`;
+        host.append(hint);
+      }
+      const label = option.zeroRisk ? `${option.label}（零风险）` : option.label;
       host.append(
-        makeButton(option.label, false, () => controls.handlers.onChooseEventOption(option.id)),
+        makeButton(label, false, () => controls.handlers.onChooseEventOption(option.id)),
       );
     }
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
@@ -526,7 +580,6 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         ),
       );
     }
-    host.append(makeButton(`刷新商店 - ${snapshot.shopState.refreshCost}`, false, controls.handlers.onShopRefresh));
     host.append(makeButton("离开商店", false, controls.handlers.onShopLeave));
   } else if (snapshot.phase === "camp" && snapshot.campState) {
     const title = document.createElement("div");
@@ -554,9 +607,14 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
   } else if (snapshot.phase === "map") {
     const hint = document.createElement("div");
     hint.className = "run-roster-meta";
-    hint.textContent = snapshot.lastBattleSummary?.won
-      ? "（结算已展示，切到「地图」页选择下一个节点）"
-      : "（地图推进中，请切到「地图」页选择下一个节点）";
+    const msg = snapshot.lastActionMessage || "";
+    hint.textContent = snapshot.hiddenFloorInjected && !snapshot.hiddenFloorCleared
+      ? "已发现隐藏层入口：在地图上前往「隐藏层入口」房间并下楼。"
+      : msg.includes("营地安息")
+      ? msg
+      : snapshot.lastBattleSummary?.won
+        ? "（结算已展示，切到「地图」页选择下一个节点）"
+        : "（地图推进中，请切到「地图」页选择下一个节点）";
     host.append(hint);
   }
 }
@@ -573,7 +631,11 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     // 楼梯房：把上/下楼按钮直接作为「方位」选项与房间选择按钮并列。
     if (snapshot.phase === "stair" && snapshot.stairState) {
       const dir = snapshot.stairState.direction;
-      const dirLabel = dir === "up" ? "上楼" : "下楼";
+      const dirLabel = snapshot.stairState.isHiddenEntrance
+        ? "进入隐藏层"
+        : dir === "up"
+          ? "上楼"
+          : "下楼";
       host.append(
         makeButton(`${dirLabel} · 进入下一层`, false, () => controls.handlers.onStairUse()),
       );

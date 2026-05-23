@@ -18,6 +18,8 @@ local BuildConstraints = require("roguelike.build_constraints")
 local LevelCurve = require("config.roguelike.level_curve")
 local BattleExpReward = require("config.roguelike.battle_exp_reward")
 local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
+local RoguelikeTrinket = require("roguelike.trinket")
+local DungeonGenerator = require("roguelike.dungeon_generator")
 
 local RoguelikeRun = {}
 local state = nil
@@ -199,6 +201,21 @@ local function recalcPartyLevel()
     return level
 end
 
+--- 仅 bin 回归：抬高队伍等级，避免全三章 E2E 在固定种子下过早 team_wipe。
+local function applyTestPartyBootstrap(targetLevel)
+    local level = math.floor(tonumber(targetLevel) or 0)
+    if level <= STARTER_LEVEL then
+        return
+    end
+    local cap = math.min(level, tonumber(state.levelCap) or CHAPTER_LEVEL_CAP)
+    state.partyExp = getExpThreshold(cap)
+    recalcPartyLevel()
+    for index, unit in ipairs(state.ownedUnits or {}) do
+        state.ownedUnits[index] = HeroData.RefreshClassUnit(unit, { level = cap }) or unit
+    end
+    RoguelikeRoster.RefreshLegacyViews(state)
+end
+
 local function buildStarterRoster(runState, heroIds)
     local roster = {}
     for _, heroId in ipairs(heroIds or {}) do
@@ -296,6 +313,7 @@ local function resetRunState()
         benchRoster = {},
         equipmentIds = {},
         blessingIds = {},
+        trinketIds = {},
         rewardState = nil,
         eventState = nil,
         shopState = nil,
@@ -316,6 +334,10 @@ local function resetRunState()
         seed = nil,
         rewardReturnMode = "map",
         nextRosterId = 1,
+        hiddenFloorInjected = false,
+        hiddenFloorActive = false,
+        hiddenFloorCleared = false,
+        hiddenFloorStairRoomId = nil,
     }
 end
 
@@ -336,11 +358,63 @@ local function getNode(nodeId)
     return RoguelikeMap.GetNode(nodeId, state and state.dungeonState or nil)
 end
 
+local function findRoomEntry(roomId)
+    if not state.dungeonState or not roomId then
+        return nil, nil
+    end
+    for _, floor in pairs(state.dungeonState.floors or {}) do
+        local room = floor.rooms and floor.rooms[roomId]
+        if room then
+            return room, floor
+        end
+    end
+    return nil, nil
+end
+
+local function isChapterClearBossNode(node)
+    if not node or node.nodeType ~= "boss" then
+        return false
+    end
+    local _, floor = findRoomEntry(state.currentNodeId)
+    return not (floor and floor.isHidden == true)
+end
+
+local function pickHiddenStairRoom(dungeonState, currentRoomId)
+    local floor = FloorState.GetCurrentFloor(dungeonState)
+    if not floor or not floor.rooms then
+        return nil
+    end
+    local current = currentRoomId and floor.rooms[currentRoomId] or nil
+    if not current or not current.neighbors then
+        return nil
+    end
+    -- 入口必须落在当前房相邻格，否则地图无法一步到达。
+    for _, neighborId in ipairs(current.neighbors) do
+        local neighbor = floor.rooms[neighborId]
+        if neighbor and (neighbor.roomType == "empty" or neighbor.roomType == "equip") then
+            return neighborId
+        end
+    end
+    for _, neighborId in ipairs(current.neighbors) do
+        local neighbor = floor.rooms[neighborId]
+        if neighbor
+            and neighbor.roomType ~= "stair_up"
+            and neighbor.roomType ~= "stair_down"
+            and neighbor.roomType ~= "boss" then
+            return neighborId
+        end
+    end
+    return nil
+end
+
 local CLEARED_PASS_THROUGH_TYPES = {
     battle_normal = true,
     battle_elite = true,
     boss = true,
     event = true,
+    camp = true,
+    stair_down = true,
+    stair_up = true,
 }
 
 local function enterClearedRoomPassThrough(nodeId)
@@ -352,6 +426,8 @@ local function enterClearedRoomPassThrough(nodeId)
     refreshAvailableNodes()
     return true
 end
+
+local leaveNodeBackToMap
 
 local function enterNode(nodeId)
     local node = getNode(nodeId)
@@ -387,11 +463,13 @@ local function enterNode(nodeId)
             return false, "no_dungeon_state"
         end
         -- dungeon §4.2：楼梯房进入后弹出选择，可使用楼梯（上/下楼）或路过（仅作通路）。
+        local rawRoom = FloorState.GetRoom(state.dungeonState, nodeId)
         state.phase = "stair"
         state.stairState = {
             direction = "down",
             nodeId = nodeId,
             currentFloorDepth = state.dungeonState.currentFloorDepth,
+            isHiddenEntrance = rawRoom and rawRoom.payload and rawRoom.payload.stairTarget == "hidden",
         }
         -- 刷新邻居：楼梯房 UI 与 map 一样并排显示「上下左右房间」选项。
         refreshAvailableNodes()
@@ -402,11 +480,15 @@ local function enterNode(nodeId)
         if not state.dungeonState then
             return false, "no_dungeon_state"
         end
+        local rawRoom = FloorState.GetRoom(state.dungeonState, nodeId)
+        local onHiddenFloor = rawRoom and FloorState.GetCurrentFloor(state.dungeonState)
+            and FloorState.GetCurrentFloor(state.dungeonState).isHidden == true
         state.phase = "stair"
         state.stairState = {
             direction = "up",
             nodeId = nodeId,
             currentFloorDepth = state.dungeonState.currentFloorDepth,
+            isHiddenEntrance = onHiddenFloor,
         }
         refreshAvailableNodes()
         return true
@@ -456,8 +538,11 @@ local function enterNode(nodeId)
     end
 
     if node.nodeType == "camp" then
-        state.phase = "camp"
-        state.campState = RoguelikeCamp.BuildCampState(node.campId, state)
+        local ok, reason = RoguelikeCamp.ApplyReviveFullRest(state)
+        if not ok then
+            return false, reason
+        end
+        leaveNodeBackToMap()
         return true
     end
 
@@ -474,7 +559,7 @@ local function openReward(groupId)
     return true
 end
 
-local function leaveNodeBackToMap()
+leaveNodeBackToMap = function()
     -- shop 房豁免 cleared，可重复进入；其余房间在离开时落 cleared 标记。
     if state.dungeonState and state.currentNodeId then
         local node = getNode(state.currentNodeId)
@@ -494,6 +579,57 @@ local function leaveNodeBackToMap()
     state.currentBattleEnemyLevel = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
+end
+
+local function grantBossTrinketIfNeeded(node)
+    if node and node.nodeType == "boss" then
+        local _, floor = findRoomEntry(state.currentNodeId)
+        local isHiddenBoss = floor and floor.isHidden == true
+        RoguelikeTrinket.GrantChapterBoss(state, state.chapterId, isHiddenBoss)
+        if isHiddenBoss then
+            state.hiddenFloorCleared = true
+            state.hiddenFloorActive = false
+        end
+    end
+end
+
+local function injectHiddenFloor()
+    if state.hiddenFloorInjected or not state.dungeonState then
+        return false, "already_injected"
+    end
+    if state.hiddenFloorCleared then
+        return false, "hidden_floor_cleared"
+    end
+    local floor, reason = DungeonGenerator.GenerateHiddenFloor(state.chapterId, state.seed or 0)
+    if not floor then
+        return false, reason or "hidden_floor_failed"
+    end
+    state.dungeonState.floors[DungeonGenerator.HIDDEN_FLOOR_DEPTH] = floor
+
+    if not state.dungeonState.hiddenReturnDepth then
+        state.dungeonState.hiddenReturnDepth = state.dungeonState.currentFloorDepth
+        state.dungeonState.hiddenReturnRoomId = state.currentNodeId
+    end
+
+    local stairRoomId = pickHiddenStairRoom(state.dungeonState, state.currentNodeId)
+    if not stairRoomId then
+        return false, "no_stair_room"
+    end
+    local mainFloor = FloorState.GetCurrentFloor(state.dungeonState)
+    local stairRoom = mainFloor and mainFloor.rooms and mainFloor.rooms[stairRoomId]
+    if not stairRoom then
+        return false, "stair_room_not_found"
+    end
+    stairRoom.roomType = "stair_down"
+    stairRoom.title = "隐藏层入口"
+    stairRoom.payload = stairRoom.payload or {}
+    stairRoom.payload.stairTarget = "hidden"
+
+    state.dungeonState.hiddenStairRoomId = stairRoomId
+    state.hiddenFloorStairRoomId = stairRoomId
+    state.hiddenFloorInjected = true
+    state.lastActionMessage = "发现隐藏层入口（请前往相邻「隐藏层入口」房间下楼）"
+    return true
 end
 
 local function enterChapterResult()
@@ -543,6 +679,7 @@ local function enterChapterResult()
         gold = state.gold,
         equipmentCount = #(state.equipmentIds or {}),
         blessingCount = #(state.blessingIds or {}),
+        trinketCount = #(state.trinketIds or {}),
     }
 end
 
@@ -618,12 +755,62 @@ function RoguelikeRun.StartRun(config)
     end
     state.ownedUnits = buildStarterRoster(state, starterHeroIds)
     RoguelikeRoster.RefreshLegacyViews(state)
+    applyTestPartyBootstrap((config or {}).testPartyLevel)
     refreshAvailableNodes()
     return RoguelikeRun.GetSnapshot()
 end
 
 function RoguelikeRun.RestartRun(config)
     return RoguelikeRun.StartRun(config)
+end
+
+--- bin 回归专用：直接写入 boss_defeated 终局快照（不跑全三章 E2E）。
+function RoguelikeRun.ForceBossChapterResultForTest()
+    if not state then
+        return false, "no_active_run"
+    end
+    state.chapterId = 103
+    enterChapterResult()
+    return true
+end
+
+--- bin 回归：验证隐藏层注入（等同事件 unlock_hidden_floor 结果）。
+function RoguelikeRun.TestInjectHiddenFloor()
+    if not state then
+        return false, "no_active_run"
+    end
+    return injectHiddenFloor()
+end
+
+--- bin 回归：跳过战斗模拟，走 Boss 胜利后的 trinket / 回图管道（非真实战斗平衡）。
+function RoguelikeRun.TestForceCurrentBattleVictory()
+    if not state then
+        return false, "no_active_run"
+    end
+    if state.phase ~= "battle" then
+        return false, "not_in_battle"
+    end
+    if evaluateFailureIfNoAlive() then
+        return false, "team_wipe"
+    end
+    local node = getNode(state.currentNodeId)
+    RoguelikeBattleBridge.ApplyPostBattleRest(state)
+    if node and node.nodeType == "boss" then
+        grantBossTrinketIfNeeded(node)
+        if isChapterClearBossNode(node) then
+            local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+            local clearRewards = chapter.chapterClearRewards or {}
+            state.gold = (state.gold or 0) + (clearRewards.gold or 0)
+            enterChapterResult()
+            return true
+        end
+        state.rewardReturnMode = "map"
+        leaveNodeBackToMap()
+        return true
+    end
+    state.rewardReturnMode = "map"
+    leaveNodeBackToMap()
+    return true
 end
 
 function RoguelikeRun.GetSnapshot()
@@ -699,7 +886,7 @@ function RoguelikeRun.Tick(deltaMs)
             -- 启动升级三选一会话；若产生 session 则停在 reward 阶段，由 ChooseReward 链推进；
             -- 若未跨等级则继续后续 rest+前进。
             if session then
-                if node and node.nodeType == "boss" then
+                if isChapterClearBossNode(node) then
                     local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
                     local clearRewards = chapter.chapterClearRewards or {}
                     state.gold = (state.gold or 0) + (clearRewards.gold or 0)
@@ -714,10 +901,16 @@ function RoguelikeRun.Tick(deltaMs)
             -- 无升级会话：直接做战斗后休整，再前进/进入章节结算。
             RoguelikeBattleBridge.ApplyPostBattleRest(state)
             if node and node.nodeType == "boss" then
-                local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
-                local clearRewards = chapter.chapterClearRewards or {}
-                state.gold = (state.gold or 0) + (clearRewards.gold or 0)
-                enterChapterResult()
+                grantBossTrinketIfNeeded(node)
+                if isChapterClearBossNode(node) then
+                    local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+                    local clearRewards = chapter.chapterClearRewards or {}
+                    state.gold = (state.gold or 0) + (clearRewards.gold or 0)
+                    enterChapterResult()
+                    return events or {}
+                end
+                state.rewardReturnMode = "map"
+                leaveNodeBackToMap()
                 return events or {}
             end
 
@@ -764,6 +957,7 @@ function RoguelikeRun.ChooseReward(index)
         -- session 已耗尽：补做战斗后休整，再按 returnMode 路由。
         RoguelikeBattleBridge.ApplyPostBattleRest(state)
         if state.rewardReturnMode == "chapter_result" then
+            grantBossTrinketIfNeeded(getNode(state.currentNodeId))
             enterChapterResult()
             return true
         end
@@ -792,20 +986,37 @@ function RoguelikeRun.ChooseReward(index)
     return true
 end
 
-function RoguelikeRun.ChooseEventOption(optionId)
+function RoguelikeRun.ChooseEventOption(optionId, rosterHeroId)
     if state.phase ~= "event" then
         return false, "not_in_event"
     end
 
     local node = getNode(state.currentNodeId)
     local eventId = node and node.eventId or nil
-    local ok, resultOrReason = RoguelikeEvent.ResolveOption(state, eventId, tonumber(optionId) or 0)
+    local ok, resultOrReason = RoguelikeEvent.ResolveOption(
+        state,
+        eventId,
+        tonumber(optionId) or 0,
+        rosterHeroId
+    )
     if not ok then
         return false, resultOrReason
     end
 
     local result = resultOrReason or {}
     if result.kind == "done" then
+        leaveNodeBackToMap()
+        return true
+    end
+    if result.kind == "unlock_hidden_floor" then
+        if state.dungeonState then
+            state.dungeonState.hiddenReturnDepth = state.dungeonState.currentFloorDepth
+            state.dungeonState.hiddenReturnRoomId = state.currentNodeId
+        end
+        local injected, injectReason = injectHiddenFloor()
+        if not injected then
+            return false, injectReason
+        end
         leaveNodeBackToMap()
         return true
     end
@@ -885,7 +1096,8 @@ function RoguelikeRun.CampChoose(actionId)
         return false, "not_in_camp"
     end
     local node = getNode(state.currentNodeId)
-    local ok, reason = RoguelikeCamp.ApplyAction(state, node.campId, tonumber(actionId) or 0)
+    local campId = node and node.campId or nil
+    local ok, reason = RoguelikeCamp.ApplyAction(state, campId, tonumber(actionId) or 1)
     if not ok then
         return false, reason
     end
@@ -920,6 +1132,11 @@ function RoguelikeRun.StairUse()
     if prevNodeId then
         -- 上下楼对称：使用楼梯离开时把原楼梯房标 cleared，回到该层时按 cleared 仅作通路处理。
         FloorState.MarkRoomCleared(state.dungeonState, prevNodeId)
+    end
+    if state.dungeonState.currentFloorDepth == DungeonGenerator.HIDDEN_FLOOR_DEPTH then
+        state.hiddenFloorActive = true
+    else
+        state.hiddenFloorActive = false
     end
     state.visitedNodeIds = {}
     state.currentNodeId = state.dungeonState.currentRoomId

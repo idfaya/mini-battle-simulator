@@ -12,6 +12,7 @@ local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
+local RunTrinketConfig = require("config.roguelike.run_trinket_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 
 local RoguelikeBattleBridge = {}
@@ -150,6 +151,20 @@ local function buildBattleModifiers(runState, battleProfile)
         elseif blessing and blessing.effectType == "class_spell_protection" then
             applyClassFlat(result.saveDeltaByClass, params.classIds, params.saveDelta)
             applyClassFlat(result.spellDamageReduceByClass, params.classIds, params.spellDamageReduce)
+        end
+    end
+
+    for _, trinketId in ipairs(runState.trinketIds or {}) do
+        local trinket = RunTrinketConfig.GetTrinket(trinketId)
+        local code = trinket and trinket.code or ""
+        if code == "frost_shard" then
+            for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(runState) or {}) do
+                applyClassFlat(result.saveDeltaByClass, { unit.classId }, 1)
+            end
+        elseif code == "ember_sigil" then
+            for _, unit in ipairs(RoguelikeRoster.GetTeamUnits(runState) or {}) do
+                applyClassFlat(result.spellDamageReduceByClass, { unit.classId }, 0.05)
+            end
         end
     end
 

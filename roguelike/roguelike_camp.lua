@@ -1,24 +1,14 @@
 local RunCampConfig = require("config.roguelike.run_camp_config")
+local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
-local BuildConstraints = require("roguelike.build_constraints")
 
 local RoguelikeCamp = {}
 
-local function applyTeamHeal(runState, healPct)
-    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-        if not hero.isDead then
-            local heal = math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0))
-            hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
-        end
-    end
-end
-
-local function restoreUltimateCharges(runState)
-    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
-        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
-        hero.ultimateCharges = hero.ultimateChargesMax
-    end
-end
+local NEGATIVE_BLESSING_TAGS = {
+    curse = true,
+    negative = true,
+    debuff = true,
+}
 
 local function clearAllStatuses(hero)
     if not hero then
@@ -30,50 +20,78 @@ local function clearAllStatuses(hero)
     hero.riskHooks = nil
 end
 
-local function reviveOne(runState, healPct)
-    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-        if hero.isDead then
-            hero.isDead = false
-            hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0)))
+local function isNegativeBlessing(blessingId)
+    local entry = RunBlessingConfig.GetBlessing(tonumber(blessingId) or -1)
+    if not entry then
+        return false
+    end
+    for _, tag in ipairs(entry.tags or {}) do
+        if NEGATIVE_BLESSING_TAGS[tag] then
             return true
         end
     end
     return false
 end
 
-local function reviveFullRestOne(runState)
-    local revived = false
+local function removeNegativeBlessings(runState)
+    local kept = {}
+    for _, blessingId in ipairs(runState.blessingIds or {}) do
+        if not isNegativeBlessing(blessingId) then
+            kept[#kept + 1] = blessingId
+        end
+    end
+    runState.blessingIds = kept
+end
+
+local function healOwnedToFull(runState)
+    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
+        if not hero.isDead then
+            hero.currentHp = tonumber(hero.maxHp) or tonumber(hero.currentHp) or 0
+        end
+    end
+end
+
+local function refreshOwnedResources(runState)
+    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
+        clearAllStatuses(hero)
+        hero.skillCooldowns = {}
+        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
+        hero.ultimateCharges = hero.ultimateChargesMax
+    end
+end
+
+local function reviveOneAtFull(runState)
     for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
         if hero.isDead then
             hero.isDead = false
-            hero.currentHp = hero.maxHp or 1
+            hero.currentHp = tonumber(hero.maxHp) or 1
+            clearAllStatuses(hero)
             hero.skillCooldowns = {}
             hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
             hero.ultimateCharges = hero.ultimateChargesMax
-            clearAllStatuses(hero)
-            revived = true
-            break
+            return true
         end
     end
-    return revived
+    return false
 end
 
-local function clearAllSkillCooldowns(runState)
-    for _, hero in ipairs(RoguelikeRoster.GetOwnedUnits(runState)) do
-        hero.skillCooldowns = {}
+--- dungeon §4.5：全队回满 + 清全队负面状态/负面祝福 + 复活 1 名（满血）。
+function RoguelikeCamp.ApplyReviveFullRest(runState)
+    if type(runState) ~= "table" then
+        return false, "invalid_run_state"
     end
-end
 
-local function healTeamAddPctOfMax(runState, pct)
-    local p = tonumber(pct) or 0
-    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-        if not hero.isDead then
-            local maxHp = tonumber(hero.maxHp) or 0
-            local add = math.floor(maxHp * p)
-            local cur = tonumber(hero.currentHp) or 0
-            hero.currentHp = math.min(maxHp, cur + add)
-        end
+    healOwnedToFull(runState)
+    refreshOwnedResources(runState)
+    removeNegativeBlessings(runState)
+    local revived = reviveOneAtFull(runState)
+
+    if revived then
+        runState.lastActionMessage = "营地安息：全队回满并清状态，复活一名队友"
+    else
+        runState.lastActionMessage = "营地安息：全队回满并清状态"
     end
+    return true
 end
 
 function RoguelikeCamp.GetCamp(campId)
@@ -88,31 +106,10 @@ function RoguelikeCamp.BuildCampState(campId, runState)
 
     local actions = {}
     for _, action in ipairs(camp.actions or {}) do
-        local available = true
-        if action.effectType == "revive_full_rest" or (action.requirements or {}).hasDeadHero then
-            available = false
-            for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-                if hero.isDead then
-                    available = true
-                    break
-                end
-            end
-        end
-        -- dungeon §4.2：cleared 房重入仅作通路；祝福已入库则该 action 不再可用，避免 duplicate_blessing 死锁。
-        if action.effectType == "grant_blessing" then
-            local blessingId = (action.params or {}).blessingId
-            if blessingId then
-                local ok = BuildConstraints.CanAddBlessing(runState, blessingId)
-                if not ok then
-                    available = false
-                end
-            end
-        end
-
         actions[#actions + 1] = {
             id = action.id,
             label = action.label,
-            available = available,
+            available = true,
         }
     end
 
@@ -139,46 +136,11 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
     if not selected then
         return false, "action_not_found"
     end
-    if selected.effectType == "revive_full_rest" then
-        local hasDeadHero = false
-        for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
-            if hero.isDead then
-                hasDeadHero = true
-                break
-            end
-        end
-        if not hasDeadHero then
-            return false, "no_dead_hero"
-        end
+    if selected.effectType ~= "revive_full_rest" then
+        return false, "unsupported_action"
     end
 
-    if selected.effectType == "revive_full_rest" then
-        local revived = reviveFullRestOne(runState)
-        if not revived then
-            return false, "no_dead_hero"
-        end
-        runState.lastActionMessage = "营地救援：复活一名英雄并回满血、次数、状态"
-        return true
-    end
-    if selected.effectType == "grant_blessing" then
-        local blessingId = (selected.params or {}).blessingId
-        local ok, reason = BuildConstraints.AddBlessing(runState, blessingId)
-        if not ok then
-            return false, reason
-        end
-        runState.lastActionMessage = "营地强化"
-        return true
-    end
-    if selected.effectType == "revive_one" then
-        local revived = reviveOne(runState, (selected.params or {}).healPct or 0.5)
-        if not revived then
-            return false, "no_dead_hero"
-        end
-        runState.lastActionMessage = "营地复活"
-        return true
-    end
-
-    return false, "unsupported_action"
+    return RoguelikeCamp.ApplyReviveFullRest(runState)
 end
 
 return RoguelikeCamp

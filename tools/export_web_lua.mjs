@@ -14,7 +14,9 @@ const embeddedFiles = [
   "config/data/skills.json",
   "config/data/passives.json",
   "config/data/classes.json",
-  "config/data/floors.json"
+  "config/data/floors.json",
+  "config/data/events.json",
+  "config/data/trinkets.json"
 ];
 
 function ensureDir(dir) {

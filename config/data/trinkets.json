@@ -1,0 +1,56 @@
+[
+  {
+    "id": 101001,
+    "chapterId": 101,
+    "code": "ember_sigil",
+    "name": "余烬符印",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：队伍法术伤害减免 +5%。",
+    "tags": ["trinket", "chapter_101"]
+  },
+  {
+    "id": 101002,
+    "chapterId": 101,
+    "code": "frost_shard",
+    "name": "霜裂碎片",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：全队豁免 +1。",
+    "tags": ["trinket", "chapter_101"]
+  },
+  {
+    "id": 102001,
+    "chapterId": 102,
+    "code": "ash_crown",
+    "name": "灰烬王冠",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：精英战后额外金币。",
+    "tags": ["trinket", "chapter_102"]
+  },
+  {
+    "id": 102002,
+    "chapterId": 102,
+    "code": "void_lantern",
+    "name": "虚空灯笼",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：事件检定 +1。",
+    "tags": ["trinket", "chapter_102"]
+  },
+  {
+    "id": 103001,
+    "chapterId": 103,
+    "code": "abyss_heart",
+    "name": "深渊之心",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：Boss 战后全队回满。",
+    "tags": ["trinket", "chapter_103"]
+  },
+  {
+    "id": 103002,
+    "chapterId": 103,
+    "code": "throne_key",
+    "name": "王座之钥",
+    "rarity": "boss",
+    "description": "Boss 章节 trinket：隐藏层双倍 trinket 资格。",
+    "tags": ["trinket", "chapter_103", "hidden"]
+  }
+]

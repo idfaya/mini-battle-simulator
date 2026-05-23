@@ -118,7 +118,8 @@ export class RunMapScene {
 
     ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font = "bold 14px sans-serif";
-    ctx.fillText(`第 ${bucket.floor} 层 · ${countRevealed(bucket)} / ${bucket.nodes.length} 房间已探索`, 42, 96);
+    const floorLabel = bucket.floor === 9 ? "隐藏层" : `第 ${bucket.floor} 层`;
+    ctx.fillText(`${floorLabel} · ${countRevealed(bucket)} / ${bucket.nodes.length} 房间已探索`, 42, 96);
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -130,7 +131,9 @@ export class RunMapScene {
   }
 
   private drawRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, node: RunMapNodeState, cellSize: number) {
-    const color = this.getNodeColor(node.nodeType);
+    const color = node.isHiddenFloor
+      ? { fill: "#5a189a", stroke: "#e0aaff" }
+      : this.getNodeColor(node.nodeType);
     const half = cellSize / 2;
     ctx.save();
 

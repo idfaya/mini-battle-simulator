@@ -1,22 +1,14 @@
 ---@alias RunCampActionEffectType
 ---| "revive_full_rest"
----| "grant_blessing"
----| "revive_one"
 
 ---@class RunCampActionParams
 ---@field value number|nil
----@field blessingId integer|nil
----@field healPct number|nil
-
----@class RunCampActionRequirements
----@field hasDeadHero boolean|nil
 
 ---@class RunCampAction
 ---@field id integer
 ---@field label string
 ---@field effectType RunCampActionEffectType
----@field params RunCampActionParams
----@field requirements RunCampActionRequirements|nil
+---@field params RunCampActionParams|nil
 
 ---@class RunCampEntry
 ---@field id integer
@@ -42,27 +34,8 @@ RunCampConfig.CAMPS = {
         actions = {
             {
                 id = 1,
-                label = "救援祈祷",
+                label = "安息",
                 effectType = "revive_full_rest",
-            },
-            {
-                id = 2,
-                label = "接受祝圣",
-                effectType = "grant_blessing",
-                params = {
-                    blessingId = 101001,
-                },
-            },
-            {
-                id = 3,
-                label = "复苏祷言",
-                effectType = "revive_one",
-                params = {
-                    healPct = 0.25,
-                },
-                requirements = {
-                    hasDeadHero = true,
-                },
             },
         },
     },

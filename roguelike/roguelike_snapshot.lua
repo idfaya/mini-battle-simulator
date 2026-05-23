@@ -1,9 +1,11 @@
 local RoguelikeMap = require("roguelike.roguelike_map")
+local DungeonGenerator = require("roguelike.dungeon_generator")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local FeatBuildConfig = require("config.tables.feats")
 local ClassBuildProgression = require("config.tables.classes")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
+local RoguelikeTrinket = require("roguelike.trinket")
 
 local RoguelikeSnapshot = {}
 -- 注：等级曲线统一来自 config.roguelike.level_curve；本文件不再维护本地阈值表。
@@ -71,6 +73,12 @@ local function serializeTeam(roster)
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
             buildSummary = buildFeatSummary(hero),
+            str = tonumber(hero.str),
+            dex = tonumber(hero.dex),
+            con = tonumber(hero.con),
+            int = tonumber(hero.int),
+            wis = tonumber(hero.wis),
+            cha = tonumber(hero.cha),
         }
     end
     return result
@@ -124,6 +132,7 @@ local function serializeMap(runState)
         -- 仍处于迷雾中（前端按 selectable 高亮虚线框，但不展示房间类型/标题）。
         local visible = visited[node.id] == true or runState.currentNodeId == node.id
         local titleVisible = visible
+        local isHiddenFloor = (tonumber(node.floor) or 0) == DungeonGenerator.HIDDEN_FLOOR_DEPTH
         nodes[#nodes + 1] = {
             id = node.id,
             floor = node.floor,
@@ -133,6 +142,7 @@ local function serializeMap(runState)
             floorGridW = node.floorGridW,
             floorGridH = node.floorGridH,
             nodeType = node.nodeType,
+            isHiddenFloor = isHiddenFloor,
             title = titleVisible and node.title or "",
             visited = visited[node.id] == true,
             current = runState.currentNodeId == node.id,
@@ -167,6 +177,10 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         phase = runState.phase,
         chapterId = runState.chapterId,
         currentFloorDepth = runState.dungeonState and runState.dungeonState.currentFloorDepth or nil,
+        hiddenFloorInjected = runState.hiddenFloorInjected == true,
+        hiddenFloorActive = runState.hiddenFloorActive == true,
+        hiddenFloorCleared = runState.hiddenFloorCleared == true,
+        hiddenFloorStairRoomId = runState.hiddenFloorStairRoomId,
         currentNodeId = runState.currentNodeId,
         maxHeroCount = runState.maxHeroCount or 5,
         partyLevel = runState.partyLevel or 1,
@@ -182,6 +196,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         bench = benchRoster,
         equipments = serializeEquipments(runState.equipmentIds),
         blessings = serializeBlessings(runState.blessingIds),
+        trinkets = RoguelikeTrinket.Serialize(runState),
         eventState = runState.eventState,
         shopState = runState.shopState,
         campState = runState.campState,

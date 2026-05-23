@@ -875,19 +875,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             end
             snapshot = Run.GetSnapshot()
         elseif snapshot.phase == "camp" then
-            local campActionId = 2
-            local campState = snapshot.campState or {}
-            local hasBlessingAction = false
-            for _, action in ipairs(campState.actions or {}) do
-                if tonumber(action.id) == 2 and action.available ~= false then
-                    hasBlessingAction = true
-                    break
-                end
-            end
-            if not hasBlessingAction then
-                campActionId = 1
-            end
-            local campOk, campReason = Run.CampChoose(campActionId)
+            local campOk, campReason = Run.CampChoose(1)
             if not campOk then
                 runReport.terminalReason = "camp_failed:" .. tostring(campReason)
                 snapshot = Run.GetSnapshot()

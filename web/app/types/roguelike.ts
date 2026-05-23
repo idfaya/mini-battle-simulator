@@ -33,6 +33,7 @@ export type RunMapNodeState = {
   floorGridW?: number;
   floorGridH?: number;
   nodeType: RunNodeType;
+  isHiddenFloor?: boolean;
   title: string;
   visited: boolean;
   current: boolean;
@@ -176,11 +177,28 @@ export type LastBattleSummary = {
   };
 };
 
+export type EventSkillCheckState = {
+  ability: string;
+  dc: number;
+};
+
+export type EventSkillCheckOutcomeState = {
+  ability?: string;
+  roll?: number;
+  modifier?: number;
+  total?: number;
+  dc?: number;
+  tier?: string;
+  heroName?: string;
+};
+
 export type EventOptionState = {
   id: number;
   label: string;
   costType?: string;
   costValue?: number;
+  zeroRisk?: boolean;
+  skillCheck?: EventSkillCheckState;
 };
 
 export type EventState = {
@@ -190,6 +208,7 @@ export type EventState = {
   title: string;
   kind: string;
   options: EventOptionState[];
+  lastSkillCheck?: EventSkillCheckOutcomeState | null;
 };
 
 export type ShopGoodsState = {
@@ -229,6 +248,15 @@ export type StairState = {
   direction: "up" | "down";
   nodeId: number;
   currentFloorDepth?: number | null;
+  isHiddenEntrance?: boolean;
+};
+
+export type TrinketState = {
+  trinketId: number;
+  name: string;
+  rarity: string;
+  code: string;
+  description?: string;
 };
 
 export type ChapterResult = {
@@ -237,12 +265,17 @@ export type ChapterResult = {
   gold?: number;
   equipmentCount?: number;
   blessingCount?: number;
+  trinketCount?: number;
 };
 
 export type RunSnapshot = {
   phase: RunPhase;
   chapterId: number;
   currentFloorDepth?: number | null;
+  hiddenFloorInjected?: boolean;
+  hiddenFloorActive?: boolean;
+  hiddenFloorCleared?: boolean;
+  hiddenFloorStairRoomId?: number | null;
   currentNodeId: number | null;
   maxHeroCount: number;
   partyLevel: number;
@@ -257,6 +290,7 @@ export type RunSnapshot = {
   bench: RunTeamMember[];
   equipments: EquipmentState[];
   blessings: BlessingState[];
+  trinkets?: TrinketState[];
   eventState: EventState | null;
   shopState: ShopState | null;
   campState: CampState | null;

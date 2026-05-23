@@ -6,6 +6,8 @@
 ---@field GetAvailableExits fun(dungeonState: DungeonState): integer[]
 ---@field UseStair fun(dungeonState: DungeonState, direction: string): boolean, string|nil
 
+local DungeonGenerator = require("roguelike.dungeon_generator")
+
 local FloorState = {}
 
 local function getFloor(state, depth)
@@ -89,7 +91,12 @@ function FloorState.UseStair(state, direction)
         if current.roomType ~= "stair_down" then
             return false, "not_on_stair_down"
         end
-        local nextDepth = (state.currentFloorDepth or 1) + 1
+        local nextDepth
+        if current.payload and current.payload.stairTarget == "hidden" then
+            nextDepth = DungeonGenerator.HIDDEN_FLOOR_DEPTH
+        else
+            nextDepth = (state.currentFloorDepth or 1) + 1
+        end
         local nextFloor = getFloor(state, nextDepth)
         if not nextFloor then
             return false, "no_next_floor"
@@ -103,6 +110,20 @@ function FloorState.UseStair(state, direction)
     if direction == "up" then
         if current.roomType ~= "stair_up" then
             return false, "not_on_stair_up"
+        end
+        if floor.isHidden then
+            local retDepth = tonumber(state.hiddenReturnDepth)
+            local retRoom = tonumber(state.hiddenReturnRoomId)
+            if not retDepth or not retRoom then
+                return false, "no_hidden_return"
+            end
+            local returnFloor = getFloor(state, retDepth)
+            if not returnFloor or not returnFloor.rooms[retRoom] then
+                return false, "invalid_hidden_return"
+            end
+            state.currentFloorDepth = retDepth
+            state.currentRoomId = retRoom
+            return true
         end
         local prevDepth = (state.currentFloorDepth or 1) - 1
         if prevDepth < 1 then

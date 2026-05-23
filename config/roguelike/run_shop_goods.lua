@@ -41,6 +41,7 @@
 ---@field GOODS table<integer, RunGoodsEntry>
 ---@field GetShop fun(shopId: integer): RunShopEntry|nil
 ---@field GetGoods fun(goodsId: integer): RunGoodsEntry|nil
+---@field GetReviveScrollPrice fun(chapterId: integer, shopId: integer): integer
 
 ---@type RunShopGoodsModule
 local RunShopGoods = {}
@@ -142,12 +143,12 @@ RunShopGoods.GOODS = {
     [101010] = {
         id = 101010,
         goodsType = "service",
-        code = "revive_one_40",
-        price = 54,
+        code = "revive_scroll",
+        price = 0,
         rarity = "rare",
         payload = {
             effectType = "revive_one",
-            healPct = 0.20,
+            healPct = 0.5,
         },
     },
     [101011] = {
@@ -168,6 +169,39 @@ end
 
 function RunShopGoods.GetGoods(goodsId)
     return RunShopGoods.GOODS[goodsId]
+end
+
+local function getMinCommonEquipmentPrice(shopId)
+    local shop = RunShopGoods.GetShop(shopId)
+    if not shop then
+        return 68
+    end
+    local minPrice
+    for _, goodsId in ipairs(shop.stock or {}) do
+        local item = RunShopGoods.GetGoods(goodsId)
+        if item and item.goodsType == "equipment" and item.rarity == "common" then
+            local price = tonumber(item.price) or 0
+            if not minPrice or price < minPrice then
+                minPrice = price
+            end
+        end
+    end
+    return minPrice or 68
+end
+
+--- AD-OVR-5：常规章 ×3 普通装备底价；章末（103）×4。
+function RunShopGoods.GetReviveScrollPrice(chapterId, shopId)
+    local base = getMinCommonEquipmentPrice(shopId)
+    local chapter = tonumber(chapterId) or 101
+    local multiplier = chapter >= 103 and 4 or 3
+    return base * multiplier
+end
+
+function RunShopGoods.ResolveGoodsPrice(chapterId, shopId, goods)
+    if goods and goods.code == "revive_scroll" then
+        return RunShopGoods.GetReviveScrollPrice(chapterId, shopId)
+    end
+    return tonumber(goods and goods.price) or 0
 end
 
 return RunShopGoods

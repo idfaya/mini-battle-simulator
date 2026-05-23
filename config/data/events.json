@@ -1,0 +1,494 @@
+[
+  {
+    "id": 101001,
+    "code": "broken_caravan",
+    "chapterIds": [101, 102, 103],
+    "title": "破损商队",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "搜寻残存货箱",
+        "resultType": "grant_gold",
+        "result": { "gold": 55 }
+      },
+      {
+        "id": 2,
+        "label": "护送随行医者并接受祝福",
+        "costType": "gold",
+        "costValue": 25,
+        "resultType": "grant_blessing",
+        "result": { "blessingId": 101002 }
+      },
+      {
+        "id": 3,
+        "label": "离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 10 }
+      },
+      {
+        "id": 4,
+        "label": "追击劫掠者",
+        "resultType": "trigger_battle",
+        "result": { "battleId": 101103, "rewardGroupId": 101301 }
+      }
+    ]
+  },
+  {
+    "id": 101002,
+    "code": "ember_shrine",
+    "chapterIds": [101, 102, 103],
+    "title": "余烬圣坛",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "祈求康复",
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.3 }
+      },
+      {
+        "id": 2,
+        "label": "献上鲜血祈求石肤",
+        "costType": "current_hp_pct",
+        "costValue": 0.15,
+        "resultType": "grant_blessing",
+        "result": { "blessingId": 101005 }
+      },
+      {
+        "id": 3,
+        "label": "转身离开",
+        "zeroRisk": true,
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.05 }
+      },
+      {
+        "id": 4,
+        "label": "开启封印祭室",
+        "resultType": "trigger_battle",
+        "result": { "battleId": 101104, "rewardGroupId": 101301 }
+      }
+    ]
+  },
+  {
+    "id": 101003,
+    "code": "sealed_armory",
+    "chapterIds": [101, 102, 103],
+    "title": "封印军械库",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "向守卫缴纳金币",
+        "costType": "gold",
+        "costValue": 60,
+        "resultType": "grant_equipment",
+        "result": { "equipmentId": 101004 }
+      },
+      {
+        "id": 2,
+        "label": "强行破除封印",
+        "costType": "hp_pct",
+        "costValue": 0.2,
+        "resultType": "grant_equipment",
+        "result": { "equipmentId": 101003 }
+      },
+      {
+        "id": 3,
+        "label": "放弃进入",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 20 }
+      }
+    ]
+  },
+  {
+    "id": 101004,
+    "code": "frost_cairn",
+    "chapterIds": [101],
+    "title": "霜寒石冢",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 15 }
+      },
+      {
+        "id": 2,
+        "label": "调查符文（调查）",
+        "skillCheck": {
+          "ability": "investigation",
+          "dc": 12,
+          "results": {
+            "critSuccess": { "resultType": "grant_gold", "result": { "gold": 90 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 45 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 10 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101103 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 45 }
+      }
+    ]
+  },
+  {
+    "id": 101005,
+    "code": "whispering_well",
+    "chapterIds": [101],
+    "title": "低语之井",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "不靠近",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 12 }
+      },
+      {
+        "id": 2,
+        "label": "倾听井底回声（感知）",
+        "skillCheck": {
+          "ability": "perception",
+          "dc": 11,
+          "results": {
+            "critSuccess": { "resultType": "grant_blessing", "result": { "blessingId": 101001 } },
+            "success": { "resultType": "team_heal_pct", "result": { "value": 0.25 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 0 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.25 }
+      }
+    ]
+  },
+  {
+    "id": 101006,
+    "code": "collapsed_mine_cart",
+    "chapterIds": [101],
+    "title": "坍塌矿车",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "绕路",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 8 }
+      },
+      {
+        "id": 2,
+        "label": "撬开货箱（运动）",
+        "skillCheck": {
+          "ability": "athletics",
+          "dc": 13,
+          "results": {
+            "critSuccess": { "resultType": "grant_equipment", "result": { "equipmentId": 101002 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 60 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 15 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101103 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 60 }
+      }
+    ]
+  },
+  {
+    "id": 102001,
+    "code": "magma_vent",
+    "chapterIds": [102],
+    "title": "地热喷口",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "远离热浪",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 25 }
+      },
+      {
+        "id": 2,
+        "label": "采集硫化晶体（调查）",
+        "skillCheck": {
+          "ability": "investigation",
+          "dc": 13,
+          "results": {
+            "critSuccess": { "resultType": "grant_gold", "result": { "gold": 110 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 55 } },
+            "failure": { "resultType": "team_heal_pct", "result": { "value": 0.1 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 55 }
+      }
+    ]
+  },
+  {
+    "id": 102002,
+    "code": "ashen_library",
+    "chapterIds": [102],
+    "title": "灰烬书库",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "只拿走金币",
+        "resultType": "grant_gold",
+        "result": { "gold": 40 }
+      },
+      {
+        "id": 2,
+        "label": "解读残页（宗教）",
+        "skillCheck": {
+          "ability": "religion",
+          "dc": 14,
+          "results": {
+            "critSuccess": { "resultType": "grant_blessing", "result": { "blessingId": 101004 } },
+            "success": { "resultType": "grant_blessing", "result": { "blessingId": 101002 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 20 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101103 } }
+          }
+        },
+        "resultType": "grant_blessing",
+        "result": { "blessingId": 101002 }
+      },
+      {
+        "id": 3,
+        "label": "离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 5 }
+      }
+    ]
+  },
+  {
+    "id": 102003,
+    "code": "chain_bridge",
+    "chapterIds": [102],
+    "title": "铁链吊桥",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "慢慢通过",
+        "zeroRisk": true,
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.15 }
+      },
+      {
+        "id": 2,
+        "label": "快速冲过（运动）",
+        "skillCheck": {
+          "ability": "athletics",
+          "dc": 12,
+          "results": {
+            "critSuccess": { "resultType": "grant_gold", "result": { "gold": 80 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 40 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 10 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 40 }
+      }
+    ]
+  },
+  {
+    "id": 102004,
+    "code": "ember_forge",
+    "chapterIds": [102],
+    "title": "余烬锻炉",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "购买半成品",
+        "costType": "gold",
+        "costValue": 45,
+        "resultType": "grant_equipment",
+        "result": { "equipmentId": 101003 }
+      },
+      {
+        "id": 2,
+        "label": "离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 18 }
+      }
+    ]
+  },
+  {
+    "id": 103001,
+    "code": "void_mirror",
+    "chapterIds": [103],
+    "title": "虚空镜厅",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "遮住镜面离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 30 }
+      },
+      {
+        "id": 2,
+        "label": "凝视倒影（奥秘）",
+        "skillCheck": {
+          "ability": "arcana",
+          "dc": 15,
+          "results": {
+            "critSuccess": { "resultType": "grant_blessing", "result": { "blessingId": 101005 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 70 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 15 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 70 }
+      }
+    ]
+  },
+  {
+    "id": 103002,
+    "code": "bone_chapel",
+    "chapterIds": [103],
+    "title": "骨殖礼拜堂",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "祈祷后离开",
+        "zeroRisk": true,
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.2 }
+      },
+      {
+        "id": 2,
+        "label": "祝圣祭坛（宗教）",
+        "skillCheck": {
+          "ability": "religion",
+          "dc": 14,
+          "results": {
+            "critSuccess": { "resultType": "grant_blessing", "result": { "blessingId": 101001 } },
+            "success": { "resultType": "team_heal_pct", "result": { "value": 0.35 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 12 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101103 } }
+          }
+        },
+        "resultType": "team_heal_pct",
+        "result": { "value": 0.35 }
+      }
+    ]
+  },
+  {
+    "id": 103003,
+    "code": "starfall_crater",
+    "chapterIds": [103],
+    "title": "坠星坑",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "拾取碎屑",
+        "resultType": "grant_gold",
+        "result": { "gold": 50 }
+      },
+      {
+        "id": 2,
+        "label": "不打扰沉睡",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 20 }
+      },
+      {
+        "id": 3,
+        "label": "探查坑底（感知）",
+        "skillCheck": {
+          "ability": "perception",
+          "dc": 15,
+          "results": {
+            "critSuccess": { "resultType": "grant_equipment", "result": { "equipmentId": 101004 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 85 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 25 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 85 }
+      }
+    ]
+  },
+  {
+    "id": 103004,
+    "code": "final_omen",
+    "chapterIds": [103],
+    "title": "终焉预兆",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "无视预兆",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 35 }
+      },
+      {
+        "id": 2,
+        "label": "解读星图（调查）",
+        "skillCheck": {
+          "ability": "investigation",
+          "dc": 16,
+          "results": {
+            "critSuccess": { "resultType": "grant_blessing", "result": { "blessingId": 101004 } },
+            "success": { "resultType": "grant_gold", "result": { "gold": 95 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 30 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101104 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 95 }
+      }
+    ]
+  },
+  {
+    "id": 101099,
+    "code": "ancient_rift",
+    "chapterIds": [101, 102, 103],
+    "title": "远古裂隙",
+    "kind": "choice",
+    "options": [
+      {
+        "id": 1,
+        "label": "离开",
+        "zeroRisk": true,
+        "resultType": "grant_gold",
+        "result": { "gold": 12 }
+      },
+      {
+        "id": 2,
+        "label": "解读裂隙符文（调查）",
+        "skillCheck": {
+          "ability": "investigation",
+          "dc": 14,
+          "results": {
+            "critSuccess": { "resultType": "unlock_hidden_floor", "result": {} },
+            "success": { "resultType": "grant_gold", "result": { "gold": 60 } },
+            "failure": { "resultType": "grant_gold", "result": { "gold": 15 } },
+            "critFailure": { "resultType": "trigger_battle", "result": { "battleId": 101103 } }
+          }
+        },
+        "resultType": "grant_gold",
+        "result": { "gold": 60 }
+      }
+    ]
+  }
+]
