@@ -61,30 +61,30 @@ RunBattleProfile.BATTLE_PROFILES = {
         speed = 1.0,
         gold = { min = 20, max = 30 },
         -- 教学战：4 怪起步，配合初始 4 人队形成完整前后排战斗。
-        budget = { difficulty = "easy", pressureFactor = 0.20 },
+        budget = { difficulty = "easy", pressureFactor = 0.10 },
     },
     [101002] = {
         id = 101002,
         kind = "normal",
         chapterId = 101,
         difficulty = 1,
-        level = 7,
+        level = 5,
         initialEnergy = 100,
         speed = 1.0,
         gold = { min = 24, max = 38 },
         -- combat 二战维持低编组，但把白送战回拉成会产生真实损耗的缓坡战。
-        budget = { difficulty = "easy", pressureFactor = 0.22 },
+        budget = { difficulty = "easy", pressureFactor = 0.10 },
     },
     [101003] = {
         id = 101003,
         kind = "normal",
         chapterId = 101,
         difficulty = 2,
-        level = 9,
+        level = 5,
         initialEnergy = 60,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "easy", pressureFactor = 0.24 },
+        budget = { difficulty = "easy", pressureFactor = 0.10 },
     },
 
     -- Elite battles
@@ -93,31 +93,25 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "elite",
         chapterId = 101,
         difficulty = 3,
-        level = 8,
+        level = 6,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 1 },
-        -- 阶段 1 修复：roguelike 路线可能在 F3/F4 跳过战斗（shop/camp/recruit），
-        -- 进入 F5 第一个精英时仅打过 2 场普通战，partyLevel≈4。如果 elite 仍维持
-        -- level=3/pressure=0.56 会必然 wipe；本次设为 level=2/pressure=0.32 让两种
-        -- 路径（battle-heavy 与 economy-heavy）都能可行通关，同时仍保留作为 elite
-        -- 的相对压强（高于普通战 0.22 数倍 base XP）。
-        budget = { difficulty = "medium", pressureFactor = 0.32 },
+        -- F3–F5 首次精英时 partyLevel≈4–5；压强低于普通战连战后的 Boss。
+        budget = { difficulty = "easy", pressureFactor = 0.14 },
     },
     [101102] = {
         id = 101102,
         kind = "elite",
         chapterId = 101,
         difficulty = 4,
-        level = 10,
+        level = 6,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 2 },
-        -- 阶段 1 修复：late elite 同样可能在 economy-heavy 路线下被首次遇到，
-        -- 由 level=4 降到 level=3，pressureFactor 由 0.68 降到 0.42。
-        budget = { difficulty = "medium", pressureFactor = 0.42 },
+        budget = { difficulty = "easy", pressureFactor = 0.16 },
     },
 
     -- Light route battles: used to stop low-risk routes from skipping straight to boss.
@@ -160,7 +154,7 @@ RunBattleProfile.BATTLE_PROFILES = {
         --     4 人队最终 lvSum 上限 = 20（4×Lv5）。boss 必须按此基线平衡。
         --   * level=1 + easy/0.25 + waveCount=2（template）：
         --     维持 boss 仍有压强，但避免 4×Lv5 必 wipe（test_roguelike_act1 验证）。
-        budget = { difficulty = "easy", pressureFactor = 0.25 },
+        budget = { difficulty = "easy", pressureFactor = 0.16 },
     },
 }
 

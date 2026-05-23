@@ -69,6 +69,7 @@
 | `test_roguelike_progression_pacing.lua` | 0 | 101 章 avgFinalLevel≈Lv7 |
 | `test_roguelike_room_one_shot.lua` | 0 | cleared battle/event |
 | `test_roguelike_act1.lua` | 0 | seed=1 smoke |
+| `test_roguelike_ch101_reach.lua` | 0 | seeds 1..30；`progressionMode=ch101_reach` + `autoWinBattles`（测 Boss **触达** / 迷宫可达；战斗数值见 act1 / pacing） |
 | `test_roguelike_chapter_success.lua` | 0 | chapter_result 契约 |
 | `test_roguelike_event_skill_check.lua` | 0 | |
 | `test_roguelike_camp_full_rest.lua` | 0 | |
@@ -99,8 +100,8 @@
 | 文件 | 职责 |
 | --- | --- |
 | [`exp_5e.lua`](../../config/roguelike/exp_5e.lua) | PHB 累计阈值；DMG 按 CR 的 XP |
-| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | 胜利 EXP；`ENEMY_LEVEL_XP_FACTOR=0.58`；单场封顶 |
-| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | 战斗等级；101 普通战严格按楼层 1–5 |
+| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | 胜利 EXP；`ENEMY_LEVEL_XP_FACTOR=0.70`；单场封顶 |
+| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | 战斗等级；101 普通战按楼层 1–5；精英/Boss 101 专用 `kindOffset` |
 | [`level_curve.lua`](../../config/roguelike/level_curve.lua) | 转发 `exp_5e` 供 FeatPicker |
 
 策划口径见 [`character_progression_design.md`](../design/character_progression_design.md) §2。
@@ -203,17 +204,19 @@ lua bin/test_roguelike_balance.lua --runs=4
 | 文件 | 状态 | 内容 |
 | --- | --- | --- |
 | [`exp_5e.lua`](../../config/roguelike/exp_5e.lua) | ✅ | PHB `CHARACTER_LEVEL_EXP`；`MONSTER_XP_BY_CR`；`PARTY_EXP_SCALE` |
-| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | ✅ | `ComputeVictoryExp`；`ENEMY_LEVEL_XP_FACTOR=0.58` |
-| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 101 普通 F1–F5 = Lv1–Lv5；精英/Boss 楼层 +1/+2 |
+| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | ✅ | `ComputeVictoryExp`；`ENEMY_LEVEL_XP_FACTOR=0.70` |
+| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 101 普通 F1–F5 = Lv1–Lv5；101 精英/Boss `kindOffset` 0/1 |
+| [`run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✅ | 101 压强下调（普通 ~0.10、Boss 0.16） |
 | [`level_curve.lua`](../../config/roguelike/level_curve.lua) | ✅ | 转发 `exp_5e` |
 | [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` |
 | [`run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) | 遗留 | `expReward` 字段**运行时不用**；勿再据此调节奏 |
-| [`run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✏️ 持续 | 压强仅 `budget.difficulty` + `budget.pressureFactor` |
 
 #### 测试
 
 | 文件 | 状态 | 内容 |
 | --- | --- | --- |
+| [`bin/test_roguelike_ch101_reach.lua`](../../bin/test_roguelike_ch101_reach.lua) | ✅ | seeds 1..30 Boss **触达** ≥60%；`ch101_reach` 推图 |
+| [`bin/roguelike_run_driver.lua`](../../bin/roguelike_run_driver.lua) | ✅ | act1 / ch101 共用自动推进（大招、领奖链） |
 | [`bin/test_roguelike_progression_pacing.lua`](../../bin/test_roguelike_progression_pacing.lua) | ✅ | 101 模拟终局 Lv4–Lv8；5e 阈值递增 |
 | [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) | ✅ | FeatPicker 与 5e 阈值 |
 | [`bin/test_party_exp_levelup.lua`](../../bin/test_party_exp_levelup.lua) | ✅ | 战斗 → `partyExp` → reward 链 |

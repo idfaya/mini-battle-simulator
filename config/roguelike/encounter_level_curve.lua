@@ -79,19 +79,35 @@ function M.ResolveEnemyLevel(opts)
     local baseLevel = math.max(profileLevel, floorBaseline)
 
     local kindOffset = 0
-    if battleKind == "elite" then
-        kindOffset = 1
-    elseif battleKind == "boss" then
-        kindOffset = 2
+    if chapterId == 101 then
+        if battleKind == "elite" then
+            kindOffset = 0
+        elseif battleKind == "boss" then
+            kindOffset = 1
+        end
+    else
+        if battleKind == "elite" then
+            kindOffset = 1
+        elseif battleKind == "boss" then
+            kindOffset = 2
+        end
     end
 
     local minEnemyLevel = partyLevel - 1
     if battleKind == "normal" or battleKind == "event_battle" then
         minEnemyLevel = math.max(partyLevel - 4, floorBaseline - 2)
     elseif battleKind == "elite" then
-        minEnemyLevel = math.max(partyLevel - 2, floorBaseline - 1)
+        if chapterId == 101 then
+            minEnemyLevel = math.max(partyLevel - 3, floorBaseline - 2)
+        else
+            minEnemyLevel = math.max(partyLevel - 2, floorBaseline - 1)
+        end
     elseif battleKind == "boss" then
-        minEnemyLevel = math.max(partyLevel - 3, floorBaseline)
+        if chapterId == 101 then
+            minEnemyLevel = math.max(partyLevel - 3, floorBaseline - 1)
+        else
+            minEnemyLevel = math.max(partyLevel - 3, floorBaseline)
+        end
     end
     minEnemyLevel = math.max(1, minEnemyLevel)
 

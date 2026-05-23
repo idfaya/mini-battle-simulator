@@ -232,7 +232,7 @@ Floor = Maze(Room ⇄ Room)
 - **回头探索率**：玩家平均每 Run 至少 1 次回到上一层（验证商店 / 营地的回头价值）。
 - **Boss 触达率**：MVP 配置下 ≥ 60% 的 Run 能打到第 1 章 Boss。
 - **测试覆盖**（已满足）：
-  - `bin/`：生成 / 一次性 / 检定 / 营地 / 商店 / Boss trinket / 隐藏层（见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md) §2.4）。
+  - `bin/`：生成 / 一次性 / 检定 / 营地 / 商店 / Boss trinket / 隐藏层；**101 章 Boss 触达** `test_roguelike_ch101_reach.lua`（seeds 1..30，`ch101_reach` 推图 + `autoWinBattles` 验迷宫可达，战斗数值见 act1 / pacing）（见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md) §2.4）。
   - `web/tests/`：`roguelike-act1.spec.ts`（章节 smoke）、`roguelike-dungeon.spec.ts`（地图 + 商店 + 检定 UI）。
   - 全三章固定种子自动 `chapter_result` 仍不稳定；`test_roguelike_chapter_success` 使用 `ForceBossChapterResultForTest` 验契约。
 

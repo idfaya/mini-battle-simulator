@@ -20,7 +20,7 @@ local M = {}
 
 -- 遭遇内怪物「生成等级」高于 1 时，在 5e CR 经验上按级递增（非 RAW，用于 Run 内成长同步）。
 -- 怪物等级对遭遇 XP 的加成；第一章普通怪固定 Lv1–5 时靠此系数维持升级节奏。
-M.ENEMY_LEVEL_XP_FACTOR = 0.58
+M.ENEMY_LEVEL_XP_FACTOR = 0.70
 
 ---@param opts BattleExpRewardOptions
 ---@return integer expReward

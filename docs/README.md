@@ -57,6 +57,7 @@ lua bin/test_party_exp_levelup.lua
 lua bin/test_roguelike_room_one_shot.lua
 lua bin/test_events_json_loader.lua
 lua bin/test_roguelike_act1.lua
+lua bin/test_roguelike_ch101_reach.lua   # 101 章 Boss 触达率（§8）
 lua bin/test_roguelike_chapter_success.lua
 lua bin/test_roguelike_event_skill_check.lua
 lua bin/test_roguelike_camp_full_rest.lua

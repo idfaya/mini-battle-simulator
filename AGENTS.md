@@ -85,5 +85,5 @@ When changing skill behavior:
 
 - Refresh web Lua mirror: `cd web && npm run export:lua`
 - Web E2E（Playwright）: `cd web && npm run test:playwright`
-- Roguelike 文档回归：`lua bin/test_roguelike_room_one_shot.lua`、`lua bin/test_roguelike_progression_pacing.lua`
+- Roguelike 文档回归：`lua bin/test_roguelike_room_one_shot.lua`、`lua bin/test_roguelike_progression_pacing.lua`、`lua bin/test_roguelike_ch101_reach.lua`
 - Roguelike D2/D3：`lua bin/test_roguelike_event_skill_check.lua`、`lua bin/test_roguelike_hidden_floor.lua`、`lua bin/test_roguelike_boss_trinket.lua`

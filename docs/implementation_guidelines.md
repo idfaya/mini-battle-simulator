@@ -143,9 +143,11 @@
 | 模块 | 路径 | 说明 |
 | --- | --- | --- |
 | PHB 阈值 / 怪物 CR XP | `config/roguelike/exp_5e.lua` | `partyExp` 升级阈值；`MONSTER_XP_BY_CR` |
-| 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `ENEMY_LEVEL_XP_FACTOR`（当前 `0.58`）；单场封顶见 `GetExpToNextLevel` |
+| 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `ENEMY_LEVEL_XP_FACTOR`（当前 `0.70`）；单场封顶见 `GetExpToNextLevel` |
 | 阈值转发 | `config/roguelike/level_curve.lua` | 转发 `exp_5e`，供 FeatPicker |
-| 楼层怪物等级 | `config/roguelike/encounter_level_curve.lua` | 第一章普通战 F1–F5 → Lv1–Lv5；精英/Boss +1/+2 |
+| 楼层怪物等级 | `config/roguelike/encounter_level_curve.lua` | 第一章普通战 F1–F5 → Lv1–Lv5；101 精英/Boss `kindOffset` 0/1（其它章 +1/+2） |
+| 第一章压强 | `config/roguelike/run_battle_profile.lua` | 101 普通/精英/Boss `easy` + 下调 `pressureFactor`（2026-05 平衡） |
+| Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 用 `max(战斗等级, GetFloorExpLevel)`；**不读**模板 `expReward` |
 
 - 第一章 `run_chapter_config` `targetMaxLevel = 8`（与低怪等级下实测节奏一致，非 Boss 前 Lv12）。

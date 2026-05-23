@@ -30,7 +30,9 @@ function RoguelikeTestRoute.findSelectableNodes(snapshot)
     return result
 end
 
-function RoguelikeTestRoute.findPathNextHop(snapshot, predicate)
+---@param opts table|nil { avoidUnvisitedBattle: boolean|nil }
+function RoguelikeTestRoute.findPathNextHop(snapshot, predicate, opts)
+    opts = opts or {}
     local map = snapshot and snapshot.map
     local nodes = map and map.nodes or {}
     if #nodes == 0 then
@@ -65,8 +67,11 @@ function RoguelikeTestRoute.findPathNextHop(snapshot, predicate)
         for _, nxt in ipairs(node.nextNodeIds or {}) do
             local nxtNode = indexById[nxt]
             if nxtNode and not visited[nxt] then
-                local stopAtStairUp = (nxtNode.nodeType == "stair_up") and (not predicate(nxtNode))
-                if not stopAtStairUp then
+                local skipBattle = opts.avoidUnvisitedBattle
+                    and not nxtNode.visited
+                    and (nxtNode.nodeType == "battle_normal" or nxtNode.nodeType == "battle_elite")
+                    and not predicate(nxtNode)
+                if not skipBattle then
                     visited[nxt] = true
                     parent[nxt] = id
                     queue[#queue + 1] = nxt
@@ -93,6 +98,25 @@ local function hasUnvisitedBattleOnMap(snapshot)
     return false
 end
 
+local function hasUnvisitedBattleOnFloor(snapshot, floorDepth)
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if not node.visited and node.nodeType == "battle_normal" and (tonumber(node.floor) or 0) == floorDepth then
+            return true
+        end
+    end
+    return false
+end
+
+local function countVisitedBattlesOnFloor(snapshot, floorDepth)
+    local count = 0
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if node.visited and node.nodeType == "battle_normal" and (tonumber(node.floor) or 0) == floorDepth then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 local function pickHopIfSelectable(selectable, hop)
     if not hop then
         return nil
@@ -102,6 +126,58 @@ local function pickHopIfSelectable(selectable, hop)
             return hop
         end
     end
+    return nil
+end
+
+local CH101_PATH_OPTS = { avoidUnvisitedBattle = true }
+
+--- 第一章 Boss 触达率（design/dungeon_design.md §8）：首战升级后快下楼，F5 进 Boss。
+local function chooseCh101ReachNode(snapshot, routeState, selectable, partyLevel, currentFloor)
+    if not routeState.firstBattleResolved then
+        for _, node in ipairs(selectable) do
+            if not node.visited and node.nodeType == "battle_normal" then
+                return node
+            end
+        end
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            return not n.visited and n.nodeType == "battle_normal"
+        end)
+        return pickHopIfSelectable(selectable, hop)
+    end
+
+    if currentFloor >= 5 then
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            return n.nodeType == "boss" and not n.visited
+        end, CH101_PATH_OPTS)
+            or RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+                return n.nodeType == "boss" and not n.visited
+            end)
+        return pickHopIfSelectable(selectable, hop)
+    end
+
+    if currentFloor < 5 and routeState.firstBattleResolved then
+        local stairPred = function(n)
+            return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor
+        end
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, stairPred, CH101_PATH_OPTS)
+            or RoguelikeTestRoute.findPathNextHop(snapshot, stairPred)
+        if not hop and hasUnvisitedBattleOnFloor(snapshot, currentFloor) then
+            hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+                return not n.visited and n.nodeType == "battle_normal" and (tonumber(n.floor) or 0) == currentFloor
+            end)
+        end
+        local picked = pickHopIfSelectable(selectable, hop)
+        if picked then
+            return picked
+        end
+    end
+
+    for _, node in ipairs(selectable) do
+        if not node.visited and node.nodeType == "camp" then
+            return node
+        end
+    end
+
     return nil
 end
 
@@ -115,6 +191,26 @@ function RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
         if node.current then
             currentFloor = tonumber(node.floor) or 1
             break
+        end
+    end
+
+    if routeState and routeState.progressionMode == "ch101_reach" then
+        local rushed = chooseCh101ReachNode(snapshot, routeState, selectable, partyLevel, currentFloor)
+        if rushed then
+            return rushed
+        end
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            return n.nodeType == "stair_down" or n.nodeType == "camp" or n.nodeType == "empty"
+                or n.nodeType == "event" or n.nodeType == "equip"
+        end, CH101_PATH_OPTS)
+        local picked = pickHopIfSelectable(selectable, hop)
+        if picked then
+            return picked
+        end
+        for _, node in ipairs(selectable) do
+            if node.nodeType ~= "battle_elite" and node.nodeType ~= "battle_normal" then
+                return node
+            end
         end
     end
 
