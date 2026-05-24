@@ -141,6 +141,12 @@ type UnitPulse = {
   label?: string;
 };
 
+type HealHeadGlow = {
+  unitId: string;
+  startedAt: number;
+  durationMs: number;
+};
+
 type EntranceAnimation = {
   startedAt: number;
   delayMs: number;
@@ -189,6 +195,7 @@ export class BattleScene {
   private observedProjectileKinds = new Set<string>();
   private aoeAnimations: AoeAnimation[] = [];
   private impactBursts: ImpactBurst[] = [];
+  private healHeadGlows: HealHeadGlow[] = [];
   private unitPulses: UnitPulse[] = [];
   private entranceAnimations = new Map<string, EntranceAnimation>();
   private deathAnimations = new Map<string, DeathAnimation>();
@@ -255,6 +262,7 @@ export class BattleScene {
 
     this.drawMeleeEffects(ctx, allLayouts, now);
     this.drawProjectileAnimations(ctx, allLayouts, now);
+    this.drawHealHeadGlows(ctx, allLayouts, now);
     this.drawImpactBursts(ctx, allLayouts, now);
     this.drawUnitPulses(ctx, allLayouts, now);
     this.drawTopBar(ctx, width, state);
@@ -1228,18 +1236,20 @@ export class BattleScene {
         if (event.type === "miss") {
           continue;
         }
+        if (event.type === "heal") {
+          this.queueHealHeadGlow(layout.unit.id, now);
+          continue;
+        }
         this.impactBursts.push({
           unitId: layout.unit.id,
           startedAt: now,
-          durationMs: event.type === "damage" ? 320 : 360,
+          durationMs: 320,
           delayMs: 0,
-          color: event.type === "damage" ? this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).fill : "rgba(128, 237, 153, 0.2)",
-          ringColor: event.type === "damage" ? this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).ring : "rgba(128, 237, 153, 0.72)",
-          size: event.type === "damage" ? 58 : 48,
+          color: this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).fill,
+          ringColor: this.resolveElementStyle(this.resolveElementTheme("", event.skillName, 0)).ring,
+          size: 58,
         });
-        if (event.type === "damage") {
-          this.maybeAugmentMeleeClashFromDamage(event, now);
-        }
+        this.maybeAugmentMeleeClashFromDamage(event, now);
       }
     }
   }
@@ -1264,6 +1274,9 @@ export class BattleScene {
     const hostileTargets = distinctTargetIds
       .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
       .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team !== attacker.unit.team));
+    const friendlyTargets = distinctTargetIds
+      .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
+      .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team === attacker.unit.team));
 
     const isMelee = this.isMeleeUnit(attacker.unit);
     const isProjectileFrame = event.op === "projectile";
@@ -1278,6 +1291,14 @@ export class BattleScene {
     }
 
     if (isProjectileFrame) {
+      if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
+        for (const target of friendlyTargets) {
+          this.queueHealHeadGlow(target.unit.id, now + 80, {
+            durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 640,
+          });
+        }
+        return;
+      }
       for (const target of hostileTargets) {
         const style = this.resolveProjectileStyle(event.effect, event.skillName, attacker.unit.classId);
         this.projectiles.push({
@@ -1296,18 +1317,21 @@ export class BattleScene {
       }
     }
 
-    const friendlyTargets = distinctTargetIds
-      .map((targetId) => layouts.find((layout) => layout.unit.id === targetId))
-      .filter((layout): layout is UnitLayout => Boolean(layout && layout.unit.team === attacker.unit.team));
     const isBuffSupportFrame = this.isBuffSupportFrame(event);
 
     // Support frames only need an on-target pulse; do not fake travelling projectiles.
     if (hostileTargets.length === 0 && friendlyTargets.length > 0) {
       if (event.op !== "cast") {
         for (const target of friendlyTargets) {
-          this.queueUnitPulse(target.unit.id, now + 90, style, {
-            durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
-          });
+          if (this.looksLikeHealSkill(event.effect, event.skillName, event.op)) {
+            this.queueHealHeadGlow(target.unit.id, now + 90, {
+              durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 820 : 640,
+            });
+          } else {
+            this.queueUnitPulse(target.unit.id, now + 90, style, {
+              durationMs: this.looksLikeReviveSkill(event.effect, event.skillName) ? 760 : 520,
+            });
+          }
         }
       }
       return;
@@ -1384,6 +1408,7 @@ export class BattleScene {
     this.projectiles = this.projectiles.filter((item) => now - item.startedAt <= item.durationMs);
     this.aoeAnimations = this.aoeAnimations.filter((item) => now - item.startedAt <= item.durationMs);
     this.impactBursts = this.impactBursts.filter((item) => now - (item.startedAt + item.delayMs) <= item.durationMs);
+    this.healHeadGlows = this.healHeadGlows.filter((item) => now - item.startedAt <= item.durationMs);
     this.unitPulses = this.unitPulses.filter((item) => now - item.startedAt <= item.durationMs);
     for (const [unitId, entrance] of this.entranceAnimations.entries()) {
       if (now - (entrance.startedAt + entrance.delayMs) > entrance.durationMs) {
@@ -1770,6 +1795,30 @@ export class BattleScene {
   private looksLikeReviveSkill(effect: string, skillName: string) {
     const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
     return /revive|revivify/.test(normalized);
+  }
+
+  private looksLikeHealSkill(effect: string, skillName: string, op: string) {
+    if (op === "heal") {
+      return true;
+    }
+    const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
+    return /heal|healing|healing_word|life_prayer|group_heal|lay.on.hands|cure|lay on hands|治愈|治疗|复苏|圣疗|疗伤|神术治疗/.test(
+      normalized,
+    );
+  }
+
+  private queueHealHeadGlow(
+    unitId: string,
+    startedAt: number,
+    options?: {
+      durationMs?: number;
+    },
+  ) {
+    this.healHeadGlows.push({
+      unitId,
+      startedAt,
+      durationMs: options?.durationMs ?? 640,
+    });
   }
 
   private resolveAoeKind(effect: string, skillName: string): AoeAnimation["kind"] {
@@ -2252,6 +2301,65 @@ export class BattleScene {
     ctx.beginPath();
     ctx.arc(last.x, last.y, style.radius, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  private drawHealHeadGlows(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
+    for (const glow of this.healHeadGlows) {
+      const layout = layouts.find((candidate) => candidate.unit.id === glow.unitId);
+      if (!layout) {
+        continue;
+      }
+
+      const elapsed = now - glow.startedAt;
+      if (elapsed < 0 || elapsed > glow.durationMs) {
+        continue;
+      }
+
+      const progress = elapsed / glow.durationMs;
+      const centerX = layout.x + layout.width / 2;
+      const headY = layout.y + 16;
+      const rise = progress * 22;
+      const alpha = Math.max(0, 1 - progress * 0.92);
+      const beamHeight = 34 + progress * 18;
+      const beamWidth = 10 + progress * 6;
+      const haloRadius = 14 + progress * 10;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      const beamGradient = ctx.createLinearGradient(centerX, headY - rise, centerX, headY - rise + beamHeight);
+      beamGradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+      beamGradient.addColorStop(0.2, "rgba(255, 255, 255, 0.92)");
+      beamGradient.addColorStop(0.55, "rgba(255, 243, 176, 0.78)");
+      beamGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = beamGradient;
+      ctx.shadowColor = "rgba(255, 255, 255, 0.72)";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.ellipse(centerX, headY - rise + beamHeight * 0.5, beamWidth * 0.5, beamHeight * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 22;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.strokeStyle = "rgba(255, 244, 220, 0.96)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(centerX, headY - rise, haloRadius * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, headY - rise - haloRadius * 0.55);
+      ctx.lineTo(centerX, headY - rise + haloRadius * 0.55);
+      ctx.moveTo(centerX - haloRadius * 0.55, headY - rise);
+      ctx.lineTo(centerX + haloRadius * 0.55, headY - rise);
+      ctx.stroke();
+
+      ctx.restore();
+    }
   }
 
   private drawImpactBursts(ctx: CanvasRenderingContext2D, layouts: UnitLayout[], now: number) {
