@@ -413,9 +413,44 @@ local CLEARED_PASS_THROUGH_TYPES = {
     boss = true,
     event = true,
     camp = true,
-    stair_down = true,
-    stair_up = true,
 }
+
+---@param nodeId integer
+---@return table|nil
+local function buildStairState(nodeId)
+    local node = getNode(nodeId)
+    if not node or (node.nodeType ~= "stair_down" and node.nodeType ~= "stair_up") then
+        return nil
+    end
+    if not state.dungeonState then
+        return nil
+    end
+    local rawRoom = FloorState.GetRoom(state.dungeonState, nodeId)
+    local direction = node.nodeType == "stair_down" and "down" or "up"
+    local onHiddenFloor = rawRoom and FloorState.GetCurrentFloor(state.dungeonState)
+        and FloorState.GetCurrentFloor(state.dungeonState).isHidden == true
+    return {
+        direction = direction,
+        nodeId = nodeId,
+        currentFloorDepth = state.dungeonState.currentFloorDepth,
+        isHiddenEntrance = (direction == "down"
+            and rawRoom and rawRoom.payload and rawRoom.payload.stairTarget == "hidden")
+            or (direction == "up" and onHiddenFloor),
+    }
+end
+
+---@param nodeId integer
+---@return boolean
+local function enterStairPhase(nodeId)
+    local stairState = buildStairState(nodeId)
+    if not stairState then
+        return false
+    end
+    state.phase = "stair"
+    state.stairState = stairState
+    refreshAvailableNodes()
+    return true
+end
 
 local function enterClearedRoomPassThrough(nodeId)
     state.phase = "map"
@@ -458,40 +493,15 @@ local function enterNode(nodeId)
         return enterClearedRoomPassThrough(nodeId)
     end
 
-    if node.nodeType == "stair_down" then
+    if node.nodeType == "stair_down" or node.nodeType == "stair_up" then
         if not state.dungeonState then
             return false, "no_dungeon_state"
         end
         -- dungeon §4.2：楼梯房进入后弹出选择，可使用楼梯（上/下楼）或路过（仅作通路）。
-        local rawRoom = FloorState.GetRoom(state.dungeonState, nodeId)
-        state.phase = "stair"
-        state.stairState = {
-            direction = "down",
-            nodeId = nodeId,
-            currentFloorDepth = state.dungeonState.currentFloorDepth,
-            isHiddenEntrance = rawRoom and rawRoom.payload and rawRoom.payload.stairTarget == "hidden",
-        }
-        -- 刷新邻居：楼梯房 UI 与 map 一样并排显示「上下左右房间」选项。
-        refreshAvailableNodes()
-        return true
-    end
-
-    if node.nodeType == "stair_up" then
-        if not state.dungeonState then
-            return false, "no_dungeon_state"
+        if enterStairPhase(nodeId) then
+            return true
         end
-        local rawRoom = FloorState.GetRoom(state.dungeonState, nodeId)
-        local onHiddenFloor = rawRoom and FloorState.GetCurrentFloor(state.dungeonState)
-            and FloorState.GetCurrentFloor(state.dungeonState).isHidden == true
-        state.phase = "stair"
-        state.stairState = {
-            direction = "up",
-            nodeId = nodeId,
-            currentFloorDepth = state.dungeonState.currentFloorDepth,
-            isHiddenEntrance = onHiddenFloor,
-        }
-        refreshAvailableNodes()
-        return true
+        return false, "invalid_stair_room"
     end
 
     if node.nodeType == "equip" or node.nodeType == "empty" then
@@ -1114,7 +1124,7 @@ function RoguelikeRun.CampLeave()
     return true
 end
 
--- 使用楼梯：根据 stairState.direction 触发上/下楼，并把当前房标 cleared。
+-- 使用楼梯：根据 stairState.direction 触发上/下楼；楼梯房可反复使用，不标 cleared。
 function RoguelikeRun.StairUse()
     if state.phase ~= "stair" then
         return false, "not_in_stair"
@@ -1124,14 +1134,9 @@ function RoguelikeRun.StairUse()
     end
     local stair = state.stairState or {}
     local direction = stair.direction or "down"
-    local prevNodeId = stair.nodeId or state.currentNodeId
     local ok, reason = FloorState.UseStair(state.dungeonState, direction)
     if not ok then
         return false, reason
-    end
-    if prevNodeId then
-        -- 上下楼对称：使用楼梯离开时把原楼梯房标 cleared，回到该层时按 cleared 仅作通路处理。
-        FloorState.MarkRoomCleared(state.dungeonState, prevNodeId)
     end
     if state.dungeonState.currentFloorDepth == DungeonGenerator.HIDDEN_FLOOR_DEPTH then
         state.hiddenFloorActive = true
@@ -1141,9 +1146,11 @@ function RoguelikeRun.StairUse()
     state.visitedNodeIds = {}
     state.currentNodeId = state.dungeonState.currentRoomId
     state.visitedNodeIds[state.currentNodeId] = true
-    state.stairState = nil
-    state.phase = "map"
-    refreshAvailableNodes()
+    if not enterStairPhase(state.currentNodeId) then
+        state.stairState = nil
+        state.phase = "map"
+        refreshAvailableNodes()
+    end
     return true
 end
 

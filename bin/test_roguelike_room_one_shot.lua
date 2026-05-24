@@ -6,6 +6,7 @@ local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
 LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local Run = require("roguelike.roguelike_run")
+local RoguelikeTestRoute = dofile(script_dir .. "roguelike_test_route.lua")
 
 local function assert_true(cond, msg)
     if not cond then
@@ -137,3 +138,52 @@ do
 end
 
 print("[OK] roguelike room one-shot (battle/event)")
+
+-- 楼梯房：下楼再上楼后，落点仍应弹出 stair phase（可再次下楼）
+do
+    Run.StartRun({
+        chapterId = 101,
+        starterHeroIds = { 900005, 900001, 900007, 900002 },
+        seed = 82,
+    })
+    local routeState = { recentNodeIds = { 0, 0 }, lastNodeId = 0, firstBattleResolved = false }
+    local snapshot = Run.GetSnapshot()
+    for _ = 1, 80 do
+        if snapshot.phase == "stair" and snapshot.stairState and snapshot.stairState.direction == "down" then
+            break
+        end
+        if snapshot.phase ~= "map" and snapshot.phase ~= "stair" then
+            if snapshot.phase == "shop" then
+                Run.ShopLeave()
+            elseif snapshot.phase == "event" then
+                Run.ChooseEventOption(1)
+            elseif snapshot.phase == "camp" then
+                Run.CampLeave()
+            else
+                error("unexpected phase while routing to stair: " .. tostring(snapshot.phase))
+            end
+        else
+            local nextNode = RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
+            assert_true(nextNode, "need path to stair_down")
+            Run.ChoosePath(nextNode.id)
+            Run.EnterCurrentNode()
+        end
+        snapshot = Run.GetSnapshot()
+    end
+    assert_true(snapshot.phase == "stair", "should reach stair_down in stair phase")
+    assert_true(snapshot.stairState and snapshot.stairState.direction == "down", "should offer down stair")
+
+    assert_true(Run.StairUse() == true, "stair down should succeed")
+    snapshot = Run.GetSnapshot()
+    assert_true(snapshot.currentFloorDepth == 2, "should be on floor 2 after down")
+    assert_true(snapshot.phase == "stair", "floor 2 up-stair landing should open stair phase")
+    assert_true(snapshot.stairState and snapshot.stairState.direction == "up", "should offer up stair")
+
+    assert_true(Run.StairUse() == true, "stair up should succeed")
+    snapshot = Run.GetSnapshot()
+    assert_true(snapshot.currentFloorDepth == 1, "should be back on floor 1")
+    assert_true(snapshot.phase == "stair", "down stair landing after going up should reopen stair phase")
+    assert_true(snapshot.stairState and snapshot.stairState.direction == "down", "should offer down stair again")
+end
+
+print("[OK] roguelike stair round-trip")
