@@ -671,16 +671,19 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 test("fighter counter attack starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003&level=4&fighterFeats=2100302,2100402&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910002&level=4&fighterFeats=2100302,2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
+
+  const overlapCheck = waitForReactionOverlap(page, "counter");
+  const quickReturnCheck = waitForCounterSourceQuickReturn(page, 15000);
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("战士 触发被动 反击：登记反击");
 
-  expect(await waitForReactionOverlap(page, "counter")).toBe(true);
-  expect(await waitForCounterSourceQuickReturn(page)).toBe(true);
+  expect(await overlapCheck).toBe(true);
+  expect(await quickReturnCheck).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击"));
@@ -694,17 +697,27 @@ test("fighter counter attack starts before the enemy returns to base position", 
 test("fighter guard counter starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  // 哥布林 Lv3 无护卫；兽人同等级战士 Build 会抢护卫日志。overlap 须与战斗并行检测。
-  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&seed=100003");
+  // 哥布林无护卫；显式 fighterFeats 保证战士 Lv3 有护卫架势/护卫反击。
+  await page.goto(
+    "/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&fighterFeats=2100302,2100402&seed=100003",
+  );
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
+
+  // 护卫位移/站桩只在动画窗口内可观测，须与战斗并行轮询，不能等日志出现后再查。
+  const motionCheck = waitForGuardInterceptMotion(page);
+  const stationaryCheck = waitForGuardInterceptStationaryProtected(page);
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("战士 触发被动 护卫架势：登记护卫反击");
 
-  expect(await waitForGuardInterceptMotion(page)).toBe(true);
-  expect(await waitForGuardInterceptStationaryProtected(page)).toBe(true);
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 15000 })
+    .toContain("战士 使用 基础武器攻击");
+
+  expect(await motionCheck).toBe(true);
+  expect(await stationaryCheck).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
