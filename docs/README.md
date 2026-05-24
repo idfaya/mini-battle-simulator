@@ -1,10 +1,11 @@
 # 程序开发文档
 
-本目录存放**程序向**文档：模块实现、配置与导出管线、工程约束、落地计划、回归说明。内容以**当前源码**为准，与策划稿冲突时先对齐代码再回写 `design/`。
+本目录存放**程序向**文档：模块实现、配置与导出管线、工程约束、落地计划、回归说明。
 
-- **策划设计**（玩法、数值口径、关卡与职业）见 [`design/README.md`](../design/README.md)。
-- **`design/legacy/`**：过时策划归档，禁止阅读维护。
-- Agent 仓库规范见 [`AGENTS.md`](../AGENTS.md)。
+- 活跃文档**只描述当前实现与设计**，不写旧版对照、迁移说明或已删除系统的长期留痕。
+- 与策划稿冲突时：先以源码与 `docs/implementation_guidelines.md` 为准，再回写 `design/` 活跃稿件。
+- 策划设计见 [`design/README.md`](../design/README.md)；`design/legacy/` 禁止阅读维护。
+- Agent 规范见 [`AGENTS.md`](../AGENTS.md)（含「不做旧设计兼容」与文档原则）。
 
 ## 必读
 

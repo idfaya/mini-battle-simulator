@@ -255,7 +255,7 @@ function FighterBuildPassives.ResolveGuardInterception(defender, extraParam)
 end
 
 local function getBasicAttackDamageDice()
-    return ClassWeaponConfig.GetWeaponDice(2) or "1d6"
+    return ClassWeaponConfig.GetWeaponDice(2) or "1d8"
 end
 
 local function pickAnotherAliveEnemy(hero, excludedTarget)

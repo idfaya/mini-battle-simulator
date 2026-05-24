@@ -38,8 +38,15 @@ cd web && npm run export:lua && npm run test:playwright
 
 - **`design/`** — 策划设计文档（玩法、数值、关卡、职业）。导航：`design/README.md`
 - **`docs/`** — 程序开发文档（实现、工程约束、落地计划）。导航：`docs/README.md`；Run 养成 / 地牢 SSOT 见 `docs/implementation_guidelines.md` §5
-- **`design/legacy/`** — 过时策划归档：**禁止阅读、禁止维护**
+- **`design/legacy/`** — 过时策划归档：**禁止阅读、禁止维护、禁止在活跃文档中引用或对照**
 - 改代码前：策划规则见 `design/`，实现口径见 `docs/implementation_guidelines.md` 与 `docs/*_IMPLEMENTATION.md`
+
+### 文档与演进原则（开发中工程）
+
+- **不做旧设计兼容**：本工程处于活跃开发阶段。不要为已废弃的接口、字段、公式或迁移路径保留运行时分支、转发层、占位字段或「兼容旧存档/旧读者」式说明；除非用户明确要求，否则直接按当前 SSOT 实现并同步文档。
+- **活跃文档只写现状**：`design/` 与 `docs/` 中的活跃稿件必须清晰陈述**当前**设计与实现，使用现在时。禁止「旧版 / 新版 / 已迁移 / 已删除 / formerly」式对照表；禁止把删除清单当作长期文档结构。
+- **归档即隔离**：需要留档的过时内容只能进入 `design/legacy/`（或从活跃文档中彻底删除），不得在 `docs/*_IMPLEMENTATION.md`、`implementation_guidelines.md` 里长期维护「历史对比」章节。
+- **改代码必改文档**：变更 SSOT（属性、伤害、技能、Run 等）时，同一 PR/任务内更新对应的 `docs/` 或 `design/` 活跃章节，避免策划稿与源码分叉。
 
 ## Key Paths
 
@@ -79,7 +86,7 @@ When changing skill behavior:
 
 - Avoid touching `web/dist/` and other build outputs for fixes; these are derived artifacts.
 - Do not introduce destructive git commands (`reset --hard`, etc.).
-- Prefer minimal, well-scoped changes; keep interfaces stable and use forwarding wrappers when splitting modules.
+- Prefer minimal, well-scoped changes; avoid compatibility shims for removed systems.
 
 ## Quick Commands
 

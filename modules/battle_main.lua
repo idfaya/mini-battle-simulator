@@ -216,13 +216,7 @@ end
 local function BuildHeroAttributeMap(hero)
     return {
         [BattleAttribute.ATTR_ID.HP] = hero.maxHp or hero.hp or 100,
-        [BattleAttribute.ATTR_ID.ATK] = hero.hit or hero.hitRate or hero.atk or 0,
-        [BattleAttribute.ATTR_ID.DEF] = hero.def or 0,
-        [BattleAttribute.ATTR_ID.SPEED] = hero.spd or hero.speed or 0,
-        [BattleAttribute.ATTR_ID.CRIT_RATE] = hero.crt or hero.critRate or 0,
-        [BattleAttribute.ATTR_ID.CRIT_DMG] = hero.crtd or hero.critDamage or 150,
-        [BattleAttribute.ATTR_ID.HIT_RATE] = hero.hit or hero.hitRate or 100,
-        [BattleAttribute.ATTR_ID.DODGE_RATE] = hero.res or hero.dodgeRate or 0,
+        [BattleAttribute.ATTR_ID.ATK] = hero.hit or hero.atk or 0,
         [BattleAttribute.ATTR_ID.DMG_REDUCE] = hero.damageReduce or 0,
         [BattleAttribute.ATTR_ID.DMG_INCREASE] = hero.damageIncrease or 0,
     }

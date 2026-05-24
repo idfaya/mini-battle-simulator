@@ -82,7 +82,7 @@ local function Main()
             h.wpType = i
             h.isLeft = true
             table.insert(heroes, h)
-            print(string.format("  %d. %s (HP:%d HIT:%d DEF:%d)", i, h.name or ("Hero_" .. id), h.hp or 0, h.hit or h.hitRate or 0, h.def or 0))
+            print(string.format("  %d. %s (HP:%d HIT:%d AC:%d)", i, h.name or ("Hero_" .. id), h.hp or 0, h.hit or h.hitRate or 0, h.ac or 10))
         end
     end
 

@@ -13,20 +13,6 @@ local SkillRuntime = require("modules.skill_runtime")
 ---@field wis integer
 ---@field cha integer
 
----@class EnemyRoleTemplate
----@field hp integer[]
----@field def integer[]
----@field speed integer[]
----@field ac integer[]
----@field hit integer[]
----@field spellDC integer[]
----@field saveFort integer[]
----@field saveRef integer[]
----@field saveWill integer[]
----@field critRate integer
----@field blockRate integer
----@field healBonus integer|nil
-
 ---@class EnemyChallengeMeta
 ---@field cr string
 ---@field xp integer
@@ -37,7 +23,6 @@ local SkillRuntime = require("modules.skill_runtime")
 ---@field hitDelta integer
 ---@field spellDCDelta integer
 ---@field saveDelta integer
----@field speedDelta integer
 
 local EnemyData = {}
 
@@ -62,28 +47,11 @@ local ENEMY_CR_META = {
     [910007] = { cr = "4", xp = 1100, role = "elite_caster" }, -- ThunderLord
 }
 
--- True 5e-style enemy templates.
--- Base role template is picked by class, then monster type only applies light
--- combat identity deltas (AC / hit / DC / saves / speed), not hp/atk/def scalars.
----@type table<integer|string, EnemyRoleTemplate>
-local ENEMY_ROLE_TEMPLATES = {
-    [1] = { hp = { 38, 48, 58, 70, 82 }, def = { 2, 3, 3, 4, 4 }, speed = { 101, 102, 103, 104, 105 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 4, 5, 5 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 800, blockRate = 400 },
-    [2] = { hp = { 52, 66, 80, 94, 108 }, def = { 3, 4, 5, 6, 7 }, speed = { 92, 93, 94, 95, 96 }, ac = { 17, 18, 19, 20, 21 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 300, blockRate = 1600 },
-    [3] = { hp = { 44, 56, 68, 80, 92 }, def = { 2, 3, 3, 4, 4 }, speed = { 104, 105, 106, 107, 108 }, ac = { 16, 17, 18, 19, 20 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 11, 12, 13, 13, 14 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 700, blockRate = 400 },
-    [4] = { hp = { 56, 72, 88, 104, 120 }, def = { 3, 4, 4, 5, 6 }, speed = { 94, 95, 96, 97, 98 }, ac = { 16, 17, 18, 19, 20 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 11, 12, 12, 13, 14 }, saveFort = { 4, 5, 6, 7, 8 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 900 },
-    [5] = { hp = { 46, 58, 70, 82, 94 }, def = { 2, 3, 3, 4, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 15, 16, 17, 18, 19 }, hit = { 6, 7, 8, 9, 10 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 2, 3, 4, 5, 6 }, critRate = 500, blockRate = 700 },
-    [6] = { hp = { 42, 52, 62, 72, 82 }, def = { 2, 2, 3, 3, 4 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 15, 15, 16, 17 }, hit = { 3, 4, 4, 5, 6 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 2, 3, 4, 5, 6 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 300, blockRate = 400, healBonus = 800 },
-    [7] = { hp = { 36, 46, 56, 66, 76 }, def = { 1, 2, 2, 3, 3 }, speed = { 99, 100, 101, 102, 103 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 4, 5, 6, 7, 8 }, critRate = 500, blockRate = 300 },
-    [8] = { hp = { 40, 50, 60, 70, 80 }, def = { 1, 2, 2, 3, 3 }, speed = { 97, 98, 99, 100, 101 }, ac = { 14, 14, 15, 15, 16 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 13, 14, 15, 16, 17 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 400, blockRate = 400 },
-    [9] = { hp = { 37, 47, 57, 67, 77 }, def = { 1, 2, 2, 3, 3 }, speed = { 100, 101, 102, 103, 104 }, ac = { 13, 13, 14, 15, 15 }, hit = { 3, 3, 4, 4, 5 }, spellDC = { 14, 15, 16, 17, 18 }, saveFort = { 2, 3, 4, 5, 6 }, saveRef = { 4, 5, 6, 7, 8 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 700, blockRate = 300 },
-    default = { hp = { 42, 52, 62, 72, 82 }, def = { 2, 2, 3, 3, 4 }, speed = { 98, 99, 100, 101, 102 }, ac = { 15, 16, 17, 18, 19 }, hit = { 5, 6, 7, 8, 9 }, spellDC = { 12, 13, 14, 15, 16 }, saveFort = { 3, 4, 5, 6, 7 }, saveRef = { 3, 4, 5, 6, 7 }, saveWill = { 3, 4, 5, 6, 7 }, critRate = 500, blockRate = 500 },
-}
-
 ---@type table<integer, MonsterTypeTemplate>
 local MONSTER_TYPE_TEMPLATES = {
-    [0] = { acDelta = -4, hitDelta = 0, spellDCDelta = 0, saveDelta = -1, speedDelta = 0 },
-    [1] = { acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0, speedDelta = 0 },
-    [2] = { acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1, speedDelta = 1 },
+    [0] = { acDelta = -4, hitDelta = 0, spellDCDelta = 0, saveDelta = -1 },
+    [1] = { acDelta = -2, hitDelta = 1, spellDCDelta = 1, saveDelta = 0 },
+    [2] = { acDelta = -1, hitDelta = 2, spellDCDelta = 2, saveDelta = 1 },
 }
 
 local ENEMY_LEVEL_MAX = 20
@@ -170,18 +138,16 @@ local function compileEnemyBuild(enemy, battleLevel)
     return buildState, buildLevel, selectedFeatIds
 end
 
----@type integer[]
-local ENEMY_TIER_STARTS = { 1, 5, 11, 17, ENEMY_LEVEL_MAX + 1 }
-
 ---@type table<integer, EnemyAbilityScores>
+-- 怪物主属性低于英雄同档；精英/Boss 靠 MonsterType delta 与 Build 等级抬升。
 local ENEMY_ABILITY_SCORES = {
-    [910001] = { str = 10, dex = 8,  con = 14, int = 2,  wis = 8,  cha = 2  }, -- Slime
-    [910002] = { str = 8,  dex = 16, con = 10, int = 8,  wis = 8,  cha = 8  }, -- Goblin
-    [910003] = { str = 16, dex = 12, con = 16, int = 8,  wis = 8,  cha = 8  }, -- Orc
-    [910004] = { str = 14, dex = 14, con = 14, int = 6,  wis = 8,  cha = 5  }, -- Skeleton
-    [910005] = { str = 8,  dex = 14, con = 12, int = 16, wis = 12, cha = 10 }, -- DarkMage
-    [910006] = { str = 12, dex = 14, con = 16, int = 18, wis = 14, cha = 12 }, -- IceDemon
-    [910007] = { str = 10, dex = 16, con = 14, int = 18, wis = 12, cha = 12 }, -- ThunderLord
+    [910001] = { str = 8,  dex = 8,  con = 12, int = 2,  wis = 8,  cha = 2  }, -- Slime
+    [910002] = { str = 8,  dex = 14, con = 10, int = 8,  wis = 8,  cha = 8  }, -- Goblin
+    [910003] = { str = 14, dex = 12, con = 14, int = 8,  wis = 8,  cha = 8  }, -- Orc
+    [910004] = { str = 12, dex = 12, con = 12, int = 6,  wis = 8,  cha = 5  }, -- Skeleton
+    [910005] = { str = 8,  dex = 12, con = 10, int = 14, wis = 12, cha = 10 }, -- DarkMage
+    [910006] = { str = 10, dex = 12, con = 14, int = 16, wis = 12, cha = 10 }, -- IceDemon
+    [910007] = { str = 10, dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- ThunderLord
 }
 
 local function clampAbility(score)
@@ -198,9 +164,9 @@ local function getEnemyAbilityScores(enemyId, classId)
         return preset
     end
     if ClassRoleConfig.IsMelee(classId) then
-        return { str = 14, dex = 12, con = 14, int = 8, wis = 10, cha = 8 }
+        return { str = 12, dex = 12, con = 12, int = 8, wis = 10, cha = 8 }
     end
-    return { str = 8, dex = 14, con = 12, int = 14, wis = 12, cha = 10 }
+    return { str = 8, dex = 12, con = 10, int = 12, wis = 10, cha = 8 }
 end
 
 local function getClassHitDie(classId)
@@ -243,56 +209,7 @@ local function calculateArmorClass(classId, dexMod, conMod)
     })
 end
 
-local function GetTier(level)
-    local lv = tonumber(level) or 1
-    lv = math.max(1, math.min(ENEMY_LEVEL_MAX, lv))
-    if lv >= ENEMY_TIER_STARTS[4] then return 4 end
-    if lv >= ENEMY_TIER_STARTS[3] then return 3 end
-    if lv >= ENEMY_TIER_STARTS[2] then return 2 end
-    return 1
-end
-
-local function GetRoleTemplate(classId)
-    return ENEMY_ROLE_TEMPLATES[tonumber(classId) or 0] or ENEMY_ROLE_TEMPLATES.default
-end
-
-local function GetInterpolatedTemplateValue(series, level)
-    if type(series) ~= "table" or #series == 0 then
-        return 0
-    end
-    local lv = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
-    local a1 = tonumber(series[1]) or 0
-    local a2 = tonumber(series[2]) or a1
-    local a3 = tonumber(series[3]) or a2
-    local a4 = tonumber(series[4]) or a3
-
-    local tier = GetTier(lv)
-    if tier == 1 then
-        local progress = (lv - ENEMY_TIER_STARTS[1]) / (ENEMY_TIER_STARTS[2] - ENEMY_TIER_STARTS[1])
-        return a1 + (a2 - a1) * progress
-    elseif tier == 2 then
-        local progress = (lv - ENEMY_TIER_STARTS[2]) / (ENEMY_TIER_STARTS[3] - ENEMY_TIER_STARTS[2])
-        return a2 + (a3 - a2) * progress
-    elseif tier == 3 then
-        local progress = (lv - ENEMY_TIER_STARTS[3]) / (ENEMY_TIER_STARTS[4] - ENEMY_TIER_STARTS[3])
-        return a3 + (a4 - a3) * progress
-    end
-    return a4
-end
-
-local function GetBaseTemplateStats(classId, level)
-    local tpl = GetRoleTemplate(classId)
-    return {
-        def = GetInterpolatedTemplateValue(tpl.def, level),
-        speed = GetInterpolatedTemplateValue(tpl.speed, level),
-        critRate = tpl.critRate or 0,
-        blockRate = tpl.blockRate or 0,
-        healBonus = tpl.healBonus or 0,
-    }
-end
-
 local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
-    local base = GetBaseTemplateStats(classId, level)
     local mt = MONSTER_TYPE_TEMPLATES[tonumber(monsterType) or 0] or MONSTER_TYPE_TEMPLATES[0]
     local abilities = getEnemyAbilityScores(enemyId, classId)
     local str = clampAbility(abilities.str)
@@ -312,8 +229,6 @@ local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
 
     return {
         hp = math.max(1, math.floor(calculate5eHp(level, hitDie, conMod))),
-        def = math.max(0, math.floor(base.def)),
-        speed = math.max(60, math.floor(base.speed + mt.speedDelta)),
         ac = math.max(10, math.floor(calculateArmorClass(classId, dexMod, conMod) + mt.acDelta)),
         hit = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + mt.hitDelta)),
         atk = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + mt.hitDelta)),
@@ -336,9 +251,6 @@ local function GetEnemyTemplateStats(enemyId, classId, level, monsterType)
         chaMod = chaMod,
         hitDie = hitDie,
         proficiencyBonus = prof,
-        critRate = base.critRate,
-        blockRate = base.blockRate,
-        healBonus = base.healBonus,
     }
 end
 
@@ -463,8 +375,6 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         name = name,
         hp = template.hp,
         atk = template.atk,
-        def = template.def,
-        speed = template.speed,
         ac = template.ac,
         hit = template.hit,
         spellAttack = template.spellAttack,
@@ -472,10 +382,6 @@ function EnemyData.ConvertToHeroData(enemyId, overrideLevel)
         saveFort = template.saveFort,
         saveRef = template.saveRef,
         saveWill = template.saveWill,
-        critRate = template.critRate or 0,
-        critDamage = 150,
-        blockRate = template.blockRate or 0,
-        healBonus = template.healBonus or 0,
         str = template.str,
         dex = template.dex,
         con = template.con,

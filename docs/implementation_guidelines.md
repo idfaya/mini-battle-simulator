@@ -88,6 +88,20 @@
   - `grantedTags`
 - 战斗初始化应由 `BuildState` 驱动，而不是在运行时根据职业做隐式推断。
 
+### 3.6 战斗属性 SSOT
+
+战前战斗属性仅来自以下来源（不存在职业节奏模板表）：
+
+| 来源 | 字段 |
+| --- | --- |
+| `Ability5e` + `HERO_ABILITY_SCORES` / `ENEMY_ABILITY_SCORES` | HP、AC、命中、法术攻击/DC、豁免、六维及调整值 |
+| `config/data/classes.json` → `weapon.weaponDice` | 物理武器骰 |
+| `MONSTER_TYPE_TEMPLATES`（敌人） | AC / 命中 / 法术 DC / 豁免 delta |
+| `HeroBuild` / Feat `statMods`、Roguelike 祝福 | 命中、HP、`healingFlatBonus`、`damageReduce` 等 |
+| `BattleAttribute` 活跃槽位 | HP、ATK（与 `hit` 镜像）、DMG_REDUCE、DMG_INCREASE |
+
+**命中与伤害**：`core/battle_formula.lua` 提供 `RollD20` / `RollHit` / `RollSave` / `RollConcentration`；物理伤害为 d20+`hit` vs `ac`，重击为自然 20；伤害骰与属性调整由 `BattleSkill.ResolveScaledDamage` 结算。治疗固定加成走 `healingFlatBonus`；百分比治疗加成走 Buff / 职业节奏配置。
+
 ## 4. 职业实现边界
 
 ### 4.1 先定母技能

@@ -692,7 +692,7 @@ do
     })
 
     assert_true(hitTarget ~= nil and hitTarget.target == secondaryTarget, "sweeping attack hits another alive enemy instead of the primary target")
-    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d6", "sweeping attack uses fighter weapon damage die under 5e rules")
+    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d8", "sweeping attack uses fighter weapon damage die under 5e rules")
 
     BattleFormation.GetEnemyTeam = oldGetEnemyTeam
     FighterBuildPassives.ApplyDirectBonusDamage = oldApplyDirectBonusDamage

@@ -9,46 +9,33 @@ local Logger = require("utils.logger")
 local BattleAttribute = {}
 local deadOrderCounter = 0
 
--- 属性ID定义
+-- 属性 ID（仅 Buff/战斗仍在使用的槽位；5e AC/豁免等走 hero 直字段）
 BattleAttribute.ATTR_ID = {
-    HP = 1,         -- 生命值
-    ATK = 2,        -- 旧攻击槽位（内部兼容）
-    DEF = 3,        -- 防御力
-    SPEED = 4,      -- 速度
-    CRIT_RATE = 5,  -- 暴击率
-    CRIT_DMG = 6,   -- 暴击伤害
-    HIT_RATE = 7,   -- 命中率
-    DODGE_RATE = 8, -- 闪避率
-    DMG_REDUCE = 9, -- 伤害减免
-    DMG_INCREASE = 10, -- 伤害加成
+    HP = 1,
+    ATK = 2,           -- 与 5e hit 镜像，供属性加成汇总
+    DMG_REDUCE = 9,
+    DMG_INCREASE = 10,
 }
 
--- 属性名称映射
+local ACTIVE_ATTR_IDS = {
+    BattleAttribute.ATTR_ID.HP,
+    BattleAttribute.ATTR_ID.ATK,
+    BattleAttribute.ATTR_ID.DMG_REDUCE,
+    BattleAttribute.ATTR_ID.DMG_INCREASE,
+}
+
 local ATTR_NAME_MAP = {
     [1] = "hp",
     [2] = "hit",
-    [3] = "def",
-    [4] = "speed",
-    [5] = "critRate",
-    [6] = "critDamage",
-    [7] = "hitRate",
-    [8] = "dodgeRate",
     [9] = "damageReduce",
     [10] = "damageIncrease",
 }
 
--- 属性默认值
 local ATTR_DEFAULT_VALUE = {
-    [1] = 100,   -- HP
-    [2] = 10,    -- ATK
-    [3] = 5,     -- DEF
-    [4] = 100,   -- SPEED
-    [5] = 0,     -- CRIT_RATE
-    [6] = 150,   -- CRIT_DMG
-    [7] = 100,   -- HIT_RATE
-    [8] = 0,     -- DODGE_RATE
-    [9] = 0,     -- DMG_REDUCE
-    [10] = 0,    -- DMG_INCREASE
+    [1] = 100,
+    [2] = 0,
+    [9] = 0,
+    [10] = 0,
 }
 
 --- 获取属性字段名
@@ -88,9 +75,8 @@ function BattleAttribute.Init(hero, attributeMap)
         hero.attributes.base[attrId] = value
     end
 
-    -- 确保必要属性有默认值
-    for attrId = 1, 10 do
-        if not hero.attributes.base[attrId] then
+    for _, attrId in ipairs(ACTIVE_ATTR_IDS) do
+        if hero.attributes.base[attrId] == nil then
             hero.attributes.base[attrId] = GetAttrDefaultValue(attrId)
         end
     end
@@ -99,10 +85,6 @@ function BattleAttribute.Init(hero, attributeMap)
     local maxHp = hero.attributes.base[BattleAttribute.ATTR_ID.HP] or 100
     hero.maxHp = maxHp
     hero.hp = hero.hp or maxHp
-
-    -- 初始化其他基础字段
-    hero.def = hero.attributes.base[BattleAttribute.ATTR_ID.DEF] or 0
-    hero.speed = hero.attributes.base[BattleAttribute.ATTR_ID.SPEED] or 0
 
     -- 重新计算所有属性
     BattleAttribute.UpdateHeroAttribute(hero)
@@ -298,8 +280,7 @@ function BattleAttribute.UpdateHeroAttribute(hero)
     hero.attributes.final = hero.attributes.final or {}
     hero.attributes.bonus = hero.attributes.bonus or {}
 
-    -- 计算每个属性的最终值
-    for attrId = 1, 10 do
+    for _, attrId in ipairs(ACTIVE_ATTR_IDS) do
         local baseValue = hero.attributes.base[attrId] or GetAttrDefaultValue(attrId)
         local totalBonus = 0
 
@@ -322,8 +303,6 @@ function BattleAttribute.UpdateHeroAttribute(hero)
             local m = tonumber(mul) or 1.0
             hero.attributes.final[attrId] = math.max(minValue, math.floor(v * m))
         end
-        mulFinal(BattleAttribute.ATTR_ID.DEF, rp.defMul or 1.0, 0)
-        mulFinal(BattleAttribute.ATTR_ID.SPEED, rp.speedMul or 1.0, 0)
     end
 
     -- 更新maxHp (基于HP属性)
@@ -341,15 +320,10 @@ function BattleAttribute.UpdateHeroAttribute(hero)
         hero.hp = hero.maxHp
     end
 
-    -- 同步常用字段
-    hero.def = hero.attributes.final[BattleAttribute.ATTR_ID.DEF] or 0
-    hero.speed = hero.attributes.final[BattleAttribute.ATTR_ID.SPEED] or 0
-    hero.critRate = hero.attributes.final[BattleAttribute.ATTR_ID.CRIT_RATE] or 0
-    hero.critDamage = hero.attributes.final[BattleAttribute.ATTR_ID.CRIT_DMG] or 150
-    hero.hitRate = hero.attributes.final[BattleAttribute.ATTR_ID.HIT_RATE] or 100
-    hero.hit = hero.hitRate
-    hero.spellAttack = hero.spellAttack or hero.hitRate
-    hero.dodgeRate = hero.attributes.final[BattleAttribute.ATTR_ID.DODGE_RATE] or 0
+    -- 同步仍在使用的字段（5e hit 优先，ATK 槽位为兼容镜像）
+    local atkSlot = tonumber(hero.attributes.final[BattleAttribute.ATTR_ID.ATK]) or 0
+    hero.hit = tonumber(hero.hit) or atkSlot
+    hero.spellAttack = tonumber(hero.spellAttack) or hero.hit
     hero.damageReduce = hero.attributes.final[BattleAttribute.ATTR_ID.DMG_REDUCE] or 0
     hero.damageIncrease = hero.attributes.final[BattleAttribute.ATTR_ID.DMG_INCREASE] or 0
 
@@ -366,32 +340,6 @@ function BattleAttribute.IsAlive(hero)
         return false
     end
     return (hero.hp or 0) > 0
-end
-
---- 获取英雄速度 (用于行动顺序计算)
----@param hero table 英雄对象
----@return number 速度值
-function BattleAttribute.GetSpeed(hero)
-    if not hero then
-        return 0
-    end
-
-    local BattleBuff = require("modules.battle_buff")
-
-    local speed = 0
-    if hero.attributes and hero.attributes.final[BattleAttribute.ATTR_ID.SPEED] then
-        speed = hero.attributes.final[BattleAttribute.ATTR_ID.SPEED]
-    else
-        speed = hero.spd or hero.speed or 0
-    end
-    local slowPct = BattleBuff.GetBuffValueBySubType(hero, 880001)
-    local warSpiritPct = BattleBuff.GetBuffStackNumBySubType(hero, 840001) * 500
-    local auraSpdPct = 0
-    if BattleBuff.GetBuffBySubType(hero, 840003) then
-        auraSpdPct = 5000
-    end
-    local speedBuffPct = warSpiritPct + auraSpdPct - slowPct
-    return math.max(0, math.floor(speed * (1 + speedBuffPct / 10000)))
 end
 
 --- 获取英雄所有属性信息 (用于调试)

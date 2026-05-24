@@ -33,7 +33,6 @@ local function buildSnapshot(level)
             hp = attrs.hp,
             ac = attrs.ac,
             hit = attrs.hit,
-            spd = attrs.spd,
             str = attrs.str,
             dex = attrs.dex,
             con = attrs.con,
@@ -79,7 +78,7 @@ for _, level in ipairs(LEVELS) do
     assert(barbarian.ac <= math.ceil(acAvg + 2), string.format("level %d: Barbarian ac %d should be <= avg %.1f + 2", level, barbarian.ac, acAvg))
     assert(barbarian.ac >= acMin - 1, string.format("level %d: Barbarian ac %d should be >= group min %d - 1", level, barbarian.ac, acMin))
 
-    -- hit：野蛮人主攻击属性是 STR（20），命中应当不弱于群体均值
+    -- hit：野蛮人主攻击属性是 STR（16），命中应当不弱于群体均值
     assert(barbarian.hit >= hitAvg - 1, string.format("level %d: Barbarian hit %d should be >= avg %.1f - 1", level, barbarian.hit, hitAvg))
     assert(barbarian.hit <= hitMax + 1, string.format("level %d: Barbarian hit %d should be <= max %d + 1", level, barbarian.hit, hitMax))
 
@@ -88,7 +87,6 @@ for _, level in ipairs(LEVELS) do
         assert(row.hp >= 5, string.format("level %d: %s hp %d below 5e floor", level, row.label, row.hp))
         assert(row.ac >= 10 and row.ac <= 22, string.format("level %d: %s ac %d outside 5e bounds", level, row.label, row.ac))
         assert(row.hit >= 0 and row.hit <= 12, string.format("level %d: %s hit %d outside 5e bounds", level, row.label, row.hit))
-        assert(row.spd >= 60, string.format("level %d: %s spd %d below 5e floor", level, row.label, row.spd))
     end
 
     print(string.format(

@@ -1413,11 +1413,6 @@ local function ApplyUnifiedHealModifiers(healer, rawHeal)
         healAmount = math.floor(healAmount * (1 + auraTotal / 10000))
     end
 
-    local healBonus = healer and healer.healBonus or 0
-    if healBonus ~= 0 then
-        healAmount = math.floor(healAmount * (1 + healBonus / 10000))
-    end
-
     local healingFlatBonus = healer and healer.healingFlatBonus or 0
     if healingFlatBonus ~= 0 then
         healAmount = healAmount + math.max(0, math.floor(healingFlatBonus))

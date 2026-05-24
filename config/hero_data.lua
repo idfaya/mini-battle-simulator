@@ -15,20 +15,6 @@ local Ability5e = require("modules.ability_5e")
 ---@field wis integer
 ---@field cha integer
 
----@class HeroRoleTemplate
----@field hp integer[]
----@field def integer[]
----@field speed integer[]
----@field ac integer[]
----@field hit integer[]
----@field spellDC integer[]
----@field saveFort integer[]
----@field saveRef integer[]
----@field saveWill integer[]
----@field critRate integer
----@field blockRate integer
----@field healBonus integer|nil
-
 local HeroData = {}
 
 local heroInfoMap = {}
@@ -50,159 +36,21 @@ local QUALITY_NAMES = {
     [6] = "Myth",
 }
 
--- True 5e-style role templates.
--- Values are band anchors for T1..T4 (Lv1-4, 5-10, 11-16, 17-20).
--- We interpolate inside each band instead of reusing the legacy base+growth curve.
----@type table<integer|string, HeroRoleTemplate>
-local HERO_ROLE_TEMPLATES = {
-    [1] = { -- A1 追击流
-        hp = { 42, 54, 66, 78, 90 },
-        def = { 2, 3, 3, 4, 4 },
-        speed = { 102, 103, 104, 105, 106 },
-        ac = { 16, 17, 18, 19, 20 },
-        hit = { 7, 8, 9, 10, 11 },
-        spellDC = { 12, 12, 13, 13, 14 },
-        saveFort = { 3, 4, 4, 5, 5 },
-        saveRef = { 5, 6, 7, 8, 9 },
-        saveWill = { 2, 3, 4, 5, 6 },
-        critRate = 1000, blockRate = 500,
-    },
-    [2] = { -- Fighter 前线战士
-        hp = { 64, 82, 100, 118, 136 },
-        def = { 4, 5, 6, 7, 8 },
-        speed = { 91, 92, 93, 94, 95 },
-        ac = { 18, 19, 20, 21, 22 },
-        hit = { 5, 6, 7, 8, 9 },
-        spellDC = { 12, 13, 13, 14, 15 },
-        saveFort = { 5, 6, 7, 8, 9 },
-        saveRef = { 2, 3, 4, 5, 6 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 300, blockRate = 2000,
-    },
-    [3] = { -- S1 连击流
-        hp = { 48, 60, 72, 84, 96 },
-        def = { 2, 3, 3, 4, 4 },
-        speed = { 105, 106, 107, 108, 109 },
-        ac = { 17, 18, 19, 20, 21 },
-        hit = { 7, 8, 9, 10, 11 },
-        spellDC = { 12, 12, 13, 13, 14 },
-        saveFort = { 3, 4, 5, 6, 7 },
-        saveRef = { 5, 6, 7, 8, 9 },
-        saveWill = { 2, 3, 4, 5, 6 },
-        critRate = 800, blockRate = 500,
-    },
-    [4] = { -- B1 战意流
-        hp = { 68, 88, 108, 126, 145 },
-        def = { 3, 4, 5, 5, 6 },
-        speed = { 94, 95, 96, 97, 98 },
-        ac = { 16, 17, 18, 19, 20 },
-        hit = { 5, 6, 7, 8, 9 },
-        spellDC = { 12, 13, 13, 14, 15 },
-        saveFort = { 4, 5, 6, 7, 8 },
-        saveRef = { 2, 3, 4, 5, 6 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 500, blockRate = 1000,
-    },
-    [5] = { -- T1 毒爆流
-        hp = { 50, 63, 76, 89, 102 },
-        def = { 2, 3, 3, 4, 4 },
-        speed = { 98, 99, 100, 101, 102 },
-        ac = { 15, 16, 17, 18, 19 },
-        hit = { 6, 7, 8, 9, 10 },
-        spellDC = { 13, 14, 15, 16, 17 },
-        saveFort = { 3, 4, 5, 6, 7 },
-        saveRef = { 4, 5, 6, 7, 8 },
-        saveWill = { 2, 3, 4, 5, 6 },
-        critRate = 500, blockRate = 800,
-    },
-    [6] = { -- H1 圣光流
-        hp = { 44, 56, 68, 80, 92 },
-        def = { 2, 3, 3, 4, 4 },
-        speed = { 98, 99, 100, 101, 102 },
-        ac = { 14, 15, 16, 16, 17 },
-        hit = { 3, 4, 5, 5, 6 },
-        spellDC = { 14, 15, 16, 17, 18 },
-        saveFort = { 2, 3, 4, 5, 6 },
-        saveRef = { 2, 3, 4, 5, 6 },
-        saveWill = { 5, 6, 7, 8, 9 },
-        critRate = 300, blockRate = 500, healBonus = 800,
-    },
-    [7] = { -- M1 火法
-        hp = { 38, 48, 58, 68, 78 },
-        def = { 1, 2, 2, 3, 3 },
-        speed = { 100, 101, 102, 103, 104 },
-        ac = { 13, 13, 14, 15, 15 },
-        hit = { 3, 3, 4, 4, 5 },
-        spellDC = { 15, 16, 17, 18, 19 },
-        saveFort = { 2, 3, 4, 5, 6 },
-        saveRef = { 3, 4, 5, 6, 7 },
-        saveWill = { 4, 5, 6, 7, 8 },
-        critRate = 500, blockRate = 300,
-    },
-    [8] = { -- M2 冰法
-        hp = { 42, 53, 64, 75, 86 },
-        def = { 2, 2, 3, 3, 4 },
-        speed = { 98, 99, 100, 101, 102 },
-        ac = { 14, 14, 15, 15, 16 },
-        hit = { 3, 3, 4, 4, 5 },
-        spellDC = { 14, 15, 16, 17, 18 },
-        saveFort = { 3, 4, 5, 6, 7 },
-        saveRef = { 3, 4, 5, 6, 7 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 400, blockRate = 500,
-    },
-    [9] = { -- M3 雷法
-        hp = { 39, 49, 59, 69, 80 },
-        def = { 1, 2, 2, 3, 3 },
-        speed = { 101, 102, 103, 104, 105 },
-        ac = { 13, 13, 14, 15, 15 },
-        hit = { 3, 3, 4, 4, 5 },
-        spellDC = { 15, 16, 17, 18, 19 },
-        saveFort = { 2, 3, 4, 5, 6 },
-        saveRef = { 4, 5, 6, 7, 8 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 800, blockRate = 300,
-    },
-    [10] = { -- Barbarian 狂怒前线
-        hp = { 72, 92, 112, 132, 152 },
-        def = { 3, 4, 5, 6, 7 },
-        speed = { 92, 93, 94, 95, 96 },
-        ac = { 15, 16, 17, 18, 19 },
-        hit = { 5, 6, 7, 8, 9 },
-        spellDC = { 10, 10, 11, 11, 12 },
-        saveFort = { 6, 7, 8, 9, 10 },
-        saveRef = { 2, 3, 4, 5, 6 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 600, blockRate = 800,
-    },
-    default = {
-        hp = { 50, 62, 74, 86, 98 },
-        def = { 2, 3, 3, 4, 4 },
-        speed = { 98, 99, 100, 101, 102 },
-        ac = { 15, 16, 17, 18, 19 },
-        hit = { 5, 6, 7, 8, 9 },
-        spellDC = { 13, 14, 15, 16, 17 },
-        saveFort = { 3, 4, 5, 6, 7 },
-        saveRef = { 3, 4, 5, 6, 7 },
-        saveWill = { 3, 4, 5, 6, 7 },
-        critRate = 500, blockRate = 500,
-    },
-}
-
 -- 5e ability scores per hero (STR/DEX/CON/INT/WIS/CHA).
 -- These are used for true 5e HP (hit die + CON mod per level).
 ---@type table<integer, HeroAbilityScores>
+-- Lv1 主属性按 5e 点购上限（主属性 16 / +3），随等级由 Build/Feat 抬升；勿在此写 18–20。
 local HERO_ABILITY_SCORES = {
-    [900001] = { str = 10, dex = 20, con = 14, int = 8,  wis = 14, cha = 10 }, -- Monk
+    [900001] = { str = 10, dex = 16, con = 14, int = 8,  wis = 14, cha = 10 }, -- Monk
     [900002] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Sorcerer
     [900003] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Wizard
     [900004] = { str = 8,  dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- Warlock
-    [900005] = { str = 20, dex = 10, con = 16, int = 8,  wis = 12, cha = 10 }, -- Fighter
-    [900006] = { str = 10, dex = 20, con = 14, int = 10, wis = 10, cha = 12 }, -- Rogue
+    [900005] = { str = 16, dex = 12, con = 14, int = 8,  wis = 12, cha = 10 }, -- Fighter
+    [900006] = { str = 10, dex = 16, con = 14, int = 10, wis = 10, cha = 12 }, -- Rogue
     [900007] = { str = 10, dex = 12, con = 14, int = 10, wis = 16, cha = 10 }, -- Cleric
-    [900008] = { str = 10, dex = 20, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
-    [900009] = { str = 20, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
-    [900010] = { str = 20, dex = 12, con = 18, int = 8,  wis = 12, cha = 10 }, -- Barbarian
+    [900008] = { str = 10, dex = 16, con = 13, int = 10, wis = 14, cha = 10 }, -- Ranger
+    [900009] = { str = 16, dex = 10, con = 14, int = 8,  wis = 10, cha = 14 }, -- Paladin
+    [900010] = { str = 16, dex = 12, con = 16, int = 8,  wis = 12, cha = 10 }, -- Barbarian
 }
 
 local function clampAbility(score)
@@ -259,7 +107,7 @@ local function getHeroAbilityScores(heroId, classId)
     if preset then
         return preset
     end
-    -- Fallback defaults by stream: melee favors STR/CON; casters favor INT/WIS.
+    -- Fallback：与 HERO_ABILITY_SCORES 同档（主属性 14–16）。
     local isMelee = ClassRoleConfig.IsMelee(classId)
     if isMelee then
         return { str = 14, dex = 12, con = 14, int = 10, wis = 10, cha = 10 }
@@ -305,14 +153,6 @@ local function calculateArmorClass(classId, dexMod, conMod, wisMod, level)
     })
 end
 
-local function applyClassArmorFloor(classId, templateAc, calculatedAc)
-    local classNum = tonumber(classId) or 0
-    if classNum == 4 or classNum == 6 then
-        return math.max(math.floor(templateAc or 0), math.floor(calculatedAc or 0))
-    end
-    return math.floor(calculatedAc or 0)
-end
-
 local HERO_LEVEL_MAX = 20
 local PROMOTION_STAGE_TO_LEVEL = {
     -- promotion_stage provides the minimum combat level fallback only.
@@ -332,11 +172,6 @@ local PROMOTION_STAGE_ORDER = {
     mid = 2,
     high = 3,
 }
--- 5e-ish tier boundaries (inclusive start, exclusive end)
--- T1: 1-4, T2: 5-10, T3: 11-16, T4: 17-20
----@type integer[]
-local HERO_TIER_STARTS = { 1, 5, 11, 17, HERO_LEVEL_MAX + 1 }
-
 local function normalizePromotionStage(stage)
     local value = tostring(stage or "low")
     if value ~= "mid" and value ~= "high" then
@@ -374,62 +209,6 @@ local function cloneMap(map)
         result[key] = value
     end
     return result
-end
-
-local function GetTier(level)
-    local lv = tonumber(level) or 1
-    lv = math.max(1, math.min(HERO_LEVEL_MAX, lv))
-    if lv >= HERO_TIER_STARTS[4] then return 4 end
-    if lv >= HERO_TIER_STARTS[3] then return 3 end
-    if lv >= HERO_TIER_STARTS[2] then return 2 end
-    return 1
-end
-
-local function GetRoleTemplate(classId)
-    return HERO_ROLE_TEMPLATES[tonumber(classId) or 0] or HERO_ROLE_TEMPLATES.default
-end
-
-local function GetInterpolatedTemplateValue(series, level)
-    if type(series) ~= "table" or #series == 0 then
-        return 0
-    end
-    local lv = math.max(1, math.min(HERO_LEVEL_MAX, tonumber(level) or 1))
-    -- We only use the first 4 anchors as T1..T4 even if the table has more values.
-    local a1 = tonumber(series[1]) or 0
-    local a2 = tonumber(series[2]) or a1
-    local a3 = tonumber(series[3]) or a2
-    local a4 = tonumber(series[4]) or a3
-
-    local tier = GetTier(lv)
-    if tier == 1 then
-        local progress = (lv - HERO_TIER_STARTS[1]) / (HERO_TIER_STARTS[2] - HERO_TIER_STARTS[1])
-        return a1 + (a2 - a1) * progress
-    elseif tier == 2 then
-        local progress = (lv - HERO_TIER_STARTS[2]) / (HERO_TIER_STARTS[3] - HERO_TIER_STARTS[2])
-        return a2 + (a3 - a2) * progress
-    elseif tier == 3 then
-        local progress = (lv - HERO_TIER_STARTS[3]) / (HERO_TIER_STARTS[4] - HERO_TIER_STARTS[3])
-        return a3 + (a4 - a3) * progress
-    end
-    return a4
-end
-
-local function GetTemplateStats(classId, level)
-    local tpl = GetRoleTemplate(classId)
-    return {
-        hp = GetInterpolatedTemplateValue(tpl.hp, level),
-        def = GetInterpolatedTemplateValue(tpl.def, level),
-        speed = GetInterpolatedTemplateValue(tpl.speed, level),
-        ac = GetInterpolatedTemplateValue(tpl.ac, level),
-        hit = GetInterpolatedTemplateValue(tpl.hit, level),
-        spellDC = GetInterpolatedTemplateValue(tpl.spellDC, level),
-        saveFort = GetInterpolatedTemplateValue(tpl.saveFort, level),
-        saveRef = GetInterpolatedTemplateValue(tpl.saveRef, level),
-        saveWill = GetInterpolatedTemplateValue(tpl.saveWill, level),
-        critRate = tpl.critRate or 0,
-        blockRate = tpl.blockRate or 0,
-        healBonus = tpl.healBonus or 0,
-    }
 end
 
 local function ParseSkillIDs(skillData)
@@ -604,7 +383,6 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
 
     local level = math.max(1, math.min(HERO_LEVEL_MAX, tonumber(level) or 1))
     local quality = hero.BaseQuality or hero.Quality or 1
-    local template = GetTemplateStats(hero.Class, level)
 
     -- 5e growth: level drives progression; star no longer affects stats.
     local abilities = (override and override.abilityScores) or getHeroAbilityScores(heroId, hero.Class)
@@ -623,10 +401,7 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local hitDie = getClassHitDie(hero.Class)
     local prof = getProficiencyBonus(level)
     local finalHp = calculate5eHp(level, hitDie, conMod)
-    local finalDef = math.max(0, math.floor(template.def))
-    local finalSpd = math.max(60, math.floor(template.speed))
-    local baseAc = calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level)
-    local finalAc = math.max(10, applyClassArmorFloor(hero.Class, template.ac, baseAc))
+    local finalAc = math.max(10, math.floor(calculateArmorClass(hero.Class, dexMod, conMod, wisMod, level)))
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
     local finalSpellAttack = math.max(0, prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
@@ -638,9 +413,6 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
         hp = finalHp,
         maxHp = finalHp,
         atk = finalHit,
-        def = finalDef,
-        spd = finalSpd,
-        speed = finalSpd,
         str = str,
         dex = dex,
         con = con,
@@ -655,9 +427,6 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
         chaMod = chaMod,
         hitDie = hitDie,
         proficiencyBonus = prof,
-        critRate = template.critRate or 0,
-        blockRate = template.blockRate or 0,
-        healBonus = template.healBonus or 0,
         ac = finalAc,
         hit = finalHit,
         spellAttack = finalSpellAttack,
@@ -828,20 +597,15 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         class = hero.Class,
         faction = hero.Faction,
         atk = attrs.hit,
-        def = attrs.def,
         hp = attrs.hp,
         maxHp = attrs.maxHp,
-        spd = attrs.spd,
-        speed = attrs.speed,
         ac = attrs.ac,
         hit = attrs.hit,
+        spellAttack = attrs.spellAttack,
         spellDC = attrs.spellDC,
         saveFort = attrs.saveFort,
         saveRef = attrs.saveRef,
         saveWill = attrs.saveWill,
-        critRate = attrs.critRate,
-        blockRate = attrs.blockRate,
-        healBonus = attrs.healBonus,
         str = attrs.str,
         dex = attrs.dex,
         con = attrs.con,
@@ -900,8 +664,6 @@ function HeroData.CreateBattleConfig(leftHeroes, rightHeroes, maxRound, seedArra
                 attr_array = {
                     { key = 1, value = heroData.maxHp },
                     { key = 2, value = heroData.hit },
-                    { key = 3, value = heroData.def },
-                    { key = 4, value = heroData.speed or 100 },
                 },
             },
         })
@@ -1169,7 +931,6 @@ function HeroData.CreateClassUnit(classId, options)
         skillLevels = cloneMap(heroData.skillLevels),
         buildState = heroData.buildState,
         atk = heroData.hit,
-        def = heroData.def,
         ac = heroData.ac,
         hit = heroData.hit,
         spellAttack = heroData.spellAttack,
@@ -1177,10 +938,6 @@ function HeroData.CreateClassUnit(classId, options)
         saveFort = heroData.saveFort,
         saveRef = heroData.saveRef,
         saveWill = heroData.saveWill,
-        speed = heroData.speed,
-        critRate = heroData.critRate,
-        blockRate = heroData.blockRate,
-        healBonus = heroData.healBonus,
         str = heroData.str,
         dex = heroData.dex,
         con = heroData.con,

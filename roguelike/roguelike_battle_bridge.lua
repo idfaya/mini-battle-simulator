@@ -188,7 +188,6 @@ local function buildHeroForBattle(rosterHero, modifiers)
     local baseCurrentHp = tonumber(rosterHero.currentHp or oldMaxHp) or oldMaxHp
     baseCurrentHp = math.max(1, math.min(oldMaxHp, baseCurrentHp))
     heroData.hp = math.max(1, math.min(heroData.maxHp, math.floor(baseCurrentHp)))
-    heroData.def = math.max(0, math.floor((heroData.def or 0)))
     local baseSpellAttack = tonumber(heroData.spellAttack) or tonumber(heroData.hit) or 0
     heroData.hit = math.max(0, math.floor((heroData.hit or 0) + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
     heroData.spellAttack = math.max(0, math.floor(baseSpellAttack + (modifiers.hitDeltaByClass[rosterHero.classId] or 0)))
@@ -236,8 +235,6 @@ local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
     if not budget then
         return {
             hpMul = 1.0,
-            atkMul = 1.0,
-            defMul = 1.0,
             hitDelta = 0,
             spellDCDelta = 0,
             saveDelta = 0,
@@ -259,8 +256,6 @@ local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
     local gap = (report.targetAdjustedXp > 0) and (report.targetAdjustedXp / math.max(1, report.adjustedXp)) or 1.0
     return {
         hpMul = clamp(1.00 + (gap - 1.0) * 0.06, 0.90, 1.25),
-        atkMul = clamp(1.00 + (gap - 1.0) * 0.08, 0.90, 1.25),
-        defMul = clamp(1.00 + (gap - 1.0) * 0.04, 0.95, 1.15),
         hitDelta = roundInt(clamp((gap - 1.0) * 0.45, -1, 2)),
         spellDCDelta = roundInt(clamp((gap - 1.0) * 0.35, -1, 2)),
         saveDelta = roundInt(clamp((gap - 1.0) * 0.25, -1, 1)),
@@ -274,10 +269,8 @@ local function buildEnemyForBattle(enemyId, level, wpType, budgetAdjust)
         return nil
     end
     local budgetHp = tonumber(budgetAdjust and budgetAdjust.hpMul) or 1.0
-    local budgetDef = tonumber(budgetAdjust and budgetAdjust.defMul) or 1.0
     enemyData.hp = math.max(1, math.floor((enemyData.hp or 1) * budgetHp))
     enemyData.maxHp = enemyData.hp
-    enemyData.def = math.max(0, math.floor((enemyData.def or 0) * budgetDef))
     local baseSpellAttack = tonumber(enemyData.spellAttack) or tonumber(enemyData.hit) or 0
     enemyData.hit = math.max(0, math.floor((enemyData.hit or 0) + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
     enemyData.spellAttack = math.max(0, math.floor(baseSpellAttack + (tonumber(budgetAdjust and budgetAdjust.hitDelta) or 0)))
@@ -453,9 +446,9 @@ local function buildBattleConfig(runState, battle, battleProfile)
         partyLevel = partyLevel,
     })
     if os.getenv("BATTLE_DIAG") then
-        print(string.format("[BATTLE_DIAG] kind=%s baseLevel=%s partyLevel=%s effEnemyLv=%s hpMul=%.2f atkMul=%.2f hit=%d",
+        print(string.format("[BATTLE_DIAG] kind=%s baseLevel=%s partyLevel=%s effEnemyLv=%s hpMul=%.2f hitDelta=%d",
             tostring(battleKind), tostring(baseLevel), tostring(partyLevel), tostring(effectiveEnemyLevel),
-            budgetAdjust.hpMul or 1.0, budgetAdjust.atkMul or 1.0, budgetAdjust.hitDelta or 0))
+            budgetAdjust.hpMul or 1.0, budgetAdjust.hitDelta or 0))
     end
 
     local openingEnemyIds = pickInitialEnemyIds(battle)

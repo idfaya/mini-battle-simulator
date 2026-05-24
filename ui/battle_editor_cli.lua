@@ -195,16 +195,13 @@ function BattleEditorCLI.GetHeroAttrTable(camp, wpType)
 
     -- 战斗属性
     table.insert(attrTable.rows, {"---", "---", "---"})
-    table.insert(attrTable.rows, {"命中", hero.hit or hero.hitRate or 0, "攻击判定加值"})
-    table.insert(attrTable.rows, {"防御力", hero.def or 0, "基础防御力"})
-    table.insert(attrTable.rows, {"速度", hero.speed or 0, "行动速度"})
+    table.insert(attrTable.rows, {"命中", hero.hit or 0, "攻击判定加值"})
+    table.insert(attrTable.rows, {"护甲 AC", hero.ac or 10, "护甲等级"})
+    table.insert(attrTable.rows, {"法术 DC", hero.spellDC or 10, "法术豁免 DC"})
+    table.insert(attrTable.rows, {"强韧/反射/意志", string.format("%d/%d/%d", hero.saveFort or 0, hero.saveRef or 0, hero.saveWill or 0), "豁免加值"})
 
     -- 高级属性
     table.insert(attrTable.rows, {"---", "---", "---"})
-    table.insert(attrTable.rows, {"暴击率", string.format("%.1f%%", (hero.critRate or 0)), "暴击概率"})
-    table.insert(attrTable.rows, {"暴击伤害", string.format("%.1f%%", (hero.critDamage or 150)), "暴击伤害倍率"})
-    table.insert(attrTable.rows, {"命中率", string.format("%.1f%%", (hero.hitRate or 100)), "命中概率"})
-    table.insert(attrTable.rows, {"闪避率", string.format("%.1f%%", (hero.dodgeRate or 0)), "闪避概率"})
     table.insert(attrTable.rows, {"伤害减免", string.format("%.1f%%", (hero.damageReduce or 0)), "受到伤害减免"})
     table.insert(attrTable.rows, {"伤害增加", string.format("%.1f%%", (hero.damageIncrease or 0)), "造成伤害增加"})
 

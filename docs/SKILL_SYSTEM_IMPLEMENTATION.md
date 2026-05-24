@@ -2,8 +2,8 @@
 
 > **项目**: Mini Battle Simulator  
 > **版本**: 2.0 (Timeline 架构)  
-> **更新时间**: 2026-04-14  
-> **说明**: 本文档描述技能系统迁移至 Timeline 执行体系后的实际实现
+> **更新时间**: 2026-05-24  
+> **说明**: 技能 Timeline 执行、5e 伤害结算与配置三层结构的程序 SSOT
 
 ---
 
@@ -24,19 +24,17 @@
 
 ## 1. 系统概述
 
-### 1.1 架构变迁
+技能以 **Timeline** 为唯一执行路径：每个主动技能脚本实现 `BuildTimeline`，返回按 `frame` 排序的帧序列；`SkillTimeline.Execute` 逐帧执行，伤害/治疗/Buff 在帧内结算，表现通过 `BattleVisualEvents` 订阅。
 
-技能系统已从旧版 `actData` 关键帧 + `Execute` 分支模式，完全迁移至 **Timeline 执行体系**：
+| 能力 | 实现要点 |
+|------|----------|
+| 时序 | `frame` 逻辑帧序号（升序） |
+| 伤害/豁免 | `BattleSkill.ResolveScaledDamage` + `config.tables.skill_meta`（`attackMode`、`damageDice`、`saveType` 等） |
+| 编译型 Timeline | `skills/skill_timeline_compiler.lua` 的 `Build` + `skills/skill_effect_registry.lua` 标签 |
+| Buff | `BattleSkill.ApplyBuffFromSkill` + `config/data/buffs.json` |
+| 被动 | `config/data/passives.json` → `battle_passive_skill` / `passive_handlers`（不走 Timeline） |
 
-| 维度 | 旧版 | 新版 (Timeline) |
-|------|------|-----------------|
-| 执行入口 | `Execute` 函数 或 `actData` 关键帧 | `BuildTimeline` 函数 |
-| 时序控制 | `TriggerS` 秒级时间戳 | `frame` 逻辑帧序号 |
-| 伤害结算 | `DWCommon.DamageData` 字符串解析 | `CalculateDamageWithRate` 直接调用 |
-| Buff 施加 | `DWCommon.LaunchBuff` 字符串解析 | `ApplyBuff` / `ApplyFreeze` / `ApplyFrost` 直接调用 |
-| 表现解耦 | 逻辑与表现混合 | 逻辑帧结算 + 事件派发，表现层异步订阅 |
-
-### 1.2 核心模块
+### 1.1 核心模块
 
 | 模块 | 文件路径 | 职责 |
 |------|----------|------|
@@ -46,6 +44,8 @@
 | BattlePassiveSkill | `modules/battle_passive_skill.lua` | 被动技能注册、触发分发与运行时状态查询 |
 | PassiveDefs | `config/tables/passives.lua` | 被动触发定义加载器，从 `config/data/passives.json` 读取触发表 |
 | PassiveHandlers | `modules/passive_handlers.lua` | 被动处理器工厂，承载脚本型被动逻辑 |
+| SkillTimelineCompiler | `skills/skill_timeline_compiler.lua` | 声明式帧定义 → 可执行 Timeline；帧内调用 `ResolveScaledDamage` |
+| SkillEffectRegistry | `skills/skill_effect_registry.lua` | Timeline 帧 `tags` 的 pre/post 扩展 |
 | SkillConfig | `config/skill_config.lua` | 技能配置薄封装，转发到 `config/tables/skills.lua` |
 | BattleHeroFactory | `modules/battle_hero_factory.lua` | 英雄/敌人工厂，含技能类型转换 |
 | HeroData | `config/hero_data.lua` | 英雄属性与技能配置 |
@@ -83,10 +83,10 @@ end
 | op | 说明 | 典型操作 |
 |----|------|----------|
 | cast | 技能释放 | 派发 SKILL_CAST_STARTED，设置动画状态 |
-| hit | 命中判定 | 判定闪避/格挡 |
-| damage | 伤害结算 | 调用 CalculateDamageWithRate，派发 DAMAGE_DEALT |
-| heal | 治疗结算 | 调用 CalculateHeal，派发 HEAL_RECEIVED |
-| buff | Buff 施加 | 调用 ApplyBuff / ApplyFreeze / ApplyFrost，派发 BUFF_ADDED |
+| hit | 命中判定 | 5e d20+命中 vs AC（由编译器或脚本触发） |
+| damage / chain_damage | 伤害结算 | `ResolveScaledDamage` → `BattleDmgHeal.ApplyDamage` |
+| heal | 治疗结算 | `CalculateHealDice` → `ApplyHeal` |
+| buff | Buff 施加 | `ApplyBuffFromSkill` 或 `skill_effect_registry` 标签 |
 | effect | 特效触发 | 纯表现层事件，逻辑层无操作 |
 
 ### 2.4 Context 结构
@@ -106,119 +106,81 @@ context = {
 
 ## 3. 技能配置三层架构
 
-每个技能由三层配置共同定义，必须保持一致：
+每个技能由三层共同定义，修改任一层时需同步其余层：
 
 ### 3.1 JSON 静态配置 (`config/data/skills.json`)
 
+权威字段示例（完整表以 JSON 为准）：
+
 ```json
 {
-    "ID": 80007003,
-    "Name": "爆炸火球",
-    "Type": 2,
-    "CoolDownR": 3,
-    "Cost": 0,
-    "SkillParam": [10000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "Buff1": [10000, 0, 2, 870001, 1]
+  "id": 80003001,
+  "symbol": "monk_combo_slash",
+  "skillType": 1,
+  "cooldown": 0,
+  "luaFile": "config.skill.skill_80003001",
+  "rules": {
+    "damageDice": "8",
+    "kind": "physical",
+    "attackMode": "physical_attack"
+  }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| ID | 技能 ID，8位：`classId * 10 + level` |
-| Type | 1=普攻, 2=主动, 3=大招, 4=被动 |
-| CoolDownR | 冷却回合数 |
-| Cost | 能量消耗（大招=100，其他=0） |
-| SkillParam[1] | 伤害倍率（万分比，10000=100%） |
-| Buff1-5 | [概率, 目标类型, 持续回合, BuffID, 叠加层数] |
+| `id` | 8 位技能 ID，对应 `config/skill/skill_{id}.lua` |
+| `classGroupId` | 流派组（如 `8000300`），用于归类与推导 `classId` |
+| `skillType` | 1 普攻 / 2 主动 / 3 大招 / 4 被动 |
+| `rules` | 策划向规则：`damageDice`、`healDice`、`attackMode`、`saveType` 等 |
+| `execution` | Build 管线专用：`basic_weapon_attack`、`execute_strike` 等 |
+| `buffs` | 可选：`[概率, 目标类型, 持续回合, buffId, 层数]` |
+| `skillParam` | 遗留数值数组；新技能优先写 `rules`，由 `skill_meta` 与运行时读取 |
 
-### 3.2 Lua 技能脚本 (`config/skill/skill_{ID}.lua`)
+运行时由 `config/tables/skills.lua` 规范化，并与 `config/tables/skill_meta.lua`（与 JSON `rules` 同步）对齐。
+
+### 3.2 Lua 技能脚本 (`config/skill/skill_{id}.lua`)
+
+推荐通过 **SkillTimelineCompiler** 声明帧，由编译器注入 `ResolveScaledDamage`：
 
 ```lua
-local BattleSkill = require("modules.battle_skill")
+local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
 
-local skill_80007003 = {}
-
-function skill_80007003.BuildTimeline(hero, targets, skill)
-    local timeline = {}
-    table.insert(timeline, {
-        frame = 0, op = "cast",
-        execute = function(ctx, f)
-            BattleEvent.Publish(BattleVisualEvents.SKILL_CAST_STARTED, ...)
-        end
+function skill_80003001.BuildTimeline(hero, targets, skill)
+    return SkillTimelineCompiler.Build(hero, targets, skill, {
+        id = 80003001,
+        frames = {
+            { frame = 0, op = "cast", effect = "skill_80003001_cast", targetRef = "selected" },
+            { frame = 24, op = "damage", targetRef = "selected", tags = { { tag = "combo_additional_damage", phase = "post" } } },
+        },
     })
-    table.insert(timeline, {
-        frame = 10, op = "damage",
-        execute = function(ctx, f)
-            for _, target in ipairs(ctx.targets) do
-                local damage = BattleSkill.CalculateDamageWithRate(ctx.hero, target, 10000)
-                BattleDmgHeal.ApplyDamage(target, damage, ctx.hero)
-            end
-        end
-    })
-    table.insert(timeline, {
-        frame = 20, op = "buff",
-        execute = function(ctx, f)
-            for _, target in ipairs(ctx.targets) do
-                BattleSkill.ApplyBuff(target, 870001, 2, ctx.hero)
-            end
-        end
-    })
-    return timeline
 end
-
-return skill_80007003
 ```
+
+也可手写 `execute` 帧，但须与编译器路径一致地调用 `ResolveScaledDamage` / `ApplyBuffFromSkill`。
 
 ### 3.3 Buff 定义 (`config/data/buffs.json` + `skills/buff_effect_registry.lua`)
 
-```json
-[
-  {"buffId":870001,"name":"燃烧","mainType":2,"subType":870001,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","effects":[{"type":"custom","handlerId":"burn_tick","timing":3}]}
-]
-```
-
-```lua
-local BuffEffectRegistry = {
-    burn_tick = function(buff, hero)
-        local stacks = math.max(1, tonumber(buff.stackCount) or 1)
-        local diceExpr = string.format("%dd6", stacks)
-        -- 当前工程实际用骰子表达持续伤害
-                end
-            }
-        }
-    },
-}
-```
+Buff 以 `buffId` 索引；持续伤害/控制等行为在 `buff_effect_registry` 与 `skills/battle_skill_status.lua` 实现。详见 [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md)。
 
 ### 3.4 三层一致性要求
 
-| 参数 | JSON | Lua 脚本 | Buff 定义 |
-|------|------|----------|-----------|
-| 伤害倍率 | SkillParam[1] | CalculateDamageWithRate 参数 | - |
-| Buff 持续 | Buff[3] | ApplyBuff 参数 | duration |
-| Buff 叠加 | Buff[5] | ApplyBuff 参数 | canStack/maxStack |
-| 冻结持续 | Buff[3] | ApplyFreeze 参数 | duration |
-| 霜冻持续 | Buff[3] | ApplyFrost 参数 | duration |
+| 参数 | `skills.json` | Lua Timeline / `skill_meta` | Buff JSON |
+|------|---------------|-----------------------------|-----------|
+| 伤害骰 / 攻击模式 | `rules.damageDice`、`rules.attackMode` | 帧 `op=damage` + `skill_meta` | — |
+| Buff 概率/持续 | `buffs` 数组 | `skill_effect_registry` 标签或 `ApplyBuffFromSkill` | `duration`、`maxStack` |
+| 豁免法术 | `rules.saveType`、`rules.onSaveSuccess` | `ResolveScaledDamage` + `RollSave` | — |
 
-**修改技能参数时，三层必须同步更新。**
+**修改技能参数时，三层与 `skill_meta.lua` 须同步更新。**
 
 ---
 
-## 4. 技能 ID 编码规则
+## 4. 技能 ID 与加载
 
-```
-actualSkillId = classId * 10 + level
-
-classId 范围: 8000100 ~ 8000900 (九流派)
-level 范围: 1~4 (普攻/被动/主动/大招)
-
-示例:
-  8000101 = 8000100 * 10 + 1  → 刺客 L1 普攻
-  8000103 = 8000100 * 10 + 3  → 刺客 L3 主动
-  8000704 = 8000700 * 10 + 4  → 火法 L4 大招
-```
-
-**禁止使用** `classId * 100 + level`（产生9位ID导致加载失败回退默认普攻）。
+- 技能 ID 为 **8 位整数**，在 `config/data/skills.json` 的 `id` 字段声明，并作为 `require("config.skill.skill_{id}")` 的文件名。
+- `classGroupId`（如 `8000100`）标识流派组；`config/tables/skills.lua` 的 `deriveClassId` 从 `classGroupId` 或 `id` 推导战斗用 `classId`。
+- 加载顺序：`SkillsTable.GetSkillConfig(id)` → 若存在 `luaFile` 或磁盘上的 `skill_{id}.lua` → `BuildTimeline`。
+- 无脚本或 `BuildTimeline` 失败时，战斗层回退默认普攻路径（见 `BattleSkill.CastSkillInSeq` 日志）。
 
 ---
 
@@ -252,11 +214,7 @@ BattleMain.ExecuteHeroAction
 
 所有技能脚本必须实现 `BuildTimeline(hero, targets, skill)` 函数，返回帧数组。
 
-### 6.2 禁止使用 Execute
-
-旧版 `Execute` 分支已移除，`CastSkillInSeq` 仅处理 `BuildTimeline` 结果。
-
-### 6.3 帧序号约定
+### 6.2 帧序号约定
 
 | 帧范围 | 用途 |
 |--------|------|
@@ -266,24 +224,23 @@ BattleMain.ExecuteHeroAction
 | 20-30 | buff 施加 |
 | 30+ | effect 特效 / 后续效果 |
 
-### 6.4 伤害计算 API
+### 6.3 伤害与治疗 API
 
 ```lua
--- 标准伤害计算
-local damage = BattleSkill.CalculateDamageWithRate(attacker, target, damageRate)
--- damageRate: 万分比，10000 = 100%
+local damageResult = BattleSkill.ResolveScaledDamage(attacker, defender, {
+    skill = skill,
+    meta = metaFromSkill5eMeta,  -- 可选，默认从 skillId 查 skill_meta
+    damageDice = "2d8",          -- 可选，覆盖 meta
+    damageKind = "direct",       -- direct / spell 等
+})
+local damage = damageResult and damageResult.damage or 0
+BattleDmgHeal.ApplyDamage(defender, damage, attacker)
 
--- 治疗计算
-local healAmount = BattleSkill.CalculateHeal(healer, target, healRate)
+local heal = BattleSkill.CalculateHealDice(healer, target, "2d8+3")
+BattleDmgHeal.ApplyHeal(target, heal, healer)
 
--- 施加 Buff
-BattleSkill.ApplyBuff(target, buffId, duration, caster)
-
--- 施加冻结
-BattleSkill.ApplyFreeze(target, duration, chance, caster)
-
--- 施加霜冻
-BattleSkillStatus.ApplyFrost(target, duration, caster)
+BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, { duration = 2 })
+-- 冻结/霜冻等封装见 skills/battle_skill_status.lua
 ```
 
 ---
@@ -291,8 +248,6 @@ BattleSkillStatus.ApplyFrost(target, duration, caster)
 ## 6.5 被动技能统一框架
 
 ### 6.5.1 架构说明
-
-被动技能已从旧版 `event_*.lua + war_*.lua` 双文件模式，整合为统一框架：
 
 | 层级 | 文件 | 职责 |
 |------|------|------|
@@ -372,20 +327,9 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 
 ## 7. Buff 系统实现
 
-### 7.1 文档归档说明
+Buff 完整 SSOT 见 [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md)。本节仅列与技能 Timeline 的交叉点。
 
-本章不再维护 Buff 系统的完整实现细节。
-
-原因：
-
-- Buff 系统已经独立演进，状态配置、生命周期、控制判定、前端事件与旧版技能文档存在分叉风险
-- 旧版这里的部分表格与描述已经不是当前源码现状，例如历史上的百分比 DoT、旧持续时间与旧姿态效果
-
-当前请统一以新文档为准：
-
-- [BUFF_SYSTEM_IMPLEMENTATION.md](file:///c:/work/MiniBattleSimulator/docs/BUFF_SYSTEM_IMPLEMENTATION.md)
-
-### 7.2 技能系统视角下的 Buff 要点
+### 7.1 技能系统视角下的 Buff 要点
 
 从技能系统角度，只需要掌握以下几点：
 
@@ -396,26 +340,19 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 - 回合开始由 `BattleSkillTurnHooks.ProcessTurnStartStatus()` 触发 `OnRoundBegin` 与控制判定
 - 回合结束由 `BattleMain.FinalizeHeroTurn()` 触发 `OnRoundEnd`、持续时间递减与过期移除
 
-### 7.3 当前开发约定
+### 7.2 开发约定
 
-涉及技能与 Buff 联动时，优先遵守以下约定：
+- 修改状态行为时同步：`config/data/buffs.json`、`config/tables/buffs.lua`、`skills/buff_effect_registry.lua`、`skills/battle_skill_status.lua`、`skills/skill_effect_registry.lua`、`ui/battle_visual_events.lua`。
+- 控制是否阻断行动：以 `mainType == CONTROL` 及控制子类型为准，不以 Buff 名称推断。
+- 回合行动顺序：当前为等速轮替，无独立 `speed` 行动条。
 
-- 不要在技能文档中重复维护完整 Buff 清单，避免与独立 Buff 文档冲突
-- 修改状态行为时，应同时检查：
-  - `config/tables/buffs.lua` 与 `skills/buff_effect_registry.lua`
-  - `skills/battle_skill_status.lua` 中的封装逻辑
-  - `skills/skill_effect_registry.lua` 中的 Timeline 标签行为
-  - `ui/battle_visual_events.lua` 中的前端事件数据
-- 控制类状态是否阻断行动，不以名称判断，而以 `mainType == CONTROL` 或控制子类型集合为准
-- 当前 `speed` 虽然会读取部分 Buff 数值，但战斗中行动条仍按等速推进；不要把减速直接理解为“减少出手次数”
+### 7.3 交叉引用
 
-### 7.4 常用交叉引用
-
-| 主题 | 参考文档 |
-|------|----------|
-| Buff 核心结构与生命周期 | [BUFF_SYSTEM_IMPLEMENTATION.md](file:///c:/work/MiniBattleSimulator/docs/BUFF_SYSTEM_IMPLEMENTATION.md) |
-| 技能 Timeline 架构 | 当前文档第 2 节至第 6 节 |
-| 视觉事件系统 | 当前文档第 9 节 |
+| 主题 | 文档 |
+|------|------|
+| Buff 生命周期 | [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md) |
+| Timeline | 本文 §2–§6 |
+| 视觉事件 | 本文 §9 |
 
 ---
 
@@ -436,26 +373,15 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 | 3 或 skillCost>0 | - | ULTIMATE (3) |
 | 其他 | - | NORMAL (1) |
 
-### 8.3 敌人属性成长
+### 8.3 敌人战斗属性
 
-```lua
--- 成长率（比英雄高约2倍）
-hpGrowthRate  = 0.12 + quality * 0.015
-atkGrowthRate = 0.095 + quality * 0.012
-defGrowthRate = 0.075 + quality * 0.010
+敌人属性在 `config/enemy_data.lua` 按 **5e 能力值** 生成：
 
--- 乘法叠加
-qualityMultipliers = {1.0, 1.06, 1.12, 1.18, 1.26, 1.34}
-typeMultipliers = {[0]=1.0, [1]=1.15, [2]=1.35}  -- 普通/Elite/BOSS
-starMultiplier = 1.0 + (star-1) * 0.15
+- `ENEMY_ABILITY_SCORES` + `Ability5e.Calculate5eHp` → HP
+- 职业模板（`ClassRoleConfig`）+ `MONSTER_TYPE_TEMPLATES`（`acDelta` / `hitDelta` / `spellDCDelta` / `saveDelta`）→ AC、命中、法术 DC、豁免
+- `HeroBuild` / Feat 默认分支与 Roguelike 预算（`roguelike_battle_bridge`）在战前叠加
 
-totalMultiplier = qualityMultiplier * typeMultiplier * starMultiplier
-atkMultiplier = 1.0 + (totalMultiplier - 1.0) * 0.45  -- ATK 衰减系数
-
-hp  = (baseHp + hpGrowth) * totalMultiplier
-atk = (baseAtk + atkGrowth) * atkMultiplier
-def = (baseDef + defGrowth) * totalMultiplier
-```
+不存在独立的 `def` / `atkGrowthRate` / `hpGrowthRate` 乘法成长表。
 
 ---
 
@@ -497,13 +423,11 @@ def = (baseDef + defGrowth) * totalMultiplier
 | `SelectAvailableSkill(hero)` | 选择可用技能（大招→主动→普攻） |
 | `SelectTarget(hero, skill)` | 选择技能目标 |
 | `LoadSkillLua(skillId)` | 加载技能 Lua 脚本 |
-| `CalculateDamageWithRate(attacker, target, rate)` | 计算伤害 |
-| `CalculateHeal(healer, target, rate)` | 计算治疗量 |
-| `GetPassiveAdjustedRate(hero, baseRate, passiveKey)` | 读取统一被动状态并调整倍率 |
-| `GetPassiveAdjustedChance(hero, baseChance, passiveKey)` | 读取统一被动状态并调整概率 |
-| `ApplyBuff(target, buffId, duration, caster)` | 施加 Buff |
-| `ApplyFreeze(target, duration, chance, caster)` | 施加冻结 |
-| `BattleSkillStatus.ApplyFrost(target, duration, caster)` | 施加霜冻 |
+| `ResolveScaledDamage(attacker, defender, opts)` | 5e 命中/豁免 + 骰伤，返回 `damage`、`save`、`damageRoll` 等 |
+| `CalculateHealDice(healer, target, healDice)` | 治疗骰表达式 |
+| `ApplyBuffFromSkill(caster, target, buffId, skill, override)` | 从技能施加 Buff |
+| `GetPassiveAdjustedRate(hero, baseRate, passiveKey)` | 被动运行时倍率修正 |
+| `GetPassiveAdjustedChance(hero, baseChance, passiveKey)` | 被动运行时概率修正 |
 | `GetSkillCurCoolDown(hero, skillId)` | 获取技能冷却 |
 | `SetSkillCurCoolDown(hero, skillId, cd)` | 设置技能冷却 |
 | `GetHeroSkills(hero)` | 获取英雄所有技能 |

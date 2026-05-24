@@ -157,19 +157,11 @@ local function CreateHero(heroData, wpType, isLeft)
         level = heroData.level or heroData._level or 1,
         hp = heroData.hp or heroData.curHp or 0,
         maxHp = heroData.maxHp or heroData.hp or 100,
-        def = heroData.def or 0,
-        speed = heroData.spd or heroData.speed or 0,
-        
-        -- 扩展属性
-        critRate = heroData.crt or heroData.critRate or 0,
-        critDamage = heroData.crtd or heroData.critDamage or 150,
-        hit = heroData.hit or heroData.hitRate or 0,
-        spellAttack = heroData.spellAttack or heroData.hit or heroData.hitRate or 0,
-        hitRate = heroData.hit or heroData.hitRate or 100,
-        dodgeRate = heroData.res or heroData.dodgeRate or 0,
+
+        hit = heroData.hit or 0,
+        spellAttack = heroData.spellAttack or heroData.hit or 0,
         damageReduce = heroData.damageReduce or 0,
         damageIncrease = heroData.damageIncrease or 0,
-        healBonus = heroData.healBonus or 0,
         healingFlatBonus = heroData.healingFlatBonus or 0,
         spellDamageReduce = heroData.spellDamageReduce or 0,
         tempHp = heroData.tempHp or 0,
@@ -177,7 +169,6 @@ local function CreateHero(heroData, wpType, isLeft)
         blessBattleRoundsHitDelta = heroData.blessBattleRoundsHitDelta or 0,
         blessBattleRoundsSaveDelta = heroData.blessBattleRoundsSaveDelta or 0,
         blessBattleRounds = heroData.blessBattleRounds or 0,
-        blockRate = heroData.blockRate or 0,
         ac = heroData.ac or 10,
         spellDC = heroData.spellDC or 10,
         saveFort = heroData.saveFort or 0,
@@ -851,17 +842,10 @@ function BattleFormation.CreateToken(owner, tokenId, life, wpType)
         level = owner.level or owner._level or 1,
         hp = tokenConfig.hp,
         maxHp = tokenConfig.hp,
-        def = tokenConfig.def,
-        speed = tokenConfig.speed,
-        
-        -- 扩展属性
-        critRate = 0,
-        critDamage = 150,
+
         -- Legacy token configs may still use `atk`; prefer `hit` as the canonical key.
         hit = tokenConfig.hit or tokenConfig.atk or 10,
         spellAttack = tokenConfig.spellAttack or tokenConfig.hit or tokenConfig.atk or 10,
-        hitRate = tokenConfig.hit or tokenConfig.atk or 10,
-        dodgeRate = 0,
         damageReduce = 0,
         damageIncrease = 0,
         spellDamageReduce = 0,
