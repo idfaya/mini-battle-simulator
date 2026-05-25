@@ -84,6 +84,11 @@ M.MONSTER_XP_BY_CR = {
 
 M.MAX_CHARACTER_LEVEL = 20
 M.PARTY_EXP_SCALE = 1.0
+-- 5e 原版每次升级是全队一起升；本工程改为「每次三选一只升 1 个英雄」，
+-- 因此 partyExp → partyLevel 的阈值需要按 4 人队规模等比缩小，
+-- 否则 4 名英雄共享一个 5e 单角色阈值，会让 3/4 队员长期落后于 floorBaseline。
+-- 0.25 = 让"全队升 1 名英雄到 Lv2"所需的 partyExp ≈ 5e 单角色 Lv1→Lv2（300→75）。
+M.PARTY_EXP_THRESHOLD_SCALE = 0.25
 M.STARTER_LEVEL = 1
 
 local function normalizeCrKey(cr)
@@ -118,7 +123,9 @@ end
 function M.GetCharacterExpThreshold(level)
     local lv = math.max(M.STARTER_LEVEL, math.floor(tonumber(level) or M.STARTER_LEVEL))
     local raw = M.CHARACTER_LEVEL_EXP[lv] or M.CHARACTER_LEVEL_EXP[M.MAX_CHARACTER_LEVEL] or 0
-    return math.max(0, math.floor(raw * M.PARTY_EXP_SCALE + 0.5))
+    -- PARTY_EXP_SCALE：Run 内统一缩放（旧字段，默认 1.0）。
+    -- PARTY_EXP_THRESHOLD_SCALE：补偿"每次三选一只升 1 人"导致的 partyExp 池稀释。
+    return math.max(0, math.floor(raw * M.PARTY_EXP_SCALE * M.PARTY_EXP_THRESHOLD_SCALE + 0.5))
 end
 
 function M.GetExpToNextLevel(level, cap)

@@ -71,9 +71,10 @@ function M.ResolveEnemyLevel(opts)
 
     local floorBaseline = M.GetFloorCombatLevel(chapterId, floorDepth)
 
-    -- 第一章普通战：严格按楼层 1–5，不被 profile / 队伍等级抬高或压低。
+    -- 第一章普通战：默认按楼层 1–5，但当玩家因「跳层」（路径上没有战斗节点）partyLevel
+    -- 落后于 floorBaseline 时，怪物等级最多领先 partyLevel 1 级，避免直接团灭。
     if chapterId == 101 and (battleKind == "normal" or battleKind == "event_battle") then
-        return floorBaseline
+        return math.max(1, math.min(floorBaseline, partyLevel + 1))
     end
 
     local baseLevel = math.max(profileLevel, floorBaseline)

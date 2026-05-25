@@ -44,10 +44,14 @@ function M.ComputeVictoryExp(opts)
     local scaled = math.floor(report.adjustedXp * Exp5e.PARTY_EXP_SCALE * levelScale * chapterMult + 0.5)
 
     -- 遭遇怪物等级高于队伍时，单场 EXP 上限随怪物等级放宽（仍不超过 partyLevel+4 档的步长）。
+    -- 注意：阈值表已被 PARTY_EXP_THRESHOLD_SCALE 缩放（4 人队 / 单角色升级），但单场战斗的物理量
+    -- 应保持 5e 原版水平（一场 medium ≈ 5e 单角色 1 级），所以 cap 反向缩放回去。
     local capLevel = math.max(partyLevel, math.min(enemyLevel, partyLevel + 4))
-    local maxSingle = Exp5e.GetExpToNextLevel(capLevel, levelCap)
+    local maxSingleScaled = Exp5e.GetExpToNextLevel(capLevel, levelCap)
+    local thresholdScale = (Exp5e.PARTY_EXP_THRESHOLD_SCALE or 1.0)
+    local maxSingle = thresholdScale > 0 and (maxSingleScaled / thresholdScale) or maxSingleScaled
     if maxSingle > 0 then
-        scaled = math.min(scaled, maxSingle)
+        scaled = math.min(scaled, math.floor(maxSingle + 0.5))
     end
 
     return math.max(0, scaled), report

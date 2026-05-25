@@ -26,10 +26,13 @@ end
 
 local function assertLevelCurve5e()
     assertEq(LevelCurve.CHAPTER_LEVEL_CAP, 20, "chapter level cap")
-    assertEq(Exp5e.GetCharacterExpThreshold(2), math.floor(300 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv2 threshold")
-    assertEq(Exp5e.GetExpToNextLevel(1), math.floor(300 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv1 step")
-    assertEq(Exp5e.GetExpToNextLevel(2), math.floor(600 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv2 step")
-    assertEq(Exp5e.GetExpToNextLevel(11), math.floor(15000 * Exp5e.PARTY_EXP_SCALE + 0.5), "lv11 step")
+    -- partyExp 阈值同时被 PARTY_EXP_SCALE（Run 内总缩放）与 PARTY_EXP_THRESHOLD_SCALE
+    -- （4 人队 → 单角色升级补偿）等比缩放。
+    local thresholdScale = (Exp5e.PARTY_EXP_SCALE or 1.0) * (Exp5e.PARTY_EXP_THRESHOLD_SCALE or 1.0)
+    assertEq(Exp5e.GetCharacterExpThreshold(2), math.floor(300 * thresholdScale + 0.5), "lv2 threshold")
+    assertEq(Exp5e.GetExpToNextLevel(1), math.floor(300 * thresholdScale + 0.5), "lv1 step")
+    assertEq(Exp5e.GetExpToNextLevel(2), math.floor(600 * thresholdScale + 0.5), "lv2 step")
+    assertEq(Exp5e.GetExpToNextLevel(11), math.floor(15000 * thresholdScale + 0.5), "lv11 step")
     assertEq(LevelCurve.GetLevelForExp(0), 1, "level at 0 exp")
     assertEq(LevelCurve.GetLevelForExp(Exp5e.GetCharacterExpThreshold(12)), 12, "level at lv12 threshold")
 end
@@ -147,8 +150,10 @@ local function assertAct1Pacing5e()
     local avgLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
     assert(avgBattles >= 6 and avgBattles <= 20,
         string.format("act1 battle count out of range: %.2f", avgBattles))
-    assert(avgLevel >= 4 and avgLevel <= 8,
-        string.format("act1 怪物 Lv1-5 节奏下期望队伍 Lv4-Lv8，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
+    -- partyLevel = 累计三选一次数 + 1（4 人队语义）。第一章 ~13 场战斗，期望累计三选一
+    -- 至少够"全队从 Lv1 升到平均 Lv3"≈ 12 次三选一 → partyLevel ≈ 13–18。
+    assert(avgLevel >= 10 and avgLevel <= 18,
+        string.format("act1 怪物 Lv1-5 节奏下期望 partyLevel 10-18，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
     print(string.format("[OK] act1 5e avgExp=%.0f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgLevel))
 end
 
@@ -164,7 +169,13 @@ local function assertSingleBattleCap()
     local partyLevel = 1
     local enemyLevel = 10
     local capLevel = math.max(partyLevel, math.min(enemyLevel, partyLevel + 4))
+    -- battle_exp_reward 把单战 cap 反向放大回 5e 原版量级（PARTY_EXP_THRESHOLD_SCALE 的倒数），
+    -- 这样 partyExp 阈值表缩到 1/4 不会同步压低 cap，否则一场战斗永远只能让 partyLevel +1。
+    local thresholdScale = (Exp5e.PARTY_EXP_THRESHOLD_SCALE or 1.0)
     local cap = Exp5e.GetExpToNextLevel(capLevel)
+    if thresholdScale > 0 then
+        cap = math.floor(cap / thresholdScale + 0.5)
+    end
     local gain = BattleExpReward.ComputeVictoryExp({
         enemyIds = { 910006, 910007, 910006, 910007 },
         partySize = 4,

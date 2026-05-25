@@ -83,6 +83,9 @@ do
     elseif snapshot.phase == "shop" then
         Run.ShopLeave()
         snapshot = Run.GetSnapshot()
+    elseif snapshot.phase == "reward" then
+        -- 宝箱房等 via 邻居进入后会直接进 reward 阶段。
+        snapshot = drainRewards()
     end
 
     assert_true(findSelectableNode(snapshot, function(node)
@@ -129,6 +132,8 @@ do
     elseif snapshot.phase == "shop" then
         Run.ShopLeave()
         snapshot = Run.GetSnapshot()
+    elseif snapshot.phase == "reward" then
+        snapshot = drainRewards()
     end
 
     chooseAndEnter(eventId)
@@ -159,6 +164,11 @@ do
                 Run.ChooseEventOption(1)
             elseif snapshot.phase == "camp" then
                 Run.CampLeave()
+            elseif snapshot.phase == "reward" then
+                -- 战斗胜利 / 宝箱房 / 事件后均可能进入 reward；统一 drain 后回到 map。
+                drainRewards()
+            elseif snapshot.phase == "battle" then
+                runBattleUntilMap(800)
             else
                 error("unexpected phase while routing to stair: " .. tostring(snapshot.phase))
             end

@@ -298,9 +298,11 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
             local stair = snapshot.stairState or {}
             local depth = tonumber(stair.currentFloorDepth) or 1
             local pl = tonumber(snapshot.partyLevel) or 1
+            local rushBoss = config.progressionMode == "ch101_reach"
             if stair.direction == "down" then
                 Run.StairUse()
-            elseif stair.direction == "up" and pl < depth * 2 then
+            elseif stair.direction == "up" and not rushBoss and pl < depth * 2 then
+                -- ch101_reach 模式下不回退练级，避免在 stair_up 落点反复弹楼陷入死循环。
                 Run.StairUse()
             else
                 Run.StairLeave()
