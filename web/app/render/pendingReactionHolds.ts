@@ -176,7 +176,7 @@ export function prunePendingReactionHolds(pending: ReactionHoldIntent[], now: nu
   return pending.filter((intent) => intent.until >= now);
 }
 
-export function extendReactionHoldForReactor(
+export function releaseReactionHoldForReactor(
   clashes: ReactionHoldClash[],
   reactorId: string,
   sourceAttackerId: string,
@@ -197,7 +197,7 @@ export function extendReactionHoldForReactor(
     if (!binding) {
       continue;
     }
-    binding.holdUntil = Math.max(binding.holdUntil, holdUntil);
+    binding.holdUntil = Math.min(binding.holdUntil, holdUntil);
     recomputeClashHoldUntil(clash);
     return true;
   }

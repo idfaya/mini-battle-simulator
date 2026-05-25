@@ -4,8 +4,8 @@ import type { AnimationEvent, UnitState } from "../types/battle";
 import {
   applyPendingReactionHoldsToClash,
   createReactionHoldIntent,
-  extendReactionHoldForReactor,
   prunePendingReactionHolds,
+  releaseReactionHoldForReactor,
   tryAttachReactionHold,
   type ReactionCueKind,
   type ReactionHoldBinding,
@@ -1377,7 +1377,7 @@ export class BattleScene {
         this.meleeClashes.push(clash);
         this.applyPendingGuardInterceptToClash(clash, now);
         this.applyPendingReactionHoldToClash(clash, layouts, now);
-        this.extendCounterHoldForReaction(
+        this.releaseCounterHoldForReaction(
           attacker.unit.id,
           primaryTarget.unit.id,
           now + this.getCounterSourceReleaseAtMs(clash),
@@ -1635,8 +1635,8 @@ export class BattleScene {
     }
   }
 
-  private extendCounterHoldForReaction(reactorId: string, sourceAttackerId: string, holdUntil: number) {
-    if (!extendReactionHoldForReactor(this.meleeClashes, reactorId, sourceAttackerId, holdUntil)) {
+  private releaseCounterHoldForReaction(reactorId: string, sourceAttackerId: string, holdUntil: number) {
+    if (!releaseReactionHoldForReactor(this.meleeClashes, reactorId, sourceAttackerId, holdUntil)) {
       return;
     }
     for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
