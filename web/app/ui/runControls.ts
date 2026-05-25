@@ -494,6 +494,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         ? "队伍升级"
         : snapshot.rewardState.kind === "node_recruit"
           ? "选择职业卡"
+          : snapshot.rewardState.kind === "chest"
+            ? "宝箱开启"
           : "选择奖励";
     host.append(title);
     if (snapshot.rewardState.kind === "feat_levelup") {
@@ -556,6 +558,84 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         grid.append(btn);
       });
       host.append(grid);
+    } else if (snapshot.rewardState.kind === "chest") {
+      const option = (snapshot.rewardState.options as RewardOption[])[0];
+      if (option) {
+        const rarityLabel =
+          option.rarity === "boss" ? "传说" : option.rarity === "rare" ? "稀有" : "普通";
+        const typeLabel =
+          option.rewardType === "equipment"
+            ? "装备"
+            : option.rewardType === "blessing"
+              ? "祝福"
+              : option.rewardType === "gold"
+                ? "金币"
+                : "奖励";
+
+        const reveal = document.createElement("div");
+        reveal.className = `chest-reveal chest-reveal--${option.rewardType}`;
+
+        const icon = document.createElement("div");
+        icon.className = "chest-reveal__icon";
+        icon.textContent = "箱";
+
+        const copy = document.createElement("div");
+        copy.className = "chest-reveal__copy";
+
+        const headline = document.createElement("div");
+        headline.className = "chest-reveal__headline";
+        headline.textContent =
+          option.rewardType === "gold"
+            ? "锁扣弹开，箱底滚出一把金币。"
+            : option.rewardType === "blessing"
+              ? "光芒从箱缝溢出，一道祝福浮现。"
+              : "宝箱开启，一件战利品显露出来。";
+
+        const desc = document.createElement("div");
+        desc.className = "chest-reveal__desc";
+        desc.textContent = `本次开箱结果：${rarityLabel}${typeLabel}`;
+
+        copy.append(headline, desc);
+        reveal.append(icon, copy);
+        host.append(reveal);
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `reward-card reward-card--chest reward-card--type-${option.rewardType} reward-card--rarity-${option.rarity ?? "common"}`;
+        btn.addEventListener("click", () => controls.handlers.onChooseReward(1));
+
+        const header = document.createElement("div");
+        header.className = "reward-card__header";
+        const name = document.createElement("div");
+        name.className = "reward-card__feat";
+        name.textContent = option.label;
+        const rarity = document.createElement("div");
+        rarity.className = "reward-card__level";
+        rarity.textContent = `${rarityLabel}${typeLabel}`;
+        header.append(name, rarity);
+
+        const detail = document.createElement("div");
+        detail.className = "reward-card__desc";
+        detail.textContent =
+          option.description || (option.rewardType === "gold" ? "收下金币后返回地图继续推进。" : "收下奖励后返回地图继续推进。");
+
+        const tagRow = document.createElement("div");
+        tagRow.className = "reward-card__tags";
+        const typeBadge = document.createElement("span");
+        typeBadge.className = "reward-tag";
+        typeBadge.textContent = typeLabel;
+        const rarityBadge = document.createElement("span");
+        rarityBadge.className = `reward-tag reward-tag--tier-${option.rarity ?? "common"}`;
+        rarityBadge.textContent = rarityLabel;
+        tagRow.append(typeBadge, rarityBadge);
+
+        const action = document.createElement("div");
+        action.className = "chest-reveal__action";
+        action.textContent = "点击收下奖励";
+
+        btn.append(header, detail, tagRow, action);
+        host.append(btn);
+      }
     } else {
       const options = snapshot.rewardState.options as RewardOption[];
       options.forEach((option, index) => {

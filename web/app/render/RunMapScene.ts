@@ -207,7 +207,7 @@ export class RunMapScene {
       case "boss":
         return "B";
       case "equip":
-        return "装";
+        return "箱";
       case "stair_up":
         return "↑";
       case "stair_down":
@@ -264,7 +264,7 @@ export class RunMapScene {
       case "boss":
         return "Boss";
       case "equip":
-        return "装备";
+        return "宝箱房";
       case "stair_up":
         return "上楼梯";
       case "stair_down":

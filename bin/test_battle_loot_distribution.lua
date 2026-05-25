@@ -129,4 +129,47 @@ do
         string.format("拒绝原因应为 blessing_total_limit，实际 %s", tostring(reason)))
 end
 
+-- 用例 6：宝箱房必须只产出 1 个奖励，且应存在随机性
+do
+    local CHEST_TRIALS = 80
+    local typeHits = { gold = 0, equipment = 0, blessing = 0 }
+    for _ = 1, CHEST_TRIALS do
+        local rewardState = RoguelikeReward.GenerateChestRewardState({
+            equipmentIds = {},
+            blessingIds = {},
+            dungeonState = { currentFloorDepth = 4 },
+        }, { floorDepth = 4 })
+        assert_true(rewardState and rewardState.kind == "chest", "宝箱奖励 kind 应为 chest")
+        assert_true(#(rewardState.options or {}) == 1, "宝箱房每次应只生成 1 个奖励")
+        local option = rewardState.options[1]
+        assert_true(option and typeHits[option.rewardType] ~= nil,
+            string.format("宝箱奖励类型非法：%s", tostring(option and option.rewardType)))
+        typeHits[option.rewardType] = typeHits[option.rewardType] + 1
+    end
+    local distinctKinds = 0
+    for _, hits in pairs(typeHits) do
+        if hits > 0 then
+            distinctKinds = distinctKinds + 1
+        end
+    end
+    assert_true(distinctKinds >= 2,
+        string.format("宝箱房应至少出现金币和装备两种奖励，实际 gold=%d equipment=%d blessing=%d",
+            typeHits.gold, typeHits.equipment, typeHits.blessing))
+    assert_true(typeHits.blessing == 0,
+        string.format("宝箱房不应掉落祝福，实际命中 %d 次", typeHits.blessing))
+end
+
+-- 用例 7：当装备不可入库时，宝箱房应回退为金币
+do
+    local rewardState = RoguelikeReward.GenerateChestRewardState({
+        equipmentIds = { 101001, 101002, 101003, 101004, 101005, 101006, 101007, 101008 },
+        blessingIds = {},
+        dungeonState = { currentFloorDepth = 6 },
+    }, { floorDepth = 6 })
+    assert_true(rewardState and rewardState.kind == "chest", "受限状态下宝箱奖励 kind 应为 chest")
+    assert_true(rewardState.options and rewardState.options[1] and rewardState.options[1].rewardType == "gold",
+        string.format("装备不可入库时，宝箱应回退为金币，实际为 %s",
+            tostring(rewardState.options and rewardState.options[1] and rewardState.options[1].rewardType)))
+end
+
 print("[OK] test_battle_loot_distribution")

@@ -519,6 +519,80 @@ body {
   box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.22) inset;
 }
 
+.chest-reveal {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 212, 102, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(255, 214, 102, 0.2), transparent 46%),
+    linear-gradient(180deg, rgba(96, 54, 20, 0.78), rgba(43, 26, 12, 0.9));
+}
+
+.chest-reveal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.12) 45%, transparent 72%);
+  transform: translateX(-100%);
+  animation: chest-shine 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.chest-reveal--gold {
+  border-color: rgba(255, 212, 102, 0.4);
+}
+
+.chest-reveal--equipment {
+  border-color: rgba(189, 178, 255, 0.42);
+}
+
+.chest-reveal--blessing {
+  border-color: rgba(114, 239, 221, 0.42);
+}
+
+.chest-reveal__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  font-weight: 900;
+  color: #fff7db;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 214, 102, 0.2);
+  box-shadow: 0 0 18px rgba(255, 214, 102, 0.15);
+}
+
+.chest-reveal__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.chest-reveal__headline {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff7db;
+}
+
+.chest-reveal__desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #e9ecef;
+}
+
+.chest-reveal__action {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff1b8;
+}
+
 .reward-card__header {
   display: flex;
   align-items: baseline;
@@ -555,6 +629,37 @@ body {
   gap: 6px;
 }
 
+.reward-card--chest {
+  border-color: rgba(255, 214, 102, 0.36);
+  background:
+    radial-gradient(circle at top right, rgba(255, 214, 102, 0.18), transparent 38%),
+    rgba(38, 28, 18, 0.9);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.reward-card--chest:hover {
+  border-color: rgba(255, 220, 120, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 220, 120, 0.24) inset, 0 10px 34px rgba(255, 214, 102, 0.14);
+}
+
+.reward-card--type-gold {
+  background:
+    radial-gradient(circle at top right, rgba(255, 214, 102, 0.22), transparent 38%),
+    rgba(55, 38, 18, 0.92);
+}
+
+.reward-card--type-equipment {
+  background:
+    radial-gradient(circle at top right, rgba(189, 178, 255, 0.18), transparent 38%),
+    rgba(32, 24, 54, 0.92);
+}
+
+.reward-card--type-blessing {
+  background:
+    radial-gradient(circle at top right, rgba(114, 239, 221, 0.18), transparent 38%),
+    rgba(17, 42, 47, 0.92);
+}
+
 .reward-tag {
   display: inline-block;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -563,6 +668,24 @@ body {
   font-size: 11px;
   color: #d9e2ec;
   background: rgba(9, 17, 30, 0.35);
+}
+
+.reward-tag--tier-common {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #eef2f7;
+  background: rgba(125, 140, 160, 0.18);
+}
+
+.reward-tag--tier-rare {
+  border-color: rgba(148, 181, 255, 0.45);
+  color: #e6efff;
+  background: rgba(64, 97, 170, 0.22);
+}
+
+.reward-tag--tier-boss {
+  border-color: rgba(255, 212, 102, 0.52);
+  color: #fff1b8;
+  background: rgba(138, 92, 24, 0.24);
 }
 
 .reward-card--risk {
@@ -615,6 +738,16 @@ body {
   border-color: rgba(200, 200, 200, 0.32);
   color: #d9e2ec;
   background: rgba(40, 50, 70, 0.32);
+}
+
+@keyframes chest-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  45%,
+  100% {
+    transform: translateX(120%);
+  }
 }
 
 .diagnostics,

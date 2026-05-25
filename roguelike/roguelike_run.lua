@@ -504,7 +504,22 @@ local function enterNode(nodeId)
         return false, "invalid_stair_room"
     end
 
-    if node.nodeType == "equip" or node.nodeType == "empty" then
+    if node.nodeType == "equip" then
+        if state.dungeonState then
+            FloorState.MarkRoomCleared(state.dungeonState, nodeId)
+        end
+        state.lastActionMessage = "发现一个宝箱"
+        state.rewardReturnMode = "map"
+        state.rewardState = RoguelikeReward.GenerateChestRewardState(state, {
+            nodeId = nodeId,
+            floorDepth = state.dungeonState and state.dungeonState.currentFloorDepth or nil,
+        })
+        state.phase = "reward"
+        refreshAvailableNodes()
+        return true
+    end
+
+    if node.nodeType == "empty" then
         if state.dungeonState then
             FloorState.MarkRoomCleared(state.dungeonState, nodeId)
         end
@@ -1193,4 +1208,3 @@ function RoguelikeRun.SwapBenchWithTeam(benchRosterId, teamRosterId)
 end
 
 return RoguelikeRun
-

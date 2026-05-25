@@ -98,6 +98,7 @@ export type RewardOption = {
   value?: number;
   label: string;
   description: string;
+  rarity?: string;
   resultType?: "new_class_unit" | "class_promotion";
   teamState?: "active" | "bench" | "dead";
   summaryKey?: string;

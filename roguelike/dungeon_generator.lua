@@ -86,7 +86,7 @@ local function buildRoomTitle(roomType, floorDepth)
         return string.format("第%d层事件", floorDepth)
     end
     if roomType == "equip" then
-        return "装备房"
+        return "宝箱房"
     end
     if roomType == "stair_up" then
         return "上楼梯"

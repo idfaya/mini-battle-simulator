@@ -30,6 +30,30 @@ local function chooseEquipmentIdByTier(targetTier)
     return pool[math.random(1, #pool)]
 end
 
+local function collectAvailableEquipmentPoolByTier(runState, targetTier)
+    local pool = {}
+    for equipmentId, equipment in pairs(RunEquipmentConfig.EQUIPMENTS or {}) do
+        local rarityTier = EQUIPMENT_RARITY_TIER[tostring(equipment and equipment.rarity or "common")] or 1
+        local canAdd = true
+        if runState then
+            canAdd = BuildConstraints.CanAddEquipment(runState, tonumber(equipmentId))
+        end
+        if rarityTier == targetTier and canAdd then
+            pool[#pool + 1] = tonumber(equipmentId)
+        end
+    end
+    table.sort(pool)
+    return pool
+end
+
+local function chooseAvailableEquipmentIdByTier(runState, targetTier)
+    local pool = collectAvailableEquipmentPoolByTier(runState, targetTier)
+    if #pool <= 0 then
+        return nil
+    end
+    return pool[math.random(1, #pool)]
+end
+
 local function rollBattleEquipmentId(nodeType, battleProfile)
     local resolvedNodeType = tostring(nodeType or "")
     -- 设计 §2.2 新规则：
@@ -74,6 +98,30 @@ end
 
 local function chooseBlessingIdByTier(targetTier)
     local pool = collectBlessingPoolByTier(targetTier)
+    if #pool <= 0 then
+        return nil
+    end
+    return pool[math.random(1, #pool)]
+end
+
+local function collectAvailableBlessingPoolByTier(runState, targetTier)
+    local pool = {}
+    for blessingId, blessing in pairs(RunBlessingConfig.BLESSINGS or {}) do
+        local rarityTier = BLESSING_RARITY_TIER[tostring(blessing and blessing.rarity or "common")] or 1
+        local canAdd = true
+        if runState then
+            canAdd = BuildConstraints.CanAddBlessing(runState, tonumber(blessingId))
+        end
+        if rarityTier == targetTier and canAdd then
+            pool[#pool + 1] = tonumber(blessingId)
+        end
+    end
+    table.sort(pool)
+    return pool
+end
+
+local function chooseAvailableBlessingIdByTier(runState, targetTier)
+    local pool = collectAvailableBlessingPoolByTier(runState, targetTier)
     if #pool <= 0 then
         return nil
     end
@@ -154,6 +202,68 @@ local function buildDescription(entry)
     return ""
 end
 
+local function buildRarity(entry)
+    if entry.rewardType == "equipment" then
+        local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
+        return equipment and equipment.rarity or "common"
+    end
+    if entry.rewardType == "blessing" then
+        local blessing = RunBlessingConfig.GetBlessing(entry.refId)
+        return blessing and blessing.rarity or "common"
+    end
+    return "common"
+end
+
+local function buildRewardOption(entry)
+    return {
+        rewardType = entry.rewardType,
+        refId = entry.refId,
+        value = entry.value,
+        label = buildLabel(entry),
+        description = buildDescription(entry),
+        rarity = buildRarity(entry),
+    }
+end
+
+local function buildChestGoldValue(floorDepth)
+    local depth = math.max(1, math.floor(tonumber(floorDepth) or 1))
+    return 35 + (depth - 1) * 12
+end
+
+local function chooseChestEquipmentId(runState, floorDepth)
+    local depth = math.max(1, math.floor(tonumber(floorDepth) or 1))
+    local rareChance = math.min(0.60, 0.18 + (depth - 1) * 0.08)
+    if math.random() <= rareChance then
+        return chooseAvailableEquipmentIdByTier(runState, 2)
+            or chooseAvailableEquipmentIdByTier(runState, 1)
+    end
+    return chooseAvailableEquipmentIdByTier(runState, 1)
+        or chooseAvailableEquipmentIdByTier(runState, 2)
+end
+
+local function pickChestRewardEntry(runState, floorDepth)
+    local depth = math.max(1, math.floor(tonumber(floorDepth) or 1))
+    local entries = {
+        {
+            rewardType = "gold",
+            value = buildChestGoldValue(depth),
+            weight = math.max(18, 36 - depth * 2),
+        },
+    }
+
+    local equipmentId = chooseChestEquipmentId(runState, depth)
+    if equipmentId then
+        entries[#entries + 1] = {
+            rewardType = "equipment",
+            refId = equipmentId,
+            weight = 42,
+        }
+    end
+
+    local _, entry = weightedPick(entries, {})
+    return entry
+end
+
 -- ==========================================================================
 -- 阶段 3.1：职业卡 / 进阶 / promotion_pending_target 全部废弃。
 -- 战斗胜利的升级三选一改由 roguelike/feat_picker.lua 驱动。
@@ -182,13 +292,7 @@ function RoguelikeReward.GenerateRewardState(groupId)
         for index, entry in ipairs(group.options or {}) do
             if entry.rewardType == rewardType and not taken[index] then
                 taken[index] = true
-                options[#options + 1] = {
-                    rewardType = entry.rewardType,
-                    refId = entry.refId,
-                    value = entry.value,
-                    label = buildLabel(entry),
-                    description = buildDescription(entry),
-                }
+                options[#options + 1] = buildRewardOption(entry)
                 break
             end
         end
@@ -200,13 +304,7 @@ function RoguelikeReward.GenerateRewardState(groupId)
             break
         end
         taken[pickedIndex] = true
-        options[#options + 1] = {
-            rewardType = entry.rewardType,
-            refId = entry.refId,
-            value = entry.value,
-            label = buildLabel(entry),
-            description = buildDescription(entry),
-        }
+        options[#options + 1] = buildRewardOption(entry)
     end
 
     return {
@@ -216,21 +314,44 @@ function RoguelikeReward.GenerateRewardState(groupId)
     }
 end
 
+function RoguelikeReward.GenerateChestRewardState(runState, chestContext)
+    local floorDepth = tonumber(chestContext and chestContext.floorDepth)
+        or tonumber(runState and runState.dungeonState and runState.dungeonState.currentFloorDepth)
+        or 1
+    local entry = pickChestRewardEntry(runState, floorDepth) or {
+        rewardType = "gold",
+        value = buildChestGoldValue(floorDepth),
+    }
+    return {
+        groupId = 0,
+        kind = "chest",
+        options = { buildRewardOption(entry) },
+    }
+end
+
 function RoguelikeReward.ApplyReward(runState, rewardState, index)
     local option = rewardState and rewardState.options and rewardState.options[index] or nil
     if not option then
         return false, "invalid_reward"
     end
 
+    local prefix = rewardState and rewardState.kind == "chest" and "开启宝箱：" or ""
+
     if option.rewardType == "gold" then
         runState.gold = (runState.gold or 0) + (option.value or 0)
-        runState.lastActionMessage = option.label
+        runState.lastActionMessage = prefix .. option.label
     elseif option.rewardType == "equipment" then
-        BuildConstraints.AddEquipment(runState, option.refId)
-        runState.lastActionMessage = option.label
+        local ok, reason = BuildConstraints.AddEquipment(runState, option.refId)
+        if not ok then
+            return false, reason
+        end
+        runState.lastActionMessage = prefix .. option.label
     elseif option.rewardType == "blessing" then
-        BuildConstraints.AddBlessing(runState, option.refId)
-        runState.lastActionMessage = option.label
+        local ok, reason = BuildConstraints.AddBlessing(runState, option.refId)
+        if not ok then
+            return false, reason
+        end
+        runState.lastActionMessage = prefix .. option.label
     else
         return false, "unsupported_reward"
     end
@@ -239,4 +360,3 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
 end
 
 return RoguelikeReward
-
