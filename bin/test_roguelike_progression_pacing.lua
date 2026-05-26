@@ -165,30 +165,32 @@ local function assertEscalatingSteps()
     assert(step10 > step5, "high levels need more exp per level")
 end
 
-local function assertSingleBattleCap()
+local function assertSingleBattleNoCap()
+    -- cap 已删除：单战 EXP = baseXp × countMult × levelScale × chapterMult，全量给到 partyExp 池。
+    -- 升级节奏改由 PARTY_EXP_THRESHOLD_SCALE + waveCount 控制；这里只验"高怪等级线性叠加 levelScale"。
     local partyLevel = 1
-    local enemyLevel = 10
-    local capLevel = math.max(partyLevel, math.min(enemyLevel, partyLevel + 4))
-    -- battle_exp_reward 把单战 cap 反向放大回 5e 原版量级（PARTY_EXP_THRESHOLD_SCALE 的倒数），
-    -- 这样 partyExp 阈值表缩到 1/4 不会同步压低 cap，否则一场战斗永远只能让 partyLevel +1。
-    local thresholdScale = (Exp5e.PARTY_EXP_THRESHOLD_SCALE or 1.0)
-    local cap = Exp5e.GetExpToNextLevel(capLevel)
-    if thresholdScale > 0 then
-        cap = math.floor(cap / thresholdScale + 0.5)
-    end
-    local gain = BattleExpReward.ComputeVictoryExp({
+    local highEnemyLv = 10
+    local lowEnemyLv = 1
+    local highGain = BattleExpReward.ComputeVictoryExp({
         enemyIds = { 910006, 910007, 910006, 910007 },
         partySize = 4,
         partyLevel = partyLevel,
-        enemyLevel = enemyLevel,
+        enemyLevel = highEnemyLv,
         chapterMultiplier = 1,
     })
-    assert(gain <= cap,
-        string.format("high enemy level relaxes cap: gain=%d cap=%d (capLv=%d)", gain, cap, capLevel))
+    local lowGain = BattleExpReward.ComputeVictoryExp({
+        enemyIds = { 910006, 910007, 910006, 910007 },
+        partySize = 4,
+        partyLevel = partyLevel,
+        enemyLevel = lowEnemyLv,
+        chapterMultiplier = 1,
+    })
+    assert(highGain > lowGain,
+        string.format("higher enemy level should grant more exp: low=%d high=%d", lowGain, highGain))
 end
 
 assertLevelCurve5e()
 assertEscalatingSteps()
-assertSingleBattleCap()
+assertSingleBattleNoCap()
 assertAct1Pacing5e()
 print("[OK] roguelike progression pacing (5e)")

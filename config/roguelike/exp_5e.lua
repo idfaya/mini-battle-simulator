@@ -87,8 +87,10 @@ M.PARTY_EXP_SCALE = 1.0
 -- 5e 原版每次升级是全队一起升；本工程改为「每次三选一只升 1 个英雄」，
 -- 因此 partyExp → partyLevel 的阈值需要按 4 人队规模等比缩小，
 -- 否则 4 名英雄共享一个 5e 单角色阈值，会让 3/4 队员长期落后于 floorBaseline。
--- 0.25 = 让"全队升 1 名英雄到 Lv2"所需的 partyExp ≈ 5e 单角色 Lv1→Lv2（300→75）。
-M.PARTY_EXP_THRESHOLD_SCALE = 0.25
+-- 0.50 = 4 人队 / 单角色升级 + "一战最多跨 1 阈值"的折中：
+--   原 0.25 让 Lv3 阈值仅 225，单战 ~300 EXP 一次性跨 Lv2/Lv3，节奏过快；
+--   0.50 → Lv2=150, Lv3=450，单战正好 +1 级。
+M.PARTY_EXP_THRESHOLD_SCALE = 0.50
 M.STARTER_LEVEL = 1
 
 local function normalizeCrKey(cr)

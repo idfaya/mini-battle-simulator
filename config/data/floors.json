@@ -9,13 +9,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
@@ -35,13 +35,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -61,13 +61,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -87,13 +87,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -130,13 +130,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -156,13 +156,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -182,13 +182,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -208,13 +208,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -251,13 +251,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -277,13 +277,13 @@
     "roomCount": { "min": 7, "max": 9 },
     "extraDoorRatio": 0.15,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 10,
       "equip": 10,
-      "event": 20,
+      "event": 25,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -303,13 +303,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
@@ -329,13 +329,13 @@
     "roomCount": { "min": 8, "max": 10 },
     "extraDoorRatio": 0.18,
     "typeWeights": {
-      "battle_normal": 35,
+      "battle_normal": 40,
       "battle_elite": 12,
       "equip": 10,
-      "event": 18,
+      "event": 23,
       "camp": 5,
       "shop": 5,
-      "empty": 15
+      "empty": 5
     },
     "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },

@@ -162,11 +162,11 @@ end
 
 -- ========== 用例 1：单场战斗 → partyExp 增长（D1.5 首场通常不触发三选一）==========
 do
-    math.randomseed(20260520)
+    math.randomseed(20260522)
     local snapshot = Run.StartRun({
         chapterId = 101,
         starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 20260520,
+        seed = 20260522,
     })
     assert_true(snapshot.partyLevel == 1, "starter party level should be 1")
     assert_true((snapshot.partyExp or 0) == 0, "starter partyExp should be 0")

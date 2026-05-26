@@ -59,7 +59,7 @@ do
     Run.StartRun({
         chapterId = 101,
         starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 20260520,
+        seed = 12345,
     })
     local snapshot = Run.GetSnapshot()
     local battleId = findSelectableNode(snapshot, function(node)
@@ -86,6 +86,9 @@ do
     elseif snapshot.phase == "reward" then
         -- 宝箱房等 via 邻居进入后会直接进 reward 阶段。
         snapshot = drainRewards()
+    elseif snapshot.phase == "battle" then
+        -- 减少空房后，via 邻居更可能是 battle；打完同样回到 map。
+        snapshot = runBattleUntilMap(800)
     end
 
     assert_true(findSelectableNode(snapshot, function(node)
