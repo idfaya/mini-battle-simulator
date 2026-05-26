@@ -1,5 +1,6 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local RangerBuildPassives = {}
 
@@ -85,9 +86,20 @@ local function applyMarkedBonusDamage(hero, target)
     end
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    if runtime.rangerMarkedDamageRound == round then
+    -- §6 markPayoutPerRound：默认每回合 1 次，feat 可叠加更多次。
+    local maxPerRound = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markPayoutPerRound", 0)))
+    local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.markPayoutPerRound)) or 0
+    if classExtra > 0 then
+        maxPerRound = maxPerRound + math.floor(classExtra)
+    end
+    if runtime.rangerMarkedDamageRoundKey ~= round then
+        runtime.rangerMarkedDamageRoundKey = round
+        runtime.rangerMarkedDamageCount = 0
+    end
+    if (tonumber(runtime.rangerMarkedDamageCount) or 0) >= maxPerRound then
         return 0
     end
+    runtime.rangerMarkedDamageCount = (tonumber(runtime.rangerMarkedDamageCount) or 0) + 1
     runtime.rangerMarkedDamageRound = round
     local diceExpr = "1d4"
     if hasSkill(hero, IDS.ranger_tracking_skill) then
@@ -132,16 +144,54 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
     local BattleBuff = require("modules.battle_buff")
     local BattleSkill = require("modules.battle_skill")
     local sourceId = tonumber(hero.instanceId or hero.id) or 0
-    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
-        local marks = getMarkTable(enemy)
-        marks[sourceId] = nil
-        BattleBuff.DelBuffByBuffIdAndCaster(enemy, HUNTER_MARK_BUFF_ID, hero)
+
+    -- §6 markSlotMax：默认 1 个印记，feat 可允许同时维持多个。
+    local slotMax = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markSlotMax", 0)))
+    local classSlot = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.markSlotMax)) or 0
+    if classSlot > 0 then
+        slotMax = slotMax + math.floor(classSlot)
     end
+
+    -- §6 dotDurationDelta：印记基础持续 1 回合，feat 可延长。
+    local durationDelta = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "dotDurationDelta", 0)))
+    local classDuration = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.dotDurationDelta)) or 0
+    if classDuration > 0 then
+        durationDelta = durationDelta + math.floor(classDuration)
+    end
+
+    if slotMax <= 1 then
+        -- 旧行为：清除现有印记。
+        for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+            local marks = getMarkTable(enemy)
+            marks[sourceId] = nil
+            BattleBuff.DelBuffByBuffIdAndCaster(enemy, HUNTER_MARK_BUFF_ID, hero)
+        end
+    else
+        -- 多槽：仅当超出槽位上限时清除最早的印记。
+        local activeMarks = {}
+        for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+            local marks = getMarkTable(enemy)
+            local mark = marks[sourceId]
+            if mark and (tonumber(mark.expireRound) or 0) >= getRound() then
+                activeMarks[#activeMarks + 1] = { enemy = enemy, mark = mark }
+            elseif mark then
+                marks[sourceId] = nil
+                BattleBuff.DelBuffByBuffIdAndCaster(enemy, HUNTER_MARK_BUFF_ID, hero)
+            end
+        end
+        while #activeMarks >= slotMax do
+            local oldest = table.remove(activeMarks, 1)
+            local marks = getMarkTable(oldest.enemy)
+            marks[sourceId] = nil
+            BattleBuff.DelBuffByBuffIdAndCaster(oldest.enemy, HUNTER_MARK_BUFF_ID, hero)
+        end
+    end
+
     local marks = getMarkTable(target)
     marks[sourceId] = {
-        expireRound = getRound() + 1,
+        expireRound = getRound() + 1 + durationDelta,
     }
-    BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, { duration = 2 })
+    BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, { duration = 2 + durationDelta })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记",
         hero.name or "Unknown",
         target.name or "目标"))
@@ -305,9 +355,19 @@ function RangerBuildPassives.PerformArrowRain(hero, skill)
     local BattleSkill = require("modules.battle_skill")
     local totalDamage = 0
     local hitCounts = {}
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动箭雨：连续射出 4 支箭矢",
-        hero.name or "Unknown"))
-    for shotIndex = 1, 4 do
+
+    -- §6 chainCountDelta：箭雨基础 4 箭，feat 可叠加更多。
+    local skillIdForMods = (skill and (skill.skillId or skill.id)) or IDS.ranger_hunter_mastery
+    local extraShots = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillIdForMods, "chainCountDelta", 0)))
+    local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.chainCountDelta)) or 0
+    if classExtra > 0 then
+        extraShots = extraShots + math.floor(classExtra)
+    end
+    local totalShots = 4 + extraShots
+
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动箭雨：连续射出 %d 支箭矢",
+        hero.name or "Unknown", totalShots))
+    for shotIndex = 1, totalShots do
         local target = pickRandomAliveEnemy(hero)
         if not isAlive(target) then
             break

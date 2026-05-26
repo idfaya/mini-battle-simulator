@@ -4,6 +4,27 @@ local SkillEffectRegistry = {
 
 local builtinsRegistered = false
 
+-- §6 各 mod 字段的轻量读取（不引入 FeatModHelper 以避免循环依赖）。
+local function getClassModInt(unit, key)
+    if not unit then return 0 end
+    local buildState = unit.buildState
+    if type(buildState) ~= "table" then return 0 end
+    local classMods = buildState.classMods
+    if type(classMods) ~= "table" then return 0 end
+    return math.max(0, math.floor(tonumber(classMods[key]) or 0))
+end
+
+local function getSkillModInt(unit, skillId, key)
+    if not unit or not skillId then return 0 end
+    local buildState = unit.buildState
+    if type(buildState) ~= "table" then return 0 end
+    local skillMods = buildState.skillMods
+    if type(skillMods) ~= "table" then return 0 end
+    local entry = skillMods[skillId]
+    if type(entry) ~= "table" then return 0 end
+    return math.max(0, math.floor(tonumber(entry[key]) or 0))
+end
+
 function SkillEffectRegistry.Register(tag, handler)
     if type(tag) ~= "string" or tag == "" then
         return
@@ -588,7 +609,33 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkill = require("modules.battle_skill")
         local BattleSkillStatus = require("skills.battle_skill_status")
         local seen = {}
-        for _, t in ipairs(frameCopy.targets or {}) do
+        local targets = frameCopy.targets or {}
+
+        -- §6 aoeRadiusDelta：在原有命中目标外按 delta 数量扩展额外敌人。
+        local skillId = ctx.skill and ctx.skill.skillId or 0
+        local extra = getSkillModInt(ctx.hero, skillId, "aoeRadiusDelta") + getClassModInt(ctx.hero, "aoeRadiusDelta")
+        if extra > 0 then
+            local BattleFormation = require("modules.battle_formation")
+            local existing = {}
+            for _, t in ipairs(targets) do
+                local tid = t and (t.instanceId or t.id)
+                if tid then existing[tid] = true end
+            end
+            local extended = {}
+            for _, e in ipairs(BattleFormation.GetEnemyTeam(ctx.hero) or {}) do
+                local eid = e and (e.instanceId or e.id)
+                if e and not e.isDead and eid and not existing[eid] then
+                    extended[#extended + 1] = e
+                    if #extended >= extra then break end
+                end
+            end
+            local merged = {}
+            for _, t in ipairs(targets) do merged[#merged + 1] = t end
+            for _, t in ipairs(extended) do merged[#merged + 1] = t end
+            targets = merged
+        end
+
+        for _, t in ipairs(targets) do
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId]
                 and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId])
@@ -644,14 +691,38 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 2
+
+        -- §6 markRecastPerRound：仅当显式配置 > 0 时启用 per-round 限速；默认不变。
+        local skillId = ctx.skill and ctx.skill.skillId or 0
+        local recastLimit = getSkillModInt(ctx.hero, skillId, "markRecastPerRound") + getClassModInt(ctx.hero, "markRecastPerRound")
+        local recastUsed = 0
+        if recastLimit > 0 and ctx.hero then
+            ctx.hero.passiveRuntime = ctx.hero.passiveRuntime or {}
+            local rt = ctx.hero.passiveRuntime
+            local BattleLogic = require("modules.battle_logic")
+            local round = (BattleLogic.GetCurRound and BattleLogic.GetCurRound()) or 0
+            if rt.warlockStaticMarkRound ~= round then
+                rt.warlockStaticMarkRound = round
+                rt.warlockStaticMarkCount = 0
+            end
+            recastUsed = tonumber(rt.warlockStaticMarkCount) or 0
+        end
+
         local seen = {}
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
                 and ClaimSpellLikeStatusApplication(ctx, t, "buff:890001") then
+                if recastLimit > 0 and recastUsed >= recastLimit then
+                    break
+                end
                 seen[targetId] = true
                 BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
+                recastUsed = recastUsed + 1
             end
+        end
+        if recastLimit > 0 and ctx.hero and ctx.hero.passiveRuntime then
+            ctx.hero.passiveRuntime.warlockStaticMarkCount = recastUsed
         end
         return { buffId = 890001 }
     end)
@@ -763,7 +834,10 @@ function SkillEffectRegistry.RegisterBuiltins()
         local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hitCount = tonumber(p and p.hitCount) or 1
-        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+        -- §6 chainCountDelta：雷链跳数受 feat 加成。
+        local skillId = ctx.skill and ctx.skill.skillId or 0
+        hitCount = hitCount + getSkillModInt(ctx.hero, skillId, "chainCountDelta") + getClassModInt(ctx.hero, "chainCountDelta")
+        local meta = Skill5eMeta.Get(skillId) or {}
         local diceExpr = meta.chainDice or "1d6+1"
         local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, diceExpr)
         local cur = tonumber(frameCopy.damage) or 0
@@ -782,7 +856,10 @@ function SkillEffectRegistry.RegisterBuiltins()
         end
         local chance = BattleSkill.GetPassiveAdjustedChance(ctx.hero, baseChance, key)
         if math.random(1, 10000) <= chance then
-            local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
+            local skillId = ctx.skill and ctx.skill.skillId or 0
+            -- §6 chainCountDelta：触发型雷链同样受 feat 加成。
+            hitCount = hitCount + getSkillModInt(ctx.hero, skillId, "chainCountDelta") + getClassModInt(ctx.hero, "chainCountDelta")
+            local meta = Skill5eMeta.Get(skillId) or {}
             local diceExpr = meta.chainDice or "1d6+1"
             local dmg = ApplyChainLightningDirect(ctx.hero, hitCount, diceExpr)
             local cur = tonumber(frameCopy.damage) or 0

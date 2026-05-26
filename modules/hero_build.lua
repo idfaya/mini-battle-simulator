@@ -123,6 +123,9 @@ local function applyModifySkill(buildState, featId, skillId, patch)
     if patch and patch.statMods then
         mergeInto(buildState.statMods, patch.statMods)
     end
+    if patch and patch.classMods then
+        mergeInto(buildState.classMods, patch.classMods)
+    end
     addSourceRecord(buildState, id, "modifiedBy", featId)
 end
 
@@ -213,6 +216,7 @@ function HeroBuild.CompileBuild(classId, level, selectedFeatIds)
         replacedSkills = {},
         grantedTags = {},
         statMods = {},
+        classMods = {},
         sourceMap = {},
         grantedSkillIds = {},
     }

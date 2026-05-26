@@ -1,6 +1,7 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local ClassWeaponConfig = require("config.tables.classes")
 local BattleEvent = require("core.battle_event")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local FighterBuildPassives = {}
 local IDS = SkillRuntimeConfig.Ids
@@ -170,6 +171,21 @@ function FighterBuildPassives.ActivateGuardStance(hero)
     BattleSkill.ApplyBuffFromSkill(hero, hero, GUARD_STANCE_BUFF_ID, nil, {
         duration = 1,
     })
+
+    -- §6 guardEmitsTeamShield：守卫架势激活时为全队叠加护盾 buff。
+    local emitsTeamShield = FeatModHelper.HasFlag(hero, IDS.fighter_guard_counter, "guardEmitsTeamShield")
+        or (hero and hero.buildState and hero.buildState.classMods and hero.buildState.classMods.guardEmitsTeamShield == true)
+    if emitsTeamShield then
+        local BattleFormation = require("modules.battle_formation")
+        for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+            if isAlive(ally) and not sameUnit(ally, hero) then
+                BattleSkill.ApplyBuffFromSkill(hero, ally, GUARD_STANCE_BUFF_ID, nil, {
+                    duration = 1,
+                })
+            end
+        end
+        publishPassiveTriggered(hero, "护卫架势", "全队护盾", "为全队叠加护盾")
+    end
 end
 
 function FighterBuildPassives.ClearGuardStance(hero)
@@ -233,7 +249,7 @@ end
 
 function FighterBuildPassives.ResolveGuardInterception(defender, extraParam)
     local attacker = extraParam and extraParam.attacker or nil
-    if not isAlive(defender) or not isAlive(attacker) or not isMeleeUnit(attacker) then
+    if not isAlive(defender) or not isAlive(attacker) then
         return defender, nil
     end
 
@@ -245,6 +261,15 @@ function FighterBuildPassives.ResolveGuardInterception(defender, extraParam)
     local guard, runtime = getGuardProtector(defender)
     if not guard or not runtime then
         return defender, nil
+    end
+
+    -- §6 守卫者的 classMod=guardExtendsToRanged 时允许拦截远程；否则仍仅拦截近战。
+    if not isMeleeUnit(attacker) then
+        local extendsRanged = FeatModHelper.HasFlag(guard, IDS.fighter_guard_counter, "guardExtendsToRanged")
+            or (guard.buildState and guard.buildState.classMods and guard.buildState.classMods.guardExtendsToRanged == true)
+        if not extendsRanged then
+            return defender, nil
+        end
     end
 
     return guard, {
@@ -490,7 +515,7 @@ end
 
 function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     local attacker = extraParam and extraParam.attacker or nil
-    if not isAlive(defender) or not isAlive(attacker) or not isMeleeUnit(attacker) then
+    if not isAlive(defender) or not isAlive(attacker) then
         return
     end
     local attackerRuntime = ensureRuntime(attacker)
@@ -514,6 +539,15 @@ function FighterBuildPassives.TryTriggerGuardCounter(defender, extraParam)
     end
     if not guard or not runtime then
         return
+    end
+
+    -- §6 仅在守卫拥有 guardExtendsToRanged 时允许排队远程目标的反击。
+    if not isMeleeUnit(attacker) then
+        local extendsRanged = FeatModHelper.HasFlag(guard, IDS.fighter_guard_counter, "guardExtendsToRanged")
+            or (guard.buildState and guard.buildState.classMods and guard.buildState.classMods.guardExtendsToRanged == true)
+        if not extendsRanged then
+            return
+        end
     end
 
     attackerRuntime.pendingGuardReactionQueued = true
@@ -573,6 +607,19 @@ function FighterBuildPassives.ResolveQueuedReactions(attacker)
             entry.runtime.__inCounterBasic = true
             BattleSkill.CastSmallSkill(entry.hero, entry.target)
             entry.runtime.__inCounterBasic = false
+
+            -- §6 counterExtraBasicOnce：反击成功后追加 1 次基础攻击（每场战斗最多一次）。
+            if isAlive(entry.hero) and isAlive(entry.target) and not entry.runtime.counterExtraBasicConsumed then
+                local extraOnce = FeatModHelper.HasFlag(entry.hero, IDS.fighter_counter_basic, "counterExtraBasicOnce")
+                    or (entry.hero.buildState and entry.hero.buildState.classMods and entry.hero.buildState.classMods.counterExtraBasicOnce == true)
+                if extraOnce then
+                    entry.runtime.counterExtraBasicConsumed = true
+                    entry.runtime.__inCounterBasic = true
+                    BattleSkill.CastSmallSkill(entry.hero, entry.target)
+                    entry.runtime.__inCounterBasic = false
+                    publishPassiveTriggered(entry.hero, "反击连携", "追加基础攻击", "对反击目标追加一次基础攻击")
+                end
+            end
         end
     end
 
@@ -615,7 +662,17 @@ function FighterBuildPassives.CreateSecondWindPassive(context)
             return
         end
         local runtime = ensureRuntime(hero)
-        if runtime.secondWindUsed then
+        -- §6 secondWindCharges：默认 1 次，feat 可叠加额外充能。
+        local maxCharges = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.fighter_second_wind, "secondWindCharges", 0)))
+        local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.secondWindCharges)) or 0
+        if classExtra > 0 then
+            maxCharges = maxCharges + math.floor(classExtra)
+        end
+        local used = tonumber(runtime.secondWindChargesUsed) or 0
+        if runtime.secondWindUsed and used == 0 then
+            used = 1
+        end
+        if used >= maxCharges then
             return
         end
         local maxHp = tonumber(hero.maxHp) or 1
@@ -626,6 +683,7 @@ function FighterBuildPassives.CreateSecondWindPassive(context)
         if currentHp > incomingDamage then
             return
         end
+        runtime.secondWindChargesUsed = used + 1
         runtime.secondWindUsed = true
         local heal = math.max(1, math.floor(maxHp * 0.5))
         extraParam.damage = 0

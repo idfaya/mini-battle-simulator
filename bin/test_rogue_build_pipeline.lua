@@ -19,11 +19,28 @@ local BattleEvent = require("core.battle_event")
 local BattleBuff = require("modules.battle_buff")
 local BuildPassiveCommon = require("skills.build_passive_common")
 local FeatBuildConfig = require("config.tables.feats")
+local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
 local HeroData = require("config.hero_data")
 local RogueBuildPassives = require("skills.rogue_build_passives")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
+
+-- Feat 树后 Lv2/Lv3/Lv4/Lv5 多数职业带 choiceGroup，CompileBuild 必须显式传选择；
+-- 这里取每个 group 的第一个 feat 作为 canonical 选择。
+local function canonicalSelections(classId, toLevel)
+    local selected = {}
+    for _, entry in ipairs(ClassBuildProgression.GetBuildProgression(classId)) do
+        local lv = tonumber(entry.level) or 0
+        if lv <= (tonumber(toLevel) or 0) and entry.choiceGroup then
+            local pool = FeatBuildConfig.GetFeatsByLevel(classId, lv, entry.choiceGroup) or {}
+            if pool[1] and pool[1].id then
+                selected[#selected + 1] = pool[1].id
+            end
+        end
+    end
+    return selected
+end
 
 BattleEvent.Init()
 BattleBuff.Init()
@@ -55,7 +72,8 @@ local function new_unit(id, name)
 end
 
 do
-    local build = HeroBuild.CompileBuild(1, 5, {})
+    local sel = canonicalSelections(1, 5)
+    local build = HeroBuild.CompileBuild(1, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_basic_attack), "Rogue Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_execute_strike), "Rogue Lv5 grants shadow execution")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_sneak_attack), "Rogue Lv5 keeps ambush")
@@ -67,7 +85,7 @@ end
 
 do
     local rogueHero = HeroData.ConvertToHeroData(900006, 5, 1, {
-        buildFeatIds = {},
+        buildFeatIds = canonicalSelections(1, 5),
     })
     assert_true(rogueHero and rogueHero.buildState ~= nil, "HeroData generic build compile works for rogue")
     assert_true(hasSkill(rogueHero.skillsConfig, SkillRuntimeConfig.Ids.rogue_execute_strike), "HeroData exports rogue mid-tier action")

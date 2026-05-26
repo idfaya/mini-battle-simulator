@@ -15,10 +15,27 @@ local function assert_true(cond, name)
 end
 
 local FeatBuildConfig = require("config.tables.feats")
+local ClassBuildProgression = require("config.tables.classes")
 local HeroBuild = require("modules.hero_build")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local HeroData = require("config.hero_data")
+
+-- Feat 树后 Lv2/Lv3/Lv4/Lv5 多数职业带 choiceGroup，CompileBuild 必须显式传选择；
+-- 这里取每个 group 的第一个 feat 作为 canonical 选择，用于 build pipeline 测试。
+local function canonicalSelections(classId, toLevel)
+    local selected = {}
+    for _, entry in ipairs(ClassBuildProgression.GetBuildProgression(classId)) do
+        local lv = tonumber(entry.level) or 0
+        if lv <= (tonumber(toLevel) or 0) and entry.choiceGroup then
+            local pool = FeatBuildConfig.GetFeatsByLevel(classId, lv, entry.choiceGroup) or {}
+            if pool[1] and pool[1].id then
+                selected[#selected + 1] = pool[1].id
+            end
+        end
+    end
+    return selected
+end
 local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleMain = require("modules.battle_main")
@@ -55,7 +72,8 @@ local function new_unit(id, name)
 end
 
 do
-    local build = HeroBuild.CompileBuild(3, 5, {})
+    local sel = canonicalSelections(3, 5)
+    local build = HeroBuild.CompileBuild(3, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.monk_basic_attack), "Monk Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.monk_open_hand), "Monk Lv5 keeps open hand")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.monk_harmonize), "Monk Lv5 grants still mind")
@@ -66,7 +84,8 @@ do
 end
 
 do
-    local build = HeroBuild.CompileBuild(4, 5, {})
+    local sel = canonicalSelections(4, 5)
+    local build = HeroBuild.CompileBuild(4, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_basic_attack), "Paladin Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_vengeance_smite), "Paladin Lv5 keeps smite evil")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands), "Paladin Lv5 grants lay on hands")
@@ -74,7 +93,8 @@ do
 end
 
 do
-    local build = HeroBuild.CompileBuild(5, 5, {})
+    local sel = canonicalSelections(5, 5)
+    local build = HeroBuild.CompileBuild(5, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_basic_attack), "Ranger Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_hunter_shot), "Ranger Lv5 grants hunting guide")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.ranger_hunter_mastery), "Ranger Lv5 grants arrow rain active")
@@ -83,19 +103,19 @@ end
 
 do
     local monkHero = HeroData.ConvertToHeroData(900001, 5, 1, {
-        buildFeatIds = {},
+        buildFeatIds = canonicalSelections(3, 5),
     })
     assert_true(monkHero and monkHero.buildState ~= nil, "HeroData generic build compile works for monk")
     assert_true(hasSkill(monkHero.skillsConfig, SkillRuntimeConfig.Ids.monk_basic_attack), "HeroData exports monk build basic attack")
 
     local paladinHero = HeroData.ConvertToHeroData(900009, 5, 1, {
-        buildFeatIds = {},
+        buildFeatIds = canonicalSelections(4, 5),
     })
     assert_true(paladinHero and paladinHero.buildState ~= nil, "HeroData generic build compile works for paladin")
     assert_true(hasSkill(paladinHero.skillsConfig, SkillRuntimeConfig.Ids.paladin_vengeance_smite), "HeroData exports paladin mid-tier active")
 
     local rangerHero = HeroData.ConvertToHeroData(900008, 5, 1, {
-        buildFeatIds = {},
+        buildFeatIds = canonicalSelections(5, 5),
     })
     assert_true(rangerHero and rangerHero.buildState ~= nil, "HeroData generic build compile works for ranger")
     assert_true(hasSkill(rangerHero.skillsConfig, SkillRuntimeConfig.Ids.ranger_hunter_shot), "HeroData exports ranger build active")
@@ -149,7 +169,7 @@ do
     enemy.classId = 2
     enemy.wpType = 1
     enemy.isLeft = false
-    monk.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(3, 5, {}))
+    monk.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(3, 5, canonicalSelections(3, 5)))
 
     BattleFormation.Init({
         teamLeft = { monk, ally },

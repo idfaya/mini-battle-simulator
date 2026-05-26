@@ -23,6 +23,8 @@ local BattleSkill = require("modules.battle_skill")
 local BattleFormula = require("core.battle_formula")
 local Ability5e = require("modules.ability_5e")
 local ClassWeaponConfig = require("config.tables.classes")
+local ClassBuildProgression = require("config.tables.classes")
+local FeatBuildConfig = require("config.tables.feats")
 local BattleBuff = require("modules.battle_buff")
 
 local function hasSkill(list, skillId)
@@ -56,21 +58,31 @@ do
 end
 
 do
-    local build = HeroBuild.CompileBuild(10, 5, {})
+    -- 野蛮人 SSOT 当前 Lv2/Lv4 没有 feat、Lv3/Lv5 feat 也没标 choiceGroup；mock 掉
+    -- CollectChoiceGroups 让 Lv5 build 直接由 Lv1+Lv5 fixed feats 组成。
+    local oldCollectChoiceGroups = ClassBuildProgression.CollectChoiceGroups
+    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
+        if classId == 10 then
+            return {}
+        end
+        return oldCollectChoiceGroups(classId, toLevel)
+    end
+
+    local build = HeroBuild.CompileBuild(10, 5, { FeatBuildConfig.Ids.barbarian_heavy_strike })
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.barbarian_basic_attack), "Barbarian Lv5 keeps basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "Barbarian Lv5 grants heavy strike")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.barbarian_berserk), "Barbarian Lv5 grants berserk")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "Barbarian runtime exports heavy strike")
-end
 
-do
     local hero = HeroData.ConvertToHeroData(900010, 5, 1, {
-        buildFeatIds = {},
+        buildFeatIds = { FeatBuildConfig.Ids.barbarian_heavy_strike },
     })
     assert_true(hero and hero.buildState ~= nil, "HeroData compile works for barbarian")
     assert_true(hasSkill(hero.skillsConfig, SkillRuntimeConfig.Ids.barbarian_basic_attack), "HeroData exports barbarian basic attack")
     assert_true(hasSkill(hero.skillsConfig, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "HeroData exports barbarian heavy strike")
+
+    ClassBuildProgression.CollectChoiceGroups = oldCollectChoiceGroups
 end
 
 do

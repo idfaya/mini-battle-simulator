@@ -1,5 +1,6 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local MonkBuildPassives = {}
 
@@ -66,7 +67,20 @@ local function triggerMartialArts(hero, target, opts)
     opts = opts or {}
     local runtime = ensureRuntime(hero)
     if runtime.__inMonkCombo and opts.force ~= true then
-        return 0
+        -- §6 comboReentryOnce：默认连击不可在自身回合内重入；feat 解锁后允许每回合 1 次额外重入。
+        local reentryOnce = FeatModHelper.HasFlag(hero, IDS.monk_martial_arts, "comboReentryOnce")
+            or (hero.buildState and hero.buildState.classMods and hero.buildState.classMods.comboReentryOnce == true)
+        if reentryOnce then
+            local round = getRound()
+            if runtime.monkComboReentryRound ~= round then
+                runtime.monkComboReentryRound = round
+                -- 允许本回合一次重入：不直接 return；继续执行追加攻击逻辑。
+            else
+                return 0
+            end
+        else
+            return 0
+        end
     end
     if opts.force ~= true and math.random(10000) > 5000 then
         BuildPassiveCommon.PublishCombatLog(string.format("%s 连击未触发",

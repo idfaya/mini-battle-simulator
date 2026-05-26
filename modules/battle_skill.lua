@@ -50,6 +50,7 @@ local BattleRhythmConfig = require("config.battle_rhythm_config")
 local ClassRhythmConfig = require("config.tables.classes")
 local ClassWeaponConfig = require("config.tables.classes")
 local Ability5e = require("modules.ability_5e")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 ---@class BattleSkill
 local BattleSkill = {}
@@ -464,6 +465,13 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         end
     end
 
+    -- §6 bonusHit：技能级命中加值（来源 hero.buildState.skillMods[skillId].bonusHit）
+    local skillIdForMods = skill and (skill.skillId or skill.id) or (meta and meta.skillId) or opts.skillId
+    local bonusHitMod = FeatModHelper.GetSkillMod(attacker, skillIdForMods, "bonusHit", 0)
+    if bonusHitMod ~= 0 then
+        attackBonus = (tonumber(attackBonus) or 0) + bonusHitMod
+    end
+
     local hitResult = BattleFormula.RollHit(attacker, defender, {
         mode = opts.mode or "normal",
         attackBonus = attackBonus,
@@ -471,8 +479,12 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         ignoreNatRules = ignoreNatRules,
     })
     result.hit = hitResult
-    if hitResult.hit and tonumber(opts.critMin) ~= nil then
-        local critMin = math.max(2, math.min(20, math.floor(tonumber(opts.critMin) or 20)))
+    -- §6 critThresholdDelta：技能级暴击阈值降低（delta>0 表示更易暴击）
+    local critThresholdDelta = FeatModHelper.GetSkillMod(attacker, skillIdForMods, "critThresholdDelta", 0)
+    local rawCritMin = tonumber(opts.critMin)
+    if hitResult.hit and (rawCritMin ~= nil or critThresholdDelta > 0) then
+        local baseCritMin = rawCritMin or 20
+        local critMin = math.max(2, math.min(20, math.floor(baseCritMin - critThresholdDelta)))
         if (tonumber(hitResult.roll) or 0) >= critMin then
             hitResult.crit = true
         end
@@ -611,6 +623,11 @@ function BattleSkill.Init(hero, skillsConfig)
         if skillId then
             local skill = BattleSkill.CreateSkillInstance(skillId, skillConfig)
             if skill then
+                -- §6 cooldownDelta：技能级 CD ±N（来源 hero.buildState.skillMods[skillId].cooldownDelta）
+                local cooldownDelta = FeatModHelper.GetSkillMod(hero, skillId, "cooldownDelta", 0)
+                if cooldownDelta ~= 0 and (tonumber(skill.maxCoolDown) or 0) > 0 then
+                    skill.maxCoolDown = math.max(0, math.floor((tonumber(skill.maxCoolDown) or 0) + cooldownDelta))
+                end
                 table.insert(hero.skills, skill)
                 hero.skillData.skillInstances[skillId] = skill
                 hero.skillData.coolDowns[skillId] = 0

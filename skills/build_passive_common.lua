@@ -202,6 +202,44 @@ function BuildPassiveCommon.HasSkill(hero, skillId)
     return hasSkill(hero, skillId)
 end
 
+-- §6 mod 查询：技能级 + 职业级求和（数值字段）。
+-- 当 skillMods[skillId][key] 与 classMods[key] 均缺失时返回 0。
+---@param hero table|nil
+---@param skillId integer|string|nil
+---@param key string
+---@return number
+function BuildPassiveCommon.GetSkillOrClassMod(hero, skillId, key)
+    local fromSkill = tonumber(FeatModHelper.GetSkillMod(hero, skillId, key, 0)) or 0
+    local fromClass = tonumber(FeatModHelper.GetClassMod(hero, key, 0)) or 0
+    return fromSkill + fromClass
+end
+
+---@param hero table|nil
+---@param skillId integer|string|nil
+---@param key string
+---@return boolean
+function BuildPassiveCommon.HasSkillOrClassFlag(hero, skillId, key)
+    if FeatModHelper.HasFlag(hero, skillId, key) then
+        return true
+    end
+    if not hero or type(hero.buildState) ~= "table" then
+        return false
+    end
+    local classMods = hero.buildState.classMods
+    if type(classMods) ~= "table" then
+        return false
+    end
+    return classMods[key] == true
+end
+
+function BuildPassiveCommon.GetClassMod(hero, key, default)
+    return FeatModHelper.GetClassMod(hero, key, default)
+end
+
+function BuildPassiveCommon.GetSkillMod(hero, skillId, key, default)
+    return FeatModHelper.GetSkillMod(hero, skillId, key, default)
+end
+
 function BuildPassiveCommon.SameUnit(a, b)
     return sameUnit(a, b)
 end

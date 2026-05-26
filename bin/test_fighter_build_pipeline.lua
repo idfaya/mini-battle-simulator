@@ -40,19 +40,26 @@ end
 
 do
     local build = HeroBuild.CompileBuild(2, 2, {})
-    assert_true(not hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv2 does not grant extra attack in three-tier build")
+    -- 战士 SSOT 已把 Extra Attack 上提为 Lv2 fixed feat（fighter_lv2_extra_attack）。
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv2 grants extra attack as fixed feat")
     assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "Fighter Lv2 does not grant action surge yet")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 3, {})
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 fixed tier grants guard stance")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv3 fixed tier grants guard counter passive")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv3 keeps counter passive")
+    -- Lv3 走 choiceGroup `fighter_lv3_active`；选 fighter_guard 验证 guard stance + counter
+    local build = HeroBuild.CompileBuild(2, 3, { FeatBuildConfig.Ids.fighter_guard })
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 guard choice grants guard stance")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv3 guard choice grants guard counter passive")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv3 keeps Lv1 counter passive")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 5, {})
+    -- Lv5 fixed 含 fighter_second_wind；保留 Lv3 guard 选择，Lv4/Lv5 取每组首个 feat
+    local build = HeroBuild.CompileBuild(2, 5, {
+        FeatBuildConfig.Ids.fighter_guard,
+        FeatBuildConfig.Ids.fighter_precise_attack,
+        FeatBuildConfig.Ids.fighter_sweeping_attack,
+    })
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 keeps guard stance")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "Fighter Lv5 grants indomitable wind")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
@@ -78,16 +85,17 @@ do
     if fighter.buildState then
         fighter.buildState.featIds = {}
     end
+    -- partyExp 必须跨过 Lv2 阈值才会触发 session（PARTY_EXP_THRESHOLD_SCALE=0.5 下 Lv2=150）。
     local mockState = {
         ownedUnits = { fighter },
         teamRoster = { fighter },
         benchRoster = {},
-        partyLevel = 2,
-        partyExp = 40,
+        partyLevel = 1,
+        partyExp = LevelCurve.GetExpThreshold(2) + 1,
         levelCap = 10,
     }
     local session = FeatPicker.BeginSession(mockState, LEVEL_EXP_THRESHOLDS)
-    assert_true(session ~= nil, "Lv2 fighter should get a feat-pick session at partyExp=40")
+    assert_true(session ~= nil, "Lv2 fighter should get a feat-pick session past Lv2 threshold")
     local hasFighterOption = false
     for _, opt in ipairs(session.options or {}) do
         if tonumber(opt.classId) == 2 and tonumber(opt.rosterId) == 1 then
@@ -104,8 +112,8 @@ do
     assert_true(#fighterLv4Feats > 0, "fixture sanity: fighter Lv4 should have feats")
     local extraFeatId = tonumber(fighterLv4Feats[1].id) or 0
     assert_true(extraFeatId > 0, "fixture sanity: fighter Lv4 feat should have valid id")
-    -- 拿 Lv3 build 作为基础（包含 Lv1+Lv3 fixed feats），再追加 Lv4 选中 feat
-    local build = HeroBuild.CompileBuild(2, 4, { extraFeatId })
+    -- Lv3/Lv4 都带 choiceGroup，需要同时给出每组的 canonical 选择
+    local build = HeroBuild.CompileBuild(2, 4, { FeatBuildConfig.Ids.fighter_action_surge, extraFeatId })
     local seenExtra = false
     for _, fid in ipairs(build.featIds or {}) do
         if tonumber(fid) == extraFeatId then

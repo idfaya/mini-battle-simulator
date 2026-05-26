@@ -1,6 +1,7 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local Skill5eMeta = require("config.tables.skill_meta")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local ClericBuildPassives = {}
 
@@ -368,10 +369,27 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
             local bestReduction = 0
             local bestLabel = nil
             local defenderId = tonumber(defender.instanceId or defender.id) or 0
-            if hasSkill(ally, IDS.cleric_shelter_prayer) and runtime.clericShelterProtectedRound ~= round then
-                runtime.clericShelterProtectedRound = round
-                bestReduction = BuildPassiveCommon.RollDice("1d6")
-                bestLabel = "神恩庇护"
+            -- §6 shelterPerUnit：默认按 caster 每回合 1 次；feat 解锁后按 per-defender 计数。
+            local shelterPerUnit = FeatModHelper.HasFlag(ally, IDS.cleric_shelter_prayer, "shelterPerUnit")
+                or (ally.buildState and ally.buildState.classMods and ally.buildState.classMods.shelterPerUnit == true)
+            if hasSkill(ally, IDS.cleric_shelter_prayer) then
+                local triggered = false
+                if shelterPerUnit then
+                    runtime.clericShelterProtectedTargets = runtime.clericShelterProtectedTargets or {}
+                    if runtime.clericShelterProtectedTargets[defenderId] ~= round then
+                        runtime.clericShelterProtectedTargets[defenderId] = round
+                        triggered = true
+                    end
+                else
+                    if runtime.clericShelterProtectedRound ~= round then
+                        runtime.clericShelterProtectedRound = round
+                        triggered = true
+                    end
+                end
+                if triggered then
+                    bestReduction = BuildPassiveCommon.RollDice("1d6")
+                    bestLabel = "神恩庇护"
+                end
             end
             if getSanctuaryAcBonus(ally) > 0 then
                 runtime.clericSanctuaryProtectedTargets = runtime.clericSanctuaryProtectedTargets or {}

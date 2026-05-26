@@ -61,7 +61,8 @@ do
     local rogue = makeUnit(1, 1, 11)
     local fighter = makeUnit(2, 1, 12)
     local cleric = makeUnit(3, 1, 13)
-    local state = makeMockState({ rogue, fighter, cleric }, 20)
+    -- partyExp 必须跨过 Lv2 阈值才会触发 session（PARTY_EXP_THRESHOLD_SCALE=0.5 下 Lv2=150）。
+    local state = makeMockState({ rogue, fighter, cleric }, LevelCurve.GetExpThreshold(2) + 1)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created")
     assert_true(#session.options <= 3, "options should be capped at 3 when 3 alive heroes")
@@ -94,7 +95,7 @@ do
         end
     end
     if #validUnits >= 4 then
-        local state = makeMockState(validUnits, 20)
+        local state = makeMockState(validUnits, LevelCurve.GetExpThreshold(2) + 1)
         local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
         assert_true(session ~= nil, "session should be created with 4 alive heroes")
         assert_true(#session.options >= 4,
@@ -115,7 +116,7 @@ end
 do
     math.randomseed(9999)
     local rogue = makeUnit(1, 1, 31)
-    local state = makeMockState({ rogue }, 20)
+    local state = makeMockState({ rogue }, LevelCurve.GetExpThreshold(2) + 1)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created")
     local rogueLv2Feats = FeatBuildConfig.GetFeatsByLevel(1, 2) or {}
@@ -139,7 +140,7 @@ end
 do
     math.randomseed(11111)
     local fighter = makeUnit(2, 1, 41)
-    local state = makeMockState({ fighter }, 40)
+    local state = makeMockState({ fighter }, LevelCurve.GetExpThreshold(3) + 1)
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created at partyLevel 3")
     assert_true(state.partyLevel == 3, "partyLevel should compute to 3")
@@ -167,7 +168,7 @@ do
     math.randomseed(33333)
     local rogue = makeUnit(1, 4, 61)  -- 升到 Lv5 触发 capstone（高阶 + isSubclassCore）
     -- 新模型：partyLevel 与 hero.level 解耦；只需 partyExp 大于 0 触发 session 即可。
-    local state = makeMockState({ rogue }, 80)
+    local state = makeMockState({ rogue }, LevelCurve.GetExpThreshold(5) + 1)
     state.partyLevel = 4
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "Lv4→Lv5 session should be created")

@@ -18,6 +18,23 @@ local function GetBattleSkill()
     return require("modules.battle_skill")
 end
 
+-- §6 dotDurationDelta：caster 的 classMod 可全局延长 DoT/状态持续时间。
+local function getDotDurationDelta(caster)
+    if not caster then
+        return 0
+    end
+    local buildState = caster.buildState
+    if type(buildState) ~= "table" then
+        return 0
+    end
+    local classMods = buildState.classMods
+    local delta = 0
+    if type(classMods) == "table" then
+        delta = math.max(0, math.floor(tonumber(classMods.dotDurationDelta) or 0))
+    end
+    return delta
+end
+
 --- 处理中毒效果（T1 毒爆流）
 ---@param target table 目标
 ---@param layers number 中毒层数
@@ -69,6 +86,7 @@ function BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
     if caster and BattleBuff.GetBuff(caster, 870002) then
         actualTurns = actualTurns + 1
     end
+    actualTurns = actualTurns + getDotDurationDelta(caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
@@ -95,6 +113,7 @@ function BattleSkillStatus.ApplyBurnRefreshOnly(target, turns, caster)
     if caster and BattleBuff.GetBuff(caster, 870002) then
         actualTurns = actualTurns + 1
     end
+    actualTurns = actualTurns + getDotDurationDelta(caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
@@ -118,20 +137,21 @@ function BattleSkillStatus.ApplyFreeze(target, turns, slowPct, caster)
         return
     end
     local BattleSkill = GetBattleSkill()
+    local delta = getDotDurationDelta(caster)
     if slowPct and slowPct > 0 then
         BattleSkill.ApplyBuffFromSkill(caster or target, target, 880001, nil, {
             value = slowPct,
             maxValue = slowPct,
-            duration = math.max(turns or 0, 2),
+            duration = math.max(turns or 0, 2) + delta,
         })
     end
     if turns and turns > 0 then
         BattleSkill.ApplyBuffFromSkill(caster or target, target, 880002, nil, {
-            duration = turns,
+            duration = turns + delta,
         })
     end
     Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
-        target.name or "Unknown", turns or 0, slowPct or 0))
+        target.name or "Unknown", (turns or 0) + delta, slowPct or 0))
 end
 
 --- 施加霜冻（无法移动的状态标记；当前不阻止远程攻击或施法）
@@ -142,11 +162,12 @@ function BattleSkillStatus.ApplyFrost(target, turns, caster)
     if not target then
         return
     end
+    local actualTurns = (turns or 2) + getDotDurationDelta(caster)
     GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880005, nil, {
-        duration = turns or 2,
+        duration = actualTurns,
     })
     Logger.Log(string.format("[ApplyFrost] %s 霜冻回合: %d",
-        target.name or "Unknown", turns or 2))
+        target.name or "Unknown", actualTurns))
 end
 
 ---@param target table
@@ -156,8 +177,9 @@ function BattleSkillStatus.ApplyStaticMark(target, turns, caster)
     if not target then
         return
     end
+    local actualTurns = (turns or 2) + getDotDurationDelta(caster)
     GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 890001, nil, {
-        duration = turns or 2,
+        duration = actualTurns,
     })
 end
 

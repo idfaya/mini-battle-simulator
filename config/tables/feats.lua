@@ -23,6 +23,11 @@
 ---@field tier BuildFeatTier|nil
 ---@field tags string[]|nil
 ---@field isSubclassCore boolean|nil
+---@field prerequisites integer[]|nil
+---@field isRoot boolean|nil
+---@field trunk string|nil  -- "T1" | "T2"
+---@field isCapstone boolean|nil
+---@field treeSlot string|nil  -- "R" | "B" | "J" | "T1" | "T2" | "C"
 
 local FeatBuildConfig = {}
 
@@ -147,8 +152,15 @@ local FEATS = {
         level = 1,
         name = "伏击",
         description = "核心被动。当目标当前目标不是你，或目标本回合已被其他友军攻击过时，你的基础攻击造成额外伤害。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.3：致命准头 B（critThresholdDelta -1）合并到 R 选定路径。
         effects = {
             { type = "grant_skill", skill = 80001101 },
+            { type = "modify_skill", skill = 80001101, add = {
+                critThresholdDelta = -1,
+                classMods = { critThresholdDelta = -1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.rogue_shadow_step] = {
@@ -191,8 +203,14 @@ local FEATS = {
         name = "影袭处决",
         description = "获得影袭处决，CD3，对后排或低血量目标发动 1 次攻击；该次攻击视为满足伏击条件。",
         choiceGroup = "rogue_lv3_subclass",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.3：T1 mid 核心主动；影袭再起 J（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80001013 },
+            { type = "modify_skill", skill = 80001013, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.rogue_trickster_blade] = {
@@ -302,8 +320,14 @@ local FEATS = {
         level = 3,
         name = "治愈之言",
         description = "获得治愈之言，CD3，为生命最低的友军回复 1d8 + 等级 生命。",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.9：T1 mid 主动；治疗加深 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006012 },
+            { type = "modify_skill", skill = 80006012, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_radiant_prayer] = {
@@ -323,8 +347,15 @@ local FEATS = {
         level = 1,
         name = "神恩庇护",
         description = "核心被动。每个友军每回合第一次受到伤害时，该次伤害减少 1d6。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.9：R 核心被动；独立庇护 J（shelterPerUnit）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006103 },
+            { type = "modify_skill", skill = 80006103, add = {
+                shelterPerUnit = true,
+                classMods = { shelterPerUnit = true },
+            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_revival_prayer] = {
@@ -366,8 +397,14 @@ local FEATS = {
         level = 5,
         name = "圣域祷言",
         description = "获得圣域祷言，CD3，持续 2 回合；我方全体 AC +1，且每个友军每回合第一次受到的伤害减少 1d6。",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.9：T2 high 主动；圣域回响 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006015 },
+            { type = "modify_skill", skill = 80006015, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_spell_mastery] = {
@@ -453,8 +490,15 @@ local FEATS = {
         level = 1,
         name = "余烬点燃",
         description = "核心被动。火焰弹命中后点燃目标；已燃烧目标只刷新持续时间，不重复叠层。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.8：R 核心被动；燃烧延续 B（dotDurationDelta +1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80007002 },
+            { type = "modify_skill", skill = 80007002, add = {
+                dotDurationDelta = 1,
+                classMods = { dotDurationDelta = 1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.sorcerer_ash_burst] = {
@@ -463,8 +507,14 @@ local FEATS = {
         level = 3,
         name = "灰烬爆燃",
         description = "获得灰烬爆燃，CD3，攻击燃烧目标时额外造成火焰伤害并刷新燃烧。",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.8：T1 mid 主动；余烬主教 C（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80007003 },
+            { type = "modify_skill", skill = 80007003, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.sorcerer_flame_storm] = {
@@ -473,8 +523,14 @@ local FEATS = {
         level = 5,
         name = "烈焰风暴",
         description = "获得烈焰风暴，CD5，对全体敌人造成火焰伤害；燃烧目标额外受 1d8 火焰伤害，未燃烧目标被点燃。",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.8：T2 high 主动；风暴回响 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80007004 },
+            { type = "modify_skill", skill = 80007004, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     -- Wizard (classId = 8)
@@ -494,8 +550,15 @@ local FEATS = {
         level = 1,
         name = "寒霜迟滞",
         description = "核心被动。寒霜射线命中后使目标进入霜冻状态。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.7：R 核心被动；寒霜深锁 B（dotDurationDelta +1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80008002 },
+            { type = "modify_skill", skill = 80008002, add = {
+                dotDurationDelta = 1,
+                classMods = { dotDurationDelta = 1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.wizard_freezing_nova] = {
@@ -504,8 +567,15 @@ local FEATS = {
         level = 3,
         name = "冻结新星",
         description = "获得冻结新星，CD3，十字范围冰霜法术；已霜冻目标冻结 1 回合，未霜冻目标施加霜冻。",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.7：T1 mid 主动；霜咒 J（cooldownDelta -1）+ 寒域扩张 B（aoeRadiusDelta +1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80008003 },
+            { type = "modify_skill", skill = 80008003, add = {
+                cooldownDelta = -1,
+                aoeRadiusDelta = 1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.wizard_blizzard] = {
@@ -514,8 +584,14 @@ local FEATS = {
         level = 5,
         name = "暴风雪",
         description = "获得暴风雪，CD5，对全体敌人造成冰霜伤害；已霜冻目标额外受 1d8 伤害并刷新霜冻，未霜冻目标施加霜冻。",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.7：T2 high 主动；风暴回返 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80008004 },
+            { type = "modify_skill", skill = 80008004, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     -- Warlock (classId = 9)
@@ -535,8 +611,21 @@ local FEATS = {
         level = 1,
         name = "静电印记",
         description = "核心被动。邪能冲击命中后为目标附加静电印记，供雷链和雷暴引爆。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.10：R 核心被动；印记延续 B（dotDurationDelta +1）+ 印记加深 B（markRecastPerRound +1）+ 印记爆发 J（markPayoutPerRound +1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80009002 },
+            { type = "modify_skill", skill = 80009002, add = {
+                dotDurationDelta = 1,
+                markRecastPerRound = 2,
+                markPayoutPerRound = 2,
+                classMods = {
+                    dotDurationDelta = 1,
+                    markRecastPerRound = 2,
+                    markPayoutPerRound = 2,
+                },
+            } },
         },
     },
     [FeatBuildConfig.Ids.warlock_thunder_chain] = {
@@ -545,8 +634,14 @@ local FEATS = {
         level = 3,
         name = "雷链",
         description = "获得雷链，CD3，攻击当前目标并额外弹射 1 名敌人，优先弹向带静电印记的目标。",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.10：T1 mid 主动；雷链扩展 B（chainCountDelta +1）+ 雷契宗师 C（chainCountDelta +1，最多 4 段）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80009003 },
+            { type = "modify_skill", skill = 80009003, add = {
+                chainCountDelta = 2,
+            } },
         },
     },
     [FeatBuildConfig.Ids.warlock_thunderstorm] = {
@@ -555,8 +650,14 @@ local FEATS = {
         level = 5,
         name = "雷暴",
         description = "获得雷暴，CD5，对全体敌人造成雷电伤害；印记目标额外受 1d8 伤害并清除印记，未印记目标被附加印记。",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.10：T2 high 主动；雷暴回响 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80009004 },
+            { type = "modify_skill", skill = 80009004, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     -- Barbarian (classId = 10)
@@ -576,8 +677,15 @@ local FEATS = {
         level = 1,
         name = "狂暴",
         description = "核心被动。每次完成基础攻击或受到攻击时自动触发，不能叠层，持续到下回合结束；每场战斗只能触发一次。期间受到物理伤害 -2，所有攻击造成伤害 +2。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.6：R 核心被动；怒袭 B（critThresholdDelta -1，狂暴期间）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80010101 },
+            { type = "modify_skill", skill = 80010101, add = {
+                critThresholdDelta = -1,
+                classMods = { critThresholdDelta = -1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.barbarian_heavy_strike] = {
@@ -586,8 +694,14 @@ local FEATS = {
         level = 3,
         name = "重击",
         description = "获得重击，CD2，对当前目标发动一次强化近战攻击：自身 AC -2，暴击范围翻倍，且力量加值翻倍。",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.6：T1 mid 主动；重斩频率 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80010013 },
+            { type = "modify_skill", skill = 80010013, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.barbarian_berserk] = {
@@ -616,8 +730,15 @@ local FEATS = {
         level = 5,
         name = "不屈之风",
         description = "高阶被动。生命值将降到 0 时不会死亡，而是清除状态并恢复 50% 最大生命值；每场战斗 1 次。",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.1：T2 high 核心被动；不屈再起 B 节点（secondWindCharges +1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80002101 },
+            { type = "modify_skill", skill = 80002101, add = {
+                secondWindCharges = 1,
+                classMods = { secondWindCharges = 1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.fighter_extra_attack] = {
@@ -648,9 +769,27 @@ local FEATS = {
         name = "护卫",
         description = "获得护卫架势，CD3，持续到你下次行动开始；期间己方承受的近战攻击都由你承担，且你会在其攻击结算后对攻击者发动 1 次基础武器攻击；护卫期间你自身 AC+2。",
         choiceGroup = "fighter_lv3_active",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.1：T1 mid 核心主动；护卫连环 / 钢墙宗师等 J / C 节点会通过 modify_skill 把 §6 字段挂到 80002005。
         effects = {
             { type = "grant_skill", skill = 80002005 },
             { type = "grant_skill", skill = 80002105 },
+            -- 护卫加深（B 节点，§5.1）：guardExtendsToRanged → §6 字段。
+            -- 守护连环 J（§5.1）：guardEmitsTeamShield → §6 字段。
+            -- 钢墙宗师 C（§5.1 D 类）：cooldownDelta = -1（架势 CD -1，持续 +1）。
+            -- 注：当前 demo 阶段把这些 J/C 强化合并到 fighter_guard 选定路径上，避免引入新 feat id 破坏既有测试；
+            -- 后续 §5 全树落地时会拆分为独立 B/J/C feat。
+            { type = "modify_skill", skill = 80002005, add = {
+                guardExtendsToRanged = true,
+                guardEmitsTeamShield = true,
+                cooldownDelta = -1,
+                guardDurationDelta = 1,
+                classMods = {
+                    guardExtendsToRanged = true,
+                    guardEmitsTeamShield = true,
+                },
+            } },
         },
     },
     [FeatBuildConfig.Ids.fighter_precise_attack] = {
@@ -671,8 +810,15 @@ local FEATS = {
         name = "反击",
         description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
         -- Lv1 起手核心被动，与 rogue_sneak_attack / monk_martial_arts 同级；不挂 choiceGroup，避免与 Lv4 被动选择互斥。
+        -- SSOT §5.1：反击连锁 J + 二次反击 C 的 §6 字段（counterExtraBasicOnce）合并到反击 R 选定路径。
+        treeSlot = "R",
+        isRoot = true,
         effects = {
             { type = "grant_skill", skill = 80002104 },
+            { type = "modify_skill", skill = 80002104, add = {
+                counterExtraBasicOnce = 1,
+                classMods = { counterExtraBasicOnce = 1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.fighter_sweeping_attack] = {
@@ -714,8 +860,15 @@ local FEATS = {
         level = 1,
         name = "连击",
         description = "核心被动。徒手打击命中后有 50% 概率对同一目标追加 1 次额外攻击；额外攻击不会再次触发连击。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.2：拳影回响 J + 连环宗师 C 都注入 comboReentryOnce 到 R 路径。
         effects = {
             { type = "grant_skill", skill = 80003101 },
+            { type = "modify_skill", skill = 80003101, add = {
+                comboReentryOnce = 1,
+                classMods = { comboReentryOnce = 1 },
+            } },
         },
     },
     [FeatBuildConfig.Ids.monk_flurry_training] = {
@@ -780,8 +933,14 @@ local FEATS = {
         name = "明镜止水",
         description = "获得明镜止水，CD3，回复自身生命并清除 Frozen / STUN / SILENT；当前治疗沿用旧调息时间线，数值按 skill.level 为 1d8+3 / 2d8+3 / 2d8+6。",
         choiceGroup = "monk_lv3_subclass",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.2：T2 high 主动；心流 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80003015 },
+            { type = "modify_skill", skill = 80003015, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.monk_body_mastery] = {
@@ -891,8 +1050,15 @@ local FEATS = {
         name = "神圣庇护",
         description = "核心被动。友军每回合第一次受到伤害时，提供 1d6 团队减伤；当前实现会按受击友军分别结算。",
         choiceGroup = "paladin_lv2_prayer",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.5：R 核心被动；双重庇护 J（shelterPerUnit）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80004102 },
+            { type = "modify_skill", skill = 80004102, add = {
+                shelterPerUnit = true,
+                classMods = { shelterPerUnit = true },
+            } },
         },
     },
     [FeatBuildConfig.Ids.paladin_heavy_armor_prayer] = {
@@ -927,8 +1093,14 @@ local FEATS = {
         name = "破邪斩",
         description = "获得破邪斩，CD3，对当前目标发动 1 次神圣斩击；若命中，追加神圣伤害并驱散目标 1 个正面增益。",
         choiceGroup = "paladin_lv3_oath",
+        trunk = "T1",
+        treeSlot = "T1",
+        -- SSOT §5.5：T1 mid 主动；净化光耀 J（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80004014 },
+            { type = "modify_skill", skill = 80004014, add = {
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.paladin_guardian_aura] = {
@@ -1028,8 +1200,21 @@ local FEATS = {
         level = 1,
         name = "猎人印记",
         description = "每回合 1 次，基础武器攻击命中后施加短时印记；本回合第一次对印记目标造成伤害时额外造成 1d4 伤害。",
+        treeSlot = "R",
+        isRoot = true,
+        -- SSOT §5.4：R 核心被动；双印记 B（markSlotMax）+ 持久印记 B（dotDurationDelta）+ 印记爆发 J（markPayoutPerRound）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80005101 },
+            { type = "modify_skill", skill = 80005101, add = {
+                markSlotMax = 2,
+                markPayoutPerRound = 2,
+                dotDurationDelta = 1,
+                classMods = {
+                    markSlotMax = 2,
+                    markPayoutPerRound = 2,
+                    dotDurationDelta = 1,
+                },
+            } },
         },
     },
     [FeatBuildConfig.Ids.ranger_tracking_skill] = {
@@ -1138,8 +1323,15 @@ local FEATS = {
         name = "箭雨",
         description = "获得箭雨，CD4。作为独立主动技能连续发动 4 次标准远程武器攻击；每次随机选择 1 名敌人，若同一次箭雨内再次命中同一目标，则该次伤害依次减半。",
         choiceGroup = "ranger_lv5_capstone",
+        trunk = "T2",
+        treeSlot = "T2",
+        -- SSOT §5.4：T2 箭雨；箭雨溢出 B（chainCountDelta +1）+ 万箭 C（chainCountDelta +2）+ 风暴箭幕 J（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80005109 },
+            { type = "modify_skill", skill = 80005109, add = {
+                chainCountDelta = 3,
+                cooldownDelta = -1,
+            } },
         },
     },
     [FeatBuildConfig.Ids.ranger_shadow_mastery] = {
