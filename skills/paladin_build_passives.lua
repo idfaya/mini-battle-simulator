@@ -1,5 +1,6 @@
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local PaladinBuildPassives = {}
 
@@ -120,13 +121,27 @@ end
 function PaladinBuildPassives.GetAuraAcBonus(defender, attacker)
     return eachFriendlyPaladin(defender, function(ally, runtime)
         local total = 0
+        if hasSkill(ally, IDS.paladin_shelter_prayer) then
+            total = total + 1
+            total = total + math.max(0, FeatModHelper.GetClassMod(ally, "paladinAuraAcBonus", 0))
+        end
         if runtime.guardianAuraActive then
             total = total + 1
-            if hasSkill(ally, IDS.paladin_aura_mastery) then
-                total = total + 1
-            end
         end
-        if runtime.sanctuaryKnightActive and isFrontRow(defender) then
+        if total > 0 then
+            return total
+        end
+        return nil
+    end) or 0
+end
+
+function PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)
+    return eachFriendlyPaladin(defender, function(ally, runtime)
+        local total = 0
+        if hasSkill(ally, IDS.paladin_shelter_prayer) then
+            total = total + math.max(0, FeatModHelper.GetClassMod(ally, "paladinAuraSaveBonus", 0))
+        end
+        if runtime.guardianAuraActive then
             total = total + 1
         end
         if total > 0 then
@@ -137,28 +152,7 @@ function PaladinBuildPassives.GetAuraAcBonus(defender, attacker)
 end
 
 function PaladinBuildPassives.ApplyPaladinProtections(defender, extraParam)
-    local attacker = extraParam and extraParam.attacker or nil
-    local damageContext = extraParam and extraParam.damageContext or nil
-    if not isAlive(defender) or not isAlive(attacker) or type(damageContext) ~= "table" then
-        return
-    end
-    eachFriendlyPaladin(defender, function(ally, runtime)
-        local round = getRound()
-        local defenderRuntime = ensureRuntime(defender)
-        if runtime.guardianAuraActive and defenderRuntime.guardianAuraReducedRound ~= round then
-            defenderRuntime.guardianAuraReducedRound = round
-            local reduction = BuildPassiveCommon.RollDice("1d6")
-            damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - reduction)
-            BuildPassiveCommon.PublishPassiveTriggered(ally, "守护灵光", "团队减伤", string.format("为 %s 抵消 %d 伤害", defender.name or "目标", reduction))
-        end
-        if hasSkill(ally, IDS.paladin_shelter_prayer) and defenderRuntime.paladinShelterRound ~= round then
-            defenderRuntime.paladinShelterRound = round
-            local reduction = BuildPassiveCommon.RollDice("1d6")
-            damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - reduction)
-            BuildPassiveCommon.PublishPassiveTriggered(ally, "神圣庇护", "团队减伤", string.format("为 %s 抵消 %d 伤害", defender.name or "目标", reduction))
-        end
-        return nil
-    end)
+    return
 end
 
 function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
@@ -341,4 +335,3 @@ function PaladinBuildPassives.CreateExtraAttackPassive(context)
 end
 
 return PaladinBuildPassives
-

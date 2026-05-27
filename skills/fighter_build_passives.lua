@@ -130,6 +130,25 @@ local function applyHeal(hero, amount)
     end
 end
 
+local function getConModifier(hero)
+    return math.floor(tonumber(hero and (hero.conMod or hero.constitutionMod or hero.conModifier)) or 0)
+end
+
+local function prepareReactionBasicAttack(hero, skillId, label)
+    local BuildPassiveCommon = require("skills.build_passive_common")
+    local hitBonus = FeatModHelper.GetSkillMod(hero, skillId, "counterBonusHit", 0)
+    local bonusDice = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[tonumber(skillId) or 0]
+        and hero.buildState.skillMods[tonumber(skillId) or 0].counterBonusDice
+        or nil
+    if hitBonus ~= 0 then
+        BuildPassiveCommon.AppendPendingBasicAttackHitBonus(hero, hitBonus, label or "反击强化")
+    end
+    if type(bonusDice) == "string" and bonusDice ~= "" then
+        BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, bonusDice)
+    end
+end
+
 local function publishPassiveTriggered(hero, skillName, triggerType, extraInfo)
     if not hero then
         return
@@ -305,16 +324,20 @@ local function pickBasicAttackTarget(hero, preferredTarget)
 end
 
 function FighterBuildPassives.GetGuardStanceAcBonus(defender, attacker)
-    if not isAlive(defender) or not isAlive(attacker) then
+    if not isAlive(defender) then
         return 0
     end
+    local runtime = ensureRuntime(defender)
+    local total = 0
     if not hasSkill(defender, IDS.fighter_guard_counter) then
-        return 0
+        total = 0
+    elseif runtime.guardStanceActive and isAlive(attacker) then
+        total = total + 2
     end
-    if not ensureRuntime(defender).guardStanceActive then
-        return 0
+    if (tonumber(runtime.secondWindAcExpireRound) or -1) >= getRound() then
+        total = total + math.max(0, math.floor(tonumber(runtime.secondWindAcBonus) or 0))
     end
-    return 2
+    return total
 end
 
 function FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)
@@ -337,6 +360,20 @@ function FighterBuildPassives.ApplyGuardStanceProtection(defender, extraParam)
         originalDefender = originalDefender,
         guardDefender = guard,
     }
+    local isRangedInterception = not isMeleeUnit(attacker) and not sameUnit(originalDefender, guard)
+    if isRangedInterception and FeatModHelper.HasFlag(guard, IDS.fighter_guard_stance, "guardReflectRanged")
+        and math.max(0, tonumber(payload.damageContext and payload.damageContext.damage) or 0) <= 0 then
+        local BattleSkill = require("modules.battle_skill")
+        prepareReactionBasicAttack(guard, IDS.fighter_guard_stance, "护卫反弹")
+        BattleSkill.CastSmallSkill(guard, attacker)
+        publishPassiveTriggered(guard, "护卫精通", "远程反弹", string.format("将 %s 的远程攻击反打回去", attacker.name or "目标"))
+        return
+    end
+    if not sameUnit(originalDefender, guard) and FeatModHelper.HasFlag(guard, IDS.fighter_guard_stance, "guardHealOnSuccess") then
+        local heal = rollDice("1d6")
+        applyHeal(guard, heal)
+        publishPassiveTriggered(guard, "护卫大师", "护卫成功回复", string.format("回复 %d 生命", heal))
+    end
     FighterBuildPassives.TryTriggerGuardCounter(originalDefender, payload)
 end
 
@@ -605,21 +642,9 @@ function FighterBuildPassives.ResolveQueuedReactions(attacker)
         -- #endregion
         if isAlive(entry.target) and not entry.runtime.__inCounterBasic then
             entry.runtime.__inCounterBasic = true
+            prepareReactionBasicAttack(entry.hero, IDS.fighter_counter_basic, "反击熟练")
             BattleSkill.CastSmallSkill(entry.hero, entry.target)
             entry.runtime.__inCounterBasic = false
-
-            -- §6 counterExtraBasicOnce：反击成功后追加 1 次基础攻击（每场战斗最多一次）。
-            if isAlive(entry.hero) and isAlive(entry.target) and not entry.runtime.counterExtraBasicConsumed then
-                local extraOnce = FeatModHelper.HasFlag(entry.hero, IDS.fighter_counter_basic, "counterExtraBasicOnce")
-                    or (entry.hero.buildState and entry.hero.buildState.classMods and entry.hero.buildState.classMods.counterExtraBasicOnce == true)
-                if extraOnce then
-                    entry.runtime.counterExtraBasicConsumed = true
-                    entry.runtime.__inCounterBasic = true
-                    BattleSkill.CastSmallSkill(entry.hero, entry.target)
-                    entry.runtime.__inCounterBasic = false
-                    publishPassiveTriggered(entry.hero, "反击连携", "追加基础攻击", "对反击目标追加一次基础攻击")
-                end
-            end
         end
     end
 
@@ -636,10 +661,41 @@ function FighterBuildPassives.ResolveQueuedReactions(attacker)
         -- #endregion
         if isAlive(entry.target) and not entry.runtime.__inGuardCounter then
             entry.runtime.__inGuardCounter = true
+            prepareReactionBasicAttack(entry.hero, IDS.fighter_guard_stance, "护卫反击强化")
             BattleSkill.CastSmallSkill(entry.hero, entry.target)
             entry.runtime.__inGuardCounter = false
         end
     end
+end
+
+function FighterBuildPassives.PerformSecondWindAction(hero, skill)
+    if not isAlive(hero) then
+        return 0
+    end
+    local runtime = ensureRuntime(hero)
+    local maxCharges = 1 + math.max(0, FeatModHelper.GetSkillMod(hero, skill and skill.skillId or IDS.fighter_second_wind_action, "secondWindCharges", 0))
+    local used = math.max(0, math.floor(tonumber(runtime.secondWindActionUsed) or 0))
+    if used >= maxCharges then
+        return 0
+    end
+    runtime.secondWindActionUsed = used + 1
+    local healDice = "1d10"
+    local bonusDice = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[tonumber(skill and skill.skillId or IDS.fighter_second_wind_action) or 0]
+        and hero.buildState.skillMods[tonumber(skill and skill.skillId or IDS.fighter_second_wind_action) or 0].bonusHealDice
+        or nil
+    if type(bonusDice) == "string" and bonusDice ~= "" then
+        healDice = joinDiceParts(healDice, bonusDice)
+    end
+    local heal = rollDice(healDice) + getConModifier(hero)
+    applyHeal(hero, heal)
+    local acBonus = math.max(0, FeatModHelper.GetSkillMod(hero, skill and skill.skillId or IDS.fighter_second_wind_action, "postUseAcDelta", 0))
+    if acBonus > 0 then
+        runtime.secondWindAcBonus = acBonus
+        runtime.secondWindAcExpireRound = getRound() + 1
+    end
+    publishCombatLog(string.format("%s 使用回气：回复 %d 生命", hero.name or "Unknown", heal))
+    return heal
 end
 
 local function buildContextState(context)
@@ -730,6 +786,15 @@ function FighterBuildPassives.CreateCounterBasicPassive(context)
         if runtime.__inCounterBasic or attackerRuntime.__inCounterBasic or attackerRuntime.__inGuardCounter then
             return
         end
+        if FeatModHelper.HasFlag(hero, IDS.fighter_counter_basic, "counterBeforeAttack") then
+            local BattleSkill = require("modules.battle_skill")
+            runtime.__inCounterBasic = true
+            prepareReactionBasicAttack(hero, IDS.fighter_counter_basic, "反击大师")
+            BattleSkill.CastSmallSkill(hero, attacker)
+            runtime.__inCounterBasic = false
+            publishPassiveTriggered(hero, "反击大师", "先手反击", string.format("抢先对 %s 发动反击", attacker.name or "目标"))
+            return
+        end
         runtime.pendingCounterBasicTarget = attacker
         publishPassiveTriggered(hero, "反击", "登记反击", string.format("将对 %s 发动反击", attacker.name or "目标"))
         -- #region debug-point A:queue-counter
@@ -807,4 +872,3 @@ function FighterBuildPassives.CreateSweepingAttackPassive(context)
 end
 
 return FighterBuildPassives
-

@@ -138,6 +138,18 @@ local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, s
     return healAmount
 end
 
+local function grantTempHp(target, amount, sourceName)
+    local value = math.max(0, math.floor(tonumber(amount) or 0))
+    if not isAlive(target) or value <= 0 then
+        return 0
+    end
+    target.tempHp = math.max(math.floor(tonumber(target.tempHp) or 0), value)
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 获得 %d 点临时生命",
+        target.name or sourceName or "目标",
+        value))
+    return value
+end
+
 local function applyRadiantBonus(hero, target, diceExpr, sourceSkillId, sourceSkillName, label)
     if not isAlive(hero) or not isAlive(target) then
         return 0
@@ -276,6 +288,13 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
         return 0, nil
     end
     local amount = applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1, skill and skill.skillId or IDS.cleric_healing_word, skill and skill.name or "治愈之言")
+    local shieldValue = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[IDS.cleric_healing_word]
+        and hero.buildState.skillMods[IDS.cleric_healing_word].postHealShield
+        or 0
+    if tonumber(shieldValue) and tonumber(shieldValue) > 0 then
+        grantTempHp(ally, shieldValue, skill and skill.name or "治愈之言")
+    end
     return amount, ally
 end
 
@@ -313,8 +332,14 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill)
     end
     local runtime = ensureRuntime(hero)
     runtime.clericSanctuaryExpireRound = getRound() + 2
-    runtime.clericSanctuaryProtectedTargets = {}
     syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
+    local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
+    if isAlive(ally) then
+        local heal = BuildPassiveCommon.RollDice("1d4")
+        local BattleDmgHeal = require("modules.battle_dmg_heal")
+        BattleDmgHeal.ApplyHeal(ally, heal, hero)
+        grantTempHp(ally, 4, skill and skill.name or "圣域祷言")
+    end
     BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：我方全体获得圣域护持",
         hero.name or "Unknown",
         skill and skill.name or "圣域祷言"))
@@ -391,17 +416,6 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
                     bestLabel = "神恩庇护"
                 end
             end
-            if getSanctuaryAcBonus(ally) > 0 then
-                runtime.clericSanctuaryProtectedTargets = runtime.clericSanctuaryProtectedTargets or {}
-                if runtime.clericSanctuaryProtectedTargets[defenderId] ~= round then
-                    runtime.clericSanctuaryProtectedTargets[defenderId] = round
-                    local reduction = BuildPassiveCommon.RollDice("1d6")
-                    if reduction > bestReduction then
-                        bestReduction = reduction
-                        bestLabel = "圣域祷言"
-                    end
-                end
-            end
             if bestReduction > 0 then
                 damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - bestReduction)
                 BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：为 %s 减免 %d 伤害",
@@ -409,9 +423,82 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
                     bestLabel or "神术庇护",
                     defender.name or "目标",
                     bestReduction))
+                local shelterMods = ally.buildState and ally.buildState.skillMods and ally.buildState.skillMods[IDS.cleric_shelter_prayer] or {}
+                local tempHpDice = shelterMods and shelterMods.shelterTempHpDice or nil
+                local tempHpFlat = math.max(0, math.floor(tonumber(shelterMods and shelterMods.shelterTempHpFlat) or 0))
+                local tempHp = tempHpFlat
+                if type(tempHpDice) == "string" and tempHpDice ~= "" then
+                    tempHp = tempHp + BuildPassiveCommon.RollDice(tempHpDice)
+                end
+                if tempHp > 0 then
+                    grantTempHp(defender, tempHp, bestLabel)
+                end
             end
         end
     end
+end
+
+function ClericBuildPassives.PerformTurnUndead(hero, skill)
+    if not isAlive(hero) then
+        return 0, {}
+    end
+    local BattleFormation = require("modules.battle_formation")
+    local BattleSkill = require("modules.battle_skill")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local total = 0
+    local affectedTargets = {}
+    local bonusDice = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[IDS.cleric_turn_undead]
+        and hero.buildState.skillMods[IDS.cleric_turn_undead].bonusDamageDice
+        or nil
+    local executeThresholdPct = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[IDS.cleric_turn_undead]
+        and tonumber(hero.buildState.skillMods[IDS.cleric_turn_undead].executeThresholdPct)
+        or 0
+    for _, target in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        if isAlive(target) then
+            local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
+                skill = skill,
+                meta = { attackMode = "spell_save", saveType = "will", kind = "spell", damageDice = "1d8" },
+                damageKind = "spell",
+                damageDice = "1d8",
+            })
+            local damage = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0))
+            if type(bonusDice) == "string" and bonusDice ~= "" and damage > 0 then
+                damage = damage + math.max(0, BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, bonusDice, {
+                    kind = "spell",
+                    damageKind = "spell",
+                    noWeapon = true,
+                    noAbilityMod = true,
+                    skillId = skill and skill.skillId or IDS.cleric_turn_undead,
+                    skillName = skill and skill.name or "驱散亡灵",
+                }))
+            end
+            if damage > 0 then
+                BattleDmgHeal.ApplyDamage(target, damage, hero, {
+                    skillId = skill and skill.skillId or IDS.cleric_turn_undead,
+                    skillName = skill and skill.name or "驱散亡灵",
+                    damageKind = "spell",
+                    saveRoll = damageResult and damageResult.save or nil,
+                    damageRoll = damageResult and damageResult.damageRoll or nil,
+                })
+                total = total + damage
+                affectedTargets[#affectedTargets + 1] = target
+            end
+            if damageResult and damageResult.save and damageResult.save.success ~= true then
+                BattleSkill.ApplyBuffFromSkill(hero, target, 880001, nil, { duration = 1 })
+            end
+            if executeThresholdPct > 0 and isAlive(target) then
+                local hpRatio = math.max(0, tonumber(target.hp) or 0) / math.max(1, tonumber(target.maxHp) or 1)
+                if hpRatio <= (executeThresholdPct / 100) then
+                    target.hp = 0
+                    target.isAlive = false
+                    target.isDead = true
+                end
+            end
+        end
+    end
+    return total, affectedTargets
 end
 
 function ClericBuildPassives.CreateShelterPrayerPassive(context)
@@ -436,4 +523,3 @@ function ClericBuildPassives.CreateShelterPrayerPassive(context)
 end
 
 return ClericBuildPassives
-

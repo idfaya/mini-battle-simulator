@@ -444,13 +444,14 @@ local function IsPureHealExecution(executionType)
     return executionType == "healing_word"
         or executionType == "life_prayer"
         or executionType == "lay_on_hands"
+        or executionType == "second_wind_action"
 end
 
 local function ShouldCastSelfRecoverySkill(hero, executionType)
-    if executionType ~= "harmonize" then
-        return true
+    if executionType == "harmonize" or executionType == "second_wind_action" then
+        return GetTargetMissingHpRatio(hero) > 0
     end
-    return GetTargetMissingHpRatio(hero) > 0
+    return true
 end
 
 local function HasInjuredAlly(hero)
@@ -562,7 +563,7 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
         score = score + math.floor(allyMissingHpRatio * 100)
         if executionType == "healing_word" or executionType == "life_prayer" then
             score = score + 40
-        elseif executionType == "guardian_aura" or executionType == "harmonize" then
+        elseif executionType == "guardian_aura" or executionType == "harmonize" or executionType == "second_wind_action" then
             score = score + 20
         elseif executionType == "sanctuary_prayer" then
             score = score + 45
@@ -1763,4 +1764,3 @@ function BattleMain.DebugSelectAvailableSkill(hero)
 end
 
 return BattleMain
-

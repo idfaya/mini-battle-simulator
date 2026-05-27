@@ -63,13 +63,13 @@ do
 end
 
 do
-    -- §5 单轨：Lv5 走 canonical 拓扑链路（自动包括 fighter_guard T1 + fighter_second_wind T2 + 中间 B 节点）。
+    -- §5 单轨：Lv5 走 canonical 拓扑链路（自动包括 fighter_guard T1 + fighter_second_wind T2）。
     local build = HeroBuild.CompileBuild(2, 5, canonicalSelections(2, 5))
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 keeps guard stance")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "Fighter Lv5 grants indomitable wind")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "Fighter Lv5 grants second wind action")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "SkillRuntime exports basic attack config")
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "SkillRuntime exports indomitable wind passive config")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "SkillRuntime exports second wind action config")
 end
 
 do

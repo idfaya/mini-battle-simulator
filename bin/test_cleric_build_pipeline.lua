@@ -98,6 +98,11 @@ do
 end
 
 do
+    local build = HeroBuild.CompileBuild(6, 2, { FeatBuildConfig.Ids.b_cleric_priest_prayer })
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_turn_undead), "Cleric Lv2 tree feat grants turn undead")
+end
+
+do
     local clericHero = HeroData.ConvertToHeroData(900007, 5, 1, { buildFeatIds = canonicalSelections(6, 5) })
     assert_true(clericHero and clericHero.buildState ~= nil, "HeroData generic build compile works for cleric")
     assert_true(hasSkill(clericHero.skillsConfig, SkillRuntimeConfig.Ids.cleric_sanctuary_prayer), "HeroData exports cleric high action")
@@ -429,4 +434,3 @@ do
 end
 
 log("Cleric build pipeline tests passed.")
-

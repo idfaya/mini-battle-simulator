@@ -319,12 +319,8 @@ local FEATS = {
         description = "获得治愈之言，CD3，为生命最低的友军回复 1d8 + 等级 生命。",
         trunk = "T1",
         treeSlot = "T1",
-        -- SSOT §5.9：T1 mid 主动；治疗加深 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006012 },
-            { type = "modify_skill", skill = 80006012, add = {
-                cooldownDelta = -1,
-            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_radiant_prayer] = {
@@ -342,17 +338,12 @@ local FEATS = {
         id = FeatBuildConfig.Ids.cleric_shelter_prayer,
         classId = 6,
         level = 1,
-        name = "神恩庇护",
+        name = "庇护基础",
         description = "核心被动。每个友军每回合第一次受到伤害时，该次伤害减少 1d6。",
         treeSlot = "R",
         isRoot = true,
-        -- SSOT §5.9：R 核心被动；独立庇护 J（shelterPerUnit）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006103 },
-            { type = "modify_skill", skill = 80006103, add = {
-                shelterPerUnit = true,
-                classMods = { shelterPerUnit = true },
-            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_revival_prayer] = {
@@ -393,15 +384,11 @@ local FEATS = {
         classId = 6,
         level = 5,
         name = "圣域祷言",
-        description = "获得圣域祷言，CD3，持续 2 回合；我方全体 AC +1，且每个友军每回合第一次受到的伤害减少 1d6。",
+        description = "获得圣域祷言，CD3，持续 2 回合；我方全体 AC +1，施放时立即为最低血友军回复 1d4 并提供 4 点临时生命。",
         trunk = "T2",
         treeSlot = "T2",
-        -- SSOT §5.9：T2 high 主动；圣域回响 B（cooldownDelta -1）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80006015 },
-            { type = "modify_skill", skill = 80006015, add = {
-                cooldownDelta = -1,
-            } },
         },
     },
     [FeatBuildConfig.Ids.cleric_spell_mastery] = {
@@ -725,17 +712,12 @@ local FEATS = {
         id = FeatBuildConfig.Ids.fighter_second_wind,
         classId = 2,
         level = 5,
-        name = "不屈之风",
-        description = "高阶被动。生命值将降到 0 时不会死亡，而是清除状态并恢复 50% 最大生命值；每场战斗 1 次。",
+        name = "回气",
+        description = "获得回气，CD3，回复 1d10 + 体质修正生命；每场战斗 1 次。",
         trunk = "T2",
         treeSlot = "T2",
-        -- SSOT §5.1：T2 high 核心被动；不屈再起 B 节点（secondWindCharges +1）合并到选定路径。
         effects = {
-            { type = "grant_skill", skill = 80002101 },
-            { type = "modify_skill", skill = 80002101, add = {
-                secondWindCharges = 1,
-                classMods = { secondWindCharges = 1 },
-            } },
+            { type = "grant_skill", skill = 80002006 },
         },
     },
     [FeatBuildConfig.Ids.fighter_guard] = {
@@ -746,25 +728,9 @@ local FEATS = {
         description = "获得护卫架势，CD3，持续到你下次行动开始；期间己方承受的近战攻击都由你承担，且你会在其攻击结算后对攻击者发动 1 次基础武器攻击；护卫期间你自身 AC+2。",
         trunk = "T1",
         treeSlot = "T1",
-        -- SSOT §5.1：T1 mid 核心主动；护卫连环 / 钢墙宗师等 J / C 节点会通过 modify_skill 把 §6 字段挂到 80002005。
         effects = {
             { type = "grant_skill", skill = 80002005 },
             { type = "grant_skill", skill = 80002105 },
-            -- 护卫加深（B 节点，§5.1）：guardExtendsToRanged → §6 字段。
-            -- 守护连环 J（§5.1）：guardEmitsTeamShield → §6 字段。
-            -- 钢墙宗师 C（§5.1 D 类）：cooldownDelta = -1（架势 CD -1，持续 +1）。
-            -- 注：当前 demo 阶段把这些 J/C 强化合并到 fighter_guard 选定路径上，避免引入新 feat id 破坏既有测试；
-            -- 后续 §5 全树落地时会拆分为独立 B/J/C feat。
-            { type = "modify_skill", skill = 80002005, add = {
-                guardExtendsToRanged = true,
-                guardEmitsTeamShield = true,
-                cooldownDelta = -1,
-                guardDurationDelta = 1,
-                classMods = {
-                    guardExtendsToRanged = true,
-                    guardEmitsTeamShield = true,
-                },
-            } },
         },
     },
     [FeatBuildConfig.Ids.fighter_counter_basic] = {
@@ -773,15 +739,10 @@ local FEATS = {
         level = 1,
         name = "反击",
         description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
-        -- SSOT §5.1：反击连锁 J + 二次反击 C 的 §6 字段（counterExtraBasicOnce）合并到反击 R 选定路径。
         treeSlot = "R",
         isRoot = true,
         effects = {
             { type = "grant_skill", skill = 80002104 },
-            { type = "modify_skill", skill = 80002104, add = {
-                counterExtraBasicOnce = 1,
-                classMods = { counterExtraBasicOnce = 1 },
-            } },
         },
     },
     -- Monk (classId = 3)
@@ -990,18 +951,13 @@ local FEATS = {
         id = FeatBuildConfig.Ids.paladin_shelter_prayer,
         classId = 4,
         level = 1,
-        name = "神圣庇护",
-        description = "核心被动。友军每回合第一次受到伤害时，提供 1d6 团队减伤；当前实现会按受击友军分别结算。",
+        name = "灵光基础",
+        description = "核心被动。你存活时，灵光范围内友军获得 AC +1。",
         choiceGroup = "paladin_lv2_prayer",
         treeSlot = "R",
         isRoot = true,
-        -- SSOT §5.5：R 核心被动；双重庇护 J（shelterPerUnit）合并到选定路径。
         effects = {
             { type = "grant_skill", skill = 80004102 },
-            { type = "modify_skill", skill = 80004102, add = {
-                shelterPerUnit = true,
-                classMods = { shelterPerUnit = true },
-            } },
         },
     },
     [FeatBuildConfig.Ids.paladin_heavy_armor_prayer] = {
@@ -1349,28 +1305,28 @@ local fighterTree = {
         effects={{type="modify_skill", skill=80002001, add={bonusDamageDice="1d4"}}}},
     {key="b_fighter_steel_stance", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="钢铁姿态", desc="常驻 AC +1。",
         effects={{type="modify_skill", skill=80002104, add={statMods={ac=1}}}}},
-    {key="b_fighter_precise_counter", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="精准反击", desc="反击命中 +1。",
-        effects={{type="modify_skill", skill=80002104, add={bonusHit=1}}}},
+    {key="b_fighter_precise_counter", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="反击熟练", desc="反击命中 +1。",
+        effects={{type="modify_skill", skill=80002104, add={counterBonusHit=1}}}},
     {key="b_fighter_weapon_mastery", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="武器精通", desc="基础攻击暴击阈值 -1。",
         effects={{type="modify_skill", skill=80002001, add={critThresholdDelta=-1}}}},
     {key="b_fighter_combat_rhythm", classId=2, level=6, slot="B", prereqs={F.fighter_R}, name="战斗节奏", desc="每回合首次基础攻击伤害 +1d4。",
         effects={{type="modify_skill", skill=80002001, add={firstHitBonusDice="1d4"}}}},
-    {key="b_fighter_guard_extends_ranged", classId=2, level=6, slot="B", prereqs={F.fighter_T1}, name="护卫加深", desc="护卫架势承担远程攻击。",
+    {key="b_fighter_guard_extends_ranged", classId=2, level=6, slot="B", prereqs={F.fighter_T1}, name="护卫熟练", desc="护卫架势承担远程攻击。",
         effects={{type="modify_skill", skill=80002005, add={guardExtendsToRanged=true}}}},
-    {key="b_fighter_guard_counter_plus", classId=2, level=7, slot="B", prereqs={F.fighter_T1}, name="护卫反击+", desc="护卫反击伤害 +1d6。",
-        effects={{type="modify_skill", skill=80002005, add={counterBonusDice="1d6"}}}},
-    {key="j_fighter_team_shield", classId=2, level=8, slot="J", prereqs={F.fighter_T1}, name="守护连环", desc="架势期间每回合 tick 一次队伍护盾。",
-        effects={{type="modify_skill", skill=80002005, add={guardEmitsTeamShield=true}}}},
-    {key="j_fighter_counter_chain", classId=2, level=8, slot="J", prereqs={F.fighter_R, F.fighter_T1}, name="反击连锁", desc="一回合内反击触发后可破例追加 1 次基础攻击。",
-        effects={{type="modify_skill", skill=80002104, add={counterExtraBasicOnce=1}}}},
-    {key="b_fighter_stand_firm", classId=2, level=7, slot="B", prereqs={F.fighter_T2}, name="屹立不倒", desc="不屈触发后 AC +2 持续到下回合开始。",
-        effects={{type="modify_skill", skill=80002101, add={postTriggerAcDelta=2}}}},
-    {key="b_fighter_second_wind_recharge", classId=2, level=9, slot="B", prereqs={F.fighter_T2}, name="不屈再起", desc="不屈每场触发次数 +1。",
-        effects={{type="modify_skill", skill=80002101, add={secondWindCharges=1}}}},
-    {key="c_fighter_double_counter", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="二次反击", desc="一回合内允许触发 2 次反击。",
-        effects={{type="modify_skill", skill=80002104, add={counterExtraBasicOnce=2}}}},
-    {key="c_fighter_steel_wall", classId=2, level=10, slot="C", prereqs={F.fighter_T1}, isCapstone=true, name="钢墙宗师", desc="护卫架势 CD -1，持续 +1 回合。",
-        effects={{type="modify_skill", skill=80002005, add={cooldownDelta=-1, guardDurationDelta=1}}}},
+    {key="b_fighter_guard_counter_plus", classId=2, level=7, slot="B", prereqs={F.fighter_T1}, name="反击精通", desc="反击额外造成 +1d6 伤害。",
+        effects={{type="modify_skill", skill=80002104, add={counterBonusDice="1d6"}}}},
+    {key="j_fighter_team_shield", classId=2, level=8, slot="J", prereqs={F.fighter_T1}, name="护卫精通", desc="护卫承担远程攻击且该次攻击因 AC 未命中你时，将该远程攻击反弹给发射者。",
+        effects={{type="modify_skill", skill=80002005, add={guardReflectRanged=true}}}},
+    {key="j_fighter_counter_chain", classId=2, level=8, slot="J", prereqs={F.fighter_R, F.fighter_T1}, name="回气熟练", desc="回气治疗额外 +1d6。",
+        effects={{type="modify_skill", skill=80002006, add={bonusHealDice="1d6"}}}},
+    {key="b_fighter_stand_firm", classId=2, level=7, slot="B", prereqs={F.fighter_T2}, name="回气精通", desc="使用回气后，直到下回合开始前获得 AC +2。",
+        effects={{type="modify_skill", skill=80002006, add={postUseAcDelta=2}}}},
+    {key="b_fighter_second_wind_recharge", classId=2, level=9, slot="B", prereqs={F.fighter_T2}, name="护卫大师", desc="护卫成功时，你回复 1d6 生命。",
+        effects={{type="modify_skill", skill=80002005, add={guardHealOnSuccess=true}}}},
+    {key="c_fighter_double_counter", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="反击大师", desc="敌方近战攻击你时，先执行反击，再结算该次敌方攻击；你的反击获得 hit +1、额外 +1d6 伤害。",
+        effects={{type="modify_skill", skill=80002104, add={counterBeforeAttack=true, counterBonusHit=1, counterBonusDice="1d6"}}}},
+    {key="c_fighter_steel_wall", classId=2, level=10, slot="C", prereqs={F.fighter_T1}, isCapstone=true, name="回气大师", desc="回气的可用次数从每场 1 次提升为每场 2 次。",
+        effects={{type="modify_skill", skill=80002006, add={secondWindCharges=1}}}},
 }
 
 -- Monk 武僧 (classId=3)
@@ -1461,10 +1417,10 @@ local rangerTree = {
 
 -- Paladin 圣武士 (classId=4)
 local paladinTree = {
-    {key="b_paladin_shelter_plus", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="庇护加深", desc="庇护减伤改为 -1d8。",
-        effects={{type="modify_skill", skill=80004102, add={shelterReduceDice="1d8"}}}},
-    {key="b_paladin_war_cry", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="战吼", desc="战斗开始全队 AC +1 持续 1 回合。",
-        effects={{type="modify_skill", skill=80004102, add={battleStartTeamAcDelta=1}}}},
+    {key="b_paladin_shelter_plus", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="灵光熟练", desc="神圣灵光范围内友军所有豁免 +1。",
+        effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraSaveBonus=1}}}}},
+    {key="b_paladin_war_cry", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="灵光扩张", desc="神圣灵光范围扩大。",
+        effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraRangeDelta=1}}}}},
     {key="b_paladin_heavy_armor", classId=4, level=4, slot="B", prereqs={F.paladin_R}, name="重甲祷法", desc="自身 AC +1。",
         effects={{type="modify_skill", skill=80004102, add={statMods={ac=1}}}}},
     {key="b_paladin_guard_aura", classId=4, level=4, slot="B", prereqs={F.paladin_R}, name="守护灵光", desc="友军每回合首次受到法术伤害 -2。",
@@ -1475,12 +1431,12 @@ local paladinTree = {
         effects={{type="modify_skill", skill=80004014, add={onHitVulnerableDelta=1, onHitVulnerableDuration=1}}}},
     {key="j_paladin_purify_radiance", classId=4, level=7, slot="J", prereqs={F.paladin_T1}, name="净化光耀", desc="破邪斩 CD -1。",
         effects={{type="modify_skill", skill=80004014, add={cooldownDelta=-1}}}},
-    {key="b_paladin_lay_on_plus", classId=4, level=7, slot="B", prereqs={F.paladin_T2}, name="圣手扩展", desc="圣手治疗 +1d4。",
-        effects={{type="modify_skill", skill=80004013, add={bonusHealDice="1d4"}}}},
-    {key="b_paladin_lay_on_recharge", classId=4, level=9, slot="B", prereqs={F.paladin_T2}, name="圣域回响", desc="圣手 CD -1。",
-        effects={{type="modify_skill", skill=80004013, add={cooldownDelta=-1}}}},
-    {key="j_paladin_double_shelter", classId=4, level=8, slot="J", prereqs={F.paladin_R}, name="双重庇护", desc="庇护改为 per-unit（每个友军独立 1 次/回合）。",
-        effects={{type="modify_skill", skill=80004102, add={shelterPerUnit=true}}}},
+    {key="b_paladin_lay_on_plus", classId=4, level=7, slot="B", prereqs={F.paladin_T2}, name="圣手精通", desc="圣手治疗 +1d4，CD -1；治疗目标额外获得 4 点临时生命。",
+        effects={{type="modify_skill", skill=80004013, add={bonusHealDice="1d4", cooldownDelta=-1, postHealShield=4}}}},
+    {key="b_paladin_lay_on_recharge", classId=4, level=9, slot="B", prereqs={F.paladin_T2}, name="灵光精通", desc="神圣灵光扩大到全队；范围内友军维持 AC +1、豁免 +1。",
+        effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraGlobal=true, paladinAuraSaveBonus=1}}}}},
+    {key="j_paladin_double_shelter", classId=4, level=8, slot="J", prereqs={F.paladin_R}, name="灵光大师", desc="神圣灵光范围内友军 AC 额外 +1，且灵光按永久全队计算。",
+        effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraAcBonus=1, paladinAuraGlobal=true}}}}},
     {key="c_paladin_radiant_bishop", classId=4, level=10, slot="C", prereqs={F.paladin_T1}, isCapstone=true, name="神光主教", desc="破邪斩转为对 2 个目标各 +1d8 光耀。",
         effects={{type="modify_skill", skill=80004014, add={splitAdjacentTargets=2, splitBonusDice="1d8"}}}},
     {key="c_paladin_mercy_knight", classId=4, level=10, slot="C", prereqs={F.paladin_T2}, isCapstone=true, name="慈光圣骑", desc="圣手改为治疗最低血友军 +1d8，并提供 4 点护盾。",
@@ -1491,27 +1447,27 @@ local paladinTree = {
 local clericTree = {
     {key="b_cleric_spark_plus", classId=6, level=2, slot="B", prereqs={F.cleric_R}, name="圣火加深", desc="神圣火花伤害 +1d8。",
         effects={{type="modify_skill", skill=80006011, add={bonusDamageDice="1d8"}}}},
-    {key="b_cleric_priest_prayer", classId=6, level=2, slot="B", prereqs={F.cleric_R}, name="圣职祷文", desc="治愈之言治疗 +2。",
-        effects={{type="modify_skill", skill=80006012, add={bonusHealFlat=2}}}},
-    {key="b_cleric_shelter_extend", classId=6, level=4, slot="B", prereqs={F.cleric_R}, name="庇护扩展", desc="庇护减伤 +1d4（合计 -1d6-1d4）。",
-        effects={{type="modify_skill", skill=80006103, add={shelterBonusDice="1d4"}}}},
+    {key="b_cleric_priest_prayer", classId=6, level=2, slot="B", prereqs={F.cleric_R}, name="驱散基础", desc="获得驱散亡灵主动：对敌方全体造成 1d8 光耀伤害；豁免失败则 SLOW 1 回合。",
+        effects={{type="grant_skill", skill=80006016}}},
+    {key="b_cleric_shelter_extend", classId=6, level=4, slot="B", prereqs={F.cleric_R}, name="庇护熟练", desc="庇护触发后，为该友军提供 1d4 点临时生命。",
+        effects={{type="modify_skill", skill=80006103, add={shelterTempHpDice="1d4"}}}},
     {key="b_cleric_spark_buddy", classId=6, level=4, slot="B", prereqs={F.cleric_R}, name="圣火联动", desc="神圣火花命中后，为最低血友军 +1d4 临时生命。",
         effects={{type="modify_skill", skill=80006011, add={onHitTempHpDice="1d4"}}}},
-    {key="b_cleric_soothing_word", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="抚慰之言", desc="治愈之言再额外 +1d4。",
-        effects={{type="modify_skill", skill=80006012, add={bonusHealDice="1d4"}}}},
-    {key="b_cleric_heal_master", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="治疗加深", desc="治愈之言 CD -1。",
-        effects={{type="modify_skill", skill=80006012, add={cooldownDelta=-1}}}},
-    {key="j_cleric_grace", classId=6, level=7, slot="J", prereqs={F.cleric_T1}, name="慈光", desc="治愈之言额外为治疗目标提供 4 点护盾。",
+    {key="b_cleric_soothing_word", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="治愈熟练", desc="治愈之言再额外 +1d4，且 CD -1。",
+        effects={{type="modify_skill", skill=80006012, add={bonusHealDice="1d4", cooldownDelta=-1}}}},
+    {key="b_cleric_heal_master", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="驱散精通", desc="驱散亡灵伤害额外 +1d8；若目标生命低于 25%，则可直接净化。",
+        effects={{type="modify_skill", skill=80006016, add={bonusDamageDice="1d8", executeThresholdPct=25}}}},
+    {key="j_cleric_grace", classId=6, level=7, slot="J", prereqs={F.cleric_T1}, name="治愈精通", desc="治愈之言额外为治疗目标提供 4 点临时生命。",
         effects={{type="modify_skill", skill=80006012, add={postHealShield=4}}}},
     {key="b_cleric_sanctuary_extend", classId=6, level=7, slot="B", prereqs={F.cleric_T2}, name="圣域延续", desc="圣域祷言持续 +1 回合。",
         effects={{type="modify_skill", skill=80006015, add={durationDelta=1}}}},
     {key="b_cleric_sanctuary_recharge", classId=6, level=9, slot="B", prereqs={F.cleric_T2}, name="圣域回响", desc="圣域祷言 CD -1。",
         effects={{type="modify_skill", skill=80006015, add={cooldownDelta=-1}}}},
-    {key="j_cleric_per_unit_shelter", classId=6, level=8, slot="J", prereqs={F.cleric_R}, name="独立庇护", desc="神恩庇护改为 per-unit。",
-        effects={{type="modify_skill", skill=80006103, add={shelterPerUnit=true}}}},
-    {key="c_cleric_watch_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T2}, isCapstone=true, name="守望主教", desc="圣域祷言期间附加：每回合最低血友军 +1d4 治疗。",
-        effects={{type="modify_skill", skill=80006015, add={tickHealLowestDice="1d4"}}}},
-    {key="c_cleric_mercy_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T1}, isCapstone=true, name="慈恩主教", desc="治愈之言改为治疗 2 名最低血友军。",
+    {key="j_cleric_per_unit_shelter", classId=6, level=8, slot="J", prereqs={F.cleric_R}, name="庇护精通", desc="神恩庇护改为 per-unit；每个友军独立 1 次/回合；被庇护单位获得 2 点临时生命。",
+        effects={{type="modify_skill", skill=80006103, add={shelterPerUnit=true, shelterTempHpFlat=2}}}},
+    {key="c_cleric_watch_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T2}, isCapstone=true, name="庇护大师", desc="庇护触发后，为该友军提供 4 点临时生命。",
+        effects={{type="modify_skill", skill=80006103, add={shelterPerUnit=true, shelterTempHpFlat=4}}}},
+    {key="c_cleric_mercy_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T1}, isCapstone=true, name="治愈大师", desc="治愈之言改为治疗 2 名最低血友军。",
         effects={{type="modify_skill", skill=80006012, add={healLowestCount=2}}}},
 }
 

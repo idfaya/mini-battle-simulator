@@ -499,6 +499,15 @@ function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     return total
 end
 
+function BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)
+    local total = 0
+    local okPaladin, PaladinBuildPassives = pcall(require, "skills.paladin_build_passives")
+    if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraSaveBonus then
+        total = total + (tonumber(PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)) or 0)
+    end
+    return total
+end
+
 function BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, skill)
     return shouldIgnoreFrontProtection(hero, skill)
 end
@@ -519,4 +528,3 @@ function BuildPassiveCommon.ApplyTeamProtections(defender, extraParam)
 end
 
 return BuildPassiveCommon
-

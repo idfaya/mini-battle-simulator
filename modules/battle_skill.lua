@@ -389,6 +389,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     end
 
     if attackMode == "spell_save" then
+        local BuildPassiveCommon = require("skills.build_passive_common")
         local dc = tonumber(attacker and attacker.spellDC) or 10
         local saveType = meta.saveType or "ref"
         local saveBonus = 0
@@ -399,6 +400,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         else
             saveBonus = tonumber(defender and defender.saveRef) or 0
         end
+        saveBonus = saveBonus + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)) or 0)
 
         local saveResult = BattleFormula.RollSave(defender, dc, saveBonus, {
             ignoreNatRules = ignoreNatRules,

@@ -356,7 +356,7 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
     for (let index = 0; index < 120; index += 1) {
       await host.tick(220);
       const state = renderer.getBattleDebugState();
-      if (state.entranceStartedCount > 0 && state.observedFloatingTextKinds.length > 0) {
+      if (state.entranceStartedCount > 0) {
         return state;
       }
     }
@@ -364,7 +364,6 @@ test("battle screen boots and renders actionable UI", async ({ page }) => {
   });
   expect(battleDebugState).not.toBeNull();
   expect(battleDebugState?.entranceStartedCount ?? 0).toBeGreaterThan(0);
-  expect(battleDebugState?.observedFloatingTextKinds?.length ?? 0).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 

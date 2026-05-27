@@ -16,6 +16,7 @@
 | [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md) | Buff 生命周期与注册表 |
 | [BUFF_SHARED_TABLE.md](./BUFF_SHARED_TABLE.md) | Buff 静态表字段 |
 | [dungeon_system_overall_plan.md](./dungeon_system_overall_plan.md) | 地牢 / Run 落地进度；§2.4 / §3.1.5 为 5e EXP 与第一章怪物节奏 |
+| [roguelike_feat_tree_revision_plan.md](./roguelike_feat_tree_revision_plan.md) | Feat 树下一轮修订计划；收敛全局规则与逐职业节点调整方案 |
 
 ## 策划规则来源（改代码时对照）
 

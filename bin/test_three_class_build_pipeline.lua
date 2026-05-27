@@ -39,6 +39,7 @@ local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleMain = require("modules.battle_main")
 local MonkBuildPassives = require("skills.monk_build_passives")
+local PaladinBuildPassives = require("skills.paladin_build_passives")
 local RangerBuildPassives = require("skills.ranger_build_passives")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
@@ -89,6 +90,24 @@ do
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_vengeance_smite), "Paladin Lv5 keeps smite evil")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands), "Paladin Lv5 grants lay on hands")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.paladin_shelter_prayer), "Paladin Lv5 keeps holy shelter")
+end
+
+do
+    local paladin = new_unit(9051, "AuraPaladin")
+    local ally = new_unit(9052, "AuraAlly")
+    paladin.class = 4
+    ally.class = 2
+    paladin.buildState = { skillMods = {}, classMods = { paladinAuraSaveBonus = 1 } }
+    paladin.skills = {
+        { skillId = SkillRuntimeConfig.Ids.paladin_shelter_prayer },
+    }
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    BattleFormation.GetFriendTeam = function()
+        return { paladin, ally }
+    end
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(ally, nil) >= 1, "paladin aura grants AC bonus to ally")
+    assert_true(PaladinBuildPassives.GetAuraSaveBonus(ally, "will") >= 1, "paladin aura grants saving throw bonus after aura mastery mods")
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
 end
 
 do
