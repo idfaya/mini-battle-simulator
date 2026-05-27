@@ -1,1 +1,79 @@
-[{"classId":1,"role":{"name":"盗贼","icon":"🗡️","streamId":"Rogue","isMelee":true,"preferRow":"front"},"weapon":{"weaponDice":"1d6"},"rhythm":{"physicalDiceScale":1},"build":[{"level":1,"fixed":[2140101,2140102]},{"level":2,"choiceGroup":"rogue_lv2_basic"},{"level":3,"choiceGroup":"rogue_lv3_subclass"},{"level":4,"choiceGroup":"rogue_lv4_mastery"},{"level":5,"choiceGroup":"rogue_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"hit":1,"saveRef":1}}]},{"classId":2,"role":{"name":"战士","icon":"🛡️","streamId":"Fighter","isMelee":true,"preferRow":"front"},"weapon":{"weaponDice":"1d8"},"rhythm":{"physicalDiceScale":1},"build":[{"level":1,"fixed":[2100101,2100402]},{"level":2,"fixed":[2100201]},{"level":3,"choiceGroup":"fighter_lv3_active"},{"level":4,"choiceGroup":"fighter_lv4_passive"},{"level":5,"fixed":[2100102],"choiceGroup":"fighter_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"hit":1}},{"level":10,"unlockSkills":[],"upgradeSkills":{"80002004":3},"statBonus":{"ac":1,"maxHp":10}}]},{"classId":3,"role":{"name":"武僧","icon":"⚡","streamId":"Monk","isMelee":true,"preferRow":"front"},"weapon":{"weaponDice":"1d4"},"rhythm":{"physicalDiceScale":1},"build":[{"level":1,"fixed":[2110101,2110102]},{"level":2,"choiceGroup":"monk_lv2_basic"},{"level":3,"choiceGroup":"monk_lv3_subclass"},{"level":4,"choiceGroup":"monk_lv4_mastery"},{"level":5,"fixed":[2110303],"choiceGroup":"monk_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"saveRef":1,"speed":2}}]},{"classId":4,"role":{"name":"圣武士","icon":"✨","streamId":"Paladin","isMelee":true,"preferRow":"front"},"weapon":{"weaponDice":"1d6"},"rhythm":{"physicalDiceScale":1,"healScale":1},"build":[{"level":1,"fixed":[2120101,2120201]},{"level":2,"choiceGroup":"paladin_lv2_prayer"},{"level":3,"fixed":[2120302],"choiceGroup":"paladin_lv3_oath"},{"level":4,"choiceGroup":"paladin_lv4_mastery"},{"level":5,"fixed":[2120301],"choiceGroup":"paladin_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"ac":1,"saveWill":1}}]},{"classId":5,"role":{"name":"游侠","icon":"🏹","streamId":"Ranger","isMelee":false,"preferRow":"back"},"weapon":{"weaponDice":"1d6"},"rhythm":{"physicalDiceScale":1},"build":[{"level":1,"fixed":[2130101,2130102]},{"level":2,"choiceGroup":"ranger_lv2_basic"},{"level":3,"fixed":[2130301],"choiceGroup":"ranger_lv3_subclass"},{"level":4,"choiceGroup":"ranger_lv4_mastery"},{"level":5,"fixed":[2130501],"choiceGroup":"ranger_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"hit":1,"spellDC":1}}]},{"classId":6,"role":{"name":"牧师","icon":"💚","streamId":"Cleric","isMelee":false,"preferRow":"back"},"weapon":{"weaponDice":"1d4"},"rhythm":{"healScale":1,"spellDiceScale":1},"build":[{"level":1,"fixed":[2150101,2150202]},{"level":2,"choiceGroup":"cleric_lv2_prayer"},{"level":3,"fixed":[2150102],"choiceGroup":"cleric_lv3_domain"},{"level":4,"choiceGroup":"cleric_lv4_mastery"},{"level":5,"fixed":[2150303],"choiceGroup":"cleric_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"saveWill":1,"healBonus":400}}]},{"classId":7,"role":{"name":"术士(火)","icon":"🔥","streamId":"Sorcerer","isMelee":false,"preferRow":"back"},"rhythm":{"spellDiceScale":1},"build":[{"level":1,"fixed":[2170101,2170102]},{"level":2,"choiceGroup":"sorcerer_lv2_core"},{"level":3,"choiceGroup":"sorcerer_lv3_subclass"},{"level":4,"choiceGroup":"sorcerer_lv4_mastery"},{"level":5,"fixed":[2170501],"choiceGroup":"sorcerer_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"hit":1,"spellDC":1}}]},{"classId":8,"role":{"name":"法师(冰)","icon":"❄️","streamId":"Wizard","isMelee":false,"preferRow":"back"},"rhythm":{"spellDiceScale":1},"build":[{"level":1,"fixed":[2180101,2180102]},{"level":2,"choiceGroup":"wizard_lv2_core"},{"level":3,"choiceGroup":"wizard_lv3_subclass"},{"level":4,"choiceGroup":"wizard_lv4_mastery"},{"level":5,"fixed":[2180501],"choiceGroup":"wizard_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"spellDC":1,"saveFort":1}}]},{"classId":9,"role":{"name":"邪术师(雷)","icon":"🌩️","streamId":"Warlock","isMelee":false,"preferRow":"back"},"rhythm":{"spellDiceScale":1},"build":[{"level":1,"fixed":[2190101,2190102]},{"level":2,"choiceGroup":"warlock_lv2_core"},{"level":3,"choiceGroup":"warlock_lv3_subclass"},{"level":4,"choiceGroup":"warlock_lv4_mastery"},{"level":5,"fixed":[2190501],"choiceGroup":"warlock_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"spellDC":1,"critRate":200}}]},{"classId":10,"role":{"name":"野蛮人","icon":"🪓","streamId":"Barbarian","isMelee":true,"preferRow":"front"},"weapon":{"weaponDice":"1d12"},"rhythm":[],"build":[{"level":1,"fixed":[2200101,2200102]},{"level":2,"choiceGroup":"barbarian_lv2_core"},{"level":3,"choiceGroup":"barbarian_lv3_subclass"},{"level":4,"choiceGroup":"barbarian_lv4_mastery"},{"level":5,"fixed":[2200501],"choiceGroup":"barbarian_lv5_capstone"}],"grants":[{"level":5,"unlockSkills":[],"upgradeSkills":[],"statBonus":{"maxHp":8,"saveFort":1}}]}]
+[
+  {
+    "classId": 1,
+    "role": {"name": "盗贼", "icon": "🗡️", "streamId": "Rogue", "isMelee": true, "preferRow": "front"},
+    "weapon": {"weaponDice": "1d6"},
+    "rhythm": {"physicalDiceScale": 1},
+    "lv1FeatIds": [2140101, 2140102],
+    "treePool": [2140301, 2140501, 2301001, 2301002, 2301003, 2301004, 2301005, 2301006, 2301007, 2301008, 2301009, 2301010, 2301011, 2301012]
+  },
+  {
+    "classId": 2,
+    "role": {"name": "战士", "icon": "🛡️", "streamId": "Fighter", "isMelee": true, "preferRow": "front"},
+    "weapon": {"weaponDice": "1d8"},
+    "rhythm": {"physicalDiceScale": 1},
+    "lv1FeatIds": [2100101, 2100402],
+    "treePool": [2100302, 2100102, 2302001, 2302002, 2302003, 2302004, 2302005, 2302006, 2302007, 2302008, 2302009, 2302010, 2302011, 2302012, 2302013]
+  },
+  {
+    "classId": 3,
+    "role": {"name": "武僧", "icon": "⚡", "streamId": "Monk", "isMelee": true, "preferRow": "front"},
+    "weapon": {"weaponDice": "1d4"},
+    "rhythm": {"physicalDiceScale": 1},
+    "lv1FeatIds": [2110101, 2110102],
+    "treePool": [2110301, 2110303, 2303001, 2303002, 2303003, 2303004, 2303005, 2303006, 2303007, 2303008, 2303009, 2303010, 2303011, 2303012]
+  },
+  {
+    "classId": 4,
+    "role": {"name": "圣武士", "icon": "✨", "streamId": "Paladin", "isMelee": true, "preferRow": "front"},
+    "weapon": {"weaponDice": "1d6"},
+    "rhythm": {"physicalDiceScale": 1, "healScale": 1},
+    "lv1FeatIds": [2120101, 2120102, 2120201],
+    "treePool": [2120302, 2120301, 2304001, 2304002, 2304003, 2304004, 2304005, 2304006, 2304007, 2304008, 2304009, 2304010, 2304011, 2304012]
+  },
+  {
+    "classId": 5,
+    "role": {"name": "游侠", "icon": "🏹", "streamId": "Ranger", "isMelee": false, "preferRow": "back"},
+    "weapon": {"weaponDice": "1d6"},
+    "rhythm": {"physicalDiceScale": 1},
+    "lv1FeatIds": [2130101, 2130102],
+    "treePool": [2130301, 2130501, 2305001, 2305002, 2305003, 2305004, 2305005, 2305006, 2305007, 2305008, 2305009, 2305010, 2305011, 2305012, 2305013]
+  },
+  {
+    "classId": 6,
+    "role": {"name": "牧师", "icon": "💚", "streamId": "Cleric", "isMelee": false, "preferRow": "back"},
+    "weapon": {"weaponDice": "1d4"},
+    "rhythm": {"healScale": 1, "spellDiceScale": 1},
+    "lv1FeatIds": [2150101, 2150202],
+    "treePool": [2150102, 2150303, 2306001, 2306002, 2306003, 2306004, 2306005, 2306006, 2306007, 2306008, 2306009, 2306010, 2306011, 2306012]
+  },
+  {
+    "classId": 7,
+    "role": {"name": "术士(火)", "icon": "🔥", "streamId": "Sorcerer", "isMelee": false, "preferRow": "back"},
+    "rhythm": {"spellDiceScale": 1},
+    "lv1FeatIds": [2170101, 2170102],
+    "treePool": [2170301, 2170501, 2307001, 2307002, 2307003, 2307004, 2307005, 2307006, 2307007, 2307008, 2307009, 2307010, 2307011, 2307012]
+  },
+  {
+    "classId": 8,
+    "role": {"name": "法师(冰)", "icon": "❄️", "streamId": "Wizard", "isMelee": false, "preferRow": "back"},
+    "rhythm": {"spellDiceScale": 1},
+    "lv1FeatIds": [2180101, 2180102],
+    "treePool": [2180301, 2180501, 2308001, 2308002, 2308003, 2308004, 2308005, 2308006, 2308007, 2308008, 2308009, 2308010, 2308011, 2308012]
+  },
+  {
+    "classId": 9,
+    "role": {"name": "邪术师(雷)", "icon": "🌩️", "streamId": "Warlock", "isMelee": false, "preferRow": "back"},
+    "rhythm": {"spellDiceScale": 1},
+    "lv1FeatIds": [2190101, 2190102],
+    "treePool": [2190301, 2190501, 2309001, 2309002, 2309003, 2309004, 2309005, 2309006, 2309007, 2309008, 2309009, 2309010, 2309011, 2309012]
+  },
+  {
+    "classId": 10,
+    "role": {"name": "野蛮人", "icon": "🪓", "streamId": "Barbarian", "isMelee": true, "preferRow": "front"},
+    "weapon": {"weaponDice": "1d12"},
+    "rhythm": {},
+    "lv1FeatIds": [2200101, 2200102],
+    "treePool": [2200301, 2200501, 2310001, 2310002, 2310003, 2310004, 2310005, 2310006, 2310007, 2310008, 2310009, 2310010, 2310011, 2310012]
+  }
+]

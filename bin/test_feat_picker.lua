@@ -215,4 +215,73 @@ do
         string.format("subclass core weighted freq sanity upper bound 0.40, got %.4f", freq))
 end
 
+-- ========== 用例 8：树形规则过滤（设计 §3 / §4）==========
+-- 构造一组虚拟 options，验证 filterByTreeRules 的核心约束：
+--   Lv3 → 仅 trunk == "T1"
+--   Lv5 → 仅 trunk == "T2"
+--   Lv10 → 仅 isCapstone == true
+--   其它 → 排除 R / T1 / T2 / Capstone（仅自由 B/J）
+--   prerequisites：父节点已点过才解锁
+do
+    local function mk(opts)
+        return {
+            featId = opts.id or 0,
+            feat = {
+                id = opts.id or 0,
+                trunk = opts.trunk,
+                treeSlot = opts.slot,
+                isCapstone = opts.cap == true,
+                prerequisites = opts.prereqs,
+            },
+        }
+    end
+    local optR    = mk{ id=1, slot="R" }
+    local optT1   = mk{ id=2, trunk="T1", slot="T1" }
+    local optT2   = mk{ id=3, trunk="T2", slot="T2" }
+    local optB    = mk{ id=4, slot="B", prereqs={1} }       -- 需要 R 先点
+    local optBnoR = mk{ id=5, slot="B", prereqs={2} }       -- 需要 T1 先点
+    local optJ    = mk{ id=6, slot="J", prereqs={2} }
+    local optC    = mk{ id=7, slot="C", cap=true, prereqs={2,3} }
+
+    local pool = { optR, optT1, optT2, optB, optBnoR, optJ, optC }
+
+    -- ownedSet 模拟"已点 R"
+    local ownedR = { [1] = true }
+
+    -- Lv3：只允许 T1（且 prereq 不卡——T1 自身没设 prereq）
+    local lv3 = FeatPicker._filterByTreeRulesForTest(pool, 3, ownedR, false)
+    assert_true(#lv3 == 1 and lv3[1].feat.trunk == "T1",
+        "Lv3 should keep only T1 trunk, got "..#lv3)
+
+    -- Lv5：只允许 T2
+    local lv5 = FeatPicker._filterByTreeRulesForTest(pool, 5, ownedR, false)
+    assert_true(#lv5 == 1 and lv5[1].feat.trunk == "T2",
+        "Lv5 should keep only T2 trunk, got "..#lv5)
+
+    -- Lv10 + 已 owns T1+T2：只允许 Capstone（且 Run 未点过）
+    local ownedAll = { [1]=true, [2]=true, [3]=true }
+    local lv10 = FeatPicker._filterByTreeRulesForTest(pool, 10, ownedAll, false)
+    assert_true(#lv10 == 1 and lv10[1].feat.isCapstone == true,
+        "Lv10 should keep only isCapstone=true, got "..#lv10)
+
+    -- Lv10 + Run 已有 capstone：filter 应剔除 capstone → 已删除 fallback，应返回空
+    local lv10Locked = FeatPicker._filterByTreeRulesForTest(pool, 10, ownedAll, true)
+    -- runHasCapstone=true 时，capstone 被 §5 单轨硬过滤剔除，调用方负责跳级
+    assert_true(#lv10Locked == 0,
+        "Lv10 with runHasCapstone should return empty pool (caller decides to skip-up), got "..#lv10Locked)
+
+    -- 自由层级 Lv2：排除 R/T1/T2/Capstone，仅 B/J；
+    -- prereqs：optB 需要 R（owned）→ 通过；optBnoR 需要 T1（未 owned）→ 拦截；optJ 需要 T1 → 拦截
+    local lv2 = FeatPicker._filterByTreeRulesForTest(pool, 2, ownedR, false)
+    local kinds = {}
+    for _, o in ipairs(lv2) do kinds[o.feat.id] = true end
+    assert_true(kinds[4] == true, "Lv2 should keep optB (B with R-prereq satisfied)")
+    assert_true(kinds[5] ~= true, "Lv2 should drop optBnoR (T1 prereq not satisfied)")
+    assert_true(kinds[6] ~= true, "Lv2 should drop optJ (T1 prereq not satisfied)")
+    assert_true(kinds[1] ~= true, "Lv2 should drop R")
+    assert_true(kinds[2] ~= true, "Lv2 should drop T1")
+    assert_true(kinds[3] ~= true, "Lv2 should drop T2")
+    assert_true(kinds[7] ~= true, "Lv2 should drop Capstone")
+end
+
 print("feat picker test passed")

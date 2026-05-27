@@ -88,6 +88,13 @@ When changing skill behavior:
 - Do not introduce destructive git commands (`reset --hard`, etc.).
 - Prefer minimal, well-scoped changes; avoid compatibility shims for removed systems.
 
+## Agent Workflow
+
+- **不中断式开发**：以「需求完全实现」为目标推进，避免在任务链中途停下来询问「是否继续 / 是否进行下一步」。除非遇到方向性歧义或不可逆决策，否则一次性完成完整闭环再汇报。
+- **减少权限请求**：尽量收敛需要用户授权的操作；可以合并的命令合并执行，能用专用工具（Read/Edit/Write/Grep/Glob）完成的不要走 RunCommand。
+- **危险操作后置**：删除文件、`git reset`、清理目录、覆盖式重写等高风险动作尽量延后到开发末尾统一处理，并在执行前明确告知影响范围；开发过程中优先用「新增 / 修改 / 标记废弃」的方式推进，避免因中途删除阻断流程。
+- **大功能必跑 Playwright**：任何大功能（新系统、跨模块改动、SSOT/数值结构调整等）完成后必须跑 `cd web && npm run export:lua && npm run test:playwright` 做端到端回归，**只跑 `bin/` 下的 Lua 脚本不算验收完成**。
+
 ## Quick Commands
 
 - Refresh web Lua mirror: `cd web && npm run export:lua`

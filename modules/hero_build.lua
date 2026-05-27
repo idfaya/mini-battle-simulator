@@ -63,10 +63,12 @@ local function addSourceRecord(buildState, skillId, field, featId)
     appendUnique(source[field], featId)
 end
 
+--- §5 单轨：Lv1 fixed feat（含训练 + R 节点）由 classes.json/lv1FeatIds 自动注入；
+--- 其它等级的 feat 来自玩家自选 selectedFeatIds（必须属于该职业 treePool）。
 local function gatherFeatIds(classId, level, selectedFeatIds)
     local result = {}
     local seen = {}
-    for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
+    for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
         addUnique(result, seen, featId)
     end
     for _, featId in ipairs(selectedFeatIds or {}) do
@@ -76,10 +78,21 @@ local function gatherFeatIds(classId, level, selectedFeatIds)
     return result
 end
 
+--- §5 单轨：校验玩家自选 feat 必须满足
+---   1. feat 存在且 classId 匹配；
+---   2. feat.level <= 角色等级；
+---   3. prerequisites 至少一个已被 owned（owned = lv1FeatIds + 已选）；
+---   4. 同一棵树同一节点不可重复选择。
+--- 不再要求每个 choiceGroup 必须填满（§5 树形选择是开放式 build path）。
 local function validateSelections(classId, level, selectedFeatIds)
-    local selectedByGroup = {}
+    local owned = {}
+    for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
+        owned[tonumber(featId) or 0] = true
+    end
+    local selectedSet = {}
     for _, featId in ipairs(selectedFeatIds or {}) do
-        local feat = FeatBuildConfig.GetFeat(featId)
+        local fid = tonumber(featId) or 0
+        local feat = FeatBuildConfig.GetFeat(fid)
         if not feat then
             error(string.format("[HeroBuild] Unknown featId: %s", tostring(featId)))
         end
@@ -89,18 +102,28 @@ local function validateSelections(classId, level, selectedFeatIds)
         if (tonumber(feat.level) or 0) > (tonumber(level) or 0) then
             error(string.format("[HeroBuild] feat %s requires level %d", tostring(featId), tonumber(feat.level) or 0))
         end
-        if feat.choiceGroup then
-            if selectedByGroup[feat.choiceGroup] then
-                error(string.format("[HeroBuild] duplicate choice in group %s", tostring(feat.choiceGroup)))
-            end
-            selectedByGroup[feat.choiceGroup] = featId
+        if selectedSet[fid] then
+            error(string.format("[HeroBuild] duplicate feat selection: %s", tostring(featId)))
         end
+        selectedSet[fid] = true
     end
-
-    for _, groupName in ipairs(ClassBuildProgression.CollectChoiceGroups(classId, level)) do
-        if not selectedByGroup[groupName] then
-            error(string.format("[HeroBuild] missing required feat selection for group %s", tostring(groupName)))
+    -- prerequisites 校验：按 selectedFeatIds 给定顺序逐步推进 owned 集合。
+    for _, featId in ipairs(selectedFeatIds or {}) do
+        local fid = tonumber(featId) or 0
+        local feat = FeatBuildConfig.GetFeat(fid)
+        if feat and type(feat.prerequisites) == "table" and #feat.prerequisites > 0 then
+            local ok = false
+            for _, pid in ipairs(feat.prerequisites) do
+                if owned[tonumber(pid) or 0] then
+                    ok = true
+                    break
+                end
+            end
+            if not ok then
+                error(string.format("[HeroBuild] feat %s prerequisites not satisfied", tostring(featId)))
+            end
         end
+        owned[fid] = true
     end
 end
 
@@ -203,6 +226,21 @@ end
 function HeroBuild.CompileBuild(classId, level, selectedFeatIds)
     local resolvedClassId = tonumber(classId) or 0
     local resolvedLevel = math.max(1, tonumber(level) or 1)
+    -- §5 单轨：当调用方未显式传 selection 且 level>=2 时，自动取 canonical 默认链路（trunk T1/T2/Capstone + B/J 顺序兜底），
+    -- 保证 hero_data.ConvertToHeroData 等单点入口在 web/战斗场景下也能获得高阶节点。
+    if (not selectedFeatIds or #selectedFeatIds == 0) and resolvedLevel >= 2 then
+        local lv1Set = {}
+        for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(resolvedClassId)) do
+            lv1Set[tonumber(fid) or 0] = true
+        end
+        local canonical = {}
+        for _, fid in ipairs(ClassBuildProgression.GetCanonicalFeatChain(resolvedClassId, resolvedLevel)) do
+            if not lv1Set[tonumber(fid) or 0] then
+                canonical[#canonical + 1] = fid
+            end
+        end
+        selectedFeatIds = canonical
+    end
     validateSelections(resolvedClassId, resolvedLevel, selectedFeatIds or {})
 
     local buildState = {

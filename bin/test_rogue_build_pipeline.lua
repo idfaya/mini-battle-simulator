@@ -26,20 +26,19 @@ local RogueBuildPassives = require("skills.rogue_build_passives")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
--- Feat 树后 Lv2/Lv3/Lv4/Lv5 多数职业带 choiceGroup，CompileBuild 必须显式传选择；
--- 这里取每个 group 的第一个 feat 作为 canonical 选择。
+-- §5 单轨：直接用 GetCanonicalFeatChain 拓扑链路，去掉 Lv1 fixed（lv1FeatIds 由 hero_build 自动注入）。
 local function canonicalSelections(classId, toLevel)
-    local selected = {}
-    for _, entry in ipairs(ClassBuildProgression.GetBuildProgression(classId)) do
-        local lv = tonumber(entry.level) or 0
-        if lv <= (tonumber(toLevel) or 0) and entry.choiceGroup then
-            local pool = FeatBuildConfig.GetFeatsByLevel(classId, lv, entry.choiceGroup) or {}
-            if pool[1] and pool[1].id then
-                selected[#selected + 1] = pool[1].id
-            end
+    local lv1Set = {}
+    for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
+        lv1Set[tonumber(fid) or 0] = true
+    end
+    local selections = {}
+    for _, fid in ipairs(ClassBuildProgression.GetCanonicalFeatChain(classId, toLevel)) do
+        if not lv1Set[tonumber(fid) or 0] then
+            selections[#selections + 1] = fid
         end
     end
-    return selected
+    return selections
 end
 
 BattleEvent.Init()

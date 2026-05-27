@@ -459,7 +459,7 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
     end
 
     local buildState = override and override.buildState or nil
-    if ClassBuildProgression.GetProgression(hero.Class) and not buildState then
+    if ClassBuildProgression.HasClass(hero.Class) and not buildState then
         buildState = HeroBuild.TryCompileBuild(hero.Class, level, override and override.buildFeatIds or {})
     end
 
@@ -737,21 +737,22 @@ local function sortFeatDefs(list)
 end
 
 local function collectCanonicalBuildSelections(classId, level)
-    local selected = {}
-    if not ClassBuildProgression.GetProgression(classId) then
-        return selected
+    if not ClassBuildProgression.HasClass(classId) then
+        return {}
     end
     local maxLevel = math.max(1, tonumber(level) or 1)
-    for stageLevel = 1, maxLevel do
-        local entry = ClassBuildProgression.GetLevelEntry(classId, stageLevel)
-        if entry and entry.choiceGroup then
-            local pool = sortFeatDefs(FeatBuildConfig.GetFeatsByLevel(classId, stageLevel, entry.choiceGroup) or {})
-            if pool[1] and pool[1].id then
-                selected[#selected + 1] = pool[1].id
-            end
+    -- §5 单轨：直接走 GetCanonicalFeatChain 的拓扑顺序，去掉 Lv1 fixed（lv1FeatIds 由 hero_build 自动注入）。
+    local lv1Set = {}
+    for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
+        lv1Set[tonumber(fid) or 0] = true
+    end
+    local selections = {}
+    for _, fid in ipairs(ClassBuildProgression.GetCanonicalFeatChain(classId, maxLevel)) do
+        if not lv1Set[tonumber(fid) or 0] then
+            selections[#selections + 1] = fid
         end
     end
-    return selected
+    return selections
 end
 
 local function collectCanonicalFeatSelections(classId, level)

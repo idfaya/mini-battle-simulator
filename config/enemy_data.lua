@@ -80,20 +80,20 @@ local function sortFeatDefs(list)
     return list
 end
 
---- 与 HeroData 一致：各 choiceGroup 取排序后第一项作为敌人默认分支。
+--- §5 单轨：敌人按 GetCanonicalFeatChain 拓扑链路自动选择，去掉 Lv1 fixed（由 hero_build 自动注入）。
 local function collectCanonicalEnemyFeatIds(classId, buildLevel)
-    local selected = {}
-    if not ClassRoleConfig.GetProgression(classId) then
-        return selected
+    if not ClassRoleConfig.HasClass(classId) then
+        return {}
     end
     local maxLevel = math.max(1, tonumber(buildLevel) or 1)
-    for stageLevel = 1, maxLevel do
-        local entry = ClassRoleConfig.GetLevelEntry(classId, stageLevel)
-        if entry and entry.choiceGroup then
-            local pool = sortFeatDefs(FeatBuildConfig.GetFeatsByLevel(classId, stageLevel, entry.choiceGroup) or {})
-            if pool[1] and pool[1].id then
-                selected[#selected + 1] = pool[1].id
-            end
+    local lv1Set = {}
+    for _, fid in ipairs(ClassRoleConfig.GetLv1FeatIds(classId)) do
+        lv1Set[tonumber(fid) or 0] = true
+    end
+    local selected = {}
+    for _, fid in ipairs(ClassRoleConfig.GetCanonicalFeatChain(classId, maxLevel)) do
+        if not lv1Set[tonumber(fid) or 0] then
+            selected[#selected + 1] = fid
         end
     end
     return selected
@@ -258,7 +258,7 @@ local function EnemyHasClassBuild(enemy)
     if not enemy then
         return false
     end
-    return ClassRoleConfig.GetProgression(tonumber(enemy.Class) or 0) ~= nil
+    return ClassRoleConfig.HasClass(tonumber(enemy.Class) or 0)
 end
 
 function EnemyData.Init()

@@ -23,7 +23,7 @@
 
 - 每个非根节点至少有 1 个父节点已被点过才能选。
 - 单节点只能点 1 次。
-- 分支可设互斥组（mutex），直接复用现有 `choiceGroup` 字段。
+- 分支可设互斥组（mutex），通过 §5 落表中的 `choiceGroup` 字段表达；当前 SSOT 中已废弃旧线性 `choiceGroup`，仅在 §5 树形节点之间使用。
 - 主干 T1 / T2 第一次点时 `grant_skill` 对应核心主动，后续合流节点对该主动做 `modify_skill`。
 - Capstone 全 Run 只能选 1 个；选定后其它 capstone 节点不再出现在候选池。
 
@@ -319,9 +319,9 @@ D 类（设计层修订）：
 
 ## 8. 落地顺序
 
-1. 文档定稿（本任务完成后即定稿）。
-2. 扩展 `BuildFeatDef` schema（仅扩注释，不改运行时函数）。
-3. 实装基础设施 mod 字段（按第 6 节清单逐字段挂到对应 passive / skill）。
-4. 按职业逐个把 R / T1 / T2 节点先补全，确保 Lv1 / Lv3 / Lv5 走完。
-5. 再实装 B / J 节点，按类别 A → B → C 推进。
-6. 最后实装 capstone（C / D），打通 Lv10 选择闭环。
+1. 文档定稿（本任务完成后即定稿）。✅
+2. 扩展 `BuildFeatDef` schema（仅扩注释，不改运行时函数）。✅（`treeSlot` / `trunk` / `isCapstone` / `prerequisites` 字段已在 `config/tables/feats.lua` 落地）
+3. 实装基础设施 mod 字段（按第 6 节清单逐字段挂到对应 passive / skill）。✅（§6 字段已在 R / T1 / T2 + B / J / C 节点的 `effects.modify_skill.add` 中使用）
+4. 按职业逐个把 R / T1 / T2 节点先补全，确保 Lv1 / Lv3 / Lv5 走完。✅（10 职业的 R = Lv1 fixed feat / T1 = Lv3 subclass / T2 = Lv5 capstone 已显式打 trunk 标记）
+5. 再实装 B / J 节点，按类别 A → B → C 推进。✅（10 职业 × ~10 个 B/J 节点已写入，namespace 起 `2300000 + classId*1000 + idx`）
+6. 最后实装 capstone（C / D），打通 Lv10 选择闭环。✅（每职业 2 个 Lv10 capstone，`isCapstone=true`，FeatPicker 限制 Run 内只能点一次）

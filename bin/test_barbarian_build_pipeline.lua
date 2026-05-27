@@ -58,17 +58,8 @@ do
 end
 
 do
-    -- 野蛮人 SSOT 当前 Lv2/Lv4 没有 feat、Lv3/Lv5 feat 也没标 choiceGroup；mock 掉
-    -- CollectChoiceGroups 让 Lv5 build 直接由 Lv1+Lv5 fixed feats 组成。
-    local oldCollectChoiceGroups = ClassBuildProgression.CollectChoiceGroups
-    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
-        if classId == 10 then
-            return {}
-        end
-        return oldCollectChoiceGroups(classId, toLevel)
-    end
-
-    local build = HeroBuild.CompileBuild(10, 5, { FeatBuildConfig.Ids.barbarian_heavy_strike })
+    -- §5 单轨：野蛮人 Lv5 build 直接选 T1 重击节点；T2 berserk 由 lv1FeatIds + canonical 链路覆盖。
+    local build = HeroBuild.CompileBuild(10, 5, { FeatBuildConfig.Ids.barbarian_heavy_strike, FeatBuildConfig.Ids.barbarian_berserk })
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.barbarian_basic_attack), "Barbarian Lv5 keeps basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "Barbarian Lv5 grants heavy strike")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.barbarian_berserk), "Barbarian Lv5 grants berserk")
@@ -76,13 +67,11 @@ do
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "Barbarian runtime exports heavy strike")
 
     local hero = HeroData.ConvertToHeroData(900010, 5, 1, {
-        buildFeatIds = { FeatBuildConfig.Ids.barbarian_heavy_strike },
+        buildFeatIds = { FeatBuildConfig.Ids.barbarian_heavy_strike, FeatBuildConfig.Ids.barbarian_berserk },
     })
     assert_true(hero and hero.buildState ~= nil, "HeroData compile works for barbarian")
     assert_true(hasSkill(hero.skillsConfig, SkillRuntimeConfig.Ids.barbarian_basic_attack), "HeroData exports barbarian basic attack")
     assert_true(hasSkill(hero.skillsConfig, SkillRuntimeConfig.Ids.barbarian_heavy_strike), "HeroData exports barbarian heavy strike")
-
-    ClassBuildProgression.CollectChoiceGroups = oldCollectChoiceGroups
 end
 
 do

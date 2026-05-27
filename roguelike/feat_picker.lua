@@ -44,6 +44,73 @@ local function isAliveActive(unit)
     return (tonumber(unit.currentHp) or 0) > 0
 end
 
+-- 树形规则候选过滤（design/roguelike_feat_skill_fill_sheet.md §3 / §4）：
+--   Lv3 → 仅 trunk == "T1"
+--   Lv5 → 仅 trunk == "T2"
+--   Lv10 → 仅 isCapstone == true（且 Run 内未选过其它 capstone）
+--   其它 → 排除 R/T1/T2/Capstone（仅 B / J 自由点）
+--   prerequisites：所有列出父节点至少一个已点过才解锁（兼容 nil = 无限制）
+-- §5 单轨 SSOT：无 fallback；筛出 0 项即视为该等级无可选项，由调用方继续向上跳级。
+local function filterByTreeRules(options, level, ownedSet, runHasCapstone)
+    if not options or #options == 0 then
+        return options
+    end
+    local matched = {}
+    for _, item in ipairs(options) do
+        local feat = item.feat or {}
+        local treeSlot = feat.treeSlot
+        local trunk = feat.trunk
+        local isCapstone = feat.isCapstone == true
+        local pass = true
+        if level == 3 then
+            pass = (trunk == "T1") or (treeSlot == "T1")
+        elseif level == 5 then
+            pass = (trunk == "T2") or (treeSlot == "T2")
+        elseif level == 10 then
+            pass = isCapstone and (not runHasCapstone)
+        else
+            -- 自由点：排除主干 / capstone / 根节点
+            if treeSlot == "T1" or treeSlot == "T2" or treeSlot == "R" or isCapstone then
+                pass = false
+            end
+        end
+        if pass and feat.prerequisites then
+            local anySatisfied = false
+            for _, parentId in ipairs(feat.prerequisites) do
+                if ownedSet[tonumber(parentId) or 0] then
+                    anySatisfied = true
+                    break
+                end
+            end
+            if not anySatisfied then
+                pass = false
+            end
+        end
+        if pass then
+            matched[#matched + 1] = item
+        end
+    end
+    return matched
+end
+
+local function runHasCapstoneSelected(state, classId)
+    if type(state) ~= "table" then
+        return false
+    end
+    local units = RoguelikeRoster.GetTeamUnits(state) or {}
+    for _, unit in ipairs(units) do
+        if tonumber(unit.classId) == tonumber(classId) then
+            for _, fid in ipairs(ownedFeatIds(unit)) do
+                local feat = FeatBuildConfig.GetFeat(fid)
+                if feat and feat.isCapstone == true then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 -- 收集候选：对每名存活队员，列出"下一级"全部未选 feat。
 -- 若该等级无任何候选（典型：阶段 1 / 阶段 7 缺口职业 Lv2/Lv4 没有 feat），
 -- 则按"跳级"机制（设计 §3.1 允许跳级）向上找最近一个有 feat 的等级，但不超过 partyLevel + 1。
@@ -60,6 +127,7 @@ local function gatherCandidates(state)
                 owned[tonumber(featId) or 0] = true
             end
             local classId = tonumber(unit.classId) or 0
+            local hasCapstone = runHasCapstoneSelected(state, classId)
             -- 设计 §3：每次三选一只升 1 个英雄，hero.level += 1。
             -- 仅当 currentLevel+1 没有 feat 时，才向上"跳过空白级"找最近一个有 feat 的等级；
             -- searchCap = levelCap，与 partyLevel 解耦（partyLevel 在新模型里是累计升级次数，
@@ -75,6 +143,8 @@ local function gatherCandidates(state)
                         options[#options + 1] = { featId = featId, feat = feat }
                     end
                 end
+                -- 应用 §5 单轨树形规则（无 fallback；筛出 0 即跳级继续往上找）。
+                options = filterByTreeRules(options, nextLevel, owned, hasCapstone)
                 if #options > 0 then
                     foundLevel = nextLevel
                     foundOptions = options
@@ -441,6 +511,11 @@ end
 -- 测试专用：暴露内部加权抽样函数，便于单测验证 ×1.5 权重分布。
 function FeatPicker._weightedPickForTest(items)
     return weightedPick(items)
+end
+
+-- 测试专用：暴露树形规则过滤函数。
+function FeatPicker._filterByTreeRulesForTest(options, level, ownedSet, runHasCapstone)
+    return filterByTreeRules(options, level, ownedSet or {}, runHasCapstone == true)
 end
 
 return FeatPicker

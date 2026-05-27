@@ -29,20 +29,19 @@ local HeroData = require("config.hero_data")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
--- Feat 树后 Lv2/Lv3/Lv4/Lv5 多数职业带 choiceGroup，CompileBuild 必须显式传选择；
--- 这里取每个 group 的第一个 feat 作为 canonical 选择。
+-- §5 单轨：直接用 GetCanonicalFeatChain 拓扑链路。
 local function canonicalSelections(classId, toLevel)
-    local selected = {}
-    for _, entry in ipairs(ClassBuildProgression.GetBuildProgression(classId)) do
-        local lv = tonumber(entry.level) or 0
-        if lv <= (tonumber(toLevel) or 0) and entry.choiceGroup then
-            local pool = FeatBuildConfig.GetFeatsByLevel(classId, lv, entry.choiceGroup) or {}
-            if pool[1] and pool[1].id then
-                selected[#selected + 1] = pool[1].id
-            end
+    local lv1Set = {}
+    for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
+        lv1Set[tonumber(fid) or 0] = true
+    end
+    local selections = {}
+    for _, fid in ipairs(ClassBuildProgression.GetCanonicalFeatChain(classId, toLevel)) do
+        if not lv1Set[tonumber(fid) or 0] then
+            selections[#selections + 1] = fid
         end
     end
-    return selected
+    return selections
 end
 
 BattleEvent.Init()
@@ -105,31 +104,19 @@ do
 end
 
 do
-    -- 三家纯施法者目前 SSOT 仍有 Lv2/Lv3/Lv4 choiceGroup 缺数据；这里临时 mock
-    -- CollectChoiceGroups 让 CompileBuild 跳过强校验，验证 Lv1/Lv5 fixed feats 仍能给出
-    -- 基础攻击、核心被动、高阶爆发三件核心技能；mid 技能（如 ash_burst）当前 SSOT 不在
-    -- 任何 fixed/choiceGroup 中，故不再断言。
-    local oldCollectChoiceGroups = ClassBuildProgression.CollectChoiceGroups
-    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
-        if classId == 7 or classId == 8 or classId == 9 then
-            return {}
-        end
-        return oldCollectChoiceGroups(classId, toLevel)
-    end
-
+    -- §5 单轨：纯施法者 Lv5 build 验证基础攻击 / 核心被动 / 高阶爆发。
+    -- 通过 canonicalSelections 自动选取 trunk T1 / T2 / capstone 节点。
     local casterBuilds = {
         { classId = 7, basic = SkillRuntimeConfig.Ids.sorcerer_fire_bolt, core = SkillRuntimeConfig.Ids.sorcerer_ember_ignite, high = SkillRuntimeConfig.Ids.sorcerer_flame_storm },
         { classId = 8, basic = SkillRuntimeConfig.Ids.wizard_frost_ray, core = SkillRuntimeConfig.Ids.wizard_frost_lag, high = SkillRuntimeConfig.Ids.wizard_blizzard },
         { classId = 9, basic = SkillRuntimeConfig.Ids.warlock_eldritch_blast, core = SkillRuntimeConfig.Ids.warlock_static_mark, high = SkillRuntimeConfig.Ids.warlock_thunderstorm },
     }
     for _, spec in ipairs(casterBuilds) do
-        local build = HeroBuild.CompileBuild(spec.classId, 5, {})
+        local build = HeroBuild.CompileBuild(spec.classId, 5, canonicalSelections(spec.classId, 5))
         assert_true(hasSkill(build.activeSkills, spec.basic), "Caster Lv5 grants basic skill for class " .. spec.classId)
         assert_true(hasSkill(build.passiveSkills, spec.core), "Caster Lv5 grants core passive for class " .. spec.classId)
         assert_true(hasSkill(build.activeSkills, spec.high), "Caster Lv5 grants high skill for class " .. spec.classId)
     end
-
-    ClassBuildProgression.CollectChoiceGroups = oldCollectChoiceGroups
 end
 
 do
@@ -409,17 +396,8 @@ do
     enemy.wpType = 1
     enemy.isLeft = false
     cleric.skills = {}
-    -- AI 决策测试只关心 basic spell / healing word / sanctuary prayer 三项；mock 掉 choiceGroup
-    -- 让 build 退化为纯 fixed-feats 版本，避免 Lv3 子职/Lv4 mastery 的额外主动技干扰决策。
-    local oldCollectChoiceGroups = ClassBuildProgression.CollectChoiceGroups
-    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
-        if classId == 6 then
-            return {}
-        end
-        return oldCollectChoiceGroups(classId, toLevel)
-    end
-    cleric.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(6, 5, {}))
-    ClassBuildProgression.CollectChoiceGroups = oldCollectChoiceGroups
+    -- §5 单轨：用 canonical 拓扑链路构建 cleric Lv5 build，让决策测试覆盖 basic spell / healing word / sanctuary prayer。
+    cleric.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(6, 5, canonicalSelections(6, 5)))
 
     BattleFormation.Init({
         teamLeft = { cleric, allyA, allyB },

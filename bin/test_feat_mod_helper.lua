@@ -144,22 +144,27 @@ do
     local SkillRuntimeConfig = require("config.tables.skill_runtime")
     local HeroBuild = require("modules.hero_build")
 
-    local oldFixed = ClassBuildProgression.CollectFixedFeatIds
-    local oldGroups = ClassBuildProgression.CollectChoiceGroups
+    local oldGetLv1 = ClassBuildProgression.GetLv1FeatIds
+    local oldGetTreePool = ClassBuildProgression.GetTreePool
+    local oldHasClass = ClassBuildProgression.HasClass
     local oldGetFeat = FeatBuildConfig.GetFeat
     local oldRuntimeGet = SkillRuntimeConfig.Get
 
-    ClassBuildProgression.CollectFixedFeatIds = function(classId, toLevel)
-        if classId == 998 and toLevel == 1 then
+    ClassBuildProgression.GetLv1FeatIds = function(classId)
+        if classId == 998 then
             return { 998001, 998002 }
         end
-        return oldFixed(classId, toLevel)
+        return oldGetLv1(classId)
     end
-    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
-        if classId == 998 and toLevel == 1 then
+    ClassBuildProgression.GetTreePool = function(classId)
+        if classId == 998 then
             return {}
         end
-        return oldGroups(classId, toLevel)
+        return oldGetTreePool(classId)
+    end
+    ClassBuildProgression.HasClass = function(classId)
+        if classId == 998 then return true end
+        return oldHasClass(classId)
     end
     FeatBuildConfig.GetFeat = function(featId)
         if featId == 998001 then
@@ -196,8 +201,9 @@ do
     assert_eq(FeatModHelper.GetClassMod(fakeHero, "markPayoutPerRound", 0), 2,
         "patch.classMods.markPayoutPerRound should be merged into buildState.classMods")
 
-    ClassBuildProgression.CollectFixedFeatIds = oldFixed
-    ClassBuildProgression.CollectChoiceGroups = oldGroups
+    ClassBuildProgression.GetLv1FeatIds = oldGetLv1
+    ClassBuildProgression.GetTreePool = oldGetTreePool
+    ClassBuildProgression.HasClass = oldHasClass
     FeatBuildConfig.GetFeat = oldGetFeat
     SkillRuntimeConfig.Get = oldRuntimeGet
 end

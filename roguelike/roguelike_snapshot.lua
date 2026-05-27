@@ -39,7 +39,8 @@ local function buildFeatSummary(hero)
     local result = {}
     local classId = tonumber(hero and hero.classId) or 0
     local level = tonumber(hero and hero.level) or 1
-    for _, featId in ipairs(ClassBuildProgression.CollectFixedFeatIds(classId, level)) do
+    -- §5 单轨：Lv1 自动 feat 来自 lv1FeatIds。
+    for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
         local feat = FeatBuildConfig.GetFeat(featId)
         addUnique(result, feat and feat.name or nil)
     end

@@ -31,22 +31,31 @@ local function hasSkill(list, skillId)
     return false
 end
 
+-- §5 单轨：直接用 GetCanonicalFeatChain 拓扑链路，去掉 Lv1 fixed。
+local function canonicalSelections(classId, toLevel)
+    local lv1Set = {}
+    for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(classId)) do
+        lv1Set[tonumber(fid) or 0] = true
+    end
+    local selections = {}
+    for _, fid in ipairs(ClassBuildProgression.GetCanonicalFeatChain(classId, toLevel)) do
+        if not lv1Set[tonumber(fid) or 0] then
+            selections[#selections + 1] = fid
+        end
+    end
+    return selections
+end
+
 do
+    -- §5 SSOT：fighter Lv1 自动获得 fighter_training + fighter_counter_basic。
     local build = HeroBuild.CompileBuild(2, 1, {})
-    assert_true(#build.featIds == 2, "Fighter Lv1 auto-grants 2 fixed feats")
+    assert_true(#build.featIds == 2, "Fighter Lv1 auto-grants 2 lv1FeatIds")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "Fighter Lv1 has basic attack")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv1 has counter")
 end
 
 do
-    local build = HeroBuild.CompileBuild(2, 2, {})
-    -- 战士 SSOT 已把 Extra Attack 上提为 Lv2 fixed feat（fighter_lv2_extra_attack）。
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_extra_attack), "Fighter Lv2 grants extra attack as fixed feat")
-    assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_action_surge), "Fighter Lv2 does not grant action surge yet")
-end
-
-do
-    -- Lv3 走 choiceGroup `fighter_lv3_active`；选 fighter_guard 验证 guard stance + counter
+    -- §5 单轨：Lv3 取 trunk T1 = fighter_guard，验证 guard stance + counter。
     local build = HeroBuild.CompileBuild(2, 3, { FeatBuildConfig.Ids.fighter_guard })
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 guard choice grants guard stance")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv3 guard choice grants guard counter passive")
@@ -54,12 +63,8 @@ do
 end
 
 do
-    -- Lv5 fixed 含 fighter_second_wind；保留 Lv3 guard 选择，Lv4/Lv5 取每组首个 feat
-    local build = HeroBuild.CompileBuild(2, 5, {
-        FeatBuildConfig.Ids.fighter_guard,
-        FeatBuildConfig.Ids.fighter_precise_attack,
-        FeatBuildConfig.Ids.fighter_sweeping_attack,
-    })
+    -- §5 单轨：Lv5 走 canonical 拓扑链路（自动包括 fighter_guard T1 + fighter_second_wind T2 + 中间 B 节点）。
+    local build = HeroBuild.CompileBuild(2, 5, canonicalSelections(2, 5))
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 keeps guard stance")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_second_wind), "Fighter Lv5 grants indomitable wind")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
@@ -68,8 +73,7 @@ do
 end
 
 do
-    -- 阶段 3：FeatPicker 升级三选一应能为 Lv2 fighter 暴露 fighter 候选 feat
-    -- 设计：character_progression_design.md §3
+    -- 阶段 3：FeatPicker 升级三选一应能为 Lv2 fighter 暴露 fighter 候选 feat。
     local LevelCurve = require("config.roguelike.level_curve")
     local LEVEL_EXP_THRESHOLDS = LevelCurve.LEVEL_EXP_THRESHOLDS
     local fighter = HeroData.CreateClassUnit(2, {
@@ -85,7 +89,6 @@ do
     if fighter.buildState then
         fighter.buildState.featIds = {}
     end
-    -- partyExp 必须跨过 Lv2 阈值才会触发 session（PARTY_EXP_THRESHOLD_SCALE=0.5 下 Lv2=150）。
     local mockState = {
         ownedUnits = { fighter },
         teamRoster = { fighter },
@@ -107,13 +110,29 @@ do
 end
 
 do
-    -- 阶段 3：手动给 fighter 加 Lv4 feat → CompileBuild 应正确解析为 build pipeline
-    local fighterLv4Feats = FeatBuildConfig.GetFeatsByLevel(2, 4) or {}
-    assert_true(#fighterLv4Feats > 0, "fixture sanity: fighter Lv4 should have feats")
-    local extraFeatId = tonumber(fighterLv4Feats[1].id) or 0
-    assert_true(extraFeatId > 0, "fixture sanity: fighter Lv4 feat should have valid id")
-    -- Lv3/Lv4 都带 choiceGroup，需要同时给出每组的 canonical 选择
-    local build = HeroBuild.CompileBuild(2, 4, { FeatBuildConfig.Ids.fighter_action_surge, extraFeatId })
+    -- §5 SSOT：classes.json 已为 fighter 注入 treePool；验证 loader 正确读到。
+    local pool = ClassBuildProgression.GetTreePool(2) or {}
+    assert_true(#pool >= 12, "fighter treePool should contain at least 12 tree feat ids, got "..#pool)
+    -- treePool 同时包含 §5 树节点（≥2300000 新 namespace）和 trunk T1/T2 旧 entry id。
+    local treeFeatCount = 0
+    for _, fid in ipairs(pool) do
+        local feat = FeatBuildConfig.GetFeat(fid)
+        assert_true(feat ~= nil, "treePool id "..tostring(fid).." should resolve to a feat in FeatBuildConfig")
+        assert_true(feat.classId == 2, "treePool id "..tostring(fid).." should belong to classId=2")
+        if fid >= 2300000 then
+            treeFeatCount = treeFeatCount + 1
+        end
+    end
+    assert_true(treeFeatCount >= 12, "treePool should contain at least 12 §5 tree-namespace feats, got "..treeFeatCount)
+end
+
+do
+    -- §5 单轨：手动给 fighter 加 Lv2 B 节点 → CompileBuild 应正确解析并校验 prereq。
+    local fighterLv2Feats = FeatBuildConfig.GetFeatsByLevel(2, 2) or {}
+    assert_true(#fighterLv2Feats > 0, "fixture sanity: fighter Lv2 should have B feats in §5 tree")
+    local extraFeatId = tonumber(fighterLv2Feats[1].id) or 0
+    assert_true(extraFeatId > 0, "fixture sanity: fighter Lv2 feat should have valid id")
+    local build = HeroBuild.CompileBuild(2, 4, { extraFeatId, FeatBuildConfig.Ids.fighter_guard })
     local seenExtra = false
     for _, fid in ipairs(build.featIds or {}) do
         if tonumber(fid) == extraFeatId then
@@ -121,56 +140,47 @@ do
             break
         end
     end
-    assert_true(seenExtra, "manually-added Lv4 feat should appear in compiled BuildState.featIds")
+    assert_true(seenExtra, "manually-added Lv2 feat should appear in compiled BuildState.featIds")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack),
         "Fighter Lv4 build still has basic attack")
 end
 
 do
-    local oldCollectFixedFeatIds = ClassBuildProgression.CollectFixedFeatIds
-    local oldCollectChoiceGroups = ClassBuildProgression.CollectChoiceGroups
+    -- §5 单轨：modify_skill / replace_skill pipeline 仍正确。
+    -- 用 mock class 999 + 自定义 feat 验证 build 管线本身。
+    local oldGetLv1 = ClassBuildProgression.GetLv1FeatIds
+    local oldGetTreePool = ClassBuildProgression.GetTreePool
+    local oldHasClass = ClassBuildProgression.HasClass
     local oldGetFeat = FeatBuildConfig.GetFeat
     local oldRuntimeGet = SkillRuntimeConfig.Get
 
-    ClassBuildProgression.CollectFixedFeatIds = function(classId, toLevel)
-        if classId == 999 and toLevel == 1 then
-            return { 990001, 990002, 990003 }
-        end
-        return oldCollectFixedFeatIds(classId, toLevel)
+    ClassBuildProgression.GetLv1FeatIds = function(classId)
+        if classId == 999 then return { 990001, 990002, 990003 } end
+        return oldGetLv1(classId)
     end
-    ClassBuildProgression.CollectChoiceGroups = function(classId, toLevel)
-        if classId == 999 and toLevel == 1 then
-            return {}
-        end
-        return oldCollectChoiceGroups(classId, toLevel)
+    ClassBuildProgression.GetTreePool = function(classId)
+        if classId == 999 then return {} end
+        return oldGetTreePool(classId)
+    end
+    ClassBuildProgression.HasClass = function(classId)
+        if classId == 999 then return true end
+        return oldHasClass(classId)
     end
     FeatBuildConfig.GetFeat = function(featId)
         if featId == 990001 then
             return {
-                id = featId,
-                classId = 999,
-                level = 1,
-                effects = {
-                    { type = "grant_skill", skill = 990101 },
-                },
+                id = featId, classId = 999, level = 1,
+                effects = { { type = "grant_skill", skill = 990101 } },
             }
         elseif featId == 990002 then
             return {
-                id = featId,
-                classId = 999,
-                level = 1,
-                effects = {
-                    { type = "modify_skill", skill = 990101, add = { cooldown = 7, statMods = { maxHp = 25 } } },
-                },
+                id = featId, classId = 999, level = 1,
+                effects = { { type = "modify_skill", skill = 990101, add = { cooldown = 7, statMods = { maxHp = 25 } } } },
             }
         elseif featId == 990003 then
             return {
-                id = featId,
-                classId = 999,
-                level = 1,
-                effects = {
-                    { type = "replace_skill", oldSkill = 990101, newSkill = 990102 },
-                },
+                id = featId, classId = 999, level = 1,
+                effects = { { type = "replace_skill", oldSkill = 990101, newSkill = 990102 } },
             }
         end
         return oldGetFeat(featId)
@@ -190,11 +200,11 @@ do
     assert_true((build.skillMods[990102] or {}).cooldown == 7, "replace migrates accumulated skill mods")
     assert_true((build.statMods.maxHp or 0) == 25, "modify_skill statMods are merged into BuildState")
 
-    ClassBuildProgression.CollectFixedFeatIds = oldCollectFixedFeatIds
-    ClassBuildProgression.CollectChoiceGroups = oldCollectChoiceGroups
+    ClassBuildProgression.GetLv1FeatIds = oldGetLv1
+    ClassBuildProgression.GetTreePool = oldGetTreePool
+    ClassBuildProgression.HasClass = oldHasClass
     FeatBuildConfig.GetFeat = oldGetFeat
     SkillRuntimeConfig.Get = oldRuntimeGet
 end
 
 log("Fighter build pipeline tests passed.")
-

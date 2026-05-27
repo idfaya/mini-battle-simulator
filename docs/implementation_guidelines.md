@@ -148,9 +148,9 @@
 ## 5. Roguelike 成长约束
 
 - 战后成长统一发放 `Feat` 或由职业卡推动 `Feat`/阶段变化，不再并行维护第二套成长语义。
-- 升级候选不能只看 `choiceGroup`。
-- 若某职业下一等级是 `fixed` 节点，该固定 `Feat` 也必须进入候选池。
-- 否则职业会在成长节点上漏掉关键底盘能力，导致 Build 状态不完整。
+- Lv1 起始 feat 由 `ClassBuildProgression.GetLv1FeatIds(classId)` 自动授予（fixed），不进入升级候选。
+- 升级候选池来自 `ClassBuildProgression.GetTreePool(classId)`，按 §5 树形规则（R/T1/T2/B/J/C）通过 `FeatPicker` 在每级筛出对应受限/自由层级的可选项。
+- Lv3/Lv5/Lv10 的 T1/T2/Capstone 槽属于受限层级；其余层级为自由层（B/J）。所有候选必须满足 `prerequisites`（父节点已点过）。
 
 ### 5.1 队伍 EXP（5e SSOT，2026-05）
 

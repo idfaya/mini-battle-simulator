@@ -66,13 +66,8 @@ FeatBuildConfig.Ids = {
     cleric_watch_bishop = FeatId(505, 3),
     fighter_training = FeatId(1, 1),
     fighter_second_wind = FeatId(1, 2),
-    fighter_extra_attack = FeatId(2, 1),
-    fighter_action_surge = FeatId(3, 1),
     fighter_guard = FeatId(3, 2),
-    fighter_precise_attack = FeatId(4, 1),
     fighter_counter_basic = FeatId(4, 2),
-    fighter_sweeping_attack = FeatId(5, 1),
-    fighter_second_wind_mastery = FeatId(5, 2),
     monk_training = FeatId(101, 1),
     monk_martial_arts = FeatId(101, 2),
     monk_flurry_training = FeatId(102, 1),
@@ -275,6 +270,8 @@ local FEATS = {
         name = "直觉闪避",
         description = "高阶被动。每回合第一次被攻击命中时，受到伤害减半。",
         choiceGroup = "rogue_lv5_capstone",
+        trunk = "T2",
+        treeSlot = "T2",
         effects = {
             { type = "grant_skill", skill = 80001108 },
         },
@@ -741,34 +738,12 @@ local FEATS = {
             } },
         },
     },
-    [FeatBuildConfig.Ids.fighter_extra_attack] = {
-        id = FeatBuildConfig.Ids.fighter_extra_attack,
-        classId = 2,
-        level = 2,
-        name = "额外攻击",
-        description = "每回合第一次基础武器攻击后，再追加 1 次基础武器攻击。",
-        effects = {
-            { type = "grant_skill", skill = 80002109 },
-        },
-    },
-    [FeatBuildConfig.Ids.fighter_action_surge] = {
-        id = FeatBuildConfig.Ids.fighter_action_surge,
-        classId = 2,
-        level = 3,
-        name = "动作激增",
-        description = "CD3，使用后立刻发动 1 次基础武器攻击，目标重新选择；不占用、也不替换该回合原本的普通攻击。",
-        choiceGroup = "fighter_lv3_active",
-        effects = {
-            { type = "grant_skill", skill = 80002003 },
-        },
-    },
     [FeatBuildConfig.Ids.fighter_guard] = {
         id = FeatBuildConfig.Ids.fighter_guard,
         classId = 2,
         level = 3,
         name = "护卫",
         description = "获得护卫架势，CD3，持续到你下次行动开始；期间己方承受的近战攻击都由你承担，且你会在其攻击结算后对攻击者发动 1 次基础武器攻击；护卫期间你自身 AC+2。",
-        choiceGroup = "fighter_lv3_active",
         trunk = "T1",
         treeSlot = "T1",
         -- SSOT §5.1：T1 mid 核心主动；护卫连环 / 钢墙宗师等 J / C 节点会通过 modify_skill 把 §6 字段挂到 80002005。
@@ -792,24 +767,12 @@ local FEATS = {
             } },
         },
     },
-    [FeatBuildConfig.Ids.fighter_precise_attack] = {
-        id = FeatBuildConfig.Ids.fighter_precise_attack,
-        classId = 2,
-        level = 4,
-        name = "精准攻击",
-        description = "基础武器攻击忽略目标 2 点 AC。",
-        choiceGroup = "fighter_lv4_passive",
-        effects = {
-            { type = "grant_skill", skill = 80002102 },
-        },
-    },
     [FeatBuildConfig.Ids.fighter_counter_basic] = {
         id = FeatBuildConfig.Ids.fighter_counter_basic,
         classId = 2,
         level = 1,
         name = "反击",
         description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
-        -- Lv1 起手核心被动，与 rogue_sneak_attack / monk_martial_arts 同级；不挂 choiceGroup，避免与 Lv4 被动选择互斥。
         -- SSOT §5.1：反击连锁 J + 二次反击 C 的 §6 字段（counterExtraBasicOnce）合并到反击 R 选定路径。
         treeSlot = "R",
         isRoot = true,
@@ -819,28 +782,6 @@ local FEATS = {
                 counterExtraBasicOnce = 1,
                 classMods = { counterExtraBasicOnce = 1 },
             } },
-        },
-    },
-    [FeatBuildConfig.Ids.fighter_sweeping_attack] = {
-        id = FeatBuildConfig.Ids.fighter_sweeping_attack,
-        classId = 2,
-        level = 5,
-        name = "横扫攻击",
-        description = "基础武器攻击命中主目标后，对另一个敌人追加 1 次横扫伤害。",
-        choiceGroup = "fighter_lv5_capstone",
-        effects = {
-            { type = "grant_skill", skill = 80002110 },
-        },
-    },
-    [FeatBuildConfig.Ids.fighter_second_wind_mastery] = {
-        id = FeatBuildConfig.Ids.fighter_second_wind_mastery,
-        classId = 2,
-        level = 5,
-        name = "续战专精",
-        description = "二次生命额外再回复 1d10 生命。",
-        choiceGroup = "fighter_lv5_capstone",
-        effects = {
-            { type = "grant_skill", skill = 80002107 },
         },
     },
     -- Monk (classId = 3)
@@ -911,6 +852,8 @@ local FEATS = {
         name = "开放手",
         description = "获得震劲掌，CD3，对当前目标发动 1 次徒手打击；若命中，强韧豁免失败则 STUN 1 回合。",
         choiceGroup = "monk_lv3_subclass",
+        trunk = "T1",
+        treeSlot = "T1",
         effects = {
             { type = "grant_skill", skill = 80003013 },
         },
@@ -1359,6 +1302,342 @@ local FEATS = {
         },
     },
 }
+
+-- ==========================================================================
+-- §5 树形 B / J / C 节点批量定义
+-- 设计文档：design/roguelike_feat_skill_fill_sheet.md §5
+-- ID namespace: 2300000 + classId*1000 + idx
+-- spec: { key, classId, level, slot, prereqs={parentFeatId,...} | nil,
+--         name, desc, effects={...}, isCapstone? }
+-- ==========================================================================
+
+local Ids = FeatBuildConfig.Ids
+
+local function defineTreeFeat(idx, spec)
+    local id = 2300000 + spec.classId * 1000 + idx
+    Ids[spec.key] = id
+    FEATS[id] = {
+        id = id,
+        classId = spec.classId,
+        level = spec.level,
+        name = spec.name,
+        description = spec.desc or "",
+        treeSlot = spec.slot,
+        prerequisites = spec.prereqs,
+        isCapstone = spec.isCapstone,
+        effects = spec.effects or {},
+    }
+end
+
+-- 短别名引用现有 R / T1 / T2 节点 id（作为 prerequisites 引用源）。
+local F = {
+    fighter_R = Ids.fighter_counter_basic, fighter_T1 = Ids.fighter_guard, fighter_T2 = Ids.fighter_second_wind,
+    monk_R = Ids.monk_martial_arts, monk_T1 = Ids.monk_open_hand, monk_T2 = Ids.monk_harmonize,
+    rogue_R = Ids.rogue_sneak_attack, rogue_T1 = Ids.rogue_execute_strike, rogue_T2 = Ids.rogue_executioner,
+    ranger_R = Ids.ranger_hunter_mark, ranger_T1 = Ids.ranger_hunter_shot, ranger_T2 = Ids.ranger_hunter_mastery,
+    paladin_R = Ids.paladin_shelter_prayer, paladin_T1 = Ids.paladin_vengeance_smite, paladin_T2 = Ids.paladin_lay_on_hands,
+    cleric_R = Ids.cleric_shelter_prayer, cleric_T1 = Ids.cleric_healing_word, cleric_T2 = Ids.cleric_guardian_domain,
+    sorcerer_R = Ids.sorcerer_ember_ignite, sorcerer_T1 = Ids.sorcerer_ash_burst, sorcerer_T2 = Ids.sorcerer_flame_storm,
+    wizard_R = Ids.wizard_frost_lag, wizard_T1 = Ids.wizard_freezing_nova, wizard_T2 = Ids.wizard_blizzard,
+    warlock_R = Ids.warlock_static_mark, warlock_T1 = Ids.warlock_thunder_chain, warlock_T2 = Ids.warlock_thunderstorm,
+    barbarian_R = Ids.barbarian_rage, barbarian_T1 = Ids.barbarian_heavy_strike, barbarian_T2 = Ids.barbarian_berserk,
+}
+
+-- Fighter 战士 (classId=2)
+local fighterTree = {
+    {key="b_fighter_heavy_slash", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="重斩", desc="基础攻击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80002001, add={bonusDamageDice="1d4"}}}},
+    {key="b_fighter_steel_stance", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="钢铁姿态", desc="常驻 AC +1。",
+        effects={{type="modify_skill", skill=80002104, add={statMods={ac=1}}}}},
+    {key="b_fighter_precise_counter", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="精准反击", desc="反击命中 +1。",
+        effects={{type="modify_skill", skill=80002104, add={bonusHit=1}}}},
+    {key="b_fighter_weapon_mastery", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="武器精通", desc="基础攻击暴击阈值 -1。",
+        effects={{type="modify_skill", skill=80002001, add={critThresholdDelta=-1}}}},
+    {key="b_fighter_combat_rhythm", classId=2, level=6, slot="B", prereqs={F.fighter_R}, name="战斗节奏", desc="每回合首次基础攻击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80002001, add={firstHitBonusDice="1d4"}}}},
+    {key="b_fighter_guard_extends_ranged", classId=2, level=6, slot="B", prereqs={F.fighter_T1}, name="护卫加深", desc="护卫架势承担远程攻击。",
+        effects={{type="modify_skill", skill=80002005, add={guardExtendsToRanged=true}}}},
+    {key="b_fighter_guard_counter_plus", classId=2, level=7, slot="B", prereqs={F.fighter_T1}, name="护卫反击+", desc="护卫反击伤害 +1d6。",
+        effects={{type="modify_skill", skill=80002005, add={counterBonusDice="1d6"}}}},
+    {key="j_fighter_team_shield", classId=2, level=8, slot="J", prereqs={F.fighter_T1}, name="守护连环", desc="架势期间每回合 tick 一次队伍护盾。",
+        effects={{type="modify_skill", skill=80002005, add={guardEmitsTeamShield=true}}}},
+    {key="j_fighter_counter_chain", classId=2, level=8, slot="J", prereqs={F.fighter_R, F.fighter_T1}, name="反击连锁", desc="一回合内反击触发后可破例追加 1 次基础攻击。",
+        effects={{type="modify_skill", skill=80002104, add={counterExtraBasicOnce=1}}}},
+    {key="b_fighter_stand_firm", classId=2, level=7, slot="B", prereqs={F.fighter_T2}, name="屹立不倒", desc="不屈触发后 AC +2 持续到下回合开始。",
+        effects={{type="modify_skill", skill=80002101, add={postTriggerAcDelta=2}}}},
+    {key="b_fighter_second_wind_recharge", classId=2, level=9, slot="B", prereqs={F.fighter_T2}, name="不屈再起", desc="不屈每场触发次数 +1。",
+        effects={{type="modify_skill", skill=80002101, add={secondWindCharges=1}}}},
+    {key="c_fighter_double_counter", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="二次反击", desc="一回合内允许触发 2 次反击。",
+        effects={{type="modify_skill", skill=80002104, add={counterExtraBasicOnce=2}}}},
+    {key="c_fighter_steel_wall", classId=2, level=10, slot="C", prereqs={F.fighter_T1}, isCapstone=true, name="钢墙宗师", desc="护卫架势 CD -1，持续 +1 回合。",
+        effects={{type="modify_skill", skill=80002005, add={cooldownDelta=-1, guardDurationDelta=1}}}},
+}
+
+-- Monk 武僧 (classId=3)
+local monkTree = {
+    {key="b_monk_fist_power", classId=3, level=2, slot="B", prereqs={F.monk_R}, name="拳力加深", desc="徒手打击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80003011, add={bonusDamageDice="1d4"}}}},
+    {key="b_monk_nimble_step", classId=3, level=2, slot="B", prereqs={F.monk_R}, name="灵巧步法", desc="每回合首次受击伤害 -2。",
+        effects={{type="modify_skill", skill=80003101, add={firstHitDamageReduce=2}}}},
+    {key="b_monk_combo_intent", classId=3, level=4, slot="B", prereqs={F.monk_R}, name="连环之意", desc="连击触发概率 +10%。",
+        effects={{type="modify_skill", skill=80003101, add={comboTriggerChanceDelta=10}}}},
+    {key="b_monk_shadow_pace", classId=3, level=4, slot="B", prereqs={F.monk_R}, name="影步连打", desc="攻击命中后 AC +1 直到下回合。",
+        effects={{type="modify_skill", skill=80003011, add={hitAcDelta=1}}}},
+    {key="b_monk_focus_dc", classId=3, level=6, slot="B", prereqs={F.monk_T1}, name="凝意", desc="震劲掌 spell DC +1。",
+        effects={{type="modify_skill", skill=80003013, add={spellDcDelta=1}}}},
+    {key="b_monk_stun_extend", classId=3, level=6, slot="B", prereqs={F.monk_T1}, name="截脉延续", desc="震劲掌 STUN 持续 +1 回合（封顶 2）。",
+        effects={{type="modify_skill", skill=80003013, add={stunDurationDelta=1}}}},
+    {key="j_monk_pulse_master", classId=3, level=7, slot="J", prereqs={F.monk_T1}, name="截脉宗师", desc="徒手打击对当前处于 STUN 的目标 +1d6。",
+        effects={{type="modify_skill", skill=80003011, add={bonusVsStunDice="1d6"}}}},
+    {key="j_monk_fist_echo", classId=3, level=8, slot="J", prereqs={F.monk_R, F.monk_T1}, name="拳影回响", desc="一回合内连击破例触发 1 次。",
+        effects={{type="modify_skill", skill=80003101, add={comboReentryOnce=1}}}},
+    {key="b_monk_breath", classId=3, level=7, slot="B", prereqs={F.monk_T2}, name="调息", desc="明镜止水治疗 +1d4。",
+        effects={{type="modify_skill", skill=80003015, add={bonusHealDice="1d4"}}}},
+    {key="b_monk_flow", classId=3, level=9, slot="B", prereqs={F.monk_T2}, name="心流", desc="明镜止水 CD -1。",
+        effects={{type="modify_skill", skill=80003015, add={cooldownDelta=-1}}}},
+    {key="c_monk_combo_grandmaster", classId=3, level=10, slot="C", prereqs={F.monk_R}, isCapstone=true, name="连环宗师", desc="一回合内连击额外破例触发 1 次（与拳影回响叠加）。",
+        effects={{type="modify_skill", skill=80003101, add={comboReentryOnce=2}}}},
+    {key="c_monk_immovable", classId=3, level=10, slot="C", prereqs={F.monk_T2}, isCapstone=true, name="不动明王", desc="明镜止水改为半场 1 次自动触发，每场 1 次。",
+        effects={{type="modify_skill", skill=80003015, add={autoHalfCharge=1}}}},
+}
+
+-- Rogue 盗贼 (classId=1)
+local rogueTree = {
+    {key="b_rogue_sneak_specialty", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="偷袭专精", desc="伏击额外伤害改为 +1d8。",
+        effects={{type="modify_skill", skill=80001101, add={sneakBonusDice="1d8"}}}},
+    {key="b_rogue_lethal_aim", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="致命准头", desc="基础攻击暴击阈值 -1。",
+        effects={{type="modify_skill", skill=80001011, add={critThresholdDelta=-1}}}},
+    {key="b_rogue_nimble", classId=1, level=4, slot="B", prereqs={F.rogue_R}, name="灵巧", desc="AC +1。",
+        effects={{type="modify_skill", skill=80001101, add={statMods={ac=1}}}}},
+    {key="b_rogue_flank_veteran", classId=1, level=4, slot="B", prereqs={F.rogue_R}, name="夹击老手", desc="伏击触发条件放宽：包含 SLOW 目标。",
+        effects={{type="modify_skill", skill=80001101, add={flankIncludesSlow=true}}}},
+    {key="b_rogue_execute_heavy", classId=1, level=6, slot="B", prereqs={F.rogue_T1}, name="处决重斩", desc="影袭处决伤害 +1d6。",
+        effects={{type="modify_skill", skill=80001013, add={bonusDamageDice="1d6"}}}},
+    {key="b_rogue_pass_thrust", classId=1, level=6, slot="B", prereqs={F.rogue_T1}, name="穿行突刺", desc="影袭处决无视前排。",
+        effects={{type="modify_skill", skill=80001013, add={ignoresFrontRow=true}}}},
+    {key="j_rogue_execute_recharge", classId=1, level=7, slot="J", prereqs={F.rogue_T1}, name="影袭再起", desc="影袭处决 CD -1。",
+        effects={{type="modify_skill", skill=80001013, add={cooldownDelta=-1}}}},
+    {key="j_rogue_bleed", classId=1, level=8, slot="J", prereqs={F.rogue_R}, name="出血", desc="伏击命中后，目标在你下次攻击它时额外 +1d4。",
+        effects={{type="modify_skill", skill=80001101, add={bleedFollowupDice="1d4"}}}},
+    {key="b_rogue_evasion_plus", classId=1, level=7, slot="B", prereqs={F.rogue_T2}, name="闪避加深", desc="直觉闪避也对 AOE 生效。",
+        effects={{type="modify_skill", skill=80001108, add={appliesToAoe=true}}}},
+    {key="b_rogue_intuition_counter", classId=1, level=9, slot="B", prereqs={F.rogue_T2}, name="直觉反击", desc="直觉闪避触发后下次基础攻击视为满足伏击。",
+        effects={{type="modify_skill", skill=80001108, add={grantsSneakNextHit=true}}}},
+    {key="c_rogue_shadow_kill", classId=1, level=10, slot="C", prereqs={F.rogue_R}, isCapstone=true, name="影杀", desc="击杀触发过伏击的目标后，对当前最低血敌人发动 1 次基础攻击（每场 3 次）。",
+        effects={{type="modify_skill", skill=80001101, add={onKillBasicAttackCharges=3}}}},
+    {key="c_rogue_shadow_dance_master", classId=1, level=10, slot="C", prereqs={F.rogue_T1}, isCapstone=true, name="影舞宗师", desc="影袭处决变为对相邻 2 个目标各发动一次半伤基础攻击。",
+        effects={{type="modify_skill", skill=80001013, add={splitAdjacentTargets=2, splitDamageScale=50}}}},
+}
+
+-- Ranger 游侠 (classId=5)
+local rangerTree = {
+    {key="b_ranger_mark_specialty", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记专精", desc="印记额外伤害 +1d4（合计 +2d4）。",
+        effects={{type="modify_skill", skill=80005101, add={markBonusDice="1d4"}}}},
+    {key="b_ranger_precise_shot", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="精准射击", desc="远程基础攻击命中 +1。",
+        effects={{type="modify_skill", skill=80005011, add={bonusHit=1}}}},
+    {key="b_ranger_archery_training", classId=5, level=4, slot="B", prereqs={F.ranger_R}, name="弓术训练", desc="远程基础攻击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80005011, add={bonusDamageDice="1d4"}}}},
+    {key="b_ranger_dual_mark", classId=5, level=4, slot="B", prereqs={F.ranger_R}, name="双印记", desc="同时维持 2 个印记。",
+        effects={{type="modify_skill", skill=80005101, add={markSlotMax=2}}}},
+    {key="b_ranger_lasting_mark", classId=5, level=6, slot="B", prereqs={F.ranger_R}, name="持久印记", desc="印记持续时间 +1 回合。",
+        effects={{type="modify_skill", skill=80005101, add={dotDurationDelta=1}}}},
+    {key="b_ranger_guidance_plus", classId=5, level=6, slot="B", prereqs={F.ranger_T1}, name="指引强化", desc="狩猎指引伤害 +1d6。",
+        effects={{type="modify_skill", skill=80005013, add={bonusDamageDice="1d6"}}}},
+    {key="b_ranger_snare_arrow", classId=5, level=7, slot="B", prereqs={F.ranger_T1}, name="缠绕箭", desc="狩猎指引命中后目标 SLOW 1 回合。",
+        effects={{type="modify_skill", skill=80005013, add={onHitApplySlowDuration=1}}}},
+    {key="j_ranger_mark_burst", classId=5, level=8, slot="J", prereqs={F.ranger_R}, name="印记爆发", desc="印记每回合可兑现 2 次。",
+        effects={{type="modify_skill", skill=80005101, add={markPayoutPerRound=2}}}},
+    {key="b_ranger_arrow_overflow", classId=5, level=7, slot="B", prereqs={F.ranger_T2}, name="箭雨溢出", desc="箭雨射击次数从 4 提升到 5。",
+        effects={{type="modify_skill", skill=80005109, add={chainCountDelta=1}}}},
+    {key="b_ranger_lethal_volley", classId=5, level=9, slot="B", prereqs={F.ranger_T2}, name="致命箭雨", desc="箭雨重复命中时不再减半。",
+        effects={{type="modify_skill", skill=80005109, add={duplicateHitNoHalving=true}}}},
+    {key="j_ranger_storm_volley", classId=5, level=8, slot="J", prereqs={F.ranger_T2}, name="风暴箭幕", desc="箭雨 CD -1。",
+        effects={{type="modify_skill", skill=80005109, add={cooldownDelta=-1}}}},
+    {key="c_ranger_god_eye", classId=5, level=10, slot="C", prereqs={F.ranger_R}, isCapstone=true, name="猎神之眼", desc="对带印记目标 hit +1，伤害 +1d8。",
+        effects={{type="modify_skill", skill=80005011, add={vsMarkBonusHit=1, vsMarkBonusDice="1d8"}}}},
+    {key="c_ranger_thousand_arrows", classId=5, level=10, slot="C", prereqs={F.ranger_T2}, isCapstone=true, name="万箭", desc="箭雨射击次数再 +2。",
+        effects={{type="modify_skill", skill=80005109, add={chainCountDelta=2}}}},
+}
+
+-- Paladin 圣武士 (classId=4)
+local paladinTree = {
+    {key="b_paladin_shelter_plus", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="庇护加深", desc="庇护减伤改为 -1d8。",
+        effects={{type="modify_skill", skill=80004102, add={shelterReduceDice="1d8"}}}},
+    {key="b_paladin_war_cry", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="战吼", desc="战斗开始全队 AC +1 持续 1 回合。",
+        effects={{type="modify_skill", skill=80004102, add={battleStartTeamAcDelta=1}}}},
+    {key="b_paladin_heavy_armor", classId=4, level=4, slot="B", prereqs={F.paladin_R}, name="重甲祷法", desc="自身 AC +1。",
+        effects={{type="modify_skill", skill=80004102, add={statMods={ac=1}}}}},
+    {key="b_paladin_guard_aura", classId=4, level=4, slot="B", prereqs={F.paladin_R}, name="守护灵光", desc="友军每回合首次受到法术伤害 -2。",
+        effects={{type="modify_skill", skill=80004102, add={firstSpellHitReduce=2}}}},
+    {key="b_paladin_break_evil_plus", classId=4, level=6, slot="B", prereqs={F.paladin_T1}, name="破邪重斩", desc="破邪斩伤害 +1d8。",
+        effects={{type="modify_skill", skill=80004014, add={bonusDamageDice="1d8"}}}},
+    {key="b_paladin_holy_mark", classId=4, level=6, slot="B", prereqs={F.paladin_T1}, name="神圣印记", desc="破邪斩命中后目标受到所有伤害 +1 持续 1 回合。",
+        effects={{type="modify_skill", skill=80004014, add={onHitVulnerableDelta=1, onHitVulnerableDuration=1}}}},
+    {key="j_paladin_purify_radiance", classId=4, level=7, slot="J", prereqs={F.paladin_T1}, name="净化光耀", desc="破邪斩 CD -1。",
+        effects={{type="modify_skill", skill=80004014, add={cooldownDelta=-1}}}},
+    {key="b_paladin_lay_on_plus", classId=4, level=7, slot="B", prereqs={F.paladin_T2}, name="圣手扩展", desc="圣手治疗 +1d4。",
+        effects={{type="modify_skill", skill=80004013, add={bonusHealDice="1d4"}}}},
+    {key="b_paladin_lay_on_recharge", classId=4, level=9, slot="B", prereqs={F.paladin_T2}, name="圣域回响", desc="圣手 CD -1。",
+        effects={{type="modify_skill", skill=80004013, add={cooldownDelta=-1}}}},
+    {key="j_paladin_double_shelter", classId=4, level=8, slot="J", prereqs={F.paladin_R}, name="双重庇护", desc="庇护改为 per-unit（每个友军独立 1 次/回合）。",
+        effects={{type="modify_skill", skill=80004102, add={shelterPerUnit=true}}}},
+    {key="c_paladin_radiant_bishop", classId=4, level=10, slot="C", prereqs={F.paladin_T1}, isCapstone=true, name="神光主教", desc="破邪斩转为对 2 个目标各 +1d8 光耀。",
+        effects={{type="modify_skill", skill=80004014, add={splitAdjacentTargets=2, splitBonusDice="1d8"}}}},
+    {key="c_paladin_mercy_knight", classId=4, level=10, slot="C", prereqs={F.paladin_T2}, isCapstone=true, name="慈光圣骑", desc="圣手改为治疗最低血友军 +1d8，并提供 4 点护盾。",
+        effects={{type="modify_skill", skill=80004013, add={bonusHealDice="1d8", postHealShield=4}}}},
+}
+
+-- Cleric 牧师 (classId=6)
+local clericTree = {
+    {key="b_cleric_spark_plus", classId=6, level=2, slot="B", prereqs={F.cleric_R}, name="圣火加深", desc="神圣火花伤害 +1d8。",
+        effects={{type="modify_skill", skill=80006011, add={bonusDamageDice="1d8"}}}},
+    {key="b_cleric_priest_prayer", classId=6, level=2, slot="B", prereqs={F.cleric_R}, name="圣职祷文", desc="治愈之言治疗 +2。",
+        effects={{type="modify_skill", skill=80006012, add={bonusHealFlat=2}}}},
+    {key="b_cleric_shelter_extend", classId=6, level=4, slot="B", prereqs={F.cleric_R}, name="庇护扩展", desc="庇护减伤 +1d4（合计 -1d6-1d4）。",
+        effects={{type="modify_skill", skill=80006103, add={shelterBonusDice="1d4"}}}},
+    {key="b_cleric_spark_buddy", classId=6, level=4, slot="B", prereqs={F.cleric_R}, name="圣火联动", desc="神圣火花命中后，为最低血友军 +1d4 临时生命。",
+        effects={{type="modify_skill", skill=80006011, add={onHitTempHpDice="1d4"}}}},
+    {key="b_cleric_soothing_word", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="抚慰之言", desc="治愈之言再额外 +1d4。",
+        effects={{type="modify_skill", skill=80006012, add={bonusHealDice="1d4"}}}},
+    {key="b_cleric_heal_master", classId=6, level=6, slot="B", prereqs={F.cleric_T1}, name="治疗加深", desc="治愈之言 CD -1。",
+        effects={{type="modify_skill", skill=80006012, add={cooldownDelta=-1}}}},
+    {key="j_cleric_grace", classId=6, level=7, slot="J", prereqs={F.cleric_T1}, name="慈光", desc="治愈之言额外为治疗目标提供 4 点护盾。",
+        effects={{type="modify_skill", skill=80006012, add={postHealShield=4}}}},
+    {key="b_cleric_sanctuary_extend", classId=6, level=7, slot="B", prereqs={F.cleric_T2}, name="圣域延续", desc="圣域祷言持续 +1 回合。",
+        effects={{type="modify_skill", skill=80006015, add={durationDelta=1}}}},
+    {key="b_cleric_sanctuary_recharge", classId=6, level=9, slot="B", prereqs={F.cleric_T2}, name="圣域回响", desc="圣域祷言 CD -1。",
+        effects={{type="modify_skill", skill=80006015, add={cooldownDelta=-1}}}},
+    {key="j_cleric_per_unit_shelter", classId=6, level=8, slot="J", prereqs={F.cleric_R}, name="独立庇护", desc="神恩庇护改为 per-unit。",
+        effects={{type="modify_skill", skill=80006103, add={shelterPerUnit=true}}}},
+    {key="c_cleric_watch_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T2}, isCapstone=true, name="守望主教", desc="圣域祷言期间附加：每回合最低血友军 +1d4 治疗。",
+        effects={{type="modify_skill", skill=80006015, add={tickHealLowestDice="1d4"}}}},
+    {key="c_cleric_mercy_bishop_t", classId=6, level=10, slot="C", prereqs={F.cleric_T1}, isCapstone=true, name="慈恩主教", desc="治愈之言改为治疗 2 名最低血友军。",
+        effects={{type="modify_skill", skill=80006012, add={healLowestCount=2}}}},
+}
+
+-- Sorcerer 术士 (classId=7)
+local sorcererTree = {
+    {key="b_sorcerer_flame_shape", classId=7, level=2, slot="B", prereqs={F.sorcerer_R}, name="烈焰塑形", desc="基础火焰法术发射物 +1。",
+        effects={{type="modify_skill", skill=80007001, add={projectileCountDelta=1}}}},
+    {key="b_sorcerer_spell_amp", classId=7, level=2, slot="B", prereqs={F.sorcerer_R}, name="法术增幅", desc="基础火焰法术伤害 +1d4。",
+        effects={{type="modify_skill", skill=80007001, add={bonusDamageDice="1d4"}}}},
+    {key="b_sorcerer_residual_heat", classId=7, level=4, slot="B", prereqs={F.sorcerer_R}, name="余热", desc="燃烧每跳 +1。",
+        effects={{type="modify_skill", skill=80007002, add={tickBonusFlat=1}}}},
+    {key="b_sorcerer_burn_extend", classId=7, level=4, slot="B", prereqs={F.sorcerer_R}, name="燃烧延续", desc="燃烧持续 +1 回合。",
+        effects={{type="modify_skill", skill=80007002, add={dotDurationDelta=1}}}},
+    {key="b_sorcerer_burst_plus", classId=7, level=6, slot="B", prereqs={F.sorcerer_T1}, name="爆燃强化", desc="灰烬爆燃伤害 +1d6。",
+        effects={{type="modify_skill", skill=80007003, add={bonusDamageDice="1d6"}}}},
+    {key="b_sorcerer_flame_link", classId=7, level=6, slot="B", prereqs={F.sorcerer_T1}, name="火焰链接", desc="灰烬爆燃命中后对相邻溅射 1d6。",
+        effects={{type="modify_skill", skill=80007003, add={splashAdjacentDice="1d6"}}}},
+    {key="j_sorcerer_ember_relight", classId=7, level=8, slot="J", prereqs={F.sorcerer_R}, name="烬火再燃", desc="燃烧目标死亡时引爆 1d6 火焰对相邻目标。",
+        effects={{type="modify_skill", skill=80007002, add={onKillExplodeDice="1d6"}}}},
+    {key="b_sorcerer_storm_climax", classId=7, level=7, slot="B", prereqs={F.sorcerer_T2}, name="烈焰高潮", desc="烈焰风暴伤害 +1d6。",
+        effects={{type="modify_skill", skill=80007004, add={bonusDamageDice="1d6"}}}},
+    {key="b_sorcerer_storm_echo", classId=7, level=9, slot="B", prereqs={F.sorcerer_T2}, name="风暴回响", desc="烈焰风暴 CD -1。",
+        effects={{type="modify_skill", skill=80007004, add={cooldownDelta=-1}}}},
+    {key="j_sorcerer_burn_stack", classId=7, level=7, slot="J", prereqs={F.sorcerer_R, F.sorcerer_T2}, name="灼烧叠层", desc="火焰技能命中已点燃目标时本次 +1d4。",
+        effects={{type="modify_skill", skill=80007001, add={vsBurningBonusDice="1d4"}}}},
+    {key="c_sorcerer_flame_master", classId=7, level=10, slot="C", prereqs={F.sorcerer_T2}, isCapstone=true, name="火潮宗师", desc="烈焰风暴对所有目标的伤害再 +1d4。",
+        effects={{type="modify_skill", skill=80007004, add={bonusDamageDice="1d4"}}}},
+    {key="c_sorcerer_ember_bishop", classId=7, level=10, slot="C", prereqs={F.sorcerer_T1}, isCapstone=true, name="余烬主教", desc="灰烬爆燃 CD -1，对点燃目标暴击阈值 -1。",
+        effects={{type="modify_skill", skill=80007003, add={cooldownDelta=-1, vsBurningCritThresholdDelta=-1}}}},
+}
+
+-- Wizard 法师(冰) (classId=8)
+local wizardTree = {
+    {key="b_wizard_frost_lock", classId=8, level=2, slot="B", prereqs={F.wizard_R}, name="寒霜深锁", desc="霜冻持续 +1 回合。",
+        effects={{type="modify_skill", skill=80008002, add={dotDurationDelta=1}}}},
+    {key="b_wizard_spell_amp", classId=8, level=2, slot="B", prereqs={F.wizard_R}, name="法术增幅", desc="基础冰系法术伤害 +1d4。",
+        effects={{type="modify_skill", skill=80008001, add={bonusDamageDice="1d4"}}}},
+    {key="b_wizard_ice_armor", classId=8, level=4, slot="B", prereqs={F.wizard_R}, name="冰甲", desc="施法后获得 4 点护盾，1 场 3 次。",
+        effects={{type="modify_skill", skill=80008001, add={onCastShield=4, onCastShieldCharges=3}}}},
+    {key="b_wizard_frost_prison", classId=8, level=4, slot="B", prereqs={F.wizard_R}, name="霜牢", desc="对霜冻目标命中额外 +1d6。",
+        effects={{type="modify_skill", skill=80008001, add={vsFrostBonusDice="1d6"}}}},
+    {key="b_wizard_freeze_amp", classId=8, level=6, slot="B", prereqs={F.wizard_T1}, name="冻结增幅", desc="冻结新星伤害 +1d8。",
+        effects={{type="modify_skill", skill=80008003, add={bonusDamageDice="1d8"}}}},
+    {key="b_wizard_cold_expand", classId=8, level=6, slot="B", prereqs={F.wizard_T1}, name="寒域扩张", desc="冻结新星 AOE 半径 +1。",
+        effects={{type="modify_skill", skill=80008003, add={aoeRadiusDelta=1}}}},
+    {key="j_wizard_frost_curse", classId=8, level=7, slot="J", prereqs={F.wizard_T1}, name="霜咒", desc="冻结新星 CD -1。",
+        effects={{type="modify_skill", skill=80008003, add={cooldownDelta=-1}}}},
+    {key="b_wizard_extreme_cold", classId=8, level=7, slot="B", prereqs={F.wizard_T2}, name="极寒暴风", desc="暴风雪伤害 +1d6。",
+        effects={{type="modify_skill", skill=80008004, add={bonusDamageDice="1d6"}}}},
+    {key="b_wizard_storm_recharge", classId=8, level=9, slot="B", prereqs={F.wizard_T2}, name="风暴回返", desc="暴风雪 CD -1。",
+        effects={{type="modify_skill", skill=80008004, add={cooldownDelta=-1}}}},
+    {key="j_wizard_freeze_echo", classId=8, level=8, slot="J", prereqs={F.wizard_T1, F.wizard_T2}, name="冻结回响", desc="冻结新星与暴风雪命中冻结目标时再 +1d4。",
+        effects={{type="modify_skill", skill=80008003, add={vsFrozenBonusDice="1d4"}}, {type="modify_skill", skill=80008004, add={vsFrozenBonusDice="1d4"}}}},
+    {key="c_wizard_frost_master", classId=8, level=10, slot="C", prereqs={F.wizard_R}, isCapstone=true, name="寒霜宗师", desc="对霜冻 / 冻结目标的所有冰系伤害再 +1d6。",
+        effects={{type="modify_skill", skill=80008001, add={vsFrostBonusDice="1d6"}}, {type="modify_skill", skill=80008003, add={vsFrostBonusDice="1d6"}}, {type="modify_skill", skill=80008004, add={vsFrostBonusDice="1d6"}}}},
+    {key="c_wizard_frozen_emperor", classId=8, level=10, slot="C", prereqs={F.wizard_T2}, isCapstone=true, name="冻土帝", desc="暴风雪命中已 FROZEN 目标再延长 FROZEN 1 回合。",
+        effects={{type="modify_skill", skill=80008004, add={vsFrozenExtendDuration=1}}}},
+}
+
+-- Warlock 邪术师(雷) (classId=9)
+local warlockTree = {
+    {key="b_warlock_static_overload", classId=9, level=2, slot="B", prereqs={F.warlock_R}, name="静电过载", desc="印记额外伤害 +1d4。",
+        effects={{type="modify_skill", skill=80009002, add={markBonusDice="1d4"}}}},
+    {key="b_warlock_spell_amp", classId=9, level=2, slot="B", prereqs={F.warlock_R}, name="法术增幅", desc="邪能冲击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80009001, add={bonusDamageDice="1d4"}}}},
+    {key="b_warlock_mark_double", classId=9, level=4, slot="B", prereqs={F.warlock_R}, name="印记加深", desc="每回合可对 2 个目标分别上印记。",
+        effects={{type="modify_skill", skill=80009002, add={markRecastPerRound=2}}}},
+    {key="b_warlock_mark_extend", classId=9, level=4, slot="B", prereqs={F.warlock_R}, name="印记延续", desc="印记持续 +1 回合。",
+        effects={{type="modify_skill", skill=80009002, add={dotDurationDelta=1}}}},
+    {key="b_warlock_chain_extend", classId=9, level=6, slot="B", prereqs={F.warlock_T1}, name="雷链扩展", desc="雷链额外弹射 1 次。",
+        effects={{type="modify_skill", skill=80009003, add={chainCountDelta=1}}}},
+    {key="b_warlock_aftershock", classId=9, level=6, slot="B", prereqs={F.warlock_T1}, name="残响", desc="雷链最后一跳额外 +1d6。",
+        effects={{type="modify_skill", skill=80009003, add={lastHopBonusDice="1d6"}}}},
+    {key="j_warlock_mark_anchor", classId=9, level=7, slot="J", prereqs={F.warlock_R, F.warlock_T1}, name="印记锚定", desc="雷链命中带印记目标后该印记持续 +1 回合。",
+        effects={{type="modify_skill", skill=80009003, add={onHitMarkDurationDelta=1}}}},
+    {key="b_warlock_storm_amp", classId=9, level=7, slot="B", prereqs={F.warlock_T2}, name="雷暴增幅", desc="雷暴伤害 +1d6。",
+        effects={{type="modify_skill", skill=80009004, add={bonusDamageDice="1d6"}}}},
+    {key="b_warlock_storm_recharge", classId=9, level=9, slot="B", prereqs={F.warlock_T2}, name="雷暴回响", desc="雷暴 CD -1。",
+        effects={{type="modify_skill", skill=80009004, add={cooldownDelta=-1}}}},
+    {key="j_warlock_mark_burst", classId=9, level=8, slot="J", prereqs={F.warlock_R}, name="印记爆发", desc="印记每回合可兑现 2 次。",
+        effects={{type="modify_skill", skill=80009002, add={markPayoutPerRound=2}}}},
+    {key="c_warlock_chain_master", classId=9, level=10, slot="C", prereqs={F.warlock_T1}, isCapstone=true, name="雷契宗师", desc="雷链改为最多 4 段弹射且首段 +1d8。",
+        effects={{type="modify_skill", skill=80009003, add={chainCountDelta=1, firstHopBonusDice="1d8"}}}},
+    {key="c_warlock_thousand_thunder", classId=9, level=10, slot="C", prereqs={F.warlock_T2}, isCapstone=true, name="万雷奔流", desc="雷暴每命中带印记目标再随机弹射 1 次半伤雷击。",
+        effects={{type="modify_skill", skill=80009004, add={onMarkHitChainHalf=1}}}},
+}
+
+-- Barbarian 野蛮人 (classId=10)
+local barbarianTree = {
+    {key="b_barbarian_rage_amp", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="怒火加深", desc="狂暴期间伤害再 +1。",
+        effects={{type="modify_skill", skill=80010101, add={rageBonusDamageDelta=1}}}},
+    {key="b_barbarian_steel_skin", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="钢皮", desc="狂暴期间额外 -1 物理伤害。",
+        effects={{type="modify_skill", skill=80010101, add={ragePhysicalReduceDelta=1}}}},
+    {key="b_barbarian_savage_chop", classId=10, level=4, slot="B", prereqs={F.barbarian_R}, name="凶猛劈砍", desc="基础攻击伤害 +1d4。",
+        effects={{type="modify_skill", skill=80010011, add={bonusDamageDice="1d4"}}}},
+    {key="b_barbarian_furious_strike", classId=10, level=4, slot="B", prereqs={F.barbarian_R}, name="怒袭", desc="狂暴期间暴击阈值 -1。",
+        effects={{type="modify_skill", skill=80010011, add={rageCritThresholdDelta=-1}}}},
+    {key="b_barbarian_desperate", classId=10, level=6, slot="B", prereqs={F.barbarian_R}, name="拼命", desc="受击进入狂暴时立即获得 1d6 临时生命，1 场 1 次。",
+        effects={{type="modify_skill", skill=80010101, add={onRageEnterTempHpDice="1d6"}}}},
+    {key="b_barbarian_heavy_master", classId=10, level=6, slot="B", prereqs={F.barbarian_T1}, name="重击精通", desc="重击伤害 +1d6。",
+        effects={{type="modify_skill", skill=80010013, add={bonusDamageDice="1d6"}}}},
+    {key="b_barbarian_heavy_freq", classId=10, level=7, slot="B", prereqs={F.barbarian_T1}, name="重斩频率", desc="重击 CD -1。",
+        effects={{type="modify_skill", skill=80010013, add={cooldownDelta=-1}}}},
+    {key="j_barbarian_quake", classId=10, level=8, slot="J", prereqs={F.barbarian_T1}, name="裂地", desc="重击命中后对相邻目标造成 1d6 溅射。",
+        effects={{type="modify_skill", skill=80010013, add={splashAdjacentDice="1d6"}}}},
+    {key="b_barbarian_rage_extend", classId=10, level=7, slot="B", prereqs={F.barbarian_T2}, name="狂暴持续", desc="狂暴持续时间 +1 回合。",
+        effects={{type="modify_skill", skill=80010101, add={rageDurationDelta=1}}}},
+    {key="b_barbarian_blood_courage", classId=10, level=9, slot="B", prereqs={F.barbarian_T2}, name="鲜血勇气", desc="狂暴期间击杀回 1d6 生命。",
+        effects={{type="modify_skill", skill=80010101, add={onKillHealDice="1d6"}}}},
+    {key="c_barbarian_eternal_rage", classId=10, level=10, slot="C", prereqs={F.barbarian_T2}, isCapstone=true, name="永恒狂怒", desc="狂暴期间所有伤害再 -2。",
+        effects={{type="modify_skill", skill=80010101, add={rageDamageReduceDelta=2}}}},
+    {key="c_barbarian_war_rage", classId=10, level=10, slot="C", prereqs={F.barbarian_T1}, isCapstone=true, name="战神之怒", desc="重击改为对前排 2 个目标。",
+        effects={{type="modify_skill", skill=80010013, add={frontRowSplitTargets=2}}}},
+}
+
+local TreeFeatGroups = { fighterTree, monkTree, rogueTree, rangerTree, paladinTree, clericTree, sorcererTree, wizardTree, warlockTree, barbarianTree }
+do
+    local nextIdxByClass = {}
+    for _, group in ipairs(TreeFeatGroups) do
+        for _, spec in ipairs(group) do
+            local cid = spec.classId
+            nextIdxByClass[cid] = (nextIdxByClass[cid] or 0) + 1
+            defineTreeFeat(nextIdxByClass[cid], spec)
+        end
+    end
+end
 
 local FEATS_BY_CLASS = {}
 for featId, feat in pairs(FEATS) do
