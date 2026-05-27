@@ -413,6 +413,8 @@ local CLEARED_PASS_THROUGH_TYPES = {
     boss = true,
     event = true,
     camp = true,
+    equip = true,
+    empty = true,
 }
 
 ---@param nodeId integer
