@@ -61,6 +61,16 @@ local function findBossNodeId(snapshot)
     return nil
 end
 
+local function collectRevealedNodeIds(snapshot, floorDepth)
+    local result = {}
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if tonumber(node.floor) == tonumber(floorDepth) and node.revealed == true then
+            result[#result + 1] = tonumber(node.id)
+        end
+    end
+    return result
+end
+
 local function resolveNonMapPhase(routeState)
     local snapshot = Run.GetSnapshot()
     if snapshot.phase == "battle" then
@@ -158,6 +168,9 @@ end
 assert(snapshot.phase == "stair", "should open stair phase at hidden entrance")
 assert(snapshot.stairState and snapshot.stairState.isHiddenEntrance == true, "stair should be hidden entrance")
 
+local revealedMainFloorNodes = collectRevealedNodeIds(snapshot, 1)
+assert(#revealedMainFloorNodes > 0, "should have revealed main floor nodes before entering hidden floor")
+
 assert(Run.StairUse() == true, "stair use into hidden floor")
 snapshot = Run.GetSnapshot()
 assert(snapshot.currentFloorDepth == HIDDEN_DEPTH, "should be on hidden floor depth")
@@ -198,6 +211,18 @@ if upStairId then
     snapshot = Run.GetSnapshot()
     assert(snapshot.currentFloorDepth ~= HIDDEN_DEPTH, "should leave hidden floor")
     assert(snapshot.hiddenFloorActive ~= true, "hiddenFloorActive should be false after leaving")
+    for _, nodeId in ipairs(revealedMainFloorNodes) do
+        local matched = false
+        for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+            if tonumber(node.id) == nodeId then
+                matched = true
+                assert(node.revealed == true,
+                    string.format("revealed main-floor node should stay visible after return: %s", tostring(nodeId)))
+                break
+            end
+        end
+        assert(matched == true, string.format("returned snapshot should still contain node %s", tostring(nodeId)))
+    end
 end
 
 print(string.format("[OK] roguelike hidden floor (rooms=%d, double_trinket=true)", roomCount))

@@ -1160,7 +1160,7 @@ function RoguelikeRun.StairUse()
     else
         state.hiddenFloorActive = false
     end
-    state.visitedNodeIds = {}
+    state.visitedNodeIds = state.visitedNodeIds or {}
     state.currentNodeId = state.dungeonState.currentRoomId
     state.visitedNodeIds[state.currentNodeId] = true
     if not enterStairPhase(state.currentNodeId) then
