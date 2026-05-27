@@ -213,9 +213,8 @@ function ClassesTable.GetCanonicalFeatChain(classId, toLevel)
     return result
 end
 
---- 兼容入口：CompileBuild 在没有显式 selection 时使用 canonical 链路。
+--- 判断 classId 是否存在于 classes.json。
 ---@param classId integer
----@param toLevel integer
 ---@return boolean
 function ClassesTable.HasClass(classId)
     return getClassEntry(classId) ~= nil
