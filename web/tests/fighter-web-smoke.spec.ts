@@ -154,12 +154,19 @@ async function waitForGuardInterceptMotion(page: import("playwright/test").Page)
         }
         const attacker = layouts.get(clash.attackerId);
         const interceptor = layouts.get(clash.interceptorId);
-        if (!attacker || !interceptor) {
+        const protectedTarget = layouts.get(clash.interceptedTargetId);
+        if (!attacker || !interceptor || !protectedTarget) {
           continue;
         }
         const attackerShift = Math.hypot(attacker.x - attacker.baseX, attacker.y - attacker.baseY);
-        const interceptorShift = Math.hypot(interceptor.x - interceptor.baseX, interceptor.y - interceptor.baseY);
-        if (attackerShift > 8 && interceptorShift > 8) {
+        const interceptorShiftX = Math.abs(interceptor.x - interceptor.baseX);
+        const interceptorShiftY = Math.abs(interceptor.y - interceptor.baseY);
+        const attackerShiftX = attacker.x - attacker.baseX;
+        const attackerTowardProtectedX = protectedTarget.baseX - attacker.baseX;
+        const attackerTracksProtectedColumn =
+          Math.abs(attackerTowardProtectedX) <= 4 ||
+          (Math.abs(attackerShiftX) > 4 && Math.sign(attackerShiftX) === Math.sign(attackerTowardProtectedX));
+        if (attackerShift > 8 && interceptorShiftX > 8 && interceptorShiftY < 3 && attackerTracksProtectedColumn) {
           return true;
         }
       }

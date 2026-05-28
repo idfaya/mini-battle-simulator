@@ -632,7 +632,17 @@ export class BattleScene {
       const baseDurationMs = Math.max(1, clash.baseDurationMs || clash.durationMs);
       const progress = Math.min(1, elapsed / baseDurationMs);
       const anchorTarget = targets.find((candidate) => candidate.unit.id === clash.anchorTargetId) ?? targets[0];
-      const focus = this.getMeleeFocusPoint(attacker, targets, clash);
+      const interceptedTarget =
+        clash.interceptedTargetId !== undefined
+          ? baseLayouts.find((candidate) => candidate.unit.id === clash.interceptedTargetId) ?? null
+          : null;
+      const movementTarget = interceptedTarget ?? anchorTarget;
+      const focus = interceptedTarget
+        ? {
+            x: movementTarget.baseX + movementTarget.width / 2,
+            y: movementTarget.baseY + movementTarget.height / 2,
+          }
+        : this.getMeleeFocusPoint(attacker, targets, clash);
       const vectorX = focus.x - (attacker.baseX + attacker.width / 2);
       const vectorY = focus.y - (attacker.baseY + attacker.height / 2);
       const distance = Math.max(1, Math.hypot(vectorX, vectorY));
@@ -640,14 +650,14 @@ export class BattleScene {
       const unitY = vectorY / distance;
       const tangentX = -unitY;
       const tangentY = unitX;
-      const attackStart = this.getCardEdgePoint(attacker, anchorTarget);
-      const attackEnd = this.getCardEdgePoint(anchorTarget, attacker);
+      const attackStart = this.getCardEdgePoint(attacker, movementTarget);
+      const attackEnd = this.getCardEdgePoint(movementTarget, attacker);
       const heavyImpactInset = 5;
       const contactDistance = Math.max(
         18,
         Math.hypot(attackEnd.x - attackStart.x, attackEnd.y - attackStart.y) + heavyImpactInset,
       );
-      const splitAdvance = clash.interceptorId ? 0.5 : 1;
+      const splitAdvance = interceptedTarget ? 1 : clash.interceptorId ? 0.5 : 1;
 
       if (layout.unit.id === attacker.unit.id) {
         const travel = this.getMeleeTravelDistanceForClash(clash, elapsed, now, contactDistance);
@@ -657,10 +667,15 @@ export class BattleScene {
       }
       if (clash.interceptorId === layout.unit.id) {
         const travel = this.getMeleeTravelDistanceForClash(clash, elapsed, now, contactDistance);
-        dx -= unitX * travel * 0.5;
-        dy -= unitY * travel * 0.5;
+        const lateralTargetX = movementTarget.baseX + (movementTarget.width - layout.width) / 2;
+        const lateralOffsetX = lateralTargetX - layout.baseX;
+        const lateralProgress = Math.max(0, Math.min(1, travel / Math.max(1, contactDistance)));
+        dx += lateralOffsetX * lateralProgress;
       }
-      if (targets.some((target) => target.unit.id === layout.unit.id)) {
+      const isImpactedTarget = clash.interceptorId
+        ? clash.interceptorId === layout.unit.id
+        : targets.some((target) => target.unit.id === layout.unit.id);
+      if (isImpactedTarget) {
         for (const hitMoment of clash.hitMoments) {
           const hitProgress = this.getHitEnvelope(progress, hitMoment, 0.18);
           if (hitProgress <= 0) {
@@ -1569,7 +1584,6 @@ export class BattleScene {
     }
     clash.interceptorId = guardId;
     clash.interceptedTargetId = originalTargetId;
-    clash.anchorTargetId = guardId;
     clash.targetIds = [guardId];
   }
 
