@@ -75,6 +75,26 @@ export type RunTeamMember = {
   teamState?: "active" | "bench" | "dead";
   skillPackageId?: string;
   buildSummary?: string[];
+  str?: number;
+  dex?: number;
+  con?: number;
+  int?: number;
+  wis?: number;
+  cha?: number;
+  strMod?: number;
+  dexMod?: number;
+  conMod?: number;
+  intMod?: number;
+  wisMod?: number;
+  chaMod?: number;
+  ac?: number;
+  hit?: number;
+  spellAttack?: number;
+  spellDC?: number;
+  saveFort?: number;
+  saveRef?: number;
+  saveWill?: number;
+  weaponDice?: string;
 };
 
 export type EquipmentState = {
@@ -82,6 +102,11 @@ export type EquipmentState = {
   name: string;
   rarity: string;
   code: string;
+  slot?: string;
+  slotLabel?: string;
+  effectType?: string;
+  effectDescription?: string;
+  classScope?: string;
 };
 
 export type BlessingState = {

@@ -6,6 +6,7 @@ local FeatBuildConfig = require("config.tables.feats")
 local ClassBuildProgression = require("config.tables.classes")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RoguelikeTrinket = require("roguelike.trinket")
+local Ability5e = require("modules.ability_5e")
 
 local RoguelikeSnapshot = {}
 -- 注：等级曲线统一来自 config.roguelike.level_curve；本文件不再维护本地阈值表。
@@ -54,6 +55,13 @@ end
 local function serializeTeam(roster)
     local result = {}
     for _, hero in ipairs(roster or {}) do
+        local str = tonumber(hero.str)
+        local dex = tonumber(hero.dex)
+        local con = tonumber(hero.con)
+        local intl = tonumber(hero.int)
+        local wis = tonumber(hero.wis)
+        local cha = tonumber(hero.cha)
+        local weaponDice = ClassBuildProgression.GetWeaponDice(hero.classId)
         result[#result + 1] = {
             rosterId = hero.rosterId,
             unitId = hero.unitId,
@@ -74,15 +82,98 @@ local function serializeTeam(roster)
             ultimateCharges = tonumber(hero.ultimateCharges) or tonumber(hero.ultimateChargesMax) or 1,
             ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1,
             buildSummary = buildFeatSummary(hero),
-            str = tonumber(hero.str),
-            dex = tonumber(hero.dex),
-            con = tonumber(hero.con),
-            int = tonumber(hero.int),
-            wis = tonumber(hero.wis),
-            cha = tonumber(hero.cha),
+            str = str,
+            dex = dex,
+            con = con,
+            int = intl,
+            wis = wis,
+            cha = cha,
+            strMod = str and Ability5e.GetAbilityMod(str) or nil,
+            dexMod = dex and Ability5e.GetAbilityMod(dex) or nil,
+            conMod = con and Ability5e.GetAbilityMod(con) or nil,
+            intMod = intl and Ability5e.GetAbilityMod(intl) or nil,
+            wisMod = wis and Ability5e.GetAbilityMod(wis) or nil,
+            chaMod = cha and Ability5e.GetAbilityMod(cha) or nil,
+            ac = tonumber(hero.ac),
+            hit = tonumber(hero.hit),
+            spellAttack = tonumber(hero.spellAttack),
+            spellDC = tonumber(hero.spellDC),
+            saveFort = tonumber(hero.saveFort),
+            saveRef = tonumber(hero.saveRef),
+            saveWill = tonumber(hero.saveWill),
+            weaponDice = weaponDice,
         }
     end
     return result
+end
+
+local SLOT_LABELS = {
+    weapon = "武器",
+    armor = "护甲",
+    shield = "盾牌",
+    focus = "法器",
+    accessory = "饰品",
+}
+
+local CLASS_LABELS = {
+    [1] = "盗贼",
+    [2] = "战士",
+    [3] = "武僧",
+    [4] = "圣武士",
+    [5] = "游侠",
+    [6] = "牧师",
+    [7] = "法师",
+    [8] = "术士",
+    [9] = "契术士",
+    [10] = "蛮族",
+}
+
+local function describeEquipmentEffect(equipment)
+    local effect = equipment and equipment.effectType
+    local params = equipment and equipment.params or {}
+    local parts = {}
+    local function push(text)
+        if text and text ~= "" then
+            parts[#parts + 1] = text
+        end
+    end
+    if effect == "martial_weapon" or effect == "ranged_weapon" then
+        if params.hitDelta then
+            push(string.format("命中 +%d", tonumber(params.hitDelta) or 0))
+        end
+        if params.weaponDamageBonus then
+            push(string.format("武器伤害 +%d", tonumber(params.weaponDamageBonus) or 0))
+        end
+    elseif effect == "armor_ac" or effect == "shield_ac" then
+        if params.acDelta then
+            push(string.format("AC +%d", tonumber(params.acDelta) or 0))
+        end
+    elseif effect == "spell_focus" or effect == "holy_symbol" then
+        if params.spellDCDelta then
+            push(string.format("法术 DC +%d", tonumber(params.spellDCDelta) or 0))
+        end
+    elseif effect == "saving_throw_charm" then
+        if params.acDelta then
+            push(string.format("AC +%d", tonumber(params.acDelta) or 0))
+        end
+        if params.saveDelta then
+            push(string.format("豁免 +%d", tonumber(params.saveDelta) or 0))
+        end
+    end
+    return table.concat(parts, " · ")
+end
+
+local function describeEquipmentClasses(equipment)
+    local params = equipment and equipment.params or {}
+    local classIds = params.classIds or {}
+    if #classIds == 0 then
+        return ""
+    end
+    local names = {}
+    for _, classId in ipairs(classIds) do
+        names[#names + 1] = CLASS_LABELS[tonumber(classId) or 0] or ("职业" .. tostring(classId))
+    end
+    return table.concat(names, "/")
 end
 
 local function serializeEquipments(equipmentIds)
@@ -94,6 +185,11 @@ local function serializeEquipments(equipmentIds)
             name = equipment and equipment.name or ("装备 " .. tostring(equipmentId)),
             rarity = equipment and equipment.rarity or "common",
             code = equipment and equipment.code or "",
+            slot = equipment and equipment.slot or nil,
+            slotLabel = equipment and SLOT_LABELS[equipment.slot] or nil,
+            effectType = equipment and equipment.effectType or nil,
+            effectDescription = describeEquipmentEffect(equipment),
+            classScope = describeEquipmentClasses(equipment),
         }
     end
     return result

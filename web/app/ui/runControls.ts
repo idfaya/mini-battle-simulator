@@ -1,4 +1,4 @@
-import type { FeatOption, RewardOption, RunSnapshot, RunTeamMember } from "../types/roguelike";
+import type { EquipmentState, FeatOption, RewardOption, RunSnapshot, RunTeamMember } from "../types/roguelike";
 
 type RunHandlers = {
   onChooseNode: (nodeId: number) => void;
@@ -141,7 +141,18 @@ function makeButton(label: string, disabled: boolean, onClick: () => void | Prom
   return button;
 }
 
-function createRosterInfo(member: RunSnapshot["team"][number]) {
+function formatSigned(value: number | undefined | null): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return "-";
+  const v = Math.trunc(value);
+  return v >= 0 ? `+${v}` : `${v}`;
+}
+
+function formatAbility(score: number | undefined, mod: number | undefined): string {
+  if (score === undefined || score === null) return "-";
+  return `${score} (${formatSigned(mod)})`;
+}
+
+function createRosterInfo(member: RunTeamMember) {
   const wrapper = document.createElement("div");
   wrapper.className = "run-roster-info";
 
@@ -157,6 +168,55 @@ function createRosterInfo(member: RunSnapshot["team"][number]) {
     summaryHost.className = "run-build-summary";
     summaryHost.textContent = `构筑: ${summary.join(" / ")}`;
     wrapper.append(summaryHost);
+  }
+
+  // 详细战斗属性卡片
+  const hasCombatStats =
+    member.ac !== undefined ||
+    member.hit !== undefined ||
+    member.spellDC !== undefined ||
+    member.saveFort !== undefined;
+  if (hasCombatStats) {
+    const stats = document.createElement("div");
+    stats.className = "run-roster-stats";
+    const statItems: Array<{ label: string; value: string }> = [
+      { label: "AC", value: member.ac !== undefined ? String(member.ac) : "-" },
+      { label: "命中", value: formatSigned(member.hit) },
+      { label: "法术", value: formatSigned(member.spellAttack) },
+      { label: "法术DC", value: member.spellDC !== undefined ? String(member.spellDC) : "-" },
+      { label: "强韧", value: formatSigned(member.saveFort) },
+      { label: "反射", value: formatSigned(member.saveRef) },
+      { label: "意志", value: formatSigned(member.saveWill) },
+      { label: "武器骰", value: member.weaponDice ?? "-" },
+    ];
+    for (const item of statItems) {
+      const cell = document.createElement("div");
+      cell.className = "run-roster-stat-cell";
+      cell.innerHTML = `<span>${item.label}</span><strong>${item.value}</strong>`;
+      stats.append(cell);
+    }
+    wrapper.append(stats);
+  }
+
+  const hasAbilities = member.str !== undefined;
+  if (hasAbilities) {
+    const abilities = document.createElement("div");
+    abilities.className = "run-roster-abilities";
+    const abilityItems: Array<{ label: string; score?: number; mod?: number }> = [
+      { label: "力量", score: member.str, mod: member.strMod },
+      { label: "敏捷", score: member.dex, mod: member.dexMod },
+      { label: "体质", score: member.con, mod: member.conMod },
+      { label: "智力", score: member.int, mod: member.intMod },
+      { label: "感知", score: member.wis, mod: member.wisMod },
+      { label: "魅力", score: member.cha, mod: member.chaMod },
+    ];
+    for (const item of abilityItems) {
+      const cell = document.createElement("div");
+      cell.className = "run-roster-ability-cell";
+      cell.innerHTML = `<span>${item.label}</span><strong>${formatAbility(item.score, item.mod)}</strong>`;
+      abilities.append(cell);
+    }
+    wrapper.append(abilities);
   }
 
   return wrapper;
@@ -263,6 +323,43 @@ function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
   host.append(section);
 }
 
+function createEquipmentCard(equipment: EquipmentState): HTMLDivElement {
+  const card = document.createElement("div");
+  card.className = `run-equipment-card run-equipment-card--${equipment.rarity ?? "common"}`;
+
+  const header = document.createElement("div");
+  header.className = "run-equipment-card__header";
+
+  const name = document.createElement("div");
+  name.className = "run-equipment-card__name";
+  name.textContent = equipment.name;
+  header.append(name);
+
+  if (equipment.slotLabel) {
+    const slot = document.createElement("div");
+    slot.className = "run-equipment-card__slot";
+    slot.textContent = equipment.slotLabel;
+    header.append(slot);
+  }
+  card.append(header);
+
+  if (equipment.effectDescription && equipment.effectDescription !== "") {
+    const effect = document.createElement("div");
+    effect.className = "run-equipment-card__effect";
+    effect.textContent = equipment.effectDescription;
+    card.append(effect);
+  }
+
+  if (equipment.classScope && equipment.classScope !== "") {
+    const scope = document.createElement("div");
+    scope.className = "run-equipment-card__scope";
+    scope.textContent = `适用: ${equipment.classScope}`;
+    card.append(scope);
+  }
+
+  return card;
+}
+
 function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
@@ -282,6 +379,25 @@ function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     }),
   );
   host.append(team);
+
+  // 装备卡区块（与队伍信息同屏，便于快速核对当前 build 加成）
+  if ((snapshot.equipments?.length ?? 0) > 0) {
+    const equipmentSection = document.createElement("div");
+    equipmentSection.className = "run-equipment-section";
+
+    const equipmentTitle = document.createElement("div");
+    equipmentTitle.className = "panel-title";
+    equipmentTitle.textContent = `装备 (${snapshot.equipments.length})`;
+    equipmentSection.append(equipmentTitle);
+
+    const grid = document.createElement("div");
+    grid.className = "run-equipment-grid";
+    for (const equipment of snapshot.equipments) {
+      grid.append(createEquipmentCard(equipment));
+    }
+    equipmentSection.append(grid);
+    host.append(equipmentSection);
+  }
 
   // 候补编成（仅非战斗/非结算阶段显示）
   if (snapshot.phase === "battle" || snapshot.phase === "failed" || snapshot.phase === "chapter_result") {

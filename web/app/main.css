@@ -430,6 +430,131 @@ body {
   line-height: 1.45;
 }
 
+.run-roster-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.run-roster-stat-cell {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.run-roster-stat-cell span {
+  color: #8aa1bc;
+  font-size: 10px;
+}
+
+.run-roster-stat-cell strong {
+  color: #f8f9fa;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.run-roster-abilities {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(36, 60, 90, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.run-roster-ability-cell {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.run-roster-ability-cell span {
+  color: #8aa1bc;
+  font-size: 10px;
+}
+
+.run-roster-ability-cell strong {
+  color: #f8f9fa;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.run-equipment-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.run-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.run-equipment-card {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.run-equipment-card--common {
+  border-color: rgba(180, 196, 215, 0.45);
+}
+
+.run-equipment-card--rare {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(30, 64, 110, 0.55);
+}
+
+.run-equipment-card--boss {
+  border-color: rgba(244, 162, 97, 0.7);
+  background: rgba(102, 51, 30, 0.55);
+}
+
+.run-equipment-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-equipment-card__name {
+  color: #f8f9fa;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.run-equipment-card__slot {
+  color: #cad6e3;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.run-equipment-card__effect {
+  color: #d1f5d3;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.run-equipment-card__scope {
+  color: #8aa1bc;
+  font-size: 10px;
+}
+
 .run-info-section {
   display: grid;
   gap: 8px;
