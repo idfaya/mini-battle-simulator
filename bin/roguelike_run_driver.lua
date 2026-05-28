@@ -122,7 +122,7 @@ function RoguelikeRunDriver.acceptRewardIfPresent(Run)
     return current
 end
 
-function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs)
+function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs, config)
     tickMs = tickMs or 800
     local snapshot = Run.GetSnapshot()
     for _ = 1, maxSteps or 900 do
@@ -130,7 +130,14 @@ function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs)
         if heroId then
             Run.QueueBattleCommand({ type = "cast_ultimate", heroId = heroId })
         end
-        Run.Tick(tickMs)
+        local events = Run.Tick(tickMs)
+        if config and config.verbose then
+            for _, ev in ipairs(events or {}) do
+                if ev.type == "battle_log" or ev.type == "battle_damage" or ev.type == "battle_heal" then
+                    print(string.format("[Tick] %s", tostring(ev.message or ev.type)))
+                end
+            end
+        end
         snapshot = Run.GetSnapshot()
         if snapshot.phase ~= "battle" then
             return snapshot
@@ -261,11 +268,14 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
                     snapshot = RoguelikeRunDriver.acceptRewardIfPresent(Run)
                 end
             else
-                snapshot = RoguelikeRunDriver.runBattleUntilResolved(Run, config.maxBattleTicks, config.tickMs)
-            end
-            if snapshot.phase == "failed" then
-                report.failed = true
-                break
+                local beforeFloor = snapshot.dungeonState and snapshot.dungeonState.currentFloorDepth
+                local beforeLevel = snapshot.partyLevel
+                snapshot = RoguelikeRunDriver.runBattleUntilResolved(Run, config.maxBattleTicks, config.tickMs, config)
+                if snapshot.phase == "failed" then
+                    if config.verbose then print("WIPED! Floor: " .. tostring(beforeFloor) .. " PartyLevel: " .. tostring(beforeLevel)) end
+                    report.failed = true
+                    break
+                end
             end
             if snapshot.phase == "reward" then
                 snapshot = RoguelikeRunDriver.acceptRewardIfPresent(Run)

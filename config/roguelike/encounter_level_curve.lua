@@ -20,9 +20,6 @@ end
 ---@param floorDepth integer
 ---@return integer
 function M.GetFloorExpLevel(chapterId, floorDepth)
-    if chapterId == 101 then
-        return clampFloorDepth(chapterId, floorDepth)
-    end
     return M.GetFloorCombatLevel(chapterId, floorDepth)
 end
 
@@ -32,15 +29,13 @@ end
 function M.GetFloorCombatLevel(chapterId, floorDepth)
     local depth = clampFloorDepth(chapterId, floorDepth)
 
-    if chapterId == 101 then
-        -- 普通遭遇：楼层深度即怪物等级（F1→1 … F5→5）。
-        return depth
-    end
-
     local chapter = RunChapterConfig.GetChapter(chapterId)
     local target = math.max(2, math.floor(tonumber(chapter and chapter.targetMaxLevel) or 12))
     local floors = math.max(1, math.floor(tonumber(chapter and chapter.floorCount) or 5))
-    local startLevel = math.max(2, math.floor(target * 0.35 + 0.5))
+    local startLevel = math.max(1, math.floor(target * 0.25 + 0.5))
+    if chapterId == 101 then
+        startLevel = 1
+    end
     if floors <= 1 then
         return target
     end
@@ -50,6 +45,19 @@ end
 
 function M.GetFloorBaseline(chapterId, floorDepth)
     return M.GetFloorCombatLevel(chapterId, floorDepth)
+end
+
+function M.GetFloorTotalEnemyLevel(chapterId, floorDepth)
+    local depth = clampFloorDepth(chapterId, floorDepth)
+    -- 第一章：随楼层深度线性增长的总等级
+    -- F1: 4, F2: 6, F3: 8, F4: 10, F5: 12
+    if chapterId == 101 then
+        return 2 + depth * 2
+    end
+    -- 其他章节按默认缩放
+    local chapter = RunChapterConfig.GetChapter(chapterId)
+    local target = math.max(2, math.floor(tonumber(chapter and chapter.targetMaxLevel) or 12))
+    return depth * math.max(2, math.floor(target / 2))
 end
 
 ---@class EncounterLevelResolveOptions
@@ -70,12 +78,6 @@ function M.ResolveEnemyLevel(opts)
     local battleKind = opts.battleKind or "normal"
 
     local floorBaseline = M.GetFloorCombatLevel(chapterId, floorDepth)
-
-    -- 第一章普通战：默认按楼层 1–5，但当玩家因「跳层」（路径上没有战斗节点）partyLevel
-    -- 落后于 floorBaseline 时，怪物等级最多领先 partyLevel 1 级，避免直接团灭。
-    if chapterId == 101 and (battleKind == "normal" or battleKind == "event_battle") then
-        return math.max(1, math.min(floorBaseline, partyLevel + 1))
-    end
 
     local baseLevel = math.max(profileLevel, floorBaseline)
 

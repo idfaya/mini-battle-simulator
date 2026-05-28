@@ -255,10 +255,10 @@ local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
     )
     local gap = (report.targetAdjustedXp > 0) and (report.targetAdjustedXp / math.max(1, report.adjustedXp)) or 1.0
     return {
-        hpMul = clamp(1.00 + (gap - 1.0) * 0.06, 0.90, 1.25),
-        hitDelta = roundInt(clamp((gap - 1.0) * 0.45, -1, 2)),
-        spellDCDelta = roundInt(clamp((gap - 1.0) * 0.35, -1, 2)),
-        saveDelta = roundInt(clamp((gap - 1.0) * 0.25, -1, 1)),
+        hpMul = 1.0,
+        hitDelta = 0,
+        spellDCDelta = 0,
+        saveDelta = 0,
         report = report,
     }
 end
@@ -352,7 +352,7 @@ local function pickInitialEnemyIds(battle)
     return enemyIds
 end
 
-local function buildReserveEnemies(battle, level, budgetAdjust)
+local function buildReserveEnemies(battle, levelProvider, budgetAdjust)
     local reserve = {}
     if not battle then
         return reserve
@@ -362,7 +362,7 @@ local function buildReserveEnemies(battle, level, budgetAdjust)
         local groupEnemyIds = {}
         appendEnemyGroupIds(groupEnemyIds, waveGroupIds[waveIndex])
         for _, enemyId in ipairs(groupEnemyIds) do
-            local enemyData = buildEnemyForBattle(enemyId, level, 0, budgetAdjust)
+            local enemyData = buildEnemyForBattle(enemyId, levelProvider(), 0, budgetAdjust)
             if enemyData then
                 enemyData.wpType = 0
                 reserve[#reserve + 1] = enemyData
@@ -438,23 +438,41 @@ local function buildBattleConfig(runState, battle, battleProfile)
     local partyLevel = effectivePartyLevel
     local battleKind = battleProfile and battleProfile.kind or battle.kind
     local floorDepth = tonumber(runState.dungeonState and runState.dungeonState.currentFloorDepth) or 1
-    local effectiveEnemyLevel = EncounterLevelCurve.ResolveEnemyLevel({
-        chapterId = tonumber(runState.chapterId) or 101,
-        floorDepth = floorDepth,
-        battleKind = battleKind,
-        profileLevel = tonumber(battleProfile and battleProfile.level) or partyLevel,
-        partyLevel = partyLevel,
-    })
+    
+    local totalLevel = EncounterLevelCurve.GetFloorTotalEnemyLevel(tonumber(runState.chapterId) or 101, floorDepth)
+    if battleKind == "elite" then
+        totalLevel = totalLevel + math.max(2, math.floor(totalLevel * 0.5))
+    elseif battleKind == "boss" then
+        totalLevel = totalLevel + math.max(4, math.floor(totalLevel * 1.0))
+    end
+    
+    local allEnemyIds = flattenBattleEnemyIds(battle)
+    local totalCount = math.max(1, #allEnemyIds)
+    
+    local baseLevel = math.max(1, math.floor(totalLevel / totalCount))
+    local extraLevels = totalLevel - (baseLevel * totalCount)
+    if extraLevels < 0 then extraLevels = 0 end
+    
+    local function getNextEnemyLevel()
+        local lvl = baseLevel
+        if extraLevels > 0 then
+            lvl = lvl + 1
+            extraLevels = extraLevels - 1
+        end
+        return lvl
+    end
+
+    local effectiveEnemyLevel = baseLevel
+
     if os.getenv("BATTLE_DIAG") then
-        print(string.format("[BATTLE_DIAG] kind=%s baseLevel=%s partyLevel=%s effEnemyLv=%s hpMul=%.2f hitDelta=%d",
-            tostring(battleKind), tostring(baseLevel), tostring(partyLevel), tostring(effectiveEnemyLevel),
-            budgetAdjust.hpMul or 1.0, budgetAdjust.hitDelta or 0))
+        print(string.format("[BATTLE_DIAG] kind=%s partyLevel=%s totalLv=%d count=%d baseLv=%d hpMul=%.2f",
+            tostring(battleKind), tostring(partyLevel), totalLevel, totalCount, baseLevel, budgetAdjust.hpMul or 1.0))
     end
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
     for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, effectiveEnemyLevel, wpType, budgetAdjust)
+        local enemyData = buildEnemyForBattle(enemyId, getNextEnemyLevel(), wpType, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end
@@ -470,7 +488,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
-        enemyReserve = buildReserveEnemies(battle, effectiveEnemyLevel, budgetAdjust),
+        enemyReserve = buildReserveEnemies(battle, getNextEnemyLevel, budgetAdjust),
         refreshTurns = tonumber(battle and battle.refreshTurns) or 0,
         refreshOnClear = battle and battle.refreshOnClear == true,
         spawnOrder = battle and battle.spawnOrder or nil,

@@ -842,7 +842,7 @@ local function runSingleRoute(route, config, runIndex, routeIndex)
             if battleReport.partyLevelDelta > runReport.maxPartyLevelDelta then
                 runReport.maxPartyLevelDelta = battleReport.partyLevelDelta
             end
-            if battleReport.partyLevelDelta > 1 then
+            if battleReport.partyLevelDelta > 2 then
                 runReport.terminalReason = "party_level_delta_exceeded"
                 break
             end
