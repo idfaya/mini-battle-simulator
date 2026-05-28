@@ -164,7 +164,7 @@
 | Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 用 `max(战斗等级, GetFloorExpLevel)`；**不读**模板 `expReward` |
 
-- 第一章 `run_chapter_config` `targetMaxLevel = 8`（与低怪等级下实测节奏一致，非 Boss 前 Lv12）。
+- 第一章 `run_chapter_config` `targetMaxLevel = 8` 仅定义常规战斗节奏；Boss 本体在 `roguelike_battle_bridge.lua` 单独抬档，口径为“总等级预算分配出的最高单体等级 +2”。
 - 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua`，勿在 `run_battle_template.expReward` 手填。
 
 ### 5.2 房间一次性（dungeon §4.2）

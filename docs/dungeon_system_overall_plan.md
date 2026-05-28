@@ -197,7 +197,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 ### 3.1.5 Stage D1.5 — 升级速度 + 数值平衡（✅ 已落地）
 
-> **状态（2026-05）**：5e 队伍 EXP 与第一章怪物 1–5 已接入；`bin/test_roguelike_progression_pacing.lua` 断言 101 章终局约 Lv4–Lv8。
+> **状态（2026-05）**：5e 队伍 EXP 与第一章怪物 1–5 已接入；`bin/test_roguelike_progression_pacing.lua` 当前断言 101 章终局约 Lv10–Lv18，Boss 本体按总等级预算中的最高单体等级再抬 2 级。
 
 #### 配置层（当前 SSOT）
 
@@ -208,7 +208,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 | [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 101 普通 F1–F5 = Lv1–Lv5；101 精英/Boss `kindOffset` 0/1 |
 | [`run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✅ | 101 压强下调（普通 ~0.10、Boss 0.16） |
 | [`level_curve.lua`](../../config/roguelike/level_curve.lua) | ✅ | 转发 `exp_5e` |
-| [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` |
+| [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` 仅定义常规节奏，Boss 单体额外等级由战斗桥接按总等级预算抬档 |
 | [`run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) | 遗留 | `expReward` 字段**运行时不用**；勿再据此调节奏 |
 
 #### 测试
@@ -217,7 +217,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 | --- | --- | --- |
 | [`bin/test_roguelike_ch101_reach.lua`](../../bin/test_roguelike_ch101_reach.lua) | ✅ | seeds 1..30 Boss **触达** ≥60%；`ch101_reach` 推图 |
 | [`bin/roguelike_run_driver.lua`](../../bin/roguelike_run_driver.lua) | ✅ | act1 / ch101 共用自动推进（大招、领奖链） |
-| [`bin/test_roguelike_progression_pacing.lua`](../../bin/test_roguelike_progression_pacing.lua) | ✅ | 101 模拟终局 Lv4–Lv8；5e 阈值递增 |
+| [`bin/test_roguelike_progression_pacing.lua`](../../bin/test_roguelike_progression_pacing.lua) | ✅ | 101 模拟终局 Lv10–Lv18；5e 阈值递增 |
 | [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) | ✅ | FeatPicker 与 5e 阈值 |
 | [`bin/test_party_exp_levelup.lua`](../../bin/test_party_exp_levelup.lua) | ✅ | 战斗 → `partyExp` → reward 链 |
 | [`bin/test_roguelike_room_one_shot.lua`](../../bin/test_roguelike_room_one_shot.lua) | ✅ | cleared 战斗/事件不重触发 |

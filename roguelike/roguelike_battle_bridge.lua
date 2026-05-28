@@ -362,7 +362,7 @@ local function buildReserveEnemies(battle, levelProvider, budgetAdjust)
         local groupEnemyIds = {}
         appendEnemyGroupIds(groupEnemyIds, waveGroupIds[waveIndex])
         for _, enemyId in ipairs(groupEnemyIds) do
-            local enemyData = buildEnemyForBattle(enemyId, levelProvider(), 0, budgetAdjust)
+            local enemyData = buildEnemyForBattle(enemyId, levelProvider(enemyId), 0, budgetAdjust)
             if enemyData then
                 enemyData.wpType = 0
                 reserve[#reserve + 1] = enemyData
@@ -460,6 +460,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
     if baseLevel < 1 then baseLevel = 1 end
     local extraLevels = totalLevel - (baseLevel * totalCount)
     if extraLevels < 0 then extraLevels = 0 end
+    local highestBudgetEnemyLevel = baseLevel + (extraLevels > 0 and 1 or 0)
     
     local function getNextEnemyLevel()
         local lvl = baseLevel
@@ -468,6 +469,16 @@ local function buildBattleConfig(runState, battle, battleProfile)
             extraLevels = extraLevels - 1
         end
         return lvl
+    end
+
+    local bossId = resolveBattleBossId(battle)
+    local function resolveSpawnEnemyLevel(enemyId)
+        local level = getNextEnemyLevel()
+        if battleKind == "boss" and bossId and tonumber(enemyId) == bossId then
+            -- Boss 本体按总等级分配出的最高单体等级再抬 2 级。
+            level = math.max(level, highestBudgetEnemyLevel + 2)
+        end
+        return math.max(1, level)
     end
 
     local effectiveEnemyLevel = baseLevel
@@ -480,7 +491,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
     local openingEnemyIds = pickInitialEnemyIds(battle)
     for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, getNextEnemyLevel(), wpType, budgetAdjust)
+        local enemyData = buildEnemyForBattle(enemyId, resolveSpawnEnemyLevel(enemyId), wpType, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end
@@ -496,13 +507,13 @@ local function buildBattleConfig(runState, battle, battleProfile)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
-        enemyReserve = buildReserveEnemies(battle, getNextEnemyLevel, budgetAdjust),
+        enemyReserve = buildReserveEnemies(battle, resolveSpawnEnemyLevel, budgetAdjust),
         refreshTurns = tonumber(battle and battle.refreshTurns) or 0,
         refreshOnClear = battle and battle.refreshOnClear == true,
         spawnOrder = battle and battle.spawnOrder or nil,
         winRule = battle and battle.winRule or nil,
         loseRule = battle and battle.loseRule or nil,
-        bossId = resolveBattleBossId(battle),
+        bossId = bossId,
         seedArray = buildDeterministicSeedArray(runState, battleProfile or battle),
         initialEnergy = (battleProfile and battleProfile.initialEnergy) or 40,
         disableDefaultRenderer = true,
