@@ -204,6 +204,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         stairState = runState.stairState,
         rewardState = runState.rewardState,
         lastBattleSummary = runState.lastBattleSummary,
+        currentBattleId = runState.currentBattleId,
         battleSnapshot = battleSnapshot,
         currentBattleBudget = runState.currentBattleBudget,
         chapterResult = runState.chapterResult,

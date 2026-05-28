@@ -133,8 +133,10 @@ function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs, config
         local events = Run.Tick(tickMs)
         if config and config.verbose then
             for _, ev in ipairs(events or {}) do
-                if ev.type == "battle_log" or ev.type == "battle_damage" or ev.type == "battle_heal" then
-                    print(string.format("[Tick] %s", tostring(ev.message or ev.type)))
+                if ev.type == "battle_end" then
+                    print(string.format("[Tick] Battle Ended. win=%s rounds=%s", tostring(ev.win), tostring(ev.rounds)))
+                elseif ev.type == "team_wipe" then
+                    print("[Tick] TEAM WIPE DETECTED!")
                 end
             end
         end
@@ -268,11 +270,14 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
                     snapshot = RoguelikeRunDriver.acceptRewardIfPresent(Run)
                 end
             else
-                local beforeFloor = snapshot.dungeonState and snapshot.dungeonState.currentFloorDepth
+                local beforeFloor = snapshot.currentFloorDepth
                 local beforeLevel = snapshot.partyLevel
+                local battleId = snapshot.currentBattleId or "unknown"
+                if config.verbose then print(string.format("Entering Battle: Floor %s, PartyLv %s, BattleId %s", tostring(beforeFloor), tostring(beforeLevel), tostring(battleId))) end
                 snapshot = RoguelikeRunDriver.runBattleUntilResolved(Run, config.maxBattleTicks, config.tickMs, config)
                 if snapshot.phase == "failed" then
-                    if config.verbose then print("WIPED! Floor: " .. tostring(beforeFloor) .. " PartyLevel: " .. tostring(beforeLevel)) end
+                    local failFloor = snapshot.currentFloorDepth or beforeFloor
+                    if config.verbose then print(string.format("WIPED! Floor: %s PartyLevel: %s BattleId: %s lastPhase: %s", tostring(failFloor), tostring(beforeLevel), tostring(battleId), tostring(snapshot.phase))) end
                     report.failed = true
                     break
                 end

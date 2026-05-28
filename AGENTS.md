@@ -94,6 +94,7 @@ When changing skill behavior:
 - **减少权限请求**：尽量收敛需要用户授权的操作；可以合并的命令合并执行，能用专用工具（Read/Edit/Write/Grep/Glob）完成的不要走 RunCommand。
 - **危险操作后置**：删除文件、`git reset`、清理目录、覆盖式重写等高风险动作尽量延后到开发末尾统一处理，并在执行前明确告知影响范围；开发过程中优先用「新增 / 修改 / 标记废弃」的方式推进，避免因中途删除阻断流程。
 - **大功能必跑 Playwright**：任何大功能（新系统、跨模块改动、SSOT/数值结构调整等）完成后必须跑 `cd web && npm run export:lua && npm run test:playwright` 做端到端回归，**只跑 `bin/` 下的 Lua 脚本不算验收完成**。
+- **提交节奏**：开发完成后**不要自动 commit**，先汇报结果等待用户确认；用户确认后再执行 `git commit`，commit 完成后**自动执行 `git push`**，无需再次询问。
 
 ## Quick Commands
 

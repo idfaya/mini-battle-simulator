@@ -50,9 +50,9 @@ end
 function M.GetFloorTotalEnemyLevel(chapterId, floorDepth)
     local depth = clampFloorDepth(chapterId, floorDepth)
     -- 第一章：随楼层深度线性增长的总等级
-    -- F1: 4, F2: 6, F3: 8, F4: 10, F5: 12
+    -- F1: 4, F2: 5, F3: 7, F4: 8, F5: 10
     if chapterId == 101 then
-        return 2 + depth * 2
+        return math.floor(2.5 + depth * 1.5)
     end
     -- 其他章节按默认缩放
     local chapter = RunChapterConfig.GetChapter(chapterId)

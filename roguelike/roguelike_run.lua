@@ -843,7 +843,7 @@ end
 function RoguelikeRun.GetSnapshot()
     local battleSnapshot = nil
     if state.phase == "battle" then
-        battleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+        battleSnapshot = cachedBattleSnapshot or RoguelikeBattleBridge.GetSnapshot()
     end
     return RoguelikeSnapshot.Build(state, battleSnapshot)
 end

@@ -436,20 +436,28 @@ local function buildBattleConfig(runState, battle, battleProfile)
     -- Battle profiles still define "intended" pacing (battleProfile.level), but we cap how far
     -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
     local partyLevel = effectivePartyLevel
-    local battleKind = battleProfile and battleProfile.kind or battle.kind
+    local battleKind = (battleProfile and battleProfile.kind) or (battle and battle.kind)
     local floorDepth = tonumber(runState.dungeonState and runState.dungeonState.currentFloorDepth) or 1
     
     local totalLevel = EncounterLevelCurve.GetFloorTotalEnemyLevel(tonumber(runState.chapterId) or 101, floorDepth)
     if battleKind == "elite" then
-        totalLevel = totalLevel + math.max(2, math.floor(totalLevel * 0.5))
+        totalLevel = totalLevel + math.max(1, math.floor(totalLevel * 0.3))
     elseif battleKind == "boss" then
-        totalLevel = totalLevel + math.max(4, math.floor(totalLevel * 1.0))
+        totalLevel = totalLevel + math.max(2, math.floor(totalLevel * 0.6))
+    end
+    
+    -- Limit the enemy budget based on current party level to prevent massive spikes
+    -- But also ensure a minimum challenge
+    local maxReasonableTotalLevel = partyLevel * 4 + (battleKind == "elite" and 4 or (battleKind == "boss" and 8 or 2))
+    if totalLevel > maxReasonableTotalLevel then
+        totalLevel = maxReasonableTotalLevel
     end
     
     local allEnemyIds = flattenBattleEnemyIds(battle)
     local totalCount = math.max(1, #allEnemyIds)
     
-    local baseLevel = math.max(1, math.floor(totalLevel / totalCount))
+    local baseLevel = math.floor(totalLevel / totalCount)
+    if baseLevel < 1 then baseLevel = 1 end
     local extraLevels = totalLevel - (baseLevel * totalCount)
     if extraLevels < 0 then extraLevels = 0 end
     
@@ -465,8 +473,8 @@ local function buildBattleConfig(runState, battle, battleProfile)
     local effectiveEnemyLevel = baseLevel
 
     if os.getenv("BATTLE_DIAG") then
-        print(string.format("[BATTLE_DIAG] kind=%s partyLevel=%s totalLv=%d count=%d baseLv=%d hpMul=%.2f",
-            tostring(battleKind), tostring(partyLevel), totalLevel, totalCount, baseLevel, budgetAdjust.hpMul or 1.0))
+        print(string.format("[BATTLE_DIAG] floor=%s kind=%s partyLevel=%s effPartyLevel=%s totalLv=%d count=%d baseLv=%d",
+            tostring(floorDepth), tostring(battleKind), tostring(runState.partyLevel), tostring(partyLevel), totalLevel, totalCount, baseLevel))
     end
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
