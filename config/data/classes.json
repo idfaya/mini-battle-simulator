@@ -28,7 +28,7 @@
     "role": {"name": "圣武士", "icon": "✨", "streamId": "Paladin", "isMelee": true, "preferRow": "front"},
     "weapon": {"weaponDice": "1d6"},
     "rhythm": {"physicalDiceScale": 1, "healScale": 1},
-    "lv1FeatIds": [2120101, 2120102, 2120201],
+    "lv1FeatIds": [2120101, 2120201],
     "treePool": [2120302, 2120301, 2304001, 2304002, 2304003, 2304004, 2304005, 2304006, 2304007, 2304008, 2304009, 2304010, 2304011, 2304012]
   },
   {
