@@ -106,17 +106,12 @@ local function applySneakAttack(hero, target, condition)
     if not isAlive(hero) or not isAlive(target) or not condition or not condition.qualified then
         return 0
     end
-    local runtime = ensureRuntime(hero)
     local diceExpr = hasSkill(hero, IDS.rogue_sneak_attack_mastery) and "2d6" or "1d6"
     if hasSkill(hero, IDS.rogue_executioner) then
         diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
     end
     if condition.viaFlank and hasSkill(hero, IDS.rogue_flanking_expert) then
         diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    if runtime.rogueShadowDancePending == true and hasSkill(hero, IDS.rogue_shadow_dancer) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "2d6")
-        runtime.rogueShadowDancePending = false
     end
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
         kind = "physical",
@@ -268,26 +263,12 @@ function RogueBuildPassives.CreateSneakAttackPassive(context)
             return
         end
         local runtime = ensureRuntime(hero)
-        local round = getRound()
         local condition = evaluateSneakCondition(hero, target)
-        local didSneak = false
         if (tonumber(extraParam.damageDealt) or 0) > 0 and condition.qualified then
-            didSneak = applySneakAttack(hero, target, condition) > 0
+            applySneakAttack(hero, target, condition)
         end
         if condition.viaForced then
             consumeForcedSneak(runtime)
-        end
-        if runtime.rogueFirstBasicAttackRound ~= round then
-            runtime.rogueFirstBasicAttackRound = round
-            if hasSkill(hero, IDS.rogue_shadow_dancer) then
-                runtime.rogueShadowDancePending = not didSneak
-                if runtime.rogueShadowDancePending then
-                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发影舞者：本回合下一次满足条件的偷袭额外造成 2d6 伤害",
-                        hero.name or "Unknown"))
-                end
-            end
-        elseif didSneak then
-            runtime.rogueShadowDancePending = false
         end
     end
 
@@ -361,12 +342,6 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
         runtime.rogueUncannyRound = round
         extraParam.damage = math.max(0, math.floor(damage * 0.5))
         BuildPassiveCommon.PublishPassiveTriggered(hero, "直觉闪避", "首次受击减半", string.format("%d -> %d", damage, extraParam.damage))
-        if hasSkill(hero, IDS.rogue_survivor) then
-            runtime.rogueForcedSneakCharges = (tonumber(runtime.rogueForcedSneakCharges) or 0) + 1
-            runtime.rogueForcedSneakLabel = "生还者"
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发生还者：下一次基础武器攻击视为满足偷袭条件",
-                hero.name or "Unknown"))
-        end
     end
 
     return self

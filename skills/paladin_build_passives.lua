@@ -8,7 +8,6 @@ local IDS = SkillRuntimeConfig.Ids
 local POISON_BUFF_SUBTYPE = 850001
 local BURN_BUFF_SUBTYPE = 870001
 local GUARDIAN_AURA_BUFF_ID = 890008
-local SANCTUARY_KNIGHT_BUFF_ID = 890009
 local SHELTER_PRAYER_BUFF_ID = 890012
 local HEAVY_ARMOR_PRAYER_BUFF_ID = 890013
 
@@ -83,9 +82,7 @@ local function clearTurnStates(hero)
     local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
     runtime.guardianAuraActive = false
-    runtime.sanctuaryKnightActive = false
     BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARDIAN_AURA_BUFF_ID, hero, 1)
-    BattleBuff.DelBuffByBuffIdAndCaster(hero, SANCTUARY_KNIGHT_BUFF_ID, hero, 1)
 end
 
 function PaladinBuildPassives.AugmentBasicAttackResolveOpts(hero, target, opts, runtime)
@@ -308,29 +305,6 @@ function PaladinBuildPassives.CreateExtraAttackPassive(context)
     return BuildPassiveCommon.CreateExtraAttackPassive(context, {
         basicAttackSkillId = IDS.paladin_basic_attack,
         tokenKey = "paladinExtraAttackToken",
-        onPrimaryHit = function(hero, target, runtime)
-            if hasSkill(hero, IDS.paladin_execution_knight) then
-                runtime.pendingBasicAttackBonusDice = BuildPassiveCommon.JoinDiceParts(runtime.pendingBasicAttackBonusDice, "1d8")
-            end
-            if hasSkill(hero, IDS.paladin_merciful_knight) then
-                local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero
-                local heal = BuildPassiveCommon.RollDice("1d6")
-                BuildPassiveCommon.ApplyHeal(ally, heal)
-                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发慈光圣骑：为 %s 回复 %d 生命",
-                    hero.name or "Unknown",
-                    ally and ally.name or "目标",
-                    heal))
-            end
-            if hasSkill(hero, IDS.paladin_sanctuary_knight) then
-                local BattleSkill = require("modules.battle_skill")
-                runtime.sanctuaryKnightActive = true
-                BattleSkill.ApplyBuffFromSkill(hero, hero, SANCTUARY_KNIGHT_BUFF_ID, nil, {
-                    duration = 1,
-                })
-                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发圣域圣骑：我方前排直到下回合开始 AC +1",
-                    hero.name or "Unknown"))
-            end
-        end,
     })
 end
 

@@ -97,13 +97,6 @@ local function triggerMartialArts(hero, target, opts)
             hero.name or "Unknown",
             target.name or "目标",
             damage))
-        if hasSkill(hero, IDS.monk_purity_mastery) then
-            local heal = BuildPassiveCommon.RollDice("1d6")
-            BuildPassiveCommon.ApplyHeal(hero, heal)
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发无垢宗师：回复 %d 生命",
-                hero.name or "Unknown",
-                heal))
-        end
     end
     return damage
 end
@@ -254,19 +247,6 @@ function MonkBuildPassives.CreateExtraAttackPassive(context)
     return BuildPassiveCommon.CreateExtraAttackPassive(context, {
         basicAttackSkillId = IDS.monk_basic_attack,
         tokenKey = "monkExtraAttackToken",
-        onPrimaryHit = function(hero, target)
-            if hasSkill(hero, IDS.monk_combo_mastery_capstone) then
-                local bonus = triggerMartialArts(hero, target, { force = true })
-                if bonus > 0 then
-                    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发连拳宗师：对 %s 追加 1 次武艺打击",
-                        hero.name or "Unknown",
-                        target.name or "目标"))
-                end
-            end
-            if hasSkill(hero, IDS.monk_disruption_mastery) then
-                tryApplyStun(hero, target, "截脉宗师")
-            end
-        end,
     })
 end
 

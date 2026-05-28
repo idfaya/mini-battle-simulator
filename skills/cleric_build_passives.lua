@@ -7,7 +7,6 @@ local ClericBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
 local SANCTUARY_BUFF_ID = 890006
-local WATCH_BISHOP_BUFF_ID = 890007
 local SHELTER_PRAYER_BUFF_ID = 890011
 
 local function isAlive(unit)
@@ -84,29 +83,6 @@ local function didSpellConnect(damageResult)
     return (tonumber(damageResult.damage) or 0) > 0
 end
 
-local function pickLowestHpAllies(hero, count)
-    local BattleFormation = require("modules.battle_formation")
-    local allies = {}
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
-        if isAlive(ally) then
-            allies[#allies + 1] = ally
-        end
-    end
-    table.sort(allies, function(a, b)
-        local ratioA = math.max(0, tonumber(a.hp) or 0) / math.max(1, tonumber(a.maxHp) or 1)
-        local ratioB = math.max(0, tonumber(b.hp) or 0) / math.max(1, tonumber(b.maxHp) or 1)
-        if ratioA == ratioB then
-            return (tonumber(a.instanceId or a.id) or 0) < (tonumber(b.instanceId or b.id) or 0)
-        end
-        return ratioA < ratioB
-    end)
-    local result = {}
-    for i = 1, math.min(math.max(1, tonumber(count) or 1), #allies) do
-        result[#result + 1] = allies[i]
-    end
-    return result
-end
-
 local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, sourceSkillName)
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -120,15 +96,6 @@ local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, s
     end
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    if hasSkill(hero, IDS.cleric_mercy_bishop) and runtime.clericMercyHealRound ~= round then
-        runtime.clericMercyHealRound = round
-        local mercy = BattleSkill.CalculateHealDice(hero, ally, "1d6")
-        healAmount = healAmount + mercy
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发慈恩主教：对 %s 额外回复 %d 生命",
-            hero.name or "Unknown",
-            ally.name or "目标",
-            mercy))
-    end
     BattleDmgHeal.ApplyHeal(ally, healAmount, hero)
     BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：为 %s 回复 %d 生命",
         hero.name or "Unknown",
@@ -182,18 +149,6 @@ local function applyBasicSpellPostHit(hero, target)
     end
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    if runtime.clericBlessedRound ~= round then
-        runtime.clericBlessedRound = round
-        if hasSkill(hero, IDS.cleric_dawn_bishop) then
-            total = total + applyRadiantBonus(hero, target, "1d8", IDS.cleric_dawn_bishop, "圣焰主教", "Blessed Strikes")
-        end
-        if hasSkill(hero, IDS.cleric_watch_bishop) then
-            runtime.clericWatchBishopExpireRound = round + 1
-            syncTimedBuff(hero, WATCH_BISHOP_BUFF_ID, runtime.clericWatchBishopExpireRound)
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发守望主教：前排友军 AC +1 持续到下回合开始",
-                hero.name or "Unknown"))
-        end
-    end
     return total
 end
 
@@ -298,34 +253,6 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
     return amount, ally
 end
 
-function ClericBuildPassives.PerformLifePrayer(hero, skill)
-    if not isAlive(hero) then
-        return 0, {}
-    end
-    local total = 0
-    local healedTargets = {}
-    for _, ally in ipairs(pickLowestHpAllies(hero, 2)) do
-        total = total + applyHealAmount(hero, ally, "1d8", 4, skill and skill.skillId or IDS.cleric_life_prayer, skill and skill.name or "群愈祷言")
-        healedTargets[#healedTargets + 1] = ally
-    end
-    return total, healedTargets
-end
-
-function ClericBuildPassives.PerformHolyVerdict(hero, target, skill)
-    if not isAlive(hero) or not isAlive(target) then
-        return 0
-    end
-    local BattleSkill = require("modules.battle_skill")
-    local runtime = ensureRuntime(hero)
-    runtime.clericBasicSpellLastConnected = false
-    local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
-    local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if damage > 0 and runtime.clericBasicSpellLastConnected == true then
-        damage = damage + applyRadiantBonus(hero, target, "2d6", skill and skill.skillId or IDS.cleric_holy_verdict, skill and skill.name or "圣焰裁决", "光明领域")
-    end
-    return damage
-end
-
 function ClericBuildPassives.ActivateSanctuary(hero, skill)
     if not isAlive(hero) then
         return 0
@@ -367,12 +294,6 @@ function ClericBuildPassives.GetAuraAcBonus(defender, attacker)
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
         if isAlive(ally) then
             total = total + getSanctuaryAcBonus(ally)
-            local runtime = ensureRuntime(ally)
-            if hasSkill(ally, IDS.cleric_watch_bishop)
-                and (tonumber(runtime.clericWatchBishopExpireRound) or 0) >= getRound()
-                and tonumber(defender.wpType or 0) > 0 and tonumber(defender.wpType or 0) <= 3 then
-                total = total + 1
-            end
         end
     end
     return total

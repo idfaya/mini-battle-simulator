@@ -465,15 +465,6 @@ function RangerBuildPassives.CreateExtraAttackPassive(context)
     return BuildPassiveCommon.CreateExtraAttackPassive(context, {
         basicAttackSkillId = IDS.ranger_basic_attack,
         tokenKey = "rangerExtraAttackToken",
-        onPrimaryHit = function(hero, target, runtime)
-            local marked = RangerBuildPassives.IsTargetMarkedBy(hero, target)
-            if hasSkill(hero, IDS.ranger_shadow_mastery) and isBackRow(target) then
-                runtime.pendingBasicAttackBonusDice = BuildPassiveCommon.JoinDiceParts(runtime.pendingBasicAttackBonusDice, "1d6")
-            end
-            if hasSkill(hero, IDS.ranger_snare_mastery) and marked then
-                tryApplySnare(hero, target, "缚林宗师")
-            end
-        end,
     })
 end
 

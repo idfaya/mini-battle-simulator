@@ -109,7 +109,6 @@ do
     local target = new_unit(6202, "SneakDummy")
     hero.skills = {
         { skillId = SkillRuntimeConfig.Ids.rogue_sneak_attack },
-        { skillId = SkillRuntimeConfig.Ids.rogue_shadow_dancer },
     }
     local passive = RogueBuildPassives.CreateSneakAttackPassive({ src = hero })
     local oldApplyDirectBonusDamage = BuildPassiveCommon.ApplyDirectBonusDamage
@@ -119,17 +118,7 @@ do
         return 7
     end
 
-    passive:OnNormalAtkFinish({
-        data = {
-            extraParam = {
-                skillId = SkillRuntimeConfig.Ids.rogue_basic_attack,
-                target = target,
-                damageDealt = 0,
-            },
-        },
-    })
-    assert_true(hero.passiveRuntime.rogueShadowDancePending == true, "shadow dancer arms when first basic attack misses sneak window")
-
+    hero.passiveRuntime = hero.passiveRuntime or {}
     hero.passiveRuntime.rogueForcedSneakCharges = 1
     hero.passiveRuntime.rogueForcedSneakLabel = "测试强制偷袭"
     passive:OnNormalAtkFinish({
@@ -142,21 +131,16 @@ do
         },
     })
     assert_true(bonusCalls == 1, "forced sneak attack triggers rogue sneak bonus on next hit")
-    assert_true(hero.passiveRuntime.rogueShadowDancePending == false, "shadow dancer pending bonus clears after successful sneak")
 
     BuildPassiveCommon.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
 end
 
 do
-    local hero = new_unit(6301, "SurvivorHero")
-    hero.skills = {
-        { skillId = SkillRuntimeConfig.Ids.rogue_survivor },
-    }
+    local hero = new_unit(6301, "UncannyHero")
     local passive = RogueBuildPassives.CreateUncannyDodgePassive({ src = hero })
     local ctx = { data = { extraParam = { damage = 12, attacker = new_unit(6302, "Attacker") } } }
     passive:OnDefBeforeDmg(ctx)
     assert_true(ctx.data.extraParam.damage == 6, "uncanny dodge halves first incoming hit")
-    assert_true((hero.passiveRuntime.rogueForcedSneakCharges or 0) == 1, "survivor grants next forced sneak after uncanny dodge")
 end
 
 do
