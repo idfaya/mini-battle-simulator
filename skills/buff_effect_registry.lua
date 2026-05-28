@@ -80,7 +80,7 @@ local function removeFrozenDexPenalty(buff, hero)
 end
 
 BuffEffectRegistry.poison_tick = buildDotHandler("poison", "d4")
-BuffEffectRegistry.burn_tick = buildDotHandler("fire", "d6")
+BuffEffectRegistry.burn_tick = buildDotHandler("fire", "d4")
 BuffEffectRegistry.slow_apply_penalty = applyFrozenDexPenalty
 BuffEffectRegistry.slow_remove_penalty = removeFrozenDexPenalty
 
