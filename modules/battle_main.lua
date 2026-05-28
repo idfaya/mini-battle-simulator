@@ -25,12 +25,9 @@ local EnemyData = require("config.enemy_data")
 ---@class BattleMain
 local BattleMain = {}
 
-local CLERIC_BASIC_HEAL_HP_RATIO = 0.75
-local CLERIC_HEALING_WORD_HP_RATIO = 0.55
-local CLERIC_HEALING_WORD_MISSING_RATIO = 0.30
-local CLERIC_SANCTUARY_MULTI_HP_RATIO = 0.78
-local CLERIC_SANCTUARY_MULTI_COUNT = 2
-local CLERIC_SANCTUARY_FRONTLINE_HP_RATIO = 0.62
+-- AI 评分默认参数（仅作 fallback；具体技能通过 skill.ai 字段调优）
+local AI_DEFAULT_PRESSURE_HP_RATIO = 0.78
+local AI_DEFAULT_FRONTLINE_HP_RATIO = 0.62
 
 -- ==================== 状态变量 ====================
 
@@ -411,25 +408,6 @@ local function BuildOrderedAvailableSkills(hero, availableSkills)
     return ordered
 end
 
-local function SummarizeTargetInjury(targets)
-    local injuredCount = 0
-    local missingHpRatio = 0
-
-    for _, unit in ipairs(targets or {}) do
-        if unit and unit.isAlive and not unit.isDead then
-            local maxHp = math.max(1, tonumber(unit.maxHp) or tonumber(unit.hp) or 1)
-            local hp = math.max(0, tonumber(unit.hp) or maxHp)
-            local missingRatio = math.max(0, (maxHp - hp) / maxHp)
-            if missingRatio > 0 then
-                injuredCount = injuredCount + 1
-                missingHpRatio = missingHpRatio + missingRatio
-            end
-        end
-    end
-
-    return injuredCount, missingHpRatio
-end
-
 local function GetTargetMissingHpRatio(target)
     if not target then
         return 0
@@ -438,30 +416,6 @@ local function GetTargetMissingHpRatio(target)
     local maxHp = math.max(1, tonumber(target.maxHp) or tonumber(target.hp) or 1)
     local hp = math.max(0, tonumber(target.hp) or maxHp)
     return math.max(0, (maxHp - hp) / maxHp)
-end
-
-local function IsPureHealExecution(executionType)
-    return executionType == "healing_word"
-        or executionType == "life_prayer"
-        or executionType == "lay_on_hands"
-        or executionType == "second_wind_action"
-end
-
-local function ShouldCastSelfRecoverySkill(hero, executionType)
-    if executionType == "harmonize" or executionType == "second_wind_action" then
-        return GetTargetMissingHpRatio(hero) > 0
-    end
-    return true
-end
-
-local function HasInjuredAlly(hero)
-    local BattleFormation = require("modules.battle_formation")
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
-        if ally and ally.isAlive and not ally.isDead and GetTargetMissingHpRatio(ally) > 0 then
-            return true
-        end
-    end
-    return false
 end
 
 local function GetTargetHpRatio(target)
@@ -474,11 +428,38 @@ local function GetTargetHpRatio(target)
     return hp / maxHp
 end
 
+local function SummarizeTargetInjury(targets)
+    local injuredCount = 0
+    local missingHpRatio = 0
+
+    for _, unit in ipairs(targets or {}) do
+        if unit and unit.isAlive and not unit.isDead then
+            local missingRatio = GetTargetMissingHpRatio(unit)
+            if missingRatio > 0 then
+                injuredCount = injuredCount + 1
+                missingHpRatio = missingHpRatio + missingRatio
+            end
+        end
+    end
+
+    return injuredCount, missingHpRatio
+end
+
+local function HasInjuredAlly(hero)
+    local Formation = require("modules.battle_formation")
+    for _, ally in ipairs(Formation.GetFriendTeam(hero) or {}) do
+        if ally and ally.isAlive and not ally.isDead and GetTargetMissingHpRatio(ally) > 0 then
+            return true
+        end
+    end
+    return false
+end
+
 local function GetLowestInjuredAlly(hero)
-    local BattleFormation = require("modules.battle_formation")
+    local Formation = require("modules.battle_formation")
     local picked = nil
     local pickedRatio = 1
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+    for _, ally in ipairs(Formation.GetFriendTeam(hero) or {}) do
         if ally and ally.isAlive and not ally.isDead and GetTargetMissingHpRatio(ally) > 0 then
             local hpRatio = GetTargetHpRatio(ally)
             if hpRatio < pickedRatio then
@@ -491,9 +472,10 @@ local function GetLowestInjuredAlly(hero)
 end
 
 local function CountAlliesBelowHpRatio(hero, threshold)
-    local BattleFormation = require("modules.battle_formation")
+    local Formation = require("modules.battle_formation")
     local count = 0
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+    threshold = tonumber(threshold) or 1
+    for _, ally in ipairs(Formation.GetFriendTeam(hero) or {}) do
         if ally and ally.isAlive and not ally.isDead and GetTargetHpRatio(ally) <= threshold then
             count = count + 1
         end
@@ -502,8 +484,9 @@ local function CountAlliesBelowHpRatio(hero, threshold)
 end
 
 local function HasFrontlinePressure(hero, threshold)
-    local BattleFormation = require("modules.battle_formation")
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+    local Formation = require("modules.battle_formation")
+    threshold = tonumber(threshold) or AI_DEFAULT_FRONTLINE_HP_RATIO
+    for _, ally in ipairs(Formation.GetFriendTeam(hero) or {}) do
         if ally and ally.isAlive and not ally.isDead then
             local wpType = tonumber(ally.wpType) or 0
             if wpType > 0 and wpType <= 3 and GetTargetHpRatio(ally) <= threshold then
@@ -514,28 +497,127 @@ local function HasFrontlinePressure(hero, threshold)
     return false
 end
 
-local function ShouldHolySparkHeal(hero)
-    local _, hpRatio, missingRatio = GetLowestInjuredAlly(hero)
-    return hpRatio <= CLERIC_BASIC_HEAL_HP_RATIO or missingRatio >= (1 - CLERIC_BASIC_HEAL_HP_RATIO)
-end
-
-local function ShouldCastHealingWord(hero)
-    local _, hpRatio, missingRatio = GetLowestInjuredAlly(hero)
-    return hpRatio <= CLERIC_HEALING_WORD_HP_RATIO or missingRatio >= CLERIC_HEALING_WORD_MISSING_RATIO
-end
-
-local function ShouldCastSanctuaryPrayer(hero)
-    local pressuredCount = CountAlliesBelowHpRatio(hero, CLERIC_SANCTUARY_MULTI_HP_RATIO)
-    local injuredCount = CountAlliesBelowHpRatio(hero, 0.99)
-    return pressuredCount >= CLERIC_SANCTUARY_MULTI_COUNT
-        or (HasFrontlinePressure(hero, CLERIC_SANCTUARY_FRONTLINE_HP_RATIO) and injuredCount >= CLERIC_SANCTUARY_MULTI_COUNT)
-end
-
 local function IsSupportCastTarget(castTarget)
     return castTarget == E_CAST_TARGET.Self
         or castTarget == E_CAST_TARGET.Alias
         or castTarget == E_CAST_TARGET.AlliesExcludeSelf
         or castTarget == E_CAST_TARGET.AliasPos
+end
+
+local function GetSkillAiConfig(skill)
+    if not skill then
+        return nil
+    end
+    local ai = skill.ai
+    if type(ai) ~= "table" then
+        ai = skill.config and skill.config.ai
+    end
+    if type(ai) ~= "table" then
+        return nil
+    end
+    return ai
+end
+
+-- 通用门槛：根据 skill.ai.gates 字段判定能否选择该技能
+local function PassAiGates(hero, skill, previewTargets)
+    local ai = GetSkillAiConfig(skill)
+    local gates = ai and ai.gates
+    if type(gates) ~= "table" then
+        return true
+    end
+
+    if gates.requireSelfInjured and GetTargetMissingHpRatio(hero) <= 0 then
+        return false
+    end
+
+    if gates.requireInjuredAlly and not HasInjuredAlly(hero) then
+        return false
+    end
+
+    -- preview 目标若是友军，则要求最低血友军达到一定阈值才放（避免半血乱治）
+    local primaryTarget = previewTargets and previewTargets[1]
+    local previewIsAlly = primaryTarget and hero and primaryTarget.isLeft == hero.isLeft
+    if previewIsAlly and gates.previewAllyMustBeBelow then
+        local hpRatio = GetTargetHpRatio(primaryTarget)
+        if hpRatio > tonumber(gates.previewAllyMustBeBelow) then
+            return false
+        end
+    end
+
+    if gates.requireAllyHpBelow or gates.requireAllyMissingRatio then
+        local _, lowestRatio, lowestMissing = GetLowestInjuredAlly(hero)
+        local hpOk = gates.requireAllyHpBelow == nil
+            or lowestRatio <= tonumber(gates.requireAllyHpBelow)
+        local missingOk = gates.requireAllyMissingRatio == nil
+            or lowestMissing >= tonumber(gates.requireAllyMissingRatio)
+        if not (hpOk or missingOk) then
+            return false
+        end
+    end
+
+    if gates.requirePressuredAlliesAtLeast then
+        local pressureBelow = tonumber(gates.allyPressureHpBelow) or AI_DEFAULT_PRESSURE_HP_RATIO
+        local pressuredCount = CountAlliesBelowHpRatio(hero, pressureBelow)
+        if pressuredCount < tonumber(gates.requirePressuredAlliesAtLeast) then
+            -- 备用通过通道：前排压力 + 受伤友军数达标
+            local frontHp = tonumber(gates.frontlineFallbackHpBelow)
+            local frontInjured = tonumber(gates.frontlineFallbackInjuredAtLeast)
+            if frontHp and frontInjured then
+                local injuredCount = CountAlliesBelowHpRatio(hero, 0.99)
+                if not (HasFrontlinePressure(hero, frontHp) and injuredCount >= frontInjured) then
+                    return false
+                end
+            else
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
+-- 通用加分：根据 skill.ai.bonus 字段加权，叠加在桶基础分上
+local function ApplyAiBonus(hero, skill, previewTargets, baseScore)
+    local ai = GetSkillAiConfig(skill)
+    local bonus = ai and ai.bonus
+    if type(bonus) ~= "table" then
+        return baseScore
+    end
+
+    local score = baseScore
+    local primaryTarget = previewTargets and previewTargets[1]
+
+    if bonus.baseBonus then
+        score = score + tonumber(bonus.baseBonus)
+    end
+
+    if bonus.healMissingMul and primaryTarget then
+        local missingRatio = GetTargetMissingHpRatio(primaryTarget)
+        score = score + math.floor(missingRatio * tonumber(bonus.healMissingMul))
+    end
+
+    if bonus.preferAllyBelow and bonus.preferAllyBelowBonus and primaryTarget then
+        if GetTargetHpRatio(primaryTarget) <= tonumber(bonus.preferAllyBelow) then
+            score = score + tonumber(bonus.preferAllyBelowBonus)
+        end
+    end
+
+    if bonus.perPressuredAlly and bonus.pressuredAllyHpBelow then
+        local pressuredCount = CountAlliesBelowHpRatio(hero, tonumber(bonus.pressuredAllyHpBelow))
+        score = score + pressuredCount * tonumber(bonus.perPressuredAlly)
+    end
+
+    if bonus.onFrontlinePressure and bonus.frontlinePressureBelow then
+        if HasFrontlinePressure(hero, tonumber(bonus.frontlinePressureBelow)) then
+            score = score + tonumber(bonus.onFrontlinePressure)
+        end
+    end
+
+    if bonus.weightMul then
+        score = math.floor(score * tonumber(bonus.weightMul))
+    end
+
+    return score
 end
 
 local function ScoreSkillCandidate(hero, skill, previewTargets)
@@ -545,7 +627,6 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
         or skill.config and skill.config.runtimeData and skill.config.runtimeData.targetsSelections
         or {}
     local castTarget = targetsSelections.castTarget or skill.castTarget or E_CAST_TARGET.Enemy
-    local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
     local targetCount = #previewTargets
     local primaryTarget = previewTargets[1]
 
@@ -561,13 +642,6 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
         local injuredCount, allyMissingHpRatio = SummarizeTargetInjury(previewTargets)
         score = score + injuredCount * 20
         score = score + math.floor(allyMissingHpRatio * 100)
-        if executionType == "healing_word" or executionType == "life_prayer" then
-            score = score + 40
-        elseif executionType == "guardian_aura" or executionType == "harmonize" or executionType == "second_wind_action" then
-            score = score + 20
-        elseif executionType == "sanctuary_prayer" then
-            score = score + 45
-        end
     else
         score = score + targetCount * 15
         score = score + math.floor(GetTargetMissingHpRatio(primaryTarget) * 80)
@@ -581,24 +655,7 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
         end
     end
 
-    if executionType == "cleric_basic_spell" and primaryTarget and primaryTarget.isLeft == hero.isLeft then
-        local missingRatio = GetTargetMissingHpRatio(primaryTarget)
-        score = score + 35 + math.floor(missingRatio * 120)
-        if GetTargetHpRatio(primaryTarget) <= CLERIC_HEALING_WORD_HP_RATIO then
-            score = score + 20
-        end
-    elseif executionType == "healing_word" then
-        local missingRatio = GetTargetMissingHpRatio(primaryTarget)
-        score = score + 60 + math.floor(missingRatio * 140)
-        if GetTargetHpRatio(primaryTarget) <= 0.35 then
-            score = score + 80
-        end
-    elseif executionType == "sanctuary_prayer" then
-        score = score + CountAlliesBelowHpRatio(hero, CLERIC_SANCTUARY_MULTI_HP_RATIO) * 30
-        if HasFrontlinePressure(hero, CLERIC_SANCTUARY_FRONTLINE_HP_RATIO) then
-            score = score + 70
-        end
-    end
+    score = ApplyAiBonus(hero, skill, previewTargets, score)
 
     if tonumber(skill.maxCoolDown) and tonumber(skill.maxCoolDown) > 0 then
         score = score + math.min(tonumber(skill.maxCoolDown) or 0, 6)
@@ -642,24 +699,7 @@ local function BuildSkillCandidate(hero, skill, opts)
         return nil
     end
 
-    local executionType = skill.config and skill.config.execution and tostring(skill.config.execution.type) or ""
-    local primaryTarget = previewTargets[1]
-    local previewTargetsAlly = primaryTarget and primaryTarget.isLeft == hero.isLeft
-    if IsPureHealExecution(executionType) and not HasInjuredAlly(hero) then
-        return nil
-    end
-    -- Holy Spark remains available as an offensive spell with no injured allies.
-    -- Only gate the healing branch when the current preview resolves onto a friendly target.
-    if executionType == "cleric_basic_spell" and previewTargetsAlly and not ShouldHolySparkHeal(hero) then
-        return nil
-    end
-    if executionType == "healing_word" and not ShouldCastHealingWord(hero) then
-        return nil
-    end
-    if executionType == "sanctuary_prayer" and not ShouldCastSanctuaryPrayer(hero) then
-        return nil
-    end
-    if not ShouldCastSelfRecoverySkill(hero, executionType) then
+    if not PassAiGates(hero, skill, previewTargets) then
         return nil
     end
 

@@ -113,6 +113,7 @@ local function normalizeSkill(rawSkill)
         rules = deepCopy(rawSkill.rules or {}),
         skillParam = deepCopy(rawSkill.skillParam or {}),
         buffs = deepCopy(rawSkill.buffs or {}),
+        ai = deepCopy(rawSkill.ai or {}),
     }
 end
 
