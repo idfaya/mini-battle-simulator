@@ -573,6 +573,15 @@ local function PassAiGates(hero, skill, previewTargets)
         end
     end
 
+    -- §AI：限制群体敌方技能必须有足够目标，避免单敌场景下错用 AOE
+    if gates.requireEnemyTargetsAtLeast then
+        local minTargets = tonumber(gates.requireEnemyTargetsAtLeast) or 0
+        local count = previewTargets and #previewTargets or 0
+        if count < minTargets then
+            return false
+        end
+    end
+
     return true
 end
 
