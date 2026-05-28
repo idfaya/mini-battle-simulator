@@ -676,7 +676,9 @@ local function enterChapterResult()
         local nextChapter = RoguelikeMap.GetChapter(nextChapterId)
         if nextChapter then
             state.chapterId = nextChapterId
-            state.levelCap = tonumber(nextChapter.targetMaxLevel) or state.levelCap
+            -- targetMaxLevel 是章节节奏设计目标（用于怪物等级曲线），不是 partyLevel 硬上限。
+            -- partyLevel 上限统一走 CHAPTER_LEVEL_CAP，避免 partyLevel 触达 targetMaxLevel 时 UI 误显示"已满级"。
+            state.levelCap = CHAPTER_LEVEL_CAP
             local dungeonState, reason = RoguelikeMap.GenerateChapterMap(nextChapterId, state.seed or 0)
             if not dungeonState then
                 state.phase = "failed"
@@ -762,7 +764,7 @@ function RoguelikeRun.StartRun(config)
     state.partyLevel = STARTER_LEVEL
     state.partyExp = 0
     state.levelProgressExp = 0
-    state.levelCap = tonumber(chapter.targetMaxLevel) or CHAPTER_LEVEL_CAP
+    state.levelCap = CHAPTER_LEVEL_CAP
     state.nextLevelExp = getExpToNextLevel(STARTER_LEVEL)
     if chapter.mapGenProfileId then
         local dungeonState, reason = RoguelikeMap.GenerateChapterMap(chapterId, state.seed or 0)
