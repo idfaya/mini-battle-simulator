@@ -50,11 +50,11 @@ async function captureClericAnimationSummary(page: import("playwright/test").Pag
   }, { durationMs });
 }
 
-test("cleric light route shows holy spark and blessed strikes", async ({ page }) => {
+test("cleric base route keeps holy spark ranged and shelter active", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
   await page.goto(
-    "/?mode=single-battle&heroes=900007&enemies=910005&level=5&buildFeats=2150201,2150302,2150401,2150501&seed=101002",
+    "/?mode=single-battle&heroes=900007&enemies=910008&level=5&seed=101002",
   );
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
@@ -68,11 +68,11 @@ test("cleric light route shows holy spark and blessed strikes", async ({ page })
     .toContain("神圣火花");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("圣焰裁决");
+    .toContain("神恩庇护");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("神圣火花"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("圣焰裁决"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("神恩庇护"))).toBeTruthy();
   expect(animationSummary.maxMeleeClashes).toBe(0);
   expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
