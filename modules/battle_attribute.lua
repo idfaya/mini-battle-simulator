@@ -139,6 +139,12 @@ function BattleAttribute.SetHpByVal(hero, value)
         deadOrderCounter = deadOrderCounter + 1
         hero.__deadOrder = deadOrderCounter
         Logger.Log(string.format("英雄 %s HP归零，进入死亡状态", hero.name or "Unknown"))
+
+        -- 死亡时清除所有 Buff，避免 UI 上残留显示（lazy require 防循环依赖）
+        local ok, BattleBuff = pcall(require, "modules.battle_buff")
+        if ok and BattleBuff and BattleBuff.ClearAllBuffs then
+            BattleBuff.ClearAllBuffs(hero)
+        end
     end
 end
 
