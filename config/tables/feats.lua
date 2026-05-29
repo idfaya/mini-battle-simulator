@@ -1396,8 +1396,8 @@ local barbarianTree = {
         effects={{type="modify_skill", skill=80010101, add={rageDurationDelta=1}}}},
     {key="j_barbarian_blood_courage", classId=10, level=9, slot="J", prereqs={F.barbarian_T2}, name="嗜血精通", desc="狂暴期间击杀回 1d6 生命。",
         effects={{type="modify_skill", skill=80010101, add={onKillHealDice="1d6"}}}},
-    {key="c_barbarian_rage_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T2}, isCapstone=true, name="狂暴大师", desc="狂暴期间首次击杀敌人时，刷新重击冷却并使狂暴持续 +1 回合。",
-        effects={{type="modify_skill", skill=80010101, add={onKillRefreshHeavyStrikeCd=true, onKillRageDurationDelta=1}}}},
+    {key="c_barbarian_rage_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T2}, isCapstone=true, name="狂暴大师", desc="狂暴期间造成伤害时，回复本次实际伤害的 25% 生命。",
+        effects={{type="modify_skill", skill=80010101, add={rageLifestealPct=25}}}},
     {key="c_barbarian_strike_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T1}, isCapstone=true, name="重击大师", desc="重击改为对前排 2 个目标；若当前处于狂暴，本次重击暴击阈值 -1。",
         effects={{type="modify_skill", skill=80010013, add={frontRowSplitTargets=2, rageCritThresholdDelta=-1}}}},
 }

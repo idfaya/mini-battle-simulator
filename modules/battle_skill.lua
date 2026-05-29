@@ -1356,6 +1356,9 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     saveRoll = damageResult and damageResult.save or nil,
                     damageRoll = damageResult and damageResult.damageRoll or nil,
                 })
+                if okBarbarian and BarbarianBuildPassives and BarbarianBuildPassives.ApplyRageLifesteal then
+                    BarbarianBuildPassives.ApplyRageLifesteal(hero, damage, skill and skill.name or "普通攻击")
+                end
             else
                 -- Log miss/save for readability (design goal: readable outcomes).
                 if damageResult and damageResult.hit and damageResult.hit.hit == false then

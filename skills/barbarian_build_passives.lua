@@ -9,6 +9,30 @@ local BERSERK_DURATION_ROUNDS = 2
 local BERSERK_BUFF_ID = 890002
 local HEAVY_STRIKE_AC_DOWN_BUFF_ID = 890014
 
+local function getRageSkillMods(hero)
+    local buildState = hero and hero.buildState or nil
+    local skillMods = buildState and buildState.skillMods or nil
+    local rageMods = skillMods and skillMods[IDS.barbarian_rage] or nil
+    if type(rageMods) ~= "table" then
+        return nil
+    end
+    return rageMods
+end
+
+local function getRageNumberMod(hero, key, default)
+    local value = getRageSkillMods(hero)
+    value = value and value[key] or nil
+    local num = tonumber(value)
+    if num == nil then
+        return tonumber(default) or 0
+    end
+    return num
+end
+
+local function getBerserkDuration(hero)
+    return math.max(1, BERSERK_DURATION_ROUNDS + getRageNumberMod(hero, "rageDurationDelta", 0))
+end
+
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
 end
@@ -82,10 +106,11 @@ function BarbarianBuildPassives.TryActivateBerserk(hero)
         return false
     end
     local runtime = ensureRuntime(hero)
+    local duration = getBerserkDuration(hero)
     runtime.barbarianBerserkUsed = true
-    runtime.barbarianBerserkUntilRound = getRound() + BERSERK_DURATION_ROUNDS - 1
+    runtime.barbarianBerserkUntilRound = getRound() + duration - 1
     syncBerserkBuff(hero)
-    BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", BERSERK_DURATION_ROUNDS))
+    BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", duration))
     return true
 end
 
@@ -107,7 +132,27 @@ function BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, damage)
     if value <= 0 or not BarbarianBuildPassives.IsBerserkActive(hero) then
         return value
     end
-    return value + 2
+    local bonus = math.max(0, 2 + getRageNumberMod(hero, "rageBonusDamageDelta", 0))
+    return value + bonus
+end
+
+function BarbarianBuildPassives.ApplyRageLifesteal(hero, damage, sourceName)
+    local value = math.max(0, math.floor(tonumber(damage) or 0))
+    if value <= 0 or not BarbarianBuildPassives.IsBerserkActive(hero) then
+        return 0
+    end
+    local pct = math.max(0, getRageNumberMod(hero, "rageLifestealPct", 0))
+    if pct <= 0 then
+        return 0
+    end
+    local heal = math.max(0, math.floor(value * pct / 100))
+    if heal <= 0 then
+        return 0
+    end
+    BuildPassiveCommon.ApplyHeal(hero, heal)
+    BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴吸血",
+        string.format("%s吸血 %d 点（%d%%）", tostring(sourceName or "本次伤害"), heal, pct))
+    return heal
 end
 
 function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
@@ -165,6 +210,7 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
             attackRoll = hitResult,
             damageRoll = damageResult and damageResult.damageRoll or nil,
         })
+        BarbarianBuildPassives.ApplyRageLifesteal(hero, damage, skill and skill.name or "重击")
         BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = hero, damage = damage })
         BattleSkill.TriggerDamageBuffs(hero, target, damage)
         if target.isDead or (tonumber(target.hp) or 0) <= 0 then
@@ -218,7 +264,8 @@ function BarbarianBuildPassives.CreateRagePassive(context)
         if before <= 0 then
             return
         end
-        extraParam.damage = math.max(0, before - 2)
+        local damageReduce = math.max(0, 2 + getRageNumberMod(hero, "ragePhysicalReduceDelta", 0))
+        extraParam.damage = math.max(0, before - damageReduce)
         BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴减伤", string.format("%d -> %d", before, extraParam.damage))
     end
 
@@ -243,4 +290,3 @@ function BarbarianBuildPassives.CreateBerserkPassive(context)
 end
 
 return BarbarianBuildPassives
-

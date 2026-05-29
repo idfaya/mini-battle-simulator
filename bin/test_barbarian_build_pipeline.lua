@@ -140,6 +140,51 @@ do
 end
 
 do
+    local baseHero = new_unit(9717, "BaseRageDuration")
+    baseHero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+    }
+    local baseRage = BarbarianBuildPassives.CreateRagePassive({ src = baseHero })
+    baseRage:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } })
+    local baseUntil = baseHero.passiveRuntime.barbarianBerserkUntilRound
+
+    local hero = new_unit(9718, "ExtendedRageDuration")
+    hero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+    }
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.barbarian_rage] = {
+                rageDurationDelta = 1,
+            },
+        },
+    }
+    local rage = BarbarianBuildPassives.CreateRagePassive({ src = hero })
+    rage:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.barbarian_basic_attack } } })
+    assert_true(hero.passiveRuntime.barbarianBerserkUntilRound == baseUntil + 1, "Rage duration feat extends berserk by 1 round")
+end
+
+do
+    local hero = new_unit(9719, "BloodrageHero")
+    hero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+    }
+    hero.hp = 40
+    hero.maxHp = 100
+    hero.passiveRuntime.barbarianBerserkUntilRound = 99
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.barbarian_rage] = {
+                rageLifestealPct = 25,
+            },
+        },
+    }
+    local heal = BarbarianBuildPassives.ApplyRageLifesteal(hero, 12, "测试伤害")
+    assert_true(heal == 3, "Rage lifesteal restores 25% of damage dealt")
+    assert_true(hero.hp == 43, "Rage lifesteal heals the barbarian immediately")
+end
+
+do
     local hero = new_unit(9721, "HeavyStrikeHero")
     local target = new_unit(9722, "HeavyStrikeTarget")
     hero.class = 10
@@ -214,4 +259,3 @@ do
 end
 
 log("Barbarian build pipeline tests passed.")
-
