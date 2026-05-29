@@ -266,6 +266,36 @@ local function serializeMap(runState)
     }
 end
 
+local function serializeEventState(eventState)
+    if type(eventState) ~= "table" then
+        return nil
+    end
+    local resultState = nil
+    if type(eventState.result) == "table" then
+        local details = {}
+        for i, text in ipairs(eventState.result.details or {}) do
+            details[i] = text
+        end
+        resultState = {
+            title = eventState.result.title or "",
+            optionLabel = eventState.result.optionLabel or "",
+            summary = eventState.result.summary or "",
+            details = details,
+            actionLabel = eventState.result.actionLabel or "继续前进",
+        }
+    end
+    return {
+        id = eventState.id,
+        chapterId = eventState.chapterId,
+        code = eventState.code,
+        title = eventState.title,
+        kind = eventState.kind,
+        options = shallowCopyArray(eventState.options),
+        lastSkillCheck = eventState.lastSkillCheck,
+        result = resultState,
+    }
+end
+
 function RoguelikeSnapshot.Build(runState, battleSnapshot)
     local ownedUnits = serializeTeam(RoguelikeRoster.GetOwnedUnits(runState))
     local teamRoster = serializeTeam(RoguelikeRoster.GetTeamUnits(runState))
@@ -294,7 +324,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
         equipments = serializeEquipments(runState.equipmentIds),
         blessings = serializeBlessings(runState.blessingIds),
         trinkets = RoguelikeTrinket.Serialize(runState),
-        eventState = runState.eventState,
+        eventState = serializeEventState(runState.eventState),
         shopState = runState.shopState,
         campState = runState.campState,
         stairState = runState.stairState,
@@ -311,4 +341,3 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot)
 end
 
 return RoguelikeSnapshot
-

@@ -227,6 +227,14 @@ export type EventOptionState = {
   skillCheck?: EventSkillCheckState;
 };
 
+export type EventResultState = {
+  title: string;
+  optionLabel?: string;
+  summary: string;
+  details: string[];
+  actionLabel: string;
+};
+
 export type EventState = {
   id: number;
   chapterId: number;
@@ -235,6 +243,7 @@ export type EventState = {
   kind: string;
   options: EventOptionState[];
   lastSkillCheck?: EventSkillCheckOutcomeState | null;
+  result?: EventResultState | null;
 };
 
 export type ShopGoodsState = {

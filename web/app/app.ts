@@ -428,6 +428,10 @@ async function bootstrapRunMode(
       await host.chooseEventOption(optionId);
       syncRunSnapshot(await host.getRunSnapshot());
     },
+    onContinueEvent: async () => {
+      await host.continueEvent();
+      syncRunSnapshot(await host.getRunSnapshot());
+    },
     onChooseReward: async (index) => {
       await host.chooseReward(index);
       syncRunSnapshot(await host.getRunSnapshot());

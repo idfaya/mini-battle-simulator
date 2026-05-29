@@ -254,6 +254,16 @@ function MiniBattleWebApi.choose_event_option(payloadJson)
     end)
 end
 
+function MiniBattleWebApi.continue_event()
+    return safeCall(function()
+        local ok, reason = RunRuntime.ContinueEvent()
+        return JSON.JsonEncode({
+            accepted = ok,
+            reason = reason,
+        })
+    end)
+end
+
 function MiniBattleWebApi.shop_buy(payloadJson)
     return safeCall(function()
         local payload = JSON.JsonDecode(payloadJson)

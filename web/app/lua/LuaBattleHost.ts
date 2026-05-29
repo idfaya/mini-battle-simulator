@@ -159,6 +159,10 @@ export class LuaBattleHost {
     return this.callApi<RunActionResponse>("choose_event_option", { optionId });
   }
 
+  async continueEvent(): Promise<RunActionResponse> {
+    return this.callApi<RunActionResponse>("continue_event");
+  }
+
   async shopBuy(goodsId: number): Promise<RunActionResponse> {
     return this.callApi<RunActionResponse>("shop_buy", { goodsId });
   }

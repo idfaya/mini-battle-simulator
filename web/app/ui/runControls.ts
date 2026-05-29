@@ -4,6 +4,7 @@ type RunHandlers = {
   onChooseNode: (nodeId: number) => void;
   onEnterNode: () => void;
   onChooseEventOption: (optionId: number) => void;
+  onContinueEvent: () => void;
   onChooseReward: (index: number) => void;
   onShopBuy: (goodsId: number) => void;
   onShopRefresh: () => void;
@@ -230,6 +231,14 @@ function formatBattleSummaryDelta(change: { delta: number; format: "flat" | "bp_
     return `${sign}${text}%`;
   }
   return `${sign}${change.delta}`;
+}
+
+function formatEventTierLabel(tier: string | undefined): string {
+  if (tier === "critSuccess") return "大成功";
+  if (tier === "success") return "成功";
+  if (tier === "failure") return "失败";
+  if (tier === "critFailure") return "大失败";
+  return tier || "?";
 }
 
 function renderBattleSummary(host: HTMLDivElement, snapshot: RunSnapshot) {
@@ -561,8 +570,50 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     if (lastCheck) {
       const outcome = document.createElement("div");
       outcome.className = "run-roster-meta";
-      outcome.textContent = `检定结果：${lastCheck.ability ?? "?"} d20(${lastCheck.roll ?? "?"})+${lastCheck.modifier ?? "?"}=${lastCheck.total ?? "?"} vs DC${lastCheck.dc ?? "?"} → ${lastCheck.tier ?? "?"}`;
+      outcome.textContent = `检定结果：${lastCheck.heroName ? `${lastCheck.heroName} · ` : ""}${lastCheck.ability ?? "?"} d20(${lastCheck.roll ?? "?"})+${lastCheck.modifier ?? "?"}=${lastCheck.total ?? "?"} vs DC${lastCheck.dc ?? "?"} → ${formatEventTierLabel(lastCheck.tier)}`;
       host.append(outcome);
+    }
+
+    if (snapshot.eventState.result) {
+      const resultSection = document.createElement("section");
+      resultSection.className = "run-info-section";
+
+      const resultTitle = document.createElement("div");
+      resultTitle.className = "panel-title";
+      resultTitle.textContent = snapshot.eventState.result.title || "事件结果";
+      resultSection.append(resultTitle);
+
+      if (snapshot.eventState.result.optionLabel) {
+        const option = document.createElement("div");
+        option.className = "run-roster-meta";
+        option.textContent = `已选项：${snapshot.eventState.result.optionLabel}`;
+        resultSection.append(option);
+      }
+
+      const summary = document.createElement("div");
+      summary.className = "setup-field";
+      summary.innerHTML = `
+        <span>结果</span>
+        <strong>${snapshot.eventState.result.summary || "事件已结算"}</strong>
+      `;
+      resultSection.append(summary);
+
+      for (const line of snapshot.eventState.result.details ?? []) {
+        const detail = document.createElement("div");
+        detail.className = "run-roster-meta";
+        detail.textContent = line;
+        resultSection.append(detail);
+      }
+
+      resultSection.append(
+        makeButton(
+          snapshot.eventState.result.actionLabel || "继续前进",
+          false,
+          controls.handlers.onContinueEvent,
+        ),
+      );
+      host.append(resultSection);
+      return;
     }
 
     const modFor = (ability: string) => {

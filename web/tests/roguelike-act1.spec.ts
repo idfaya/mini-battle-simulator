@@ -372,11 +372,18 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       await page.evaluate(async () => {
         const runtime = window as typeof window & {
           __miniBattleHost?: {
-            getRunSnapshot: () => Promise<{ eventState?: { options?: Array<{ id?: number }> } }>;
+            getRunSnapshot: () => Promise<{
+              eventState?: { options?: Array<{ id?: number }>; result?: { actionLabel?: string } | null };
+            }>;
             chooseEventOption: (optionId: number) => Promise<{ accepted?: boolean }>;
+            continueEvent: () => Promise<{ accepted?: boolean }>;
           };
         };
         const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+        if (snapshot?.eventState?.result) {
+          await runtime.__miniBattleHost?.continueEvent();
+          return;
+        }
         const options = snapshot?.eventState?.options ?? [];
         let optionId = options[0]?.id ?? 1;
         for (let i = options.length - 1; i >= 0; i -= 1) {

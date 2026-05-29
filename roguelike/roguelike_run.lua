@@ -555,6 +555,9 @@ local function enterNode(nodeId)
         end
         state.phase = "event"
         state.eventState = deepCopyTable(event)
+        state.eventState.lastSkillCheck = nil
+        state.eventState.result = nil
+        state.eventState.pendingResult = nil
         return true
     end
 
@@ -1019,6 +1022,12 @@ function RoguelikeRun.ChooseEventOption(optionId, rosterHeroId)
     if state.phase ~= "event" then
         return false, "not_in_event"
     end
+    if not state.eventState then
+        return false, "event_state_missing"
+    end
+    if state.eventState.result then
+        return false, "event_result_pending"
+    end
 
     local node = getNode(state.currentNodeId)
     local eventId = node and node.eventId or nil
@@ -1033,10 +1042,6 @@ function RoguelikeRun.ChooseEventOption(optionId, rosterHeroId)
     end
 
     local result = resultOrReason or {}
-    if result.kind == "done" then
-        leaveNodeBackToMap()
-        return true
-    end
     if result.kind == "unlock_hidden_floor" then
         if state.dungeonState then
             state.dungeonState.hiddenReturnDepth = state.dungeonState.currentFloorDepth
@@ -1046,25 +1051,65 @@ function RoguelikeRun.ChooseEventOption(optionId, rosterHeroId)
         if not injected then
             return false, injectReason
         end
-        leaveNodeBackToMap()
-        return true
-    end
-    if result.kind == "reward_group" then
-        return openReward(result.rewardGroupId)
-    end
-    if result.kind == "blessing" then
+        result.kind = "done"
+    elseif result.kind == "blessing" then
         BuildConstraints.AddBlessing(state, result.blessingId)
-        leaveNodeBackToMap()
-        return true
-    end
-    if result.kind == "equipment" then
+        result.kind = "done"
+    elseif result.kind == "equipment" then
         BuildConstraints.AddEquipment(state, result.equipmentId)
+        result.kind = "done"
+    end
+
+    local eventResult = result.eventResult or {
+        title = "事件结果",
+        optionLabel = "",
+        summary = "事件已结算",
+        details = {},
+        actionLabel = "继续前进",
+    }
+    if result.kind == "done" then
+        eventResult.actionLabel = "返回地图"
+        state.eventState.pendingResult = { kind = "leave" }
+    elseif result.kind == "reward_group" then
+        eventResult.actionLabel = "查看奖励"
+        state.eventState.pendingResult = { kind = "reward_group", rewardGroupId = result.rewardGroupId }
+    elseif result.kind == "battle" then
+        eventResult.actionLabel = "进入战斗"
+        state.eventState.pendingResult = {
+            kind = "battle",
+            battleId = result.battleId,
+            rewardGroupId = result.rewardGroupId,
+        }
+    else
+        return false, "unsupported_event_result"
+    end
+    state.eventState.result = eventResult
+    return true
+end
+
+function RoguelikeRun.ContinueEvent()
+    if state.phase ~= "event" then
+        return false, "not_in_event"
+    end
+    local pending = state.eventState and state.eventState.pendingResult or nil
+    if not pending then
+        return false, "event_result_not_ready"
+    end
+
+    if pending.kind == "leave" then
         leaveNodeBackToMap()
         return true
     end
-    if result.kind == "battle" then
+    if pending.kind == "reward_group" then
+        local ok, reason = openReward(pending.rewardGroupId)
+        if ok then
+            state.eventState = nil
+        end
+        return ok, reason
+    end
+    if pending.kind == "battle" then
         state.phase = "battle"
-        local battleId = tonumber(result.battleId)
+        local battleId = tonumber(pending.battleId)
         local battle = RunBattleConfig.GetBattle(battleId)
         if not battle then
             state.phase = "failed"
@@ -1074,12 +1119,14 @@ function RoguelikeRun.ChooseEventOption(optionId, rosterHeroId)
         state.currentBattleId = battleId
         local battleProfile = RunBattleProfile.GetBattleProfile(battleId)
         state.currentBattleConfig = battle
-        local ok2, reason2 = RoguelikeBattleBridge.StartBattle(state, battle, battleProfile)
+        local ok2, snapshotOrReason = RoguelikeBattleBridge.StartBattle(state, battle, battleProfile)
         if not ok2 then
             state.phase = "failed"
-            state.chapterResult = { success = false, reason = tostring(reason2 or "event_battle_failed") }
-            return false, reason2
+            state.chapterResult = { success = false, reason = tostring(snapshotOrReason or "event_battle_failed") }
+            return false, snapshotOrReason
         end
+        cachedBattleSnapshot = snapshotOrReason
+        state.eventState = nil
         return true
     end
 
