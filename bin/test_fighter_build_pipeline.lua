@@ -47,29 +47,31 @@ local function canonicalSelections(classId, toLevel)
 end
 
 do
-    -- §5 SSOT：fighter Lv1 自动获得 fighter_training + fighter_counter_basic。
+    -- §5 SSOT：fighter Lv1 自动获得 fighter_training + fighter_second_wind。
     local build = HeroBuild.CompileBuild(2, 1, {})
     assert_true(#build.featIds == 2, "Fighter Lv1 auto-grants 2 lv1FeatIds")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "Fighter Lv1 has basic attack")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv1 has counter")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "Fighter Lv1 has second wind action")
+    assert_true(not hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv1 does not have counter yet")
 end
 
 do
-    -- §5 单轨：Lv3 取 trunk T1 = fighter_guard，验证 guard stance + counter。
-    local build = HeroBuild.CompileBuild(2, 3, { FeatBuildConfig.Ids.fighter_guard })
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv3 guard choice grants guard stance")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_guard_counter), "Fighter Lv3 guard choice grants guard counter passive")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv3 keeps Lv1 counter passive")
+    -- §5 单轨：Lv3 取 trunk T1 = fighter_counter_basic，验证反击已接入。
+    local build = HeroBuild.CompileBuild(2, 3, { FeatBuildConfig.Ids.fighter_counter_basic })
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "Fighter Lv3 keeps second wind action")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv3 counter choice grants counter passive")
 end
 
 do
-    -- §5 单轨：Lv5 走 canonical 拓扑链路（自动包括 fighter_guard T1 + fighter_second_wind T2）。
+    -- §5 单轨：Lv5 走 canonical 拓扑链路（自动包括 fighter_counter_basic T1 + fighter_guard T2）。
     local build = HeroBuild.CompileBuild(2, 5, canonicalSelections(2, 5))
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 keeps guard stance")
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "Fighter Lv5 grants second wind action")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "Fighter Lv5 keeps second wind action")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "Fighter Lv5 grants guard stance")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.fighter_counter_basic), "Fighter Lv5 keeps counter passive")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_basic_attack), "SkillRuntime exports basic attack config")
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_second_wind_action), "SkillRuntime exports second wind action config")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.fighter_guard_stance), "SkillRuntime exports guard stance config")
 end
 
 do
@@ -132,7 +134,7 @@ do
     assert_true(#fighterLv2Feats > 0, "fixture sanity: fighter Lv2 should have B feats in §5 tree")
     local extraFeatId = tonumber(fighterLv2Feats[1].id) or 0
     assert_true(extraFeatId > 0, "fixture sanity: fighter Lv2 feat should have valid id")
-    local build = HeroBuild.CompileBuild(2, 4, { extraFeatId, FeatBuildConfig.Ids.fighter_guard })
+    local build = HeroBuild.CompileBuild(2, 4, { extraFeatId, FeatBuildConfig.Ids.fighter_counter_basic })
     local seenExtra = false
     for _, fid in ipairs(build.featIds or {}) do
         if tonumber(fid) == extraFeatId then

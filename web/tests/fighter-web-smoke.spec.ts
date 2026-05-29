@@ -571,10 +571,10 @@ async function waitForGuardHoldRelease(
   );
 }
 
-test("fighter web flow shows guard stance in the three-tier build", async ({ page }) => {
+test("fighter web flow follows second wind -> counter -> guard progression", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910006&level=3&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=3&seed=101001");
   await page.waitForTimeout(2500);
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
@@ -583,14 +583,25 @@ test("fighter web flow shows guard stance in the three-tier build", async ({ pag
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
-    .toContain("战士 使用 护卫架势");
+    .toContain("战士 触发被动 反击：登记反击");
 
   const level3LogLines = await page.locator(".battle-log li").allTextContents();
   const level3Logs = level3LogLines.join("\n");
-  expect(level3Logs).toContain("护卫架势");
+  expect(level3Logs).toContain("反击");
+  expect(level3Logs).not.toContain("护卫架势");
   expect(level3Logs).not.toContain("盾击");
   expect(level3Logs).not.toContain("顺劈");
   expect(level3Logs).not.toContain("旋风");
+
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=5&seed=101001");
+  await page.waitForTimeout(2500);
+
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
+    .toContain("战士 使用 护卫架势");
+  const level5Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
+  expect(level5Logs).toContain("护卫架势");
 
   await page.goto("/?mode=single-battle&heroes=900005&enemies=910004&level=1&seed=101001");
   await page.waitForTimeout(2500);
@@ -601,6 +612,8 @@ test("fighter web flow shows guard stance in the three-tier build", async ({ pag
     .toContain("战士 使用 基础武器攻击");
   const level1Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(level1Logs).toContain("基础武器攻击");
+  expect(level1Logs).not.toContain("反击：登记反击");
+  expect(level1Logs).not.toContain("护卫架势");
   expect(level1Logs).not.toContain("盾击");
   expect(level1Logs).not.toContain("顺劈");
   expect(level1Logs).not.toContain("旋风");
@@ -611,7 +624,7 @@ test("fighter web flow shows guard stance in the three-tier build", async ({ pag
   await page.screenshot({ path: "test-results/fighter-web-smoke.png", fullPage: true });
 });
 
-test("fighter low tier keeps counter instead of old extra attack", async ({ page }) => {
+test("fighter low tier keeps second wind instead of old extra attack", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
   await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=1&seed=101001");
@@ -620,17 +633,18 @@ test("fighter low tier keeps counter instead of old extra attack", async ({ page
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
-    .toContain("战士 触发被动 反击：登记反击");
+    .toContain("战士 使用 回气");
   const logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
+  expect(logs).not.toContain("战士 触发被动 反击：登记反击");
   expect(logs).not.toContain("触发额外攻击：对同一目标");
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
 
-test("fighter guard stance logs protection in the mid tier", async ({ page }) => {
+test("fighter guard stance logs protection in the high tier", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=3&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=5&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -648,7 +662,7 @@ test("fighter guard stance logs protection in the mid tier", async ({ page }) =>
 test("fighter counter reaction logs when reaction is queued", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=4&fighterFeats=2100302,2100402&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=4&fighterFeats=2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -678,7 +692,7 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 test("fighter counter attack starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910002&level=4&fighterFeats=2100302,2100402&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910002&level=4&fighterFeats=2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -704,9 +718,9 @@ test("fighter counter attack starts before the enemy returns to base position", 
 test("fighter guard counter starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  // 哥布林无护卫；显式 fighterFeats 保证战士 Lv3 有护卫架势/护卫反击。
+  // 哥布林无护卫；显式 fighterFeats 保证战士 Lv5 有反击基础 + 护卫基础。
   await page.goto(
-    "/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&fighterFeats=2100302,2100402&seed=100003",
+    "/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=5&fighterFeats=2100402,2100302&seed=100003",
   );
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
@@ -745,7 +759,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
 test("dead guard skips guard counter and releases the intercept hold immediately", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=3&seed=100003");
+  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=5&seed=100003");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -770,7 +784,7 @@ test("dead guard skips guard counter and releases the intercept hold immediately
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
 
-test("fighter high tier keeps indomitable wind in the build", async ({ page }) => {
+test("fighter high tier keeps guard after the progression shift", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
   await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=5&seed=101001");
@@ -789,7 +803,7 @@ test("fighter high tier keeps indomitable wind in the build", async ({ page }) =
 test("fighter guard owners are not intercepted by another fighter guard owner", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005,900005&enemies=910003,910003,910003&level=3&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005,900005&enemies=910003,910003,910003&level=5&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 

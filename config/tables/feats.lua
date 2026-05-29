@@ -617,11 +617,11 @@ local FEATS = {
     [FeatBuildConfig.Ids.fighter_second_wind] = {
         id = FeatBuildConfig.Ids.fighter_second_wind,
         classId = 2,
-        level = 5,
-        name = "回气",
-        description = "获得回气，CD3，回复 1d10 + 体质修正生命；每场战斗 1 次。",
-        trunk = "T2",
-        treeSlot = "T2",
+        level = 1,
+        name = "回气基础",
+        description = "获得回气；CD3，回复 1d10 + 体质修正生命；每场战斗 1 次。",
+        treeSlot = "R",
+        isRoot = true,
         effects = {
             { type = "grant_skill", skill = 80002006 },
         },
@@ -629,11 +629,11 @@ local FEATS = {
     [FeatBuildConfig.Ids.fighter_guard] = {
         id = FeatBuildConfig.Ids.fighter_guard,
         classId = 2,
-        level = 3,
-        name = "护卫",
+        level = 5,
+        name = "护卫基础",
         description = "获得护卫架势，CD3，持续到你下次行动开始；期间己方承受的近战攻击都由你承担，且你会在其攻击结算后对攻击者发动 1 次基础武器攻击；护卫期间你自身 AC+2。",
-        trunk = "T1",
-        treeSlot = "T1",
+        trunk = "T2",
+        treeSlot = "T2",
         effects = {
             { type = "grant_skill", skill = 80002005 },
             { type = "grant_skill", skill = 80002105 },
@@ -642,11 +642,11 @@ local FEATS = {
     [FeatBuildConfig.Ids.fighter_counter_basic] = {
         id = FeatBuildConfig.Ids.fighter_counter_basic,
         classId = 2,
-        level = 1,
-        name = "反击",
+        level = 3,
+        name = "反击基础",
         description = "核心被动。敌方对你发动近战武器攻击后，无论命中与否，你都在该次攻击结算后反击 1 次；反击不触发反击。",
-        treeSlot = "R",
-        isRoot = true,
+        trunk = "T1",
+        treeSlot = "T1",
         effects = {
             { type = "grant_skill", skill = 80002104 },
         },
@@ -1098,7 +1098,7 @@ end
 
 -- 短别名引用现有 R / T1 / T2 节点 id（作为 prerequisites 引用源）。
 local F = {
-    fighter_R = Ids.fighter_counter_basic, fighter_T1 = Ids.fighter_guard, fighter_T2 = Ids.fighter_second_wind,
+    fighter_R = Ids.fighter_second_wind, fighter_T1 = Ids.fighter_counter_basic, fighter_T2 = Ids.fighter_guard,
     monk_R = Ids.monk_martial_arts, monk_T1 = Ids.monk_open_hand, monk_T2 = Ids.monk_harmonize,
     rogue_R = Ids.rogue_sneak_attack, rogue_T1 = Ids.rogue_execute_strike, rogue_T2 = Ids.rogue_executioner,
     ranger_R = Ids.ranger_hunter_mark, ranger_T1 = Ids.ranger_hunter_shot, ranger_T2 = Ids.ranger_hunter_mastery,
@@ -1112,23 +1112,30 @@ local F = {
 
 -- Fighter 战士 (classId=2)
 -- SSOT: design/roguelike_feat_skill_fill_sheet.md §5.1
--- 三条支线：反击 / 护卫 / 连击；外加 T2 回气线
+-- 根节点：回气；Lv3/T1：反击；Lv5/T2：护卫；另有连击支线
 local fighterTree = {
+    -- 回气线
+    {key="b_fighter_second_wind_plus", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="回气熟练", desc="回气治疗额外 +1d6。",
+        effects={{type="modify_skill", skill=80002006, add={bonusHealDice="1d6"}}}},
+    {key="j_fighter_second_wind_master", classId=2, level=4, slot="J", prereqs={F.fighter_R}, name="回气精通", desc="使用回气后，直到下回合开始前获得 AC +2。",
+        effects={{type="modify_skill", skill=80002006, add={postUseAcDelta=2}}}},
+    {key="c_fighter_second_wind_grandmaster", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="回气大师", desc="回气的可用次数从每场 1 次提升为每场 2 次。",
+        effects={{type="modify_skill", skill=80002006, add={secondWindCharges=1}}}},
     -- 反击线
-    {key="b_fighter_counter_basic_plus", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="反击熟练", desc="反击 hit +1。",
+    {key="b_fighter_counter_basic_plus", classId=2, level=2, slot="B", prereqs={F.fighter_T1}, name="反击熟练", desc="反击 hit +1。",
         effects={{type="modify_skill", skill=80002104, add={counterBonusHit=1}}}},
-    {key="j_fighter_counter_master", classId=2, level=4, slot="J", prereqs={F.fighter_R}, name="反击精通", desc="反击额外造成 +1d6 伤害。",
+    {key="j_fighter_counter_master", classId=2, level=4, slot="J", prereqs={F.fighter_T1}, name="反击精通", desc="反击额外造成 +1d6 伤害。",
         effects={{type="modify_skill", skill=80002104, add={counterBonusDice="1d6"}}}},
-    {key="c_fighter_double_counter", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="反击大师", desc="敌方近战攻击你时，先执行反击，再结算该次敌方攻击；你的反击获得 hit +1、额外 +1d6 伤害。",
+    {key="c_fighter_double_counter", classId=2, level=10, slot="C", prereqs={F.fighter_T1}, isCapstone=true, name="反击大师", desc="敌方近战攻击你时，先执行反击，再结算该次敌方攻击；你的反击获得 hit +1、额外 +1d6 伤害。",
         effects={{type="modify_skill", skill=80002104, add={counterBeforeAttack=true, counterBonusHit=1, counterBonusDice="1d6"}}}},
     -- 护卫线
-    {key="b_fighter_guard_extends_ranged", classId=2, level=2, slot="B", prereqs={F.fighter_T1}, name="护卫熟练", desc="护卫架势可承担友军受到的远程攻击；仅限攻击检定类远程伤害。",
+    {key="b_fighter_guard_extends_ranged", classId=2, level=2, slot="B", prereqs={F.fighter_T2}, name="护卫熟练", desc="护卫架势可承担友军受到的远程攻击；仅限攻击检定类远程伤害。",
         effects={{type="modify_skill", skill=80002005, add={guardExtendsToRanged=true}}}},
-    {key="j_fighter_guard_master", classId=2, level=4, slot="J", prereqs={F.fighter_T1}, name="护卫精通", desc="护卫承担远程攻击时若该次攻击因 AC 未命中你，将该远程攻击反弹给发射者。",
+    {key="j_fighter_guard_master", classId=2, level=4, slot="J", prereqs={F.fighter_T2}, name="护卫精通", desc="护卫承担远程攻击时若该次攻击因 AC 未命中你，将该远程攻击反弹给发射者。",
         effects={{type="modify_skill", skill=80002005, add={guardReflectRanged=true}}}},
-    {key="c_fighter_guard_grandmaster", classId=2, level=10, slot="C", prereqs={F.fighter_T1}, isCapstone=true, name="护卫大师", desc="护卫成功（替友军承担一次攻击）时，你回复 1d6 生命。",
+    {key="c_fighter_guard_grandmaster", classId=2, level=10, slot="C", prereqs={F.fighter_T2}, isCapstone=true, name="护卫大师", desc="护卫成功（替友军承担一次攻击）时，你回复 1d6 生命。",
         effects={{type="modify_skill", skill=80002005, add={guardHealOnSuccess=true}}}},
-    -- 连击线（SSOT §5.1 新增）
+    -- 连击线（由回气根节点外放）
     {key="b_fighter_combo_basic", classId=2, level=2, slot="B", prereqs={F.fighter_R}, name="连击基础", desc="主动使用基础武器攻击命中时，立即对同一目标追加 1 次连击；反击与护卫反击不触发连击。",
         effects={{type="grant_skill", skill=80002109}}},
     {key="b_fighter_combo_plus", classId=2, level=4, slot="B", prereqs={F.fighter_R}, name="连击熟练", desc="连击 hit +1。",
@@ -1137,13 +1144,6 @@ local fighterTree = {
         effects={{type="modify_skill", skill=80002109, add={extraAttackBonusDice="1d6"}}}},
     {key="c_fighter_combo_grandmaster", classId=2, level=10, slot="C", prereqs={F.fighter_R}, isCapstone=true, name="连击大师", desc="若本次基础武器攻击击杀目标，则本次连击可改为攻击另一名目标；若未击杀，连击仍攻击原目标。",
         effects={{type="modify_skill", skill=80002109, add={extraAttackRetargetOnKill=true}}}},
-    -- 回气线
-    {key="b_fighter_second_wind_plus", classId=2, level=2, slot="B", prereqs={F.fighter_T2}, name="回气熟练", desc="回气治疗额外 +1d6。",
-        effects={{type="modify_skill", skill=80002006, add={bonusHealDice="1d6"}}}},
-    {key="j_fighter_second_wind_master", classId=2, level=4, slot="J", prereqs={F.fighter_T2}, name="回气精通", desc="使用回气后，直到下回合开始前获得 AC +2。",
-        effects={{type="modify_skill", skill=80002006, add={postUseAcDelta=2}}}},
-    {key="c_fighter_second_wind_grandmaster", classId=2, level=10, slot="C", prereqs={F.fighter_T2}, isCapstone=true, name="回气大师", desc="回气的可用次数从每场 1 次提升为每场 2 次。",
-        effects={{type="modify_skill", skill=80002006, add={secondWindCharges=1}}}},
 }
 
 -- Monk 武僧 (classId=3)
