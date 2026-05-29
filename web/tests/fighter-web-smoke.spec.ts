@@ -719,12 +719,17 @@ test("fighter guard counter starts before the enemy returns to base position", a
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("战士 触发被动 护卫架势：登记护卫反击");
 
+  const intercept = await waitForGuardInterceptParticipants(page);
+  expect(intercept).not.toBeNull();
+
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 15000 })
     .toContain("战士 使用 基础武器攻击");
 
   expect(await motionCheck).toBe(true);
   expect(await stationaryCheck).toBe(true);
+  expect(await waitForGuardHoldRelease(page, intercept!.attackerId, intercept!.guardId, 650)).toBe(true);
+  expect(await waitForUnitsReturnToBase(page, [intercept!.guardId], 120)).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));

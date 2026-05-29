@@ -1392,11 +1392,7 @@ export class BattleScene {
         this.meleeClashes.push(clash);
         this.applyPendingGuardInterceptToClash(clash, now);
         this.applyPendingReactionHoldToClash(clash, layouts, now);
-        this.releaseCounterHoldForReaction(
-          attacker.unit.id,
-          primaryTarget.unit.id,
-          now + this.getCounterSourceReleaseAtMs(clash),
-        );
+        this.releaseCounterHoldForReaction(attacker.unit.id, primaryTarget.unit.id, clash, now);
         if (clash.precise) {
           this.queueImpactBurst(primaryTarget.unit.id, now, {
             delayMs: 150,
@@ -1649,18 +1645,36 @@ export class BattleScene {
     }
   }
 
-  private releaseCounterHoldForReaction(reactorId: string, sourceAttackerId: string, holdUntil: number) {
-    if (!releaseReactionHoldForReactor(this.meleeClashes, reactorId, sourceAttackerId, holdUntil)) {
-      return;
-    }
+  private releaseCounterHoldForReaction(
+    reactorId: string,
+    sourceAttackerId: string,
+    reactionClash: MeleeClash,
+    now: number,
+  ) {
     for (let index = this.meleeClashes.length - 1; index >= 0; index -= 1) {
       const clash = this.meleeClashes[index];
-      if (!clash.reactionBindings?.some((binding) => binding.reactorId === reactorId)) {
+      const releaseBinding = clash.reactionBindings?.find((binding) => {
+        if (binding.reactorId !== reactorId) {
+          return false;
+        }
+        if (sourceAttackerId !== "" && binding.sourceAttackerId !== sourceAttackerId) {
+          return false;
+        }
+        return true;
+      });
+      if (!releaseBinding) {
         continue;
+      }
+      const sourceReleaseAt =
+        releaseBinding.cueKind === "guard"
+          ? now + Math.max(1, reactionClash.baseDurationMs || reactionClash.durationMs)
+          : now + this.getCounterSourceReleaseAtMs(reactionClash);
+      if (!releaseReactionHoldForReactor(this.meleeClashes, reactorId, sourceAttackerId, sourceReleaseAt)) {
+        return;
       }
       clash.durationMs = Math.max(
         clash.baseDurationMs,
-        (clash.holdUntil ?? holdUntil) - clash.startedAt + this.getClashReleaseDurationMs(clash),
+        (clash.holdUntil ?? sourceReleaseAt) - clash.startedAt + this.getClashReleaseDurationMs(clash),
       );
       return;
     }
@@ -1675,7 +1689,7 @@ export class BattleScene {
   private getClashReleaseDurationMs(clash: MeleeClash) {
     const bindings = clash.reactionBindings ?? [];
     if (bindings.some((binding) => binding.cueKind === "guard")) {
-      return 220;
+      return 20;
     }
     if (bindings.some((binding) => binding.cueKind === "counter")) {
       return 20;
