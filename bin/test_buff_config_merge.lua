@@ -17,6 +17,7 @@ end
 local BattleEvent = require("core.battle_event")
 local BattleBuff = require("modules.battle_buff")
 local BattleSkill = require("modules.battle_skill")
+local BattleFormula = require("core.battle_formula")
 local json = require("utils.json")
 
 BattleEvent.Init()
@@ -69,11 +70,11 @@ local function load_raw_buff_rows()
 end
 
 local rawRows = load_raw_buff_rows()
-assert_true(type(rawRows) == "table" and #rawRows == 28, "buffs.json contains 28 buff entries")
+assert_true(type(rawRows) == "table" and #rawRows == 29, "buffs.json contains 29 buff entries")
 
 local BuffTable = require("config.tables.buffs")
 assert_true(type(BuffTable) == "table", "buffs table loads as table")
-assert_true(count_entries(BuffTable) == 28, "buffs table contains 28 buff entries")
+assert_true(count_entries(BuffTable) == 29, "buffs table contains 29 buff entries")
 
 local poison = BattleSkill.LoadBuffConfig(850001)
 assert_true(poison ~= nil, "LoadBuffConfig loads poison from merged table")
@@ -108,7 +109,47 @@ BattleSkill.ApplyBurn(target, 3, 4, hero)
 appliedBurn = BattleBuff.GetBuff(target, 870001)
 assert_true(appliedBurn ~= nil and appliedBurn.stackCount == 1, "ApplyBurn refresh does not add burn stacks")
 assert_true(appliedBurn ~= nil and appliedBurn.duration == 4, "ApplyBurn refreshes burn duration")
+assert_true(appliedBurn ~= nil and appliedBurn.__burnPendingTick == true, "ApplyBurn rearms delayed burn tick")
+
+local burnTarget = new_unit(1003, "BurnSuccess")
+BattleSkill.ApplyBurn(burnTarget, 1, 2, hero)
+local burnHpBefore = burnTarget.hp
+BattleBuff.OnRoundBegin(burnTarget)
+assert_true(burnTarget.hp == burnHpBefore, "Burn waits one round before first damage check")
+BattleBuff.OnRoundEnd(burnTarget)
+local oldRollSave = BattleFormula.RollSave
+BattleFormula.RollSave = function(targetUnit, dc, saveBonus, opts)
+    return {
+        success = true,
+        total = (tonumber(dc) or 10),
+        roll = 10,
+        bonus = tonumber(saveBonus) or 0,
+        dc = tonumber(dc) or 10,
+    }
+end
+BattleBuff.OnRoundBegin(burnTarget)
+assert_true(burnTarget.hp == burnHpBefore, "Burn save success prevents delayed damage")
+assert_true(BattleBuff.GetBuff(burnTarget, 870001) ~= nil, "Burn save success does not remove buff immediately")
+BattleBuff.OnRoundEnd(burnTarget)
+assert_true(BattleBuff.GetBuff(burnTarget, 870001) == nil, "Burn naturally expires after delayed save window")
+
+local failTarget = new_unit(1004, "BurnFail")
+BattleSkill.ApplyBurn(failTarget, 1, 2, hero)
+local failHpBefore = failTarget.hp
+BattleBuff.OnRoundBegin(failTarget)
+BattleBuff.OnRoundEnd(failTarget)
+BattleFormula.RollSave = function(targetUnit, dc, saveBonus, opts)
+    return {
+        success = false,
+        total = math.max(0, (tonumber(dc) or 10) - 5),
+        roll = 5,
+        bonus = tonumber(saveBonus) or 0,
+        dc = tonumber(dc) or 10,
+    }
+end
+BattleBuff.OnRoundBegin(failTarget)
+BattleFormula.RollSave = oldRollSave
+assert_true(failTarget.hp < failHpBefore, "Burn save failure deals delayed damage")
+assert_true(BattleBuff.GetBuff(failTarget, 870001) == nil, "Burn ends immediately after failed save")
 
 log("ALL TESTS PASSED")
-
-

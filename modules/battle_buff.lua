@@ -264,6 +264,14 @@ local function RemoveBuffById(target, buffId)
     return false
 end
 
+--- 根据运行时 Buff ID 移除 Buff，并触发可视化事件。
+---@param target table 目标英雄
+---@param buffId number Buff运行时ID
+---@return boolean 是否成功移除
+function BattleBuff.RemoveBuffById(target, buffId)
+    return RemoveBuffById(target, buffId)
+end
+
 --- 根据主类型删除Buff
 ---@param target table 目标英雄
 ---@param mainType number 主类型

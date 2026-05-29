@@ -1,6 +1,8 @@
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattleSkill = require("modules.battle_skill")
 local Ability5e = require("modules.ability_5e")
+local BattleFormula = require("core.battle_formula")
+local BuildPassiveCommon = require("skills.build_passive_common")
 
 local BuffEffectRegistry = {}
 
@@ -23,6 +25,75 @@ local function buildDotHandler(damageKind, dicePerStack)
             damageKind = damageKind,
         })
     end
+end
+
+local function getSaveBonus(hero, saveType)
+    if saveType == "fort" then
+        return tonumber(hero and hero.saveFort) or 0
+    end
+    if saveType == "will" then
+        return tonumber(hero and hero.saveWill) or 0
+    end
+    return tonumber(hero and hero.saveRef) or 0
+end
+
+local function getSaveLabel(saveType)
+    if saveType == "fort" then
+        return "强韧"
+    end
+    if saveType == "will" then
+        return "意志"
+    end
+    return "反射"
+end
+
+local function handleBurnTick(buff, hero)
+    if not hero or hero.isDead then
+        return
+    end
+
+    if buff.__burnPendingTick == true then
+        buff.__burnPendingTick = false
+        return
+    end
+
+    local caster = buff.caster or hero
+    local saveType = buff.__burnSaveType or "ref"
+    local dc = tonumber(caster and caster.spellDC) or 10
+    local saveBonus = getSaveBonus(hero, saveType)
+        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
+    local saveResult = BattleFormula.RollSave(hero, dc, saveBonus, {})
+    local saveLabel = getSaveLabel(saveType)
+
+    if saveResult.success then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧未引爆：%s豁免成功 (%d vs DC %d)",
+            hero.name or "目标",
+            saveLabel,
+            saveResult.total or 0,
+            saveResult.dc or dc))
+        return
+    end
+
+    local stacks = math.max(1, tonumber(buff.stackCount) or 1)
+    local diceExpr = string.format("%d%s", stacks, "d4")
+    local dmgResult = BattleSkill.ResolveScaledDamage(caster, hero, {
+        skipCheck = true,
+        noClassScalar = true,
+        kind = "spell",
+        damageKind = "fire",
+        damageDice = diceExpr,
+    })
+    local damage = tonumber(dmgResult and dmgResult.damage) or 0
+    BattleDmgHeal.ApplyDamage(hero, damage, caster, {
+        damageKind = "fire",
+    })
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧引爆：%s豁免失败，受到 %d 点火焰伤害并结束",
+        hero.name or "目标",
+        saveLabel,
+        damage))
+
+    local BattleBuff = require("modules.battle_buff")
+    BattleBuff.RemoveBuffById(hero, buff.id)
 end
 
 local function getFrozenAcPenalty(hero)
@@ -80,7 +151,7 @@ local function removeFrozenDexPenalty(buff, hero)
 end
 
 BuffEffectRegistry.poison_tick = buildDotHandler("poison", "d4")
-BuffEffectRegistry.burn_tick = buildDotHandler("fire", "d4")
+BuffEffectRegistry.burn_tick = handleBurnTick
 BuffEffectRegistry.slow_apply_penalty = applyFrozenDexPenalty
 BuffEffectRegistry.slow_remove_penalty = removeFrozenDexPenalty
 

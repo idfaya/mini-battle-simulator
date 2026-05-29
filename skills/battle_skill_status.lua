@@ -35,6 +35,14 @@ local function getDotDurationDelta(caster)
     return delta
 end
 
+local function armBurnTick(buff)
+    if not buff then
+        return
+    end
+    buff.__burnPendingTick = true
+    buff.__burnSaveType = "ref"
+end
+
 --- 处理中毒效果（T1 毒爆流）
 ---@param target table 目标
 ---@param layers number 中毒层数
@@ -90,11 +98,13 @@ function BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+        armBurnTick(existingBuff)
     else
         GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 870001, nil, {
             initialStack = 1,
             duration = actualTurns,
         })
+        armBurnTick(BattleBuff.GetBuff(target, 870001))
     end
     Logger.Log(string.format("[ApplyBurn] %s 燃烧刷新到 %d 回合 (总计层数: %d)",
         target.name or "Unknown", actualTurns, BattleBuff.GetBuffStackNumBySubType(target, 870001)))
@@ -117,11 +127,13 @@ function BattleSkillStatus.ApplyBurnRefreshOnly(target, turns, caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+        armBurnTick(existingBuff)
     else
         GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 870001, nil, {
             initialStack = 1,
             duration = actualTurns,
         })
+        armBurnTick(BattleBuff.GetBuff(target, 870001))
     end
     Logger.Log(string.format("[ApplyBurnRefreshOnly] %s 燃烧刷新到 %d 回合",
         target.name or "Unknown", actualTurns))
