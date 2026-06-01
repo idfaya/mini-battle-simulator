@@ -400,7 +400,8 @@ local function pickHiddenStairRoom(dungeonState, currentRoomId)
         if neighbor
             and neighbor.roomType ~= "stair_up"
             and neighbor.roomType ~= "stair_down"
-            and neighbor.roomType ~= "boss" then
+            and neighbor.roomType ~= "boss"
+            and neighbor.roomType ~= "entrance" then
             return neighborId
         end
     end
@@ -415,6 +416,7 @@ local CLEARED_PASS_THROUGH_TYPES = {
     camp = true,
     equip = true,
     empty = true,
+    entrance = true,
 }
 
 ---@param nodeId integer
@@ -521,7 +523,7 @@ local function enterNode(nodeId)
         return true
     end
 
-    if node.nodeType == "empty" then
+    if node.nodeType == "empty" or node.nodeType == "entrance" then
         if state.dungeonState then
             FloorState.MarkRoomCleared(state.dungeonState, nodeId)
         end

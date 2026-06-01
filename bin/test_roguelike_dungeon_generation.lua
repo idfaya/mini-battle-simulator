@@ -77,15 +77,12 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
             local template = Floors.GetTemplate(floorTemplateIds[depth])
             assert_true(template, string.format("template %d not found", floorTemplateIds[depth]))
 
-            -- (2) 章 101 第 1 层 upStairRoomId == nil；其余普通层 upStair 必有
-            if chapterId == 101 and depth == 1 then
+            -- (2) 每章第 1 层 upStairRoomId == nil（起点房改为 entrance）；其余普通层 upStair 必有
+            if depth == 1 then
                 assert_true(floor.upStairRoomId == nil,
-                    string.format("seed=%d chapter=101 depth=1 should have no upStair", seed))
+                    string.format("seed=%d chapter=%d depth=1 should have no upStair", seed, chapterId))
             else
                 if not template.isBoss then
-                    -- 普通层（非 boss）必有 upStair（除 chapter101 第 1 层）
-                    -- 注：chapter102/103 第 1 层也是普通层，但因为换章会用新 dungeonState，所以 upStair 仍由模板决定
-                    -- 这里只断言模板希望的就是有 upStair；GenerateFloor 默认 hasUpStair = not (chapter==101 and depth==1)
                     assert_true(floor.upStairRoomId ~= nil,
                         string.format("seed=%d chapter=%d depth=%d should have upStair", seed, chapterId, depth))
                 end
@@ -102,8 +99,8 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
                     string.format("seed=%d chapter=%d depth=%d normal floor should have downStair", seed, chapterId, depth))
             end
 
-            -- (4) roomCount >= 6 的非 boss 层至少 3 种 roomType（楼梯计独立 type；
-            --     章 101 第 1 层只有 stair_down 无 stair_up，故下限取 3 而非 4）
+            -- (4) roomCount >= 6 的非 boss 层至少 3 种 roomType（楼梯/入口计独立 type；
+            --     第 1 层只有 entrance + stair_down，普通房间至少需要再凑 1 种）
             if not template.isBoss and (floor.roomCount or 0) >= 6 then
                 local typeCount = countRoomTypes(floor.rooms)
                 assert_true(typeCount >= 3,

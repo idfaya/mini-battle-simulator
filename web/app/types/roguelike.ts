@@ -21,6 +21,7 @@ export type RunNodeType =
   | "recruit"
   | "equip"
   | "empty"
+  | "entrance"
   | "stair_up"
   | "stair_down";
 
