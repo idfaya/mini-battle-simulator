@@ -115,7 +115,7 @@
 | Run 层（修改） | `roguelike/roguelike_battle_resolver.lua` | 修改 | 战斗胜利后挂入升级三选一 / 阵亡判定 |
 | Run 层（修改） | `roguelike/roguelike_reward.lua` | 修改 | 装备 / bless 掉落 |
 | 战斗层（修改） | `modules/hero_build.lua` | 修改 | 解析 feat / 装备 / bless 注入运行时被动 |
-| 战斗层（修改） | `modules/battle_passive_skill.lua` | 修改 | 兼容装备 / bless 来源的被动 |
+| 战斗层（修改） | `modules/battle_passive_skill.lua` | 修改 | 支持装备 / bless 来源的被动 |
 | Web | `web/app/lua/LuaBattleHost.ts` | 修改 | 暴露升级 / 复活事件 |
 | Web | `web/tests/*.spec.ts` | 修改 | 新增升级三选一 / 复活回归 |
 

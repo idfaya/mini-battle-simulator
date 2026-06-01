@@ -115,10 +115,11 @@
 
 | 术语 | 定义 |
 | --- | --- |
-| `进阶 (Promotion)` | 同一职业单位从 `low → mid → high` 的阶段推进 |
-| `升级 (Level Up)` | 同一职业单位通过经验提升等级后的数值成长 |
-| `转职 (Reclass)` | 职业单位的 `class_id` 切换 |
-| `招募 (Recruit)` | 在 Run 内获得新职业单位的服务节点入口 |
+| `队伍 EXP (partyExp)` | Run 内共享经验池；战斗胜利后的经验统一进入此池 |
+| `队伍升级 (Level Up)` | `partyExp` 跨越阈值后触发一次升级三选一结算 |
+| `角色等级` | 某名英雄因选中对应 Feat 而获得的个人等级提升 |
+| `子职业核心` | Lv3 选择的主干 Feat，用于锁定职业分支 |
+| `Capstone` | Lv5 或 Lv10 的高阶节点，承担职业质变或终局强化 |
 
 ### 4.2 战斗术语
 
@@ -148,11 +149,13 @@
 | `battle_normal` | 普通战节点 |
 | `battle_elite` | 精英战节点 |
 | `boss` | Boss 战节点 |
-| `recruit` | 招募节点 |
+| `equip` | 装备 / 宝箱类奖励节点 |
 | `shop` | 商店节点 |
 | `event` | 事件节点 |
 | `camp` | 营地节点 |
-| `route` | 节点所属路线，取值 `safe / high_pressure / boss_path` |
+| `stair_up` | 返回上一层的楼梯节点 |
+| `stair_down` | 进入下一层的楼梯节点 |
+| `empty` | 仅作通路或风味展示的空房节点 |
 
 ### 4.5 技能术语
 
@@ -166,13 +169,13 @@
 | `连击` | 命中后概率触发的额外攻击 |
 | `伏击 / 标记 / 点燃 / 印记` | 条件附加伤害或状态，由各职业核心技定义 |
 
-### 4.6 路线术语
+### 4.6 地牢术语
 
 | 术语 | 定义 |
 | --- | --- |
-| `safe` | 稳健路线，普通战与服务节点占比高 |
-| `high_pressure` | 高压路线，精英战与高收益节点占比高 |
-| `boss_path` | 通往章节 Boss 的专用路线 |
+| `cleared` | 已触发完成的房间；再次进入只作通路 |
+| `隐藏层` | 通过事件大成功解锁的额外楼层 |
+| `章节 trinket` | 章节 Boss 或隐藏 Boss 发放的特殊奖励，不进入 `equipmentIds` |
 
 ---
 
@@ -181,10 +184,11 @@
 以下旧术语在项目内**全面禁用**，下级稿件出现即视为待修：
 
 - `圣物` → 统一为 `装备`
-- `升级` 在涉及重复获得同职业时 → 必须改为 `进阶`
+- `进阶 (Promotion)` / `转职 (Reclass)` / `招募 (Recruit)` → 当前 Run 系统不再使用
 - `火法 / 火法+ / 炎术师 / 灾厄法师` 这类具象职业演化示例 → 一律不写入总纲与 Class 稿
 - `normal_battle / elite_battle / boss_battle` → 统一为 `battle_normal / battle_elite / boss`
 - `开场敌军 + 后备池增援`（用于描述实际多波结构时）→ 统一按 `波 / 第 2 波 / 第 3 波` 表达
+- `route / safe / high_pressure / boss_path` → 当前房间迷宫设计中不再作为活跃术语使用
 - `encounterId / battleId`（作为节点到战斗的对外字段）→ 统一为 `battle_id`
 
 ---
@@ -218,7 +222,7 @@
 
 - 自动战斗只做极简目标评分
 - 不做寻路、卡位、复杂技能判断
-- 自动战斗的目标倾向由**职业核心技**按职业加点，不改公共框架
+- 自动战斗的目标倾向统一收口到 [`auto_battle_targeting.md`](./auto_battle_targeting.md) 与 `skills.json.ai`
 
 ---
 
@@ -237,7 +241,7 @@
 
 - 3 章 × 5 层随机地牢（房间迷宫 + 楼梯），见 `dungeon_design.md`
 - 房间类型：普通战 / 精英 / 装备 / 事件 / 营地 / 商店 / 楼梯 / Boss
-- 10 职业（物理 6 + 法系 4），能力由 Feat → skill 驱动，见 `class_system_design.md` 与职业核心技稿
+- 10 职业（物理 6 + 法系 4），能力由 Feat → skill 驱动，见 `class_system_design.md` 与 `roguelike_feat_skill_fill_sheet.md`
 - 起手 4 人固定；`partyExp` + 升级 Feat 三选一；精英装备 + 概率 bless
 - 实现进度见 `docs/dungeon_system_overall_plan.md`
 

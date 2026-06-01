@@ -1,4 +1,4 @@
-# Dungeon / Run 系统整体开发计划（mini-battle-simulator，2026-05-23 实测）
+# Dungeon / Run 系统现状与验证（mini-battle-simulator，2026-05-23 实测）
 
 > 上位规则：[`design/dungeon_design.md`](../design/dungeon_design.md) + [`design/character_progression_design.md`](../design/character_progression_design.md) + [`AGENTS.md`](../AGENTS.md)  
 > 程序 SSOT 摘要：[`implementation_guidelines.md`](./implementation_guidelines.md) §5.1–5.2
@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-把当前 Run 系统从「单章 lane DAG + recruit/4 选 1 营地」彻底重构为 dungeon_design 规定的「3 章 × 5 层 + 房间迷宫 + 楼梯 + 5e 检定 + 章节 Trinket + 隐藏层」随机地牢系统。
+当前 Run 系统采用 `dungeon_design` 规定的「3 章 × 5 层 + 房间迷宫 + 楼梯 + 5e 检定 + 章节 Trinket + 隐藏层」结构。
 
 按 dungeon_design §7 推进 4 个阶段，每阶段独立验收（bin 回归 + Web Playwright），Lua 改动后必须 `cd web && npm run export:lua` 刷新 [`web/public/lua/project/`](../web/public/lua/project/)：
 
@@ -24,7 +24,7 @@
 
 ## 2. Current State Analysis（实测结论）
 
-### 2.1 已落地（无需重做）
+### 2.1 已落地
 
 | 模块 | 状态 | 证据 |
 | --- | --- | --- |
@@ -34,8 +34,8 @@
 | 章节配置 | ✅ | [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) 101/102/103 全 floorTemplateIds 完备 |
 | Map 转发层 | ✅ | [`roguelike_map.lua`](../../roguelike/roguelike_map.lua) buildNodeView / GetChapter / GenerateChapterMap |
 | Run 主逻辑 | ✅ | [`roguelike_run.lua`](../../roguelike/roguelike_run.lua) dungeonState + stair 分支 + 章 1/2 → 章 2/3 自动切换；recruit 链路全清；leaveNodeBackToMap 正确写 cleared（shop 豁免） |
-| Reward / Snapshot | ✅ | [`roguelike_reward.lua`](../../roguelike/roguelike_reward.lua) recruit 链路已删；[`roguelike_snapshot.lua`](../../roguelike/roguelike_snapshot.lua) dungeonState + currentFloorDepth 已输出 |
-| 旧文件清理 | ✅ | `run_node_pool.lua` / `run_recruit_pool.lua` / `roguelike_map_generator.lua` 已 DeleteFile |
+| Reward / Snapshot | ✅ | [`roguelike_reward.lua`](../../roguelike/roguelike_reward.lua) Trinket 发放；[`roguelike_snapshot.lua`](../../roguelike/roguelike_snapshot.lua) dungeonState + currentFloorDepth 已输出 |
+| 目录收敛 | ✅ | `run_node_pool.lua` / `run_recruit_pool.lua` / `roguelike_map_generator.lua` 已移除 |
 | 生成单测 | ✅ | [`bin/test_roguelike_dungeon_generation.lua`](../../bin/test_roguelike_dungeon_generation.lua) 通过（200 seeds × 3 chapters = 3000 floors） |
 | 进度门单测 | ✅ | [`bin/test_roguelike_progression_gate.lua`](../../bin/test_roguelike_progression_gate.lua) 通过 |
 | 楼梯弹窗 phase | ✅ | commit `82f6dca`：[`roguelike_run.lua`](../../roguelike/roguelike_run.lua) 进入 stair_down/stair_up 改设 `state.phase="stair"` + `state.stairState`；新增 `StairUse` / `StairLeave` API；[`roguelike_snapshot.lua`](../../roguelike/roguelike_snapshot.lua) 暴露 `stairState` 字段供 UI/测试渲染弹窗（dungeon §4.2「cleared 房仅作通路」+ 用户最新指示「楼梯房可不上下楼直接路过」） |
@@ -44,14 +44,7 @@
 | 第一章怪物等级 | ✅ | `encounter_level_curve.lua`：普通 F1–F5 → Lv1–Lv5；`targetMaxLevel=8`（`run_chapter_config` 101） |
 | 房间一次性（战斗/事件） | ✅ | `enterNode` cleared 通路；`bin/test_roguelike_room_one_shot.lua` |
 
-### 2.2 D1' 历史问题（已关闭，追溯用）
-
-| 问题 | 修复 | 证据 |
-| --- | --- | --- |
-| chapter_success 死局（visited 邻居不可选） | ✅ T1 | [`roguelike_map.lua`](../roguelike/roguelike_map.lua) `GetAvailableNextNodeIds` 返回全部 neighbors |
-| act1 过早 stair_down / elite wipe | ✅ T2–T4 | PREFERENCE + partyLevel 门槛 + BFS；楼梯 `phase=stair` 可路过 |
-
-### 2.3 D1' 收尾（2026-05-23）
+### 2.2 D1' 收尾（2026-05-23）
 
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
@@ -60,7 +53,7 @@
 | **chapter_success** | ✅ | `ForceBossChapterResultForTest` 断言 `chapter_result` 契约 |
 | 全三章 E2E | ⚠️ | 固定种子自动推图仍易 `team_wipe`；见 `balance` / 手动 Web |
 
-### 2.4 回归矩阵（2026-05-23，本机 `lua bin/...`）
+### 2.3 回归矩阵（2026-05-23，本机 `lua bin/...`）
 
 | 脚本 | 退出码 | 备注 |
 | --- | ---: | --- |
@@ -78,14 +71,14 @@
 | `test_roguelike_hidden_floor.lua` | 0 | 生成器 + 注入 + 楼梯进/出 + 双倍 trinket（Boss 用 `TestForceCurrentBattleVictory`） |
 | `test_roguelike_balance.lua --runs=4` | 可选 | WinRate 口径见 §6.4 |
 
-### 2.5 D2 / D3（2026-05-23）
+### 2.4 D2 / D3（2026-05-23）
 
 | 阶段 | 状态 | 证据 |
 | --- | --- | --- |
 | D2 房间事件 / Web | ✅ | `events.json`、检定、营地、复活卷轴；`web/tests/roguelike-dungeon.spec.ts` |
 | D3 Trinket / 隐藏层 | ✅ | `trinkets.json`、`roguelike/trinket.lua`、事件 `101099` 大成功 → `injectHiddenFloor`（**相邻房** `stair_down`）→ depth=9 → 隐藏 Boss 双倍 trinket → `stair_up` 回主线；`isChapterClearBossNode` 排除隐藏 Boss；`bin/test_roguelike_hidden_floor.lua` |
 
-### 2.6 当前迷宫战斗次数与 EXP（2026-05 实测）
+### 2.5 当前迷宫战斗次数与 EXP（2026-05 实测）
 
 统计口径：`DungeonGenerator.Generate(seed, chapter)`，seed `10001..10200`；EXP 由 `battle_exp_reward.ComputeVictoryExp`（5e 遭遇 + 楼层怪物等级系数）。
 
@@ -95,7 +88,7 @@
 | 102 | 12.74 | 按章 `targetMaxLevel` 曲线 | 按 `targetMaxLevel` 插值 |
 | 103 | 12.47 | 同上 | 同上 |
 
-**已实现（取代旧 `LEVEL_STEP_EXP` + 模板 `expReward`）**：
+**当前实现**：
 
 | 文件 | 职责 |
 | --- | --- |
@@ -108,23 +101,21 @@
 
 ---
 
-## 3. Proposed Changes（按阶段拆分）
+## 3. Implementation Breakdown（按阶段整理）
 
 > 标记：🆕=新建 / ✏️=修改 / 🗑️=删除
 
-### 3.1 Stage D1' — 收尾死局 + 全套 bin 回归
+### 3.1 Stage D1' — 路由与回归收尾
 
 > **进度（2026-05-23）**：T1–T6 ✅（见 §2.3–§2.4）。
 >
 > **已落地（2026-05-23）**：方案 A（event/battle cleared 断言）+ `firstBattleResolved` 首战路由 + `partyLevel<3` 禁精英 + `visited empty` 评分 999。
 >
-> **待办**：抽取 `bin/roguelike_test_route.lua` 供 `act1` / `chapter_success` 共用 BFS（`allowStairUpTransit`）；或下调 101 章 `budget` 直至 seed=10101 在 guard≤600 内 `chapter_result`。
->
-> T6 通过后重跑：`act1` → `chapter_success` → `balance --runs=4`。
+> 回归链路：`act1` → `chapter_success` → `balance --runs=4`。
 
 #### ✏️ T1：[`roguelike/roguelike_map.lua`](../../roguelike/roguelike_map.lua) `GetAvailableNextNodeIds` 放开 visited 过滤
 
-替换 L160-186 的实现：
+当前实现：
 
 ```lua
 function RoguelikeMap.GetAvailableNextNodeIds(currentRoomId, visitedRoomIds, chapterId, dungeonState)
@@ -145,7 +136,7 @@ function RoguelikeMap.GetAvailableNextNodeIds(currentRoomId, visitedRoomIds, cha
 end
 ```
 
-副作用风险：`refreshAvailableNodes` 在 visited 邻居链路上可能触发 `state.selectedNextNodeId = available[1]` 的"自动单选"路径回头，需校核——逻辑上 cleared 房直接被 enterNode 路过即可，无新副作用。
+`refreshAvailableNodes` 在 visited 邻居链路上可能触发 `state.selectedNextNodeId = available[1]` 的自动单选；当前依赖 `enterNode` 将 cleared 房间直接视为通路，因此不会形成新交互分支。
 
 #### ✏️ T2：[`bin/test_roguelike_act1.lua`](../../bin/test_roguelike_act1.lua) chooseNextNode 偏好降激进度 + 多种子稳定
 
@@ -195,7 +186,7 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 通过条件：上表 7 条命令均退出码 0（`balance` WinRate 口径见 §6.4）。
 
-### 3.1.5 Stage D1.5 — 升级速度 + 数值平衡（✅ 已落地）
+### 3.1.5 Stage D1.5 — 升级速度与数值平衡（✅ 已落地）
 
 > **状态（2026-05）**：5e 队伍 EXP 与第一章怪物 1–5 已接入；`bin/test_roguelike_progression_pacing.lua` 当前断言 101 章终局约 Lv10–Lv18，Boss 本体按总等级预算中的最高单体等级再抬 2 级。
 
@@ -337,52 +328,50 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 ---
 
-## 4. Assumptions & Decisions
+## 4. Decisions
 
-继承 `dungeon_system_dev_plan.md` 的 AD-1..AD-11、`stage_d1_finalize_plan.md` 的 AD-A..AD-G、`dungeon_system_master_plan.md` 的 AD-NEW-1..AD-NEW-4。本计划新增：
+当前实现采用以下附加决策：
 
 | # | 决策 | 理由 |
 | --- | --- | --- |
 | AD-OVR-1 | `GetAvailableNextNodeIds` 返回**所有 neighbors**（含 visited）作为 cleared 房间通路语义 | 严格对齐 dungeon §4.2「再次进入 cleared 房间仅作通路」；测试逻辑 chooseNextNode 自然偏好未访问 |
 | AD-OVR-2 | bin 测试的 chooseNextNode 偏好降低 `stair_down` 优先级，先吃同层 shop/camp/event/battle_normal 再下楼 | 防止队伍跳层后等级断层；与 character_progression_design §3 partyExp 池协同 |
 | AD-OVR-3 | `battle_elite` 在 `partyLevel < floorDepth × 2` 时降到末位 | 5e 难度模型 monster_level = floor_depth × 0.8 + 1，elite 额外加压；防止全队阵亡 |
-| AD-OVR-4 | D2 的 `events.json` 沿用平铺三层架构（data/tables/skills 同模式），不复用现有 `run_event_config.lua` 的 Lua 内联表 | 用户偏好：静态配置强偏好 JSON / 单一事实来源 |
+| AD-OVR-4 | D2 的 `events.json` 沿用平铺三层架构（data/tables/skills 同模式），不复用 `run_event_config.lua` 的 Lua 内联表 | 静态配置保持 JSON / 单一事实来源 |
 | AD-OVR-5 | D2 的复活卷轴定价规则：常规章 ×3 普通装备价格，章末 ×4；与 dungeon §4.6「高额金币」对齐 | 防止商店复活刷子；金币只来自战斗（dungeon §9 风险对策） |
 | AD-OVR-6 | D3 trinket 不进 `equipmentIds`，独立 `state.trinketIds`；展示与装备系统隔离 | 与 DD1 trinket 文化对齐；UI 单独区域突出"质变"奖励 |
-| AD-OVR-7 | ~~`LEVEL_STEP_EXP=20` + 模板 `expReward`~~ → **5e SSOT**（`exp_5e` + `battle_exp_reward` + 楼层等级系数） | 101 章约 13 战 → 队伍 Lv7；`targetMaxLevel=8` |
+| AD-OVR-7 | EXP 采用 **5e SSOT**（`exp_5e` + `battle_exp_reward` + 楼层等级系数） | 101 章约 13 战 → 队伍 Lv7；`targetMaxLevel=8` |
 | AD-OVR-8 | 单场 EXP 封顶（`battle_exp_reward` 按 `GetExpToNextLevel` 与怪物等级放宽 cap） | 避免一场战斗 raw 掉落跨多档阈值 |
 | AD-OVR-9 | 101 普通怪等级 = 楼层深度（1–5），不按 profile 抬高 | 保低难度；EXP 靠 `ENEMY_LEVEL_XP_FACTOR` 维持升级 |
 | AD-OVR-10 | cleared `battle_*` / `event` 在 `enterNode` 短路为通路 | 对齐 dungeon §4.2；`room_one_shot` 回归 |
 
 ---
 
-## 5. Execution Order（严格顺序）
+## 5. Stage Status
 
-### Stage D1' 收尾
+### Stage D1'
 
 1. ✅ **T1–T4**（见 §2.2）。
-2. ✏️ **T6** bin 与 cleared 通路断言（§3.1）。
-3. 🟢 **T5** `export:lua` + §2.4 全套 0 退出。
+2. ✅ **T6** bin 与 cleared 通路断言（§3.1）。
+3. ✅ `export:lua` + §2.3 全套 0 退出。
 
-### Stage D1.5（✅ 已完成，后续仅微调系数）
+### Stage D1.5
 
 1. ✅ `exp_5e.lua` / `battle_exp_reward.lua` / `encounter_level_curve.lua` / `grantBattleExp`。
 2. ✅ `progression_pacing` / `progression_gate` / `party_exp_levelup` / `room_one_shot`。
-3. ✏️ 持续：压强用 `run_battle_profile.budget`；节奏用 `ENEMY_LEVEL_XP_FACTOR` 与 `PARTY_EXP_SCALE`，勿改模板 `expReward`。
+3. 当前调参入口：压强用 `run_battle_profile.budget`；节奏用 `ENEMY_LEVEL_XP_FACTOR` 与 `PARTY_EXP_SCALE`。
 
-### Stage D2 — ✅
+### Stage D2
 
 §3.2 D2-T1～T8 已落地；`export:lua` + `roguelike-dungeon.spec.ts` 通过。
 
-### Stage D3 — ✅
+### Stage D3
 
 trinket 数据/模块、Boss 发放、事件 `101099` 隐藏层闭环、`test_roguelike_hidden_floor.lua`。
 
-### Stage D4 — ✅
+### Stage D4
 
 策划 / 程序文档与 §3.3、§5.3–§5.4 对齐（2026-05-23）。
-
-> 建议：D1' 先单 PR（T6+T5）；D2 按 T1/T2–T3/T4–T5/T7–T8 拆 PR。
 
 ---
 
@@ -400,12 +389,12 @@ lua bin/test_roguelike_act1.lua
 lua bin/test_roguelike_chapter_success.lua
 lua bin/test_roguelike_balance.lua --runs=4
 
-# D2 新增（落地后）
+# D2
 lua bin/test_roguelike_event_skill_check.lua
 lua bin/test_roguelike_camp_full_rest.lua
 lua bin/test_roguelike_shop_revive_scroll.lua
 
-# D3 新增（落地后）
+# D3
 lua bin/test_roguelike_boss_trinket.lua
 lua bin/test_roguelike_hidden_floor.lua
 ```
@@ -419,7 +408,7 @@ cd web && npm run export:lua
 cd web && npm run test:playwright
 # 或单测：
 cd web && npx playwright test tests/roguelike-act1.spec.ts
-cd web && npx playwright test tests/roguelike-dungeon.spec.ts   # D2-T8 新增
+cd web && npx playwright test tests/roguelike-dungeon.spec.ts
 ```
 
 ### 6.3 静态完整性自检
@@ -454,7 +443,7 @@ ls web/public/lua/project/roguelike_map_generator.lua     → **不存在**
 - 撤退 / 疲劳系统。
 - 元进度（账号成长 / 解锁 / 永久强化）。
 - 跨 Run 永久死亡 / 遗志 / 怪癖。
-- 4 缺口职业 Feat 补齐（独立 Stage D4 排期，与本计划解耦）。
+- 其余职业 Feat 扩展与平衡工作（独立文档维护）。
 
 ---
 
@@ -466,7 +455,9 @@ ls web/public/lua/project/roguelike_map_generator.lua     → **不存在**
 
 ---
 
-## 9. 下一步（执行顺序）
+## 9. Follow-ups
 
-1. ~~**D1'～D4**~~：地牢骨架、5e EXP、房间事件、trinket/隐藏层、文档同步 — **已完成**（2026-05-23）。
-2. **后续（非本计划阻塞）**：全三章固定种子自动 `chapter_result`；`balance` WinRate；trinket 战斗效果扩面；`design/roguelike_feat_skill_fill_sheet` 等独立排期。
+1. 全三章固定种子自动 `chapter_result`。
+2. `balance` WinRate 样本扩面与稳定阈值收敛。
+3. Trinket 战斗效果扩面。
+4. `design/roguelike_feat_skill_fill_sheet.md` 等独立设计稿按各自节奏维护。

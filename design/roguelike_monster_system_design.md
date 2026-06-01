@@ -207,7 +207,7 @@ Roguelike 怪物编组层
   - 护卫补位
   - 单怪重复数限制
 
-### 5.4 固定图与随机图兼容能力
+### 5.4 固定图与随机图支持能力
 
 - 固定图仍可继续使用固定 `battle_id -> encounter` 链路。
 - 随机图已支持 `battle_pool -> battle_template -> wave_group -> runtime group`。
