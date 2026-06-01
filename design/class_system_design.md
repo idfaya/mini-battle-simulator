@@ -37,7 +37,6 @@
   - `class_id`
   - `level`
   - `exp`
-  - `promotion_stage`
   - `equipment`
   - `battle_slot`
   - `team_state`
@@ -77,7 +76,6 @@
 | `character_group` | enum | `physical` / `caster` |
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
-| `promotion_stage` | enum | `low` / `mid` / `high`（已 deprecated；HeroData 仍保留默认值用于向后兼容） |
 | `team_state` | enum | `active` / `bench` / `dead` |
 | `battle_slot` | enum | `front` / `back` / `none` |
 | `recommended_slot` | enum | `front` / `back` / `flex` |
@@ -92,7 +90,6 @@
 
 补充约定：
 
-- `promotion_stage` 已 deprecated（从 character_progression_design.md 阶段 3 起）：进阶逻辑由 partyExp + FeatPicker 替代；HeroData 默认值保留只为向后兼容老存档读写，不再驱动任何运行时行为。
 - `team_state` 的数据值统一为 `active` / `bench` / `dead`。
 - `character_group` 数据值统一为 `physical` / `caster`，决定职业核心技文档归属。
 
@@ -190,7 +187,7 @@ Class 基础模板
 约束：
 
 - hero 侧与 enemy 侧必须共用同一份职业画像映射，禁止各自维护一份。
-- 修改画像必须在公共 5e 模块落地，`physical_class_core_skill_design.md` 与 `caster_class_core_skill_design.md` 的职业段首"5e 画像"锚点必须同步更新。
+- 修改画像必须在公共 5e 模块落地，`roguelike_feat_skill_fill_sheet.md` 的职业 Feat 树（§8）与 `auto_battle_targeting.md` 的目标倾向段落必须同步更新。
 
 ### 4.6 战斗标签
 
@@ -251,7 +248,7 @@ Class 单位可从以下来源获得经验：
 → 再进入固定恢复与节点奖励
 ```
 
-经验采用累计值（state.partyExp）。UI 通过 `next_level_exp - level_progress_exp` 显示距离下一级差值。挂起进阶 / promotion_pending_target 已废弃。
+经验采用累计值（state.partyExp）。UI 通过 `next_level_exp - level_progress_exp` 显示距离下一级差值。
 
 ---
 
@@ -292,21 +289,13 @@ Class 单位升级时，统一执行：
 - `等级` 不改变 `class_id`。
 - `等级` 不替换技能槽结构。
 
-### 6.5 等级与进阶边界（已 deprecated）
-
-`promotion_stage` 与 `promotion_pending_target` 体系已 deprecated（character_progression_design.md 阶段 3）。
-新的进阶通过 partyExp + FeatPicker 三选一驱动，详见 character_progression_design.md §3 / §9。
-HeroData 仍保留 `promotion_stage` 默认值用于向后兼容老存档。
-
 ---
 
 ## 7. 子职业与能力解锁（Feat）
 
-> 原「职业卡 / promotion_stage 进阶 / 转职」已废弃，见 [`character_progression_design.md`](./character_progression_design.md)。勿读 `design/legacy/`。
-
 - **子职业**：英雄在 **Lv3** 选中该职业的子职核心 Feat 后锁定分支；**Lv5** Feat 为该子职 capstone。
 - **能力单元**：所有战斗内能力由 Feat 授予或修改 `skill`，战前编译为 `BuildState`（[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md)）。
-- **技能槽语义**（`basic_attack_slot` / `core_slot` / `mid_slot` / `high_slot`）仍用于描述职业结构；具体启用哪条技能由已选 Feat 决定，不由 `promotion_stage` 驱动。
+- **技能槽语义**（`basic_attack_slot` / `core_slot` / `mid_slot` / `high_slot`）仍用于描述职业结构；具体启用哪条技能由已选 Feat 决定。
 - **本期**：Run 内固定 4 名起手英雄，无招募、无转职换 `class_id`。
 
 ---
@@ -379,8 +368,8 @@ Class
 ### 9.6 技能实现接口
 
 - 职业技能规则由：
-  - `physical_class_core_skill_design.md`
-  - `caster_class_core_skill_design.md`
+  - `roguelike_feat_skill_fill_sheet.md`（Feat 树节点级 SSOT，含母技能映射与每职业 Feat 树）
+  - `auto_battle_targeting.md`（自动战斗目标选择倾向）
   定义。
 - 运行时统一落到 `Feat -> Skill`。
 
@@ -500,7 +489,6 @@ Run 层至少保留以下字段：
 | `unit_id` | string | 单位唯一编号 |
 | `class_id` | string | 职业编号 |
 | `team_state` | enum | `active` / `bench` / `dead` |
-| `promotion_stage` | enum | `low` / `mid` / `high`（已 deprecated；HeroData 默认值） |
 | `level` | integer | 当前等级 |
 | `exp` | integer | 当前经验 |
 | `current_hp` | integer | 当前生命 |
@@ -518,7 +506,6 @@ Class 单位进入战斗时，统一带入以下数据：
 
 - `class_id`
 - `level`
-- `promotion_stage`
 - `current_hp`
 - `battle_slot`
 - `skill_package_id`
@@ -555,7 +542,7 @@ Class 单位进入战斗时，统一带入以下数据：
 
 ## 15. 文档关系
 
-见 [`README.md`](./README.md)。`design/legacy/` 禁止阅读维护。
+见 [`README.md`](./README.md)。
 
 ---
 

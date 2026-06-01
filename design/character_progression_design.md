@@ -4,7 +4,7 @@
 > - 本文：角色养成（队伍 EXP / 升级三选一 / Feat 档位 / Run 内死亡与复活）。
 > - 地牢文档：层级地牢、房间迷宫、房间类型与奖励矩阵。
 > 两份文档共同**取代** `expedition_progression_design.md` / `progression_roguelike_integration_design.md`。
-> 上位规则源：`physical_class_core_skill_design.md` / `caster_class_core_skill_design.md` / `class_system_design.md`。
+> 上位规则源：`class_system_design.md`（5e 画像）/ `roguelike_feat_skill_fill_sheet.md`（Feat 树节点级 SSOT）。
 
 ---
 
@@ -22,7 +22,7 @@
 - 战斗经验全部进入 `state.partyExp`，不再分发到个人 `unit.exp`。
 - 当 `partyExp` 达到下一级阈值 → 触发"队伍升级"。
 - `partyExp` 阈值与 **PHB 角色升级表**对齐，SSOT：`config/roguelike/exp_5e.lua`（`PARTY_EXP_SCALE` 可整体缩放 Run 节奏）。
-- 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`；模板字段 `expReward` 仅作遗留标注，运行时不再使用。
+- 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`。
 - 第一章**普通怪等级**：F1–F5 → Lv1–Lv5（`encounter_level_curve.lua`，普通战不按 profile 抬高）；精英/Boss 在楼层基线 +1/+2。EXP 等级系数见 `battle_exp_reward.lua` 的 `ENEMY_LEVEL_XP_FACTOR`。
 - 第一章**队伍** `targetMaxLevel = 8`（`run_chapter_config`），与 5e 遭遇 + 低怪等级下的实测节奏一致；不再以 Boss 前 Lv12 为硬指标。
 - 程序实现与回归：[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5.1；节奏模拟 [`bin/test_roguelike_progression_pacing.lua`](../bin/test_roguelike_progression_pacing.lua)。
@@ -60,8 +60,6 @@
 → 固定恢复
 → 进入下一房间
 ```
-
-`promotion_pending_target` 不再存在；进阶通过 Lv3 / Lv5 feat 选择完成。
 
 ---
 
@@ -120,7 +118,6 @@
 | 战斗层（修改） | `modules/battle_passive_skill.lua` | 修改 | 兼容装备 / bless 来源的被动 |
 | Web | `web/app/lua/LuaBattleHost.ts` | 修改 | 暴露升级 / 复活事件 |
 | Web | `web/tests/*.spec.ts` | 修改 | 新增升级三选一 / 复活回归 |
-| 文档（修订） | `class_promotion_design.md` | 修订 | 整体废弃，移入 legacy |
 
 ---
 
@@ -142,9 +139,9 @@
 - 精英战必掉装备 + 概率 bless；普通战完全不掉装备。
 - 回归：`bin/test_*_build_pipeline.lua` 全套 + 平衡测试。
 
-### 7.3 阶段 3：废弃职业卡 / 进阶残留
+### 7.3 阶段 3：Feat 进阶通道收口
 
-- 拆掉所有"战斗节点掉职业卡" / `promotion_pending_target` / 挂起进阶逻辑。
+- 进阶统一由 Lv3 / Lv5 feat 选择驱动。
 - 子职完全靠 Lv3 feat 选择驱动。
 - 回归：`bin/test_roguelike_progression_gate.lua`。
 
@@ -201,7 +198,7 @@
     Lv2/Lv4 出通用 feat，Lv3/Lv5 出子职业相关 feat
   子职业由 Lv3 选中的子职业核心 feat 锁定（无独立进阶节点）
   装备 / bless：本 Run 内永久绑定，Run 结束清空
-  职业卡 / promotion_stage / 挂起进阶 全部废弃
+  子职业与能力结构由 Lv3 / Lv5 feat 选择驱动
 
 死亡与复活（Run 内）
   HP 归零 → 倒地 → 战斗结束仍倒地 → 阵亡（不能上阵）

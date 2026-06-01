@@ -3,10 +3,10 @@
 ## 1. 文档范围
 
 - 本文档定义 Roguelike 随机生成中的 `关卡层` 与 `怪物层` 参数结构。
-- 本文档定义战斗模板下的 **budget / 怪物层** 参数（与 `dungeon_design.md` 层深公式配合）。旧 `roguelike_random_generation_design.md` 已归档至 `design/legacy/`。对应关系：
+- 本文档定义战斗模板下的 **budget / 怪物层** 参数（与 `dungeon_design.md` 层深公式配合）。覆盖范围包括：
   - 关卡随机规则
   - 怪物随机规则
-- 本文档用于替代固定图时代 `node -> battle_id -> 固定 enemyIds` 的单一路径接法。
+- 本文档用于约束随机房间下 `battle_id -> budget -> enemyIds` 的参数生成口径。
 
 ---
 

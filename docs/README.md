@@ -5,6 +5,7 @@
 - 活跃文档**只描述当前实现与设计**，不写旧版对照、迁移说明或已删除系统的长期留痕。
 - 与策划稿冲突时：先以源码与 `docs/implementation_guidelines.md` 为准，再回写 `design/` 活跃稿件。
 - 策划设计见 [`design/README.md`](../design/README.md)；`design/legacy/` 禁止阅读维护。
+- `docs/legacy/` 用于归档过时的开发计划与修订稿，不参与当前实现口径维护。
 - Agent 规范见 [`AGENTS.md`](../AGENTS.md)（含「不做旧设计兼容」与文档原则）。
 
 ## 必读
@@ -16,7 +17,6 @@
 | [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md) | Buff 生命周期与注册表 |
 | [BUFF_SHARED_TABLE.md](./BUFF_SHARED_TABLE.md) | Buff 静态表字段 |
 | [dungeon_system_overall_plan.md](./dungeon_system_overall_plan.md) | 地牢 / Run 落地进度；§2.4 / §3.1.5 为 5e EXP 与第一章怪物节奏 |
-| [roguelike_feat_tree_revision_plan.md](./roguelike_feat_tree_revision_plan.md) | Feat 树下一轮修订计划；收敛全局规则与逐职业节点调整方案 |
 
 ## 策划规则来源（改代码时对照）
 

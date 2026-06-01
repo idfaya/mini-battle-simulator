@@ -3,7 +3,7 @@
 ## 0. 文档定位
 
 - 本文档是 `MiniBattle` 战斗系统的**最高规则源**（战场、术语、敌军波次、难度口径）。
-- Run 地图与养成见 [`dungeon_design.md`](./dungeon_design.md)、[`character_progression_design.md`](./character_progression_design.md)。**勿读** `design/legacy/`。
+- Run 地图与养成见 [`dungeon_design.md`](./dungeon_design.md)、[`character_progression_design.md`](./character_progression_design.md)。
 - 本文档只定义**硬规则与术语**，不重复下级稿件中的参数值与示例。
 
 下级文档清单：
@@ -11,7 +11,7 @@
 - `single_battle_design.md` / `single_battle_parameter_table.md`
 - `dungeon_design.md` / `character_progression_design.md`
 - `class_system_design.md`
-- `physical_class_core_skill_design.md` / `caster_class_core_skill_design.md`
+- `roguelike_feat_skill_fill_sheet.md` / `auto_battle_targeting.md`
 - `roguelike_random_battle_parameter_table.md` / `roguelike_monster_system_design.md`
 
 ---

@@ -2,7 +2,7 @@
 
 > **文档状态**：Run 地图与房间规则的**权威文档**。D1–D3（地牢生成 / 房间事件 / 章节 trinket / 隐藏层）已落地；进度与回归见 [`docs/dungeon_system_overall_plan.md`](../docs/dungeon_system_overall_plan.md) §2.4–§2.5。
 
-> 配套 [`character_progression_design.md`](./character_progression_design.md)（养成）。旧节点图 Run 稿在 `design/legacy/`（禁止阅读维护）。
+> 配套 [`character_progression_design.md`](./character_progression_design.md)（养成）。
 
 ---
 

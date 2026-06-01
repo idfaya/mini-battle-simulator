@@ -6,7 +6,6 @@
 - 本文档是以下**活跃**文档的补充专题：
   - `roguelike_random_battle_parameter_table.md`
   - `dungeon_design.md`
-- 旧节点图随机稿见 `design/legacy/`（禁止阅读维护）。
 - 本文档聚焦 `敌人本体`、`怪物编组`、`战斗难度语义` 三个层面，不展开玩家职业成长系统。
 
 ---

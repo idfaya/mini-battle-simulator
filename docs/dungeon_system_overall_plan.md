@@ -3,7 +3,7 @@
 > 上位规则：[`design/dungeon_design.md`](../design/dungeon_design.md) + [`design/character_progression_design.md`](../design/character_progression_design.md) + [`AGENTS.md`](../AGENTS.md)  
 > 程序 SSOT 摘要：[`implementation_guidelines.md`](./implementation_guidelines.md) §5.1–5.2
 >
-> 取代既有计划（已归档至 `design/legacy/dungeon_system_dev_plan.md`，禁止维护）。架构决策（AD-1..AD-11、AD-A..AD-G）继续沿用，本文不再重复。
+> 架构决策（AD-1..AD-11、AD-A..AD-G）继续沿用，本文不再重复。
 
 ---
 
@@ -18,7 +18,7 @@
 - **D1.5 — 升级速度 + 数值平衡**：✅ 5e SSOT（`exp_5e` / `battle_exp_reward` / `encounter_level_curve`）；`progression_pacing` / `room_one_shot` 通过。
 - **D2 — 房间事件全套**（dungeon §7.2）：✅ T1～T8（bin + Web `runControls` / `roguelike-dungeon.spec.ts`；`RunMapScene` 楼层网格为增量渲染）。
 - **D3 — Boss 层 + 章节 Trinket + 隐藏层**（dungeon §7.3）：✅ trinket 数据/模块、Boss 发放、事件 `101099` 隐藏层、`battle_bridge` 饰品修正。
-- **D4 — 策划稿同步**（dungeon §6 设计矩阵）：✅ `dungeon_design` §3.3/§4.4–§7.3 实现引用；`implementation_guidelines` §5.3–§5.4；`design/legacy/` 仅归档。
+- **D4 — 策划稿同步**（dungeon §6 设计矩阵）：✅ `dungeon_design` §3.3/§4.4–§7.3 实现引用；`implementation_guidelines` §5.3–§5.4。
 
 ---
 
@@ -328,7 +328,6 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 | 文件 | 状态 |
 | --- | --- |
-| `design/legacy/*` | ✅ 归档，禁止维护 |
 | [`design/README.md`](../design/README.md) | ✅ 摘要含 trinket / 隐藏层 |
 | [`design/dungeon_design.md`](../design/dungeon_design.md) | ✅ §3.3 隐藏层、§4.4–§4.7 实现 + 回归链接、§6–§7 矩阵 |
 | [`design/character_progression_design.md`](../design/character_progression_design.md) | ✅ §2 5e partyExp + trinket 交叉引用 |
@@ -464,7 +463,6 @@ ls web/public/lua/project/roguelike_map_generator.lua     → **不存在**
 - 所有 Lua 改动后**必须** `cd web && npm run export:lua`（[AGENTS.md](../AGENTS.md)）；新源目录需在 [`tools/export_web_lua.mjs`](../tools/export_web_lua.mjs) `sourceDirs` 注册。
 - `config/data/*.json` SSOT 与 `config/tables/*.lua` loader 的对应关系沿用 [`skills.json` ↔ `skill_meta.lua`](../config/tables/skill_meta.lua) 模式。
 - 5e 检定**复用** [`core/dice.lua`](../core/dice.lua) + [`modules/ability_5e.lua`](../modules/ability_5e.lua)，避免重新实现 1d20 / 修正逻辑（AGENTS.md 5e Non-Negotiable）。
-- 本计划完成后 `design/legacy/` 内旧 Run 主计划不再维护；以本文为准。
 
 ---
 

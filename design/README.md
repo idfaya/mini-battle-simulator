@@ -13,15 +13,14 @@
 minibattle_combat_design_document_v_1.md     ← 术语 + 战场硬规则
 ├── single_battle_design.md
 │   └── single_battle_parameter_table.md
-├── class_system_design.md
-│   ├── physical_class_core_skill_design.md
-│   └── caster_class_core_skill_design.md
+├── class_system_design.md                ← 职业 / 5e 画像
+│   └── auto_battle_targeting.md          ← 自动战斗目标倾向
 ├── character_progression_design.md        ← Run 养成
 ├── dungeon_design.md                      ← 地牢 / 房间
 ├── roguelike_random_battle_parameter_table.md
 ├── roguelike_monster_system_design.md
 ├── equipment_system_design_v0_1.md
-└── roguelike_feat_skill_fill_sheet.md
+└── roguelike_feat_skill_fill_sheet.md     ← Feat 树节点级 SSOT
 ```
 
 ## 按任务查找
@@ -30,7 +29,8 @@ minibattle_combat_design_document_v_1.md     ← 术语 + 战场硬规则
 | --- | --- |
 | 改玩法 / 术语 / 战场 | `minibattle_combat_design_document_v_1.md` → `single_battle_design.md` |
 | 改职业 / 5e 属性口径 | `class_system_design.md` |
-| 改职业核心技机制 | `physical_class_core_skill_design.md` / `caster_class_core_skill_design.md` |
+| 改职业核心技 / Feat 树节点 | `roguelike_feat_skill_fill_sheet.md` |
+| 改自动战斗 AI 目标倾向 | `auto_battle_targeting.md` |
 | 改养成 / Feat 档位 | `character_progression_design.md` |
 | 改地牢 / 房间 / 掉落 / trinket / 隐藏层 | `dungeon_design.md`（§3.3、§4.4–§4.7） |
 | 改遭遇预算 / 怪物生态 | `roguelike_random_battle_parameter_table.md` + `roguelike_monster_system_design.md` |
