@@ -163,7 +163,6 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local Skill5eMeta = require("config.tables.skill_meta")
-    local BattleSkill = require("modules.battle_skill")
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
     local hitPenalty = tonumber(meta and meta.hitPenalty) or 0
     local critMin = tonumber(meta and meta.critMin) or 19
@@ -183,7 +182,6 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     })
     local hitResult = damageResult and damageResult.hit or nil
     if not hitResult or not hitResult.hit then
-        BarbarianBuildPassives.AddRage(hero, 1, "重击落空")
         return 0
     end
     local damageContext = {
