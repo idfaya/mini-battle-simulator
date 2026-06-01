@@ -6,7 +6,7 @@
 
 - 本文档沉淀工程侧必须遵守的实现约束。
 - 本文档不替代 `design/` 下的策划规则源：
-  - `minibattle_combat_design_document_v_1.md`
+  - `combat_system_design.md`
   - `class_system_design.md`
   - `roguelike_feat_skill_fill_sheet.md`
   - `auto_battle_targeting.md`
@@ -276,5 +276,5 @@
 
 - 程序导航：[`docs/README.md`](./README.md)
 - 策划导航：[`design/README.md`](../design/README.md)
-- 策划规则源：`design/minibattle_combat_design_document_v_1.md`、`design/class_system_design.md`、职业核心技稿、`design/dungeon_design.md`、`design/character_progression_design.md`
-- 模块实现：`SKILL_SYSTEM_IMPLEMENTATION.md`、`BUFF_SYSTEM_IMPLEMENTATION.md`
+- 策划规则源：`design/combat_system_design.md`、`design/class_system_design.md`、职业核心技稿、`design/dungeon_design.md`、`design/character_progression_design.md`
+- 模块实现：`skill_system_implementation.md`、`buff_system_implementation.md`

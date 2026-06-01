@@ -161,7 +161,7 @@ end
 
 ### 3.3 Buff 定义 (`config/data/buffs.json` + `skills/buff_effect_registry.lua`)
 
-Buff 以 `buffId` 索引；持续伤害/控制等行为在 `buff_effect_registry` 与 `skills/battle_skill_status.lua` 实现。详见 [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md)。
+Buff 以 `buffId` 索引；持续伤害/控制等行为在 `buff_effect_registry` 与 `skills/battle_skill_status.lua` 实现。详见 [buff_system_implementation.md](./buff_system_implementation.md)。
 
 ### 3.4 三层一致性要求
 
@@ -327,7 +327,7 @@ local chance = BattleSkill.GetPassiveAdjustedChance(hero, 5000, "iceFreezeChance
 
 ## 7. Buff 系统实现
 
-Buff 完整 SSOT 见 [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md)。本节仅列与技能 Timeline 的交叉点。
+Buff 完整 SSOT 见 [buff_system_implementation.md](./buff_system_implementation.md)。本节仅列与技能 Timeline 的交叉点。
 
 ### 7.1 技能系统视角下的 Buff 要点
 
@@ -350,7 +350,7 @@ Buff 完整 SSOT 见 [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATIO
 
 | 主题 | 文档 |
 |------|------|
-| Buff 生命周期 | [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md) |
+| Buff 生命周期 | [buff_system_implementation.md](./buff_system_implementation.md) |
 | Timeline | 本文 §2–§6 |
 | 视觉事件 | 本文 §9 |
 

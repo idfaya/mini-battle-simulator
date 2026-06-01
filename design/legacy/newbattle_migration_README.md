@@ -6,7 +6,7 @@
 
 | 本目录（过时副本） | 权威路径 |
 | --- | --- |
-| `minibattle_combat_design_document_v_1.md` | [`../minibattle_combat_design_document_v_1.md`](../minibattle_combat_design_document_v_1.md) |
+| `combat_system_design.md` | [`../combat_system_design.md`](../combat_system_design.md) |
 | `class_system_design.md` | [`../class_system_design.md`](../class_system_design.md) |
 | `single_battle_design.md` | [`../single_battle_design.md`](../single_battle_design.md) |
 | `roguelike_run_system_design.md` | [`../roguelike_run_system_design.md`](../roguelike_run_system_design.md) |

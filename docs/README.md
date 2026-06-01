@@ -13,16 +13,16 @@
 | 文档 | 内容 |
 | --- | --- |
 | [implementation_guidelines.md](./implementation_guidelines.md) | Feat/skill、BuildState、Web 表现、测试口径（写代码必读） |
-| [SKILL_SYSTEM_IMPLEMENTATION.md](./SKILL_SYSTEM_IMPLEMENTATION.md) | Timeline 技能、三层配置、释放流程 |
-| [BUFF_SYSTEM_IMPLEMENTATION.md](./BUFF_SYSTEM_IMPLEMENTATION.md) | Buff 生命周期与注册表 |
-| [BUFF_SHARED_TABLE.md](./BUFF_SHARED_TABLE.md) | Buff 静态表字段 |
+| [skill_system_implementation.md](./skill_system_implementation.md) | Timeline 技能、三层配置、释放流程 |
+| [buff_system_implementation.md](./buff_system_implementation.md) | Buff 生命周期与注册表 |
+| [buff_shared_table.md](./buff_shared_table.md) | Buff 静态表字段 |
 | [dungeon_system_overall_plan.md](./dungeon_system_overall_plan.md) | 地牢 / Run 落地进度；§2.4 / §3.1.5 为 5e EXP 与第一章怪物节奏 |
 
 ## 策划规则来源（改代码时对照）
 
 | 主题 | 策划文档 |
 | --- | --- |
-| 战场 / 术语 | `design/minibattle_combat_design_document_v_1.md` |
+| 战场 / 术语 | `design/combat_system_design.md` |
 | Class / 5e | `design/class_system_design.md` |
 | Run 养成 / partyExp | `design/character_progression_design.md` §2 |
 | 地牢 / 房间 / cleared 通路 | `design/dungeon_design.md` §4.2 |

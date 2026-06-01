@@ -3,7 +3,7 @@
 ## 1. 文档范围
 
 - 本文档定义 `MiniBattle` 的 Class 系统总规则。
-- 本文档采用 `minibattle_combat_design_document_v_1.md` 作为上位规则源。
+- 本文档采用 `combat_system_design.md` 作为上位规则源。
 - 本文档定义：
   - Class 单位
   - 属性

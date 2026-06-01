@@ -102,7 +102,7 @@
 ### 3.5 装备与金币
 
 - 装备 / bless：Run 级全局池，战斗前注入 Build；Run 结束清空
-- 来源：精英战、宝箱房、商店、事件、Boss（见 `dungeon_design.md` / `equipment_system_design_v0_1.md`）
+- 来源：精英战、宝箱房、商店、事件、Boss（见 `dungeon_design.md` / `equipment_system_design.md`）
 - 金币：房间与战斗结算；用于商店（含复活卷轴）
 
 ---

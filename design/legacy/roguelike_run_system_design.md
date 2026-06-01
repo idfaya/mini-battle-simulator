@@ -8,7 +8,7 @@
 ## 1. 文档范围
 
 - 本文档定义 `MiniBattle` 的 Roguelike Run 系统。
-- 本文档采用 `minibattle_combat_design_document_v_1.md` 作为上位规则源。
+- 本文档采用 `combat_system_design.md` 作为上位规则源。
 - 本文档定义：
   - Run 主循环
   - 章节地图

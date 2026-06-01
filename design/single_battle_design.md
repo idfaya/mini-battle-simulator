@@ -3,7 +3,7 @@
 ## 1. 文档范围
 
 - 本文档定义单场战斗内的战场结构、回合推进、敌军增援、胜负判定与表现要求。
-- 本文档采用总纲 `minibattle_combat_design_document_v_1.md` 作为上位规则源。
+- 本文档采用总纲 `combat_system_design.md` 作为上位规则源。
 
 ---
 
