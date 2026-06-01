@@ -1414,6 +1414,81 @@ do
     end
 end
 
+-- 树形 feat 父子链回填：feat_picker.lua 的 prerequisites 走 OR 语义，
+-- 当一个 J/C 节点 SSOT 要求 "基础 + 熟练" 这种 AND 时，必须串到最近父节点
+-- 形成单亲链，隐式实现 AND。SSOT: design/roguelike_feat_skill_fill_sheet.md §8。
+-- 表项格式: { childKey, parentKey } —— parentKey 必须存在于 FEATS。
+do
+    local I = FeatBuildConfig.Ids
+    local PREREQ_FIXES = {
+        -- 战士 §8.1
+        { "j_fighter_second_wind_master",   "b_fighter_second_wind_plus" },
+        { "c_fighter_second_wind_grandmaster", "j_fighter_second_wind_master" },
+        { "j_fighter_counter_master",       "b_fighter_counter_basic_plus" },
+        { "c_fighter_double_counter",       "j_fighter_counter_master" },
+        { "j_fighter_guard_master",         "b_fighter_guard_extends_ranged" },
+        { "c_fighter_guard_grandmaster",    "j_fighter_guard_master" },
+        { "b_fighter_combo_plus",           "b_fighter_combo_basic" },
+        { "j_fighter_combo_master",         "b_fighter_combo_plus" },
+        { "c_fighter_combo_grandmaster",    "j_fighter_combo_master" },
+        -- 武僧 §8.2
+        { "j_monk_pulse_master",            "b_monk_stun_extend" },
+        { "j_monk_fist_echo",               "b_monk_combo_intent" },
+        { "b_monk_flow",                    "b_monk_breath" },
+        { "c_monk_combo_master",            "j_monk_fist_echo" },
+        { "c_monk_breath_master",           "b_monk_flow" },
+        -- 盗贼 §8.3
+        { "j_rogue_bleed",                  "b_rogue_sneak_specialty" },
+        { "b_rogue_intuition_counter",      "b_rogue_evasion_plus" },
+        { "c_rogue_ambush_master",          "j_rogue_bleed" },
+        { "c_rogue_execute_master",         "j_rogue_execute_recharge" },
+        -- 游侠 §8.4
+        { "b_ranger_dual_mark",             "b_ranger_mark_specialty" },
+        { "j_ranger_mark_burst",            "b_ranger_dual_mark" },
+        { "j_ranger_storm_volley",          "b_ranger_arrow_overflow" },
+        { "c_ranger_mark_master",           "j_ranger_mark_burst" },
+        { "c_ranger_arrow_master",          "j_ranger_storm_volley" },
+        -- 圣武士 §8.5
+        { "j_paladin_purify_radiance",      "b_paladin_holy_mark" },
+        { "b_paladin_lay_on_recharge",      "b_paladin_shelter_plus" },
+        { "c_paladin_smite_master",         "j_paladin_purify_radiance" },
+        { "c_paladin_aura_master",          "b_paladin_lay_on_recharge" },
+        -- 牧师 §8.9
+        { "j_cleric_grace",                 "b_cleric_shelter_extend" },
+        { "j_cleric_per_unit_shelter",      "b_cleric_shelter_extend" },
+        { "b_cleric_heal_master",           "b_cleric_priest_prayer" },
+        { "c_cleric_shelter_master",        "j_cleric_per_unit_shelter" },
+        { "c_cleric_heal_master",           "j_cleric_grace" },
+        -- 术士 §8.8
+        { "j_sorcerer_ember_relight",       "b_sorcerer_burn_extend" },
+        { "c_sorcerer_storm_master",        "b_sorcerer_storm_echo" },
+        { "c_sorcerer_burst_master",        "j_sorcerer_ember_relight" },
+        -- 法师 §8.7
+        { "j_wizard_frost_curse",           "b_wizard_frost_lock" },
+        { "c_wizard_frost_master",          "b_wizard_frost_prison" },
+        { "c_wizard_freeze_master",         "b_wizard_storm_recharge" },
+        -- 邪术师 §8.10
+        { "j_warlock_mark_anchor",          "b_warlock_chain_extend" },
+        { "j_warlock_mark_burst",           "b_warlock_mark_double" },
+        { "c_warlock_chain_master",         "j_warlock_mark_anchor" },
+        { "c_warlock_storm_master",         "j_warlock_mark_burst" },
+        -- 野蛮人 §8.6
+        { "j_barbarian_quake",              "b_barbarian_heavy_master" },
+        { "j_barbarian_blood_courage",      "b_barbarian_desperate" },
+        { "c_barbarian_rage_master",        "j_barbarian_blood_courage" },
+        { "c_barbarian_strike_master",      "j_barbarian_quake" },
+    }
+    for _, pair in ipairs(PREREQ_FIXES) do
+        local childKey, parentKey = pair[1], pair[2]
+        local childId = I[childKey]
+        local parentId = I[parentKey]
+        local feat = childId and FEATS[childId]
+        assert(feat, "[feats.lua] PREREQ_FIXES child not found: " .. tostring(childKey))
+        assert(parentId, "[feats.lua] PREREQ_FIXES parent not found: " .. tostring(parentKey))
+        feat.prerequisites = { parentId }
+    end
+end
+
 local FEATS_BY_CLASS = {}
 for featId, feat in pairs(FEATS) do
     local classId = tonumber(feat.classId) or 0
