@@ -211,6 +211,9 @@ export class BattleScene {
   private pendingGuardIntercepts: PendingGuardIntercept[] = [];
   private observedCounterOverlapKeys = new Set<string>();
   private observedGuardCounterOverlapKeys = new Set<string>();
+  private backgroundCacheCanvas: HTMLCanvasElement | null = null;
+  private backgroundCacheKey = "";
+  private cardGradientCache = new Map<string, CanvasGradient>();
   private lastResolvedLayouts: Array<{
     id: string;
     team: string;
@@ -270,6 +273,35 @@ export class BattleScene {
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    // 背景仅依赖 (width, height)，将其缓存到离屏 canvas，避免每帧重新创建
+    // 3 个渐变对象（在手机端 Canvas 2D 上是显著开销）。
+    const transform = ctx.getTransform();
+    const dpr = Math.max(1, transform.a || 1);
+    const cache = this.ensureBackgroundCache(width, height, dpr);
+    ctx.drawImage(cache, 0, 0, width, height);
+  }
+
+  private ensureBackgroundCache(width: number, height: number, dpr: number) {
+    const key = `${width}x${height}@${dpr}`;
+    if (this.backgroundCacheKey === key && this.backgroundCacheCanvas) {
+      return this.backgroundCacheCanvas;
+    }
+
+    const cacheCanvas = this.backgroundCacheCanvas ?? document.createElement("canvas");
+    cacheCanvas.width = Math.max(1, Math.round(width * dpr));
+    cacheCanvas.height = Math.max(1, Math.round(height * dpr));
+    const cacheCtx = cacheCanvas.getContext("2d");
+    if (!cacheCtx) {
+      return cacheCanvas;
+    }
+    cacheCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.paintBackground(cacheCtx, width, height);
+    this.backgroundCacheCanvas = cacheCanvas;
+    this.backgroundCacheKey = key;
+    return cacheCanvas;
+  }
+
+  private paintBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
     const battlefieldTopSafeY = this.getBattlefieldTopSafeY(width);
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, "#12263a");
@@ -291,6 +323,33 @@ export class BattleScene {
     centerGlow.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = centerGlow;
     ctx.fillRect(24, centerY - 60, width - 48, 120);
+  }
+
+  // CanvasGradient 对象可在多帧复用，按 (team, height) 缓存避免每单位每帧都新建。
+  // 缓存的渐变坐标基于 unit card 局部坐标系（drawUnitCard 已 translate/scale 到 card 中心）。
+  private getCardFillGradient(
+    ctx: CanvasRenderingContext2D,
+    team: "left" | "right" | string,
+    x: number,
+    y: number,
+    height: number,
+  ) {
+    const teamKey = team === "left" ? "left" : "right";
+    const cacheKey = `${teamKey}:${Math.round(height)}`;
+    const cached = this.cardGradientCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+    if (teamKey === "left") {
+      gradient.addColorStop(0, "#1f567d");
+      gradient.addColorStop(1, "#15344a");
+    } else {
+      gradient.addColorStop(0, "#7b1737");
+      gradient.addColorStop(1, "#4b1024");
+    }
+    this.cardGradientCache.set(cacheKey, gradient);
+    return gradient;
   }
 
   private drawBoardFrame(ctx: CanvasRenderingContext2D, width: number, height: number, layouts: UnitLayout[]) {
@@ -720,15 +779,7 @@ export class BattleScene {
     x = -width / 2;
     y = -height / 2;
 
-    const fillGradient = ctx.createLinearGradient(x, y, x, y + height);
-
-    if (unit.team === "left") {
-      fillGradient.addColorStop(0, "#1f567d");
-      fillGradient.addColorStop(1, "#15344a");
-    } else {
-      fillGradient.addColorStop(0, "#7b1737");
-      fillGradient.addColorStop(1, "#4b1024");
-    }
+    const fillGradient = this.getCardFillGradient(ctx, unit.team, x, y, height);
 
     if (layout.entryGlow > 0) {
       ctx.fillStyle = `rgba(255, 209, 102, ${layout.entryGlow})`;
