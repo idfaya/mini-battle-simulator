@@ -7,6 +7,7 @@ local ClassBuildProgression = require("config.tables.classes")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RoguelikeTrinket = require("roguelike.trinket")
 local Ability5e = require("modules.ability_5e")
+local RoguelikeBattleBridge = require("roguelike.roguelike_battle_bridge")
 
 local RoguelikeSnapshot = {}
 -- 注：等级曲线统一来自 config.roguelike.level_curve；本文件不再维护本地阈值表。
@@ -52,7 +53,7 @@ local function buildFeatSummary(hero)
     return result
 end
 
-local function serializeTeam(roster)
+local function serializeTeam(roster, modifiers)
     local result = {}
     for _, hero in ipairs(roster or {}) do
         local str = tonumber(hero.str)
@@ -62,6 +63,35 @@ local function serializeTeam(roster)
         local wis = tonumber(hero.wis)
         local cha = tonumber(hero.cha)
         local weaponDice = ClassBuildProgression.GetWeaponDice(hero.classId)
+
+        -- 把 Run 内装备 / 祝福 / Trinket 的属性 delta 叠加到面板展示字段，
+        -- 让队伍信息面板看到的命中 / AC / 法术 DC / 豁免与战斗实际生效一致。
+        local classKey = tonumber(hero.classId) or 0
+        local hitDelta = 0
+        local acDelta = 0
+        local spellDCDelta = 0
+        local saveDelta = 0
+        if modifiers then
+            hitDelta = tonumber(modifiers.hitDeltaByClass and modifiers.hitDeltaByClass[classKey]) or 0
+            acDelta = tonumber(modifiers.acDeltaByClass and modifiers.acDeltaByClass[classKey]) or 0
+            spellDCDelta = tonumber(modifiers.spellDCDeltaByClass and modifiers.spellDCDeltaByClass[classKey]) or 0
+            saveDelta = tonumber(modifiers.saveDeltaByClass and modifiers.saveDeltaByClass[classKey]) or 0
+        end
+        local baseHit = tonumber(hero.hit)
+        local baseAc = tonumber(hero.ac)
+        local baseSpellAttack = tonumber(hero.spellAttack)
+        local baseSpellDC = tonumber(hero.spellDC)
+        local baseSaveFort = tonumber(hero.saveFort)
+        local baseSaveRef = tonumber(hero.saveRef)
+        local baseSaveWill = tonumber(hero.saveWill)
+
+        local function addDelta(base, delta)
+            if base == nil then
+                return nil
+            end
+            return math.max(0, math.floor(base + delta))
+        end
+
         result[#result + 1] = {
             rosterId = hero.rosterId,
             unitId = hero.unitId,
@@ -94,13 +124,29 @@ local function serializeTeam(roster)
             intMod = intl and Ability5e.GetAbilityMod(intl) or nil,
             wisMod = wis and Ability5e.GetAbilityMod(wis) or nil,
             chaMod = cha and Ability5e.GetAbilityMod(cha) or nil,
-            ac = tonumber(hero.ac),
-            hit = tonumber(hero.hit),
-            spellAttack = tonumber(hero.spellAttack),
-            spellDC = tonumber(hero.spellDC),
-            saveFort = tonumber(hero.saveFort),
-            saveRef = tonumber(hero.saveRef),
-            saveWill = tonumber(hero.saveWill),
+            -- 含装备/祝福加成的最终面板值（与战斗内实际生效保持一致）。
+            ac = addDelta(baseAc, acDelta),
+            hit = addDelta(baseHit, hitDelta),
+            spellAttack = addDelta(baseSpellAttack, hitDelta),
+            spellDC = addDelta(baseSpellDC, spellDCDelta),
+            saveFort = addDelta(baseSaveFort, saveDelta),
+            saveRef = addDelta(baseSaveRef, saveDelta),
+            saveWill = addDelta(baseSaveWill, saveDelta),
+            -- 拆分原始值与加成，前端可显示「14 (+1)」之类的明细。
+            acBase = baseAc,
+            hitBase = baseHit,
+            spellAttackBase = baseSpellAttack,
+            spellDCBase = baseSpellDC,
+            saveFortBase = baseSaveFort,
+            saveRefBase = baseSaveRef,
+            saveWillBase = baseSaveWill,
+            acBonus = acDelta,
+            hitBonus = hitDelta,
+            spellAttackBonus = hitDelta,
+            spellDCBonus = spellDCDelta,
+            saveFortBonus = saveDelta,
+            saveRefBonus = saveDelta,
+            saveWillBonus = saveDelta,
             weaponDice = weaponDice,
         }
     end
@@ -309,9 +355,10 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
         }
     end
 
-    local ownedUnits = serializeTeam(RoguelikeRoster.GetOwnedUnits(runState))
-    local teamRoster = serializeTeam(RoguelikeRoster.GetTeamUnits(runState))
-    local benchRoster = serializeTeam(RoguelikeRoster.GetBenchUnits(runState))
+    local previewModifiers = RoguelikeBattleBridge.BuildBattleModifiers(runState, nil)
+    local ownedUnits = serializeTeam(RoguelikeRoster.GetOwnedUnits(runState), previewModifiers)
+    local teamRoster = serializeTeam(RoguelikeRoster.GetTeamUnits(runState), previewModifiers)
+    local benchRoster = serializeTeam(RoguelikeRoster.GetBenchUnits(runState), previewModifiers)
     return {
         phase = runState.phase,
         chapterId = runState.chapterId,

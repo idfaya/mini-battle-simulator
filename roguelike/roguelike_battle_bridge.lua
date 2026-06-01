@@ -93,7 +93,10 @@ local function applyClassFlat(modMap, classIds, value)
     end
 end
 
-local function buildBattleModifiers(runState, battleProfile)
+--- 计算 Run 内装备/祝福/Trinket 在战斗开始前要写入英雄属性的 delta 集合。
+--- 同时被 buildBattleConfig（战斗实际生效）与 RoguelikeSnapshot.serializeTeam（队伍面板预览）调用，
+--- 避免「战斗里有 +1，但面板看不到」的展示漂移。
+function RoguelikeBattleBridge.BuildBattleModifiers(runState, battleProfile)
     local result = {
         battleRoundsHitDelta = 0,
         battleRoundsSaveDelta = 0,
@@ -407,7 +410,7 @@ end
 local function buildBattleConfig(runState, battle, battleProfile)
     local teamRoster = RoguelikeRoster.GetTeamUnits(runState)
     assignWpTypes(teamRoster)
-    local modifiers = buildBattleModifiers(runState, battleProfile)
+    local modifiers = RoguelikeBattleBridge.BuildBattleModifiers(runState, battleProfile)
     local teamLeft = {}
     for _, rosterHero in ipairs(teamRoster) do
         if not rosterHero.isDead and (rosterHero.currentHp or 0) > 0 then
