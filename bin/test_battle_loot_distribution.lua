@@ -100,18 +100,21 @@ do
         string.format("boss 祝福 tier 应全部为 boss，实际 %d/%d", blessingBossTier, BOSS_TRIALS))
 end
 
--- 用例 4：BuildConstraints 互斥组与上限
+-- 用例 4：BuildConstraints 互斥组覆盖语义与同 ID 去重
 do
     local runState = { equipmentIds = {}, blessingIds = {} }
     -- 装备 +1 长剑（101002，group=weapon）成功
     local ok = BuildConstraints.AddEquipment(runState, 101002)
     assert_true(ok, "应允许加入第一件装备 101002")
-    -- 同 weapon group 的 101005（+1 短弓）应被拒
-    local ok2, reason = BuildConstraints.AddEquipment(runState, 101005)
-    assert_true(not ok2, "应拒绝同 weapon 组的第二件装备")
-    assert_true(reason == "exclusive_group_occupied", string.format("拒绝原因应为 exclusive_group_occupied，实际 %s", tostring(reason)))
+    -- 同 weapon group 的 101005（+1 短弓）应替换旧装备而不是被拒
+    local ok2, reason, replaced = BuildConstraints.AddEquipment(runState, 101005)
+    assert_true(ok2, string.format("同 weapon 组的新装备应触发替换，实际 reason=%s", tostring(reason)))
+    assert_true(replaced == 101002,
+        string.format("被替换装备应为 101002，实际 %s", tostring(replaced)))
+    assert_true(#runState.equipmentIds == 1 and runState.equipmentIds[1] == 101005,
+        "替换后装备列表应仅保留 101005")
     -- 同 ID 重复入库应被拒
-    local ok3, reason3 = BuildConstraints.AddEquipment(runState, 101002)
+    local ok3, reason3 = BuildConstraints.AddEquipment(runState, 101005)
     assert_true(not ok3, "应拒绝重复同 ID 装备")
     assert_true(reason3 == "duplicate_equipment", string.format("拒绝原因应为 duplicate_equipment，实际 %s", tostring(reason3)))
 end
