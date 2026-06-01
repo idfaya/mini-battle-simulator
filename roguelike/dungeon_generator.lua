@@ -10,6 +10,7 @@ local Rng = require("roguelike.rng")
 ---| "shop"
 ---| "empty"
 ---| "boss"
+---| "entrance"
 ---| "stair_up"
 ---| "stair_down"
 
@@ -93,6 +94,9 @@ local function buildRoomTitle(roomType, floorDepth)
     end
     if roomType == "stair_down" then
         return "下楼梯"
+    end
+    if roomType == "entrance" then
+        return "入口"
     end
     return "空房间"
 end
@@ -381,20 +385,31 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
 
                 for i, cell in ipairs(cells) do
                     local roomType
+                    local payload
                     local roomId = makeRoomId(floorDepth, i)
                     if i == upStairIdx and hasUpStair and i ~= downStairIdx then
                         roomType = "stair_up"
+                        payload = buildPayload(template, roomType, rng)
                     elseif i == downStairIdx and hasDownStair then
                         roomType = "stair_down"
+                        payload = buildPayload(template, roomType, rng)
                     elseif template.isBoss and i == bossCellIdx then
                         roomType = "boss"
+                        payload = buildPayload(template, roomType, rng)
                     else
                         roomType = pickRoomType(rng, template, counts)
                         if roomType == "camp" then counts.camp = counts.camp + 1 end
                         if roomType == "shop" then counts.shop = counts.shop + 1 end
                         if roomType == "battle_elite" then counts.battle_elite = counts.battle_elite + 1 end
+                        -- 始终用原始 pickRoomType 结果计算 payload，以维持 RNG 稳定。
+                        payload = buildPayload(template, roomType, rng)
+                        -- 首层（无 stair_up）起点房改为 entrance：仅作通路，不混杂战斗/事件。
+                        -- 注：保留前序 pickRoomType + buildPayload 调用以维持 RNG 与 counts 稳定，仅覆盖结果类型。
+                        if i == startCellIdx and not hasUpStair then
+                            roomType = "entrance"
+                            payload = {}
+                        end
                     end
-                    local payload = buildPayload(template, roomType, rng)
                     rooms[roomId] = {
                         id = roomId,
                         gridX = cell.gridX,
@@ -514,8 +529,8 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
         if not template then
             return nil, string.format("floor template %d not found", templateId)
         end
-        -- chapter 101, depth 1 has no upStair
-        local hasUpStair = not (chapterId == 101 and depth == 1)
+        -- 每章第 1 层没有上一层，统一无 stair_up（起点房改为 entrance）
+        local hasUpStair = depth > 1
         local hasDownStair = depth < #floorTemplateIds and not template.isBoss
         local floorState, err = DungeonGenerator.GenerateFloor(
             state.seed,

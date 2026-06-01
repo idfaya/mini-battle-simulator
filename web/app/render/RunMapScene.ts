@@ -212,6 +212,8 @@ export class RunMapScene {
         return "↑";
       case "stair_down":
         return "↓";
+      case "entrance":
+        return "入";
       case "empty":
         return "·";
       default:
@@ -240,6 +242,8 @@ export class RunMapScene {
       case "stair_up":
       case "stair_down":
         return { fill: "#adb5bd", stroke: "#e9ecef" };
+      case "entrance":
+        return { fill: "#52b788", stroke: "#b7e4c7" };
       case "empty":
         return { fill: "#3a4756", stroke: "#7a8694" };
       default:
@@ -269,6 +273,8 @@ export class RunMapScene {
         return "上楼梯";
       case "stair_down":
         return "下楼梯";
+      case "entrance":
+        return "入口";
       case "empty":
         return "空房间";
       default:
