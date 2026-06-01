@@ -14,7 +14,7 @@
   {"id":80002109,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
   {"id":80002110,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
   {"id":80003002,"triggers":[{"luaFuncName":"OnBattleBegin","triggerTime":"BattleBegin"}]},
-  {"id":80003101,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
+  {"id":80003101,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"},{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80003103,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80003104,"triggers":[{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"}]},
   {"id":80003105,"triggers":[{"luaFuncName":"OnBattleBegin","triggerTime":"BattleBegin"}]},

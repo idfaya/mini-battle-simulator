@@ -1,6 +1,7 @@
 local ClassRoleConfig = require("config.tables.classes")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local RogueBuildPassives = {}
 
@@ -256,19 +257,41 @@ function RogueBuildPassives.CreateSneakAttackPassive(context)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
         local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
+        if not isAlive(hero) or not target then
             return
         end
         if tonumber(extraParam.skillId) ~= IDS.rogue_basic_attack then
             return
         end
         local runtime = ensureRuntime(hero)
-        local condition = evaluateSneakCondition(hero, target)
-        if (tonumber(extraParam.damageDealt) or 0) > 0 and condition.qualified then
+        local damageDealt = tonumber(extraParam.damageDealt) or 0
+        local condition = isAlive(target) and evaluateSneakCondition(hero, target) or { qualified = false }
+        if isAlive(target) and damageDealt > 0 and condition.qualified then
             applySneakAttack(hero, target, condition)
         end
         if condition.viaForced then
             consumeForcedSneak(runtime)
+        end
+
+        -- §C 伏击大师：击杀本回合被你伏击过的目标后，对最低血敌人发动 1 次基础攻击；每场限次。
+        -- 配置来源：feats.lua c_rogue_ambush_master → modify_skill 80001101：
+        --   onKillBasicAttackCharges / onKillTargetLowestHp
+        local killChargesMax = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_sneak_attack, "onKillBasicAttackCharges", 0)))
+        if killChargesMax > 0 and damageDealt > 0 and condition.qualified
+            and target and target.isDead and not runtime.__inAmbushFollowUp then
+            local killUsed = math.max(0, math.floor(tonumber(runtime.rogueAmbushMasterUsed) or 0))
+            if killUsed < killChargesMax then
+                local BattleSkill = require("modules.battle_skill")
+                local followTarget = BattleSkill.SelectLowestHpEnemy(hero)
+                if isAlive(followTarget) then
+                    runtime.rogueAmbushMasterUsed = killUsed + 1
+                    runtime.__inAmbushFollowUp = true
+                    BattleSkill.CastSmallSkill(hero, followTarget)
+                    runtime.__inAmbushFollowUp = false
+                    BuildPassiveCommon.PublishPassiveTriggered(hero, "伏击大师", "击杀追击",
+                        string.format("追击 %s", followTarget.name or "目标"))
+                end
+            end
         end
     end
 

@@ -674,6 +674,28 @@ function BattleSkill.Init(hero, skillsConfig)
         end
     end
 
+    -- LIMITED 充能：根据每个 LIMITED 技能上的 feat 修饰（secondWindCharges / chargesDelta）累加到 hero.ultimateChargesMax。
+    -- 基础值由外部（roguelike bridge / hero_factory）注入（默认 1）；这里只追加 feat 加成，并把当前 charges 同步刷满。
+    local prevMax = tonumber(hero.ultimateChargesMax) or 1
+    local prevCharges = tonumber(hero.ultimateCharges)
+    local extraCharges = 0
+    for _, skill in ipairs(hero.skills) do
+        if skill and skill.skillType == E_SKILL_TYPE_LIMITED then
+            local sid = skill.skillId
+            extraCharges = extraCharges
+                + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, sid, "secondWindCharges", 0)))
+                + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, sid, "chargesDelta", 0)))
+        end
+    end
+    if extraCharges > 0 then
+        hero.ultimateChargesMax = prevMax + extraCharges
+        if prevCharges == nil or prevCharges >= prevMax then
+            hero.ultimateCharges = hero.ultimateChargesMax
+        else
+            hero.ultimateCharges = math.min(prevCharges, hero.ultimateChargesMax)
+        end
+    end
+
     Logger.Log("[BattleSkill.Init] Initialized " .. #hero.skills .. " skills for hero: " .. tostring(hero.name))
 end
 

@@ -184,6 +184,81 @@ function MonkBuildPassives.CreateMartialArtsPassive(context)
         triggerMartialArts(hero, extraParam.target)
     end
 
+    -- §C 调息大师：HP < threshold% 时自动触发一次明镜止水（治疗+净化），并获得临时生命；每场限次。
+    -- 配置来源：feats.lua c_monk_breath_master → modify_skill 80003015：
+    --   autoTriggerHpThresholdPct / autoTriggerCharges / autoTriggerTempHpFlat
+    function self:OnDefBeforeDmg(ctx)
+        local hero = self.context and self.context.src or nil
+        if not isAlive(hero) then
+            return
+        end
+        local thresholdPct = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.monk_harmonize, "autoTriggerHpThresholdPct", 0)))
+        if thresholdPct <= 0 then
+            return
+        end
+        local maxCharges = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.monk_harmonize, "autoTriggerCharges", 0)))
+        if maxCharges <= 0 then
+            return
+        end
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        local incomingDamage = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
+        local maxHp = tonumber(hero.maxHp) or 0
+        if maxHp <= 0 then
+            return
+        end
+        local hpAfter = math.max(0, (tonumber(hero.hp) or 0) - incomingDamage)
+        if hpAfter <= 0 then
+            return -- 已致命交给「不屈之风」类被动；调息大师不抢救致死。
+        end
+        if hpAfter * 100 >= maxHp * thresholdPct then
+            return
+        end
+        local runtime = ensureRuntime(hero)
+        local used = math.max(0, math.floor(tonumber(runtime.monkBreathMasterUsed) or 0))
+        if used >= maxCharges then
+            return
+        end
+        runtime.monkBreathMasterUsed = used + 1
+
+        -- 复用明镜止水的治疗效果与净化（与 skill_80003003 高阶口径一致：2d8+6）。
+        local healDice = "2d8+6"
+        local bonusDice = FeatModHelper.GetSkillMod(hero, IDS.monk_harmonize, "bonusHealDice", nil)
+        if type(bonusDice) == "string" and bonusDice ~= "" then
+            healDice = BuildPassiveCommon.JoinDiceParts(healDice, bonusDice)
+        end
+        local healAmount = BuildPassiveCommon.RollDice(healDice)
+        if healAmount > 0 then
+            local before = tonumber(hero.hp) or 0
+            hero.hp = math.min(maxHp, before + healAmount)
+            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发调息大师：明镜止水回复 %d 生命",
+                hero.name or "Unknown", math.max(0, hero.hp - before)))
+        end
+
+        -- 净化关键控制：与明镜止水一致的 Frozen / STUN / SILENT 三类。
+        local BattleBuff = require("modules.battle_buff")
+        local subTypes = {
+            E_BUFF_SPEC_SUBTYPE and E_BUFF_SPEC_SUBTYPE.Frozen,
+            E_BUFF_SPEC_SUBTYPE and E_BUFF_SPEC_SUBTYPE.STUN,
+            E_BUFF_SPEC_SUBTYPE and E_BUFF_SPEC_SUBTYPE.SILENT,
+        }
+        for _, subType in ipairs(subTypes) do
+            if subType and BattleBuff.DelBuffBySubType then
+                BattleBuff.DelBuffBySubType(hero, subType)
+            end
+        end
+
+        -- 临时生命。
+        local tempHpFlat = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.monk_harmonize, "autoTriggerTempHpFlat", 0)))
+        if tempHpFlat > 0 then
+            hero.tempHp = math.max(math.floor(tonumber(hero.tempHp) or 0), tempHpFlat)
+            BuildPassiveCommon.PublishCombatLog(string.format("%s 调息大师：获得 %d 点临时生命",
+                hero.name or "Unknown", tempHpFlat))
+        end
+
+        BuildPassiveCommon.PublishPassiveTriggered(hero, "调息大师", "低血自动调息",
+            string.format("HP %d/%d 触发", hpAfter, maxHp))
+    end
+
     return self
 end
 

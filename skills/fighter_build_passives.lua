@@ -673,12 +673,6 @@ function FighterBuildPassives.PerformSecondWindAction(hero, skill)
         return 0
     end
     local runtime = ensureRuntime(hero)
-    local maxCharges = 1 + math.max(0, FeatModHelper.GetSkillMod(hero, skill and skill.skillId or IDS.fighter_second_wind_action, "secondWindCharges", 0))
-    local used = math.max(0, math.floor(tonumber(runtime.secondWindActionUsed) or 0))
-    if used >= maxCharges then
-        return 0
-    end
-    runtime.secondWindActionUsed = used + 1
     local healDice = "1d10"
     local bonusDice = hero and hero.buildState and hero.buildState.skillMods
         and hero.buildState.skillMods[tonumber(skill and skill.skillId or IDS.fighter_second_wind_action) or 0]
