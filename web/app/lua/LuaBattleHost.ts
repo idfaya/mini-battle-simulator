@@ -1,6 +1,6 @@
 import * as fengari from "fengari";
 import type { BattleCommand, BattleEvent, BattleSnapshot } from "../types/battle";
-import type { RunActionResponse, RunSnapshot } from "../types/roguelike";
+import type { RunActionResponse, RunLiteSnapshot, RunSnapshot } from "../types/roguelike";
 import { normalizeEvent } from "./eventBridge";
 
 const { lua, lauxlib, lualib, to_jsstring, to_luastring } = fengari;
@@ -128,11 +128,16 @@ export class LuaBattleHost {
     return this.callApi<RunSnapshot>("start_run", config);
   }
 
-  async tickRun(deltaMs: number): Promise<{ events: BattleEvent[]; snapshot: RunSnapshot }> {
-    // tick_run returns battle visual events (same schema as battle tick)
-    const events = this.callApi<BattleEvent[]>("tick_run", { deltaMs }).map(normalizeEvent);
-    const snapshot = this.callApi<RunSnapshot>("get_run_snapshot");
-    return { events, snapshot };
+  async tickRun(deltaMs: number): Promise<{ events: BattleEvent[]; snapshot: RunLiteSnapshot }> {
+    // 单次 fengari↔JS 调用同时拿到事件流与战斗段所需的 lite 快照，
+    // 避免每帧再走一次 get_run_snapshot 全量序列化。
+    const result = this.callApi<{ events: BattleEvent[]; snapshot: RunLiteSnapshot }>("tick_run_combined", {
+      deltaMs,
+    });
+    return {
+      events: (result.events ?? []).map(normalizeEvent),
+      snapshot: result.snapshot,
+    };
   }
 
   async getRunSnapshot(): Promise<RunSnapshot> {

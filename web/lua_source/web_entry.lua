@@ -205,6 +205,24 @@ function MiniBattleWebApi.tick_run(deltaJson)
     end)
 end
 
+-- 合并 tick + lite snapshot：单次 fengari↔JS 调用直接返回战斗段所需的最小快照，
+-- 避免每帧再走一次 get_run_snapshot（其全量 JSON 开销在手机高倍速下尤其明显）。
+function MiniBattleWebApi.tick_run_combined(deltaJson)
+    return safeCall(function()
+        local payload = nil
+        if deltaJson and deltaJson ~= "" then
+            payload = JSON.JsonDecode(deltaJson)
+        end
+        local deltaMs = payload and payload.deltaMs or 16
+        local events = RunRuntime.Tick(deltaMs)
+        local snapshot = RunRuntime.GetSnapshot({ lite = true })
+        return JSON.JsonEncode({
+            events = events or {},
+            snapshot = snapshot,
+        })
+    end)
+end
+
 function MiniBattleWebApi.get_run_snapshot()
     return safeCall(function()
         return JSON.JsonEncode(RunRuntime.GetSnapshot())

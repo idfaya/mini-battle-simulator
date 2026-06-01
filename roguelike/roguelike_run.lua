@@ -845,12 +845,12 @@ function RoguelikeRun.TestForceCurrentBattleVictory()
     return true
 end
 
-function RoguelikeRun.GetSnapshot()
+function RoguelikeRun.GetSnapshot(opts)
     local battleSnapshot = nil
     if state.phase == "battle" then
         battleSnapshot = cachedBattleSnapshot or RoguelikeBattleBridge.GetSnapshot()
     end
-    return RoguelikeSnapshot.Build(state, battleSnapshot)
+    return RoguelikeSnapshot.Build(state, battleSnapshot, opts)
 end
 
 function RoguelikeRun.ChoosePath(nodeId)

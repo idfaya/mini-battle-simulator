@@ -339,6 +339,14 @@ export type RunSnapshot = {
   };
 };
 
+export type RunLiteSnapshot = {
+  lite: true;
+  phase: RunPhase;
+  currentNodeId: number | null;
+  lastActionMessage: string;
+  battleSnapshot: BattleSnapshot | null;
+};
+
 export type RunActionResponse = {
   accepted: boolean;
   reason?: string;

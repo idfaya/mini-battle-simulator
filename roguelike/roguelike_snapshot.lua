@@ -296,7 +296,19 @@ local function serializeEventState(eventState)
     }
 end
 
-function RoguelikeSnapshot.Build(runState, battleSnapshot)
+function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
+    -- Lite 模式：用于战斗段每帧的 tick 回包，跳过 map / roster / 装备 / 事件等
+    -- 与战斗无关的元数据序列化，前端在战斗中直接复用上一帧的 full snapshot 字段。
+    if opts and opts.lite then
+        return {
+            phase = runState.phase,
+            currentNodeId = runState.currentNodeId,
+            lastActionMessage = runState.lastActionMessage or "",
+            battleSnapshot = battleSnapshot,
+            lite = true,
+        }
+    end
+
     local ownedUnits = serializeTeam(RoguelikeRoster.GetOwnedUnits(runState))
     local teamRoster = serializeTeam(RoguelikeRoster.GetTeamUnits(runState))
     local benchRoster = serializeTeam(RoguelikeRoster.GetBenchUnits(runState))

@@ -499,15 +499,20 @@ async function bootstrapRunMode(
       inFlight = true;
       const previousPhase = runSnapshot.phase;
       const previousBattleSnapshot = battleStore.getState().snapshot;
-      const { events, snapshot } = await host.tickRun(delta * battleSpeed);
+      const { events, snapshot: liteSnapshot } = await host.tickRun(delta * battleSpeed);
       inFlight = false;
       if (!isActive()) {
         return;
       }
 
-      if (previousPhase === "battle" && snapshot.phase !== "battle") {
-        runSnapshot = snapshot;
-        deferredPostBattleSnapshot = snapshot;
+      if (previousPhase === "battle" && liteSnapshot.phase !== "battle") {
+        // 战斗段结束：lite 快照不含 map/team/装备等字段，需要拉一次 full snapshot 给后续奖励/地图阶段使用。
+        const fullSnapshot = await host.getRunSnapshot();
+        if (!isActive()) {
+          return;
+        }
+        runSnapshot = fullSnapshot;
+        deferredPostBattleSnapshot = fullSnapshot;
         holdBattleResultScene = true;
         if (previousBattleSnapshot) {
           battleStore.setSnapshot({
@@ -517,17 +522,30 @@ async function bootstrapRunMode(
             result:
               previousBattleSnapshot.result ??
               {
-                winner: snapshot.phase === "failed" ? "right" : "left",
-                reason: snapshot.lastActionMessage || (snapshot.phase === "failed" ? "battle_failed" : "battle_resolved"),
+                winner: fullSnapshot.phase === "failed" ? "right" : "left",
+                reason: fullSnapshot.lastActionMessage || (fullSnapshot.phase === "failed" ? "battle_failed" : "battle_resolved"),
               },
           });
         }
-      } else {
-        syncRunSnapshot(snapshot);
+      } else if (runSnapshot) {
+        // 战斗中：把 lite 快照合并到当前 runSnapshot，仅刷新战斗相关字段，
+        // 其余 map/team/装备/事件状态保持上一帧值，避免每帧全量序列化。
+        runSnapshot = {
+          ...runSnapshot,
+          phase: liteSnapshot.phase,
+          currentNodeId: liteSnapshot.currentNodeId,
+          lastActionMessage: liteSnapshot.lastActionMessage,
+          battleSnapshot: liteSnapshot.battleSnapshot,
+        };
+        runStore.setSnapshot(runSnapshot);
+        if (liteSnapshot.battleSnapshot) {
+          battleStore.setSnapshot(liteSnapshot.battleSnapshot);
+        }
+        runUiDirty = true;
       }
       battleStore.appendEvents(events);
 
-      const battleSnapshot = snapshot.battleSnapshot;
+      const battleSnapshot = liteSnapshot.battleSnapshot;
       if (autoUltimate && battleSnapshot && !battleSnapshot.result && battleSnapshot.pendingCommands === 0) {
         const readyUnit = battleSnapshot.leftTeam.find((unit) => unit.isAlive && unit.ultimateReady);
         if (readyUnit) {
