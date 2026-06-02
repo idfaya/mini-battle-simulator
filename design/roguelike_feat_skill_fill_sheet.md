@@ -73,6 +73,7 @@
 
 - 每个非根节点至少有 1 个父节点已被点过才能选。
 - 单节点只能点 1 次。
+- 少数需要“多个父节点同时满足”的节点，使用 `prerequisites + requireAllPrerequisites = true` 表达；当前盗贼的 `J 诡诈·眩晕`、`C 致命偷袭`、`C 诡诈大师` 属于此类。
 - 分支可设互斥组（mutex），通过 §8 落表中的 `choiceGroup` 字段在树形节点之间表达。
 - 主干 T1 / T2 第一次点时 `grant_skill` 对应核心主动，后续合流节点对该主动做 `modify_skill`。
 - Capstone 全 Run 只能选 1 个；选定后其它 capstone 节点不再出现在候选池。
@@ -140,17 +141,16 @@
 
 | 节点 | 父节点 | 类型 | 效果 | 落点 |
 | --- | --- | --- | --- | --- |
-| `R 伏击基础` | — | `R` | 基础攻击命中后若目标受控或被夹击，额外 `+1d6` | `grant low 核心被动` |
-| `B 伏击熟练` | `伏击基础` | `B` | 伏击额外伤害改为 `+1d8`，且触发条件放宽：包含 `SLOW` 目标 | `modify 伏击` |
-| `T1 处决基础` | `伏击基础` | `T1` | Lv3 主干：mid 核心主动；执行一次基础攻击且强制满足伏击；目标半血以下额外 `+2d6` | `grant mid_slot` |
-| `B 处决穿行` | `处决基础` | `B` | 影袭处决无视前排 | `modify T1` |
-| `J 处决精通` | `伏击基础 + 处决基础` | `J` | 影袭处决 `CD -1`；若目标已低于半血，本次伤害额外 `+1d6` | `modify T1（cooldownDelta）` |
-| `J 伏击精通` | `伏击基础 + 伏击熟练` | `J` | 伏击命中后，为目标登记“你下次攻击它时额外 `+1d4`”；同一目标仅保留 `1` 层登记；该次攻击暴击阈值 `-1` | `passive onHit` |
-| `T2 闪避基础` | `伏击基础` | `T2` | Lv5 主干：high 核心主动；每回合首次被命中伤害减半 | `grant high_slot` |
-| `B 闪避熟练` | `闪避基础` | `B` | 直觉闪避也对 `AOE` 生效 | `modify T2` |
-| `J 闪避精通` | `闪避基础 + 闪避熟练` | `J` | 直觉闪避触发后，你本回合下次基础攻击视为满足伏击且 `hit +1`；若该次攻击命中，再额外 `+1d6` | `passive onTrigger` |
-| `C 伏击大师` | `伏击精通 + 闪避精通` | `C` | 击杀本回合被你伏击过的目标后，对最低血敌人发动 `1` 次基础攻击；每场最多 `2` 次 | `passive onKill` |
-| `C 处决大师` | `处决精通 + 处决穿行` | `C` | 影袭处决变为对相邻 `2` 个目标各发动一次半伤基础攻击，优先后排目标 | `modify T1` |
+| `R 偷袭基础` | — | `R` | 基础攻击命中后若目标处于 `STUN` / `FROZEN` / `PRONE` 等失能态，或至少 `1` 名友军与目标相邻，额外 `+1d6` | `grant low 核心被动` |
+| `B 偷袭增伤` | `偷袭基础` | `B` | 偷袭额外伤害骰 `+1d6`（`1d6` → `2d6`） | `modify 偷袭（sneakDiceCountDelta）` |
+| `B 偷袭放宽` | `偷袭基础` | `B` | 偷袭触发条件放宽：被 `BLEED` / `POISON` / `MARK` 标记的目标也视为满足偷袭；其中 `BLEED` 指运行时的 `流血` 标记，不包含 `破绽（AC -1）` | `modify 偷袭（advantageSources）` |
+| `T1 直觉闪避基础` | `偷袭基础` | `T1` | Lv3 主干：mid 核心主动；每回合首次被单体攻击命中时，受到的伤害减半 | `grant mid_slot` |
+| `J 反射闪避` | `直觉闪避基础` | `J` | 受到 `AOE` / 敏捷豁免类伤害时，敏豁成功完全免伤，敏豁失败只承受 `1/2` 伤害 | `passive onSave` |
+| `T2 诡诈打击基础` | `偷袭基础` | `T2` | Lv5 主干：high 核心主动；执行一次基础攻击且强制满足偷袭；命中后目标体豁失败则 `POISON 1` 回合 | `grant high_slot` |
+| `B 诡诈·盲目` | `诡诈打击基础` | `B` | 诡诈打击命中后追加效果：目标体豁失败则 `BLIND 1` 回合；与涂毒同时结算 | `modify T2（addBlind）` |
+| `J 诡诈·眩晕` | `诡诈打击基础 + 诡诈·盲目` | `J` | 诡诈打击命中后追加效果：目标感豁失败则 `STUN 1` 回合；与涂毒、盲目同时结算 | `modify T2（addDaze）` |
+| `C 致命偷袭` | `偷袭增伤 + 偷袭放宽 + 反射闪避` | `C` | 偷袭无需任何前置条件即可触发；偷袭命中时本次攻击暴击阈值 `-1`；偷袭命中暴击则伤害骰加倍 | `modify 偷袭（unconditional / critThresholdDelta / sneakDiceDoubleOnCrit）` |
+| `C 诡诈大师` | `诡诈·盲目 + 诡诈·眩晕` | `C` | 诡诈打击的全部附加效果（涂毒 / 盲目 / 眩晕）持续时间 `+1` 回合；若目标已处于失能态，本次攻击自动暴击 | `modify T2（cunningDurationDelta / autoCritOnIncapacitated）` |
 
 ### 8.4 游侠 Ranger
 
@@ -275,9 +275,9 @@
 
 | 字段 | 用途 | 使用节点 | 读取位置 |
 | --- | --- | --- | --- |
-| `cooldownDelta` | CD ±N | 盗 J 处决精通、游 J 箭雨回响、圣 J 惩戒精通、法 J 冻结咒术、术 B 风暴回响、术 C 爆燃大师、牧 B 治愈熟练、邪 B 雷暴回响 | `modules/skill_runtime.lua`（CD 解析） |
-| `bonusHit` | 命中加值 +1 | 战 B 反击熟练、武 B 连击影步、游 J 狩猎精通、游 C 印记大师、盗 J 闪避精通 | `modules/skill_runtime.lua`（attack roll 装配） |
-| `critThresholdDelta` | 暴击阈值 -1 | 盗 J 伏击精通、野 C 重击大师 | `modules/skill_runtime.lua`（crit 判定） |
+| `cooldownDelta` | CD ±N | 盗 J 诡诈精通、游 J 箭雨回响、圣 J 惩戒精通、法 J 冻结咒术、术 B 风暴回响、术 C 爆燃大师、牧 B 治愈熟练、邪 B 雷暴回响 | `modules/skill_runtime.lua`（CD 解析） |
+| `bonusHit` | 命中加值 +1 | 战 B 反击熟练、武 B 连击影步、游 J 狩猎精通、游 C 印记大师 | `modules/skill_runtime.lua`（attack roll 装配） |
+| `critThresholdDelta` | 暴击阈值 -1 | 野 C 重击大师 | `modules/skill_runtime.lua`（crit 判定） |
 | `dotDurationDelta` | 印记 / 霜冻 / 燃烧持续 +N 回合 | 游 B 印记延续、法 B 霜冻熟练、术 B 点燃熟练 | 各职业 passive 文件（onApply 时计算） |
 | `aoeRadiusDelta` | AOE 半径扩张 | 法 B 冻结扩张 | `skills/` 中各 AOE skill 的 target picker |
 | `chainCountDelta` | 弹射 / 箭雨次数 +N | 游 B 箭雨精通、游 C 箭雨大师、邪 B 雷链熟练、邪 C 雷链大师 | `skills/` 中弹射 / multishot skill |
@@ -294,6 +294,7 @@
 `BuildFeatDef`（位于 `config/tables/feats.lua` 顶部 EmmyLua 注释）需要新增以下可选字段：
 
 - `prerequisites: integer[]` —— 父节点 feat id 列表，用于实现「至少有一个父节点已点过」的解锁判定。
+- `requireAllPrerequisites: boolean` —— 为 `true` 时，`prerequisites` 中列出的父节点必须全部已点过；用于表达 `J / C` 合流节点的多父同时满足。
 - `isRoot: boolean` —— 是否根节点 R，等级 1 自动获得，不消耗自由点。
 - `trunk: "T1" | "T2" | nil` —— 主干位置；存在时 picker 在 Lv3 / Lv5 仅从该候选筛选。
 - `isCapstone: boolean` —— 是否 capstone C；全 Run 只能选 1 个，picker 选定后清理同类候选。
@@ -304,7 +305,7 @@
 ## 11. 落地顺序
 
 1. 文档定稿（本任务完成后即定稿）。✅
-2. 扩展 `BuildFeatDef` schema（仅扩注释，不改运行时函数）。✅（`treeSlot` / `trunk` / `isCapstone` / `prerequisites` 字段已在 `config/tables/feats.lua` 落地）
+2. 扩展 `BuildFeatDef` schema（仅扩注释，不改运行时函数）。✅（`treeSlot` / `trunk` / `isCapstone` / `prerequisites` / `requireAllPrerequisites` 字段已在 `config/tables/feats.lua` 落地）
 3. 实装基础设施 mod 字段（按第 9 节清单逐字段挂到对应 passive / skill）。✅（§9 字段已在 R / T1 / T2 + B / J / C 节点的 `effects.modify_skill.add` 中使用）
 4. 按职业逐个把 R / T1 / T2 节点先补全，确保 Lv1 / Lv3 / Lv5 走完。✅（10 职业的 R = Lv1 fixed feat / T1 = Lv3 subclass / T2 = Lv5 capstone 已显式打 trunk 标记）
 5. 实装 B / J 节点。✅（10 职业 × ~10 个 B/J 节点已写入，namespace 起 `2300000 + classId*1000 + idx`）
