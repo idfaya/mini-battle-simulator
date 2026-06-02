@@ -147,18 +147,21 @@ do
     Run.StartRun({
         chapterId = 101,
         starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 88001,
+        seed = 1,
     })
     local snapshot = Run.GetSnapshot()
     local eventId = nil
-    for _ = 1, 24 do
+    for _ = 1, 64 do
         eventId = findSelectableNode(snapshot, function(node)
             return node.nodeType == "event"
         end)
         if eventId then
             break
         end
-        local nextNodeId = findSelectableNode(snapshot, function(node)
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(node)
+            return node.nodeType == "event" and not node.visited
+        end)
+        local nextNodeId = (hop and hop.id) or findSelectableNode(snapshot, function(node)
             return true
         end)
         assert_true(nextNodeId, "need a selectable node while routing to event")
@@ -203,11 +206,11 @@ do
     Run.StartRun({
         chapterId = 101,
         starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 82,
+        seed = 1,
     })
     local routeState = { recentNodeIds = { 0, 0 }, lastNodeId = 0, firstBattleResolved = false }
     local snapshot = Run.GetSnapshot()
-    for _ = 1, 120 do
+    for _ = 1, 240 do
         if snapshot.phase == "stair" and snapshot.stairState and snapshot.stairState.direction == "down" then
             break
         end

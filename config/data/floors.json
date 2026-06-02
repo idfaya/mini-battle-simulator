@@ -13,11 +13,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -47,11 +47,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -115,11 +115,11 @@
       "battle_elite": 12,
       "equip": 10,
       "event": 23,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },
@@ -166,11 +166,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -201,11 +201,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -271,11 +271,11 @@
       "battle_elite": 12,
       "equip": 10,
       "event": 23,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },
@@ -323,11 +323,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -358,11 +358,11 @@
       "battle_elite": 10,
       "equip": 10,
       "event": 25,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -428,11 +428,11 @@
       "battle_elite": 12,
       "equip": 10,
       "event": 23,
-      "camp": 5,
+      "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 1, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },

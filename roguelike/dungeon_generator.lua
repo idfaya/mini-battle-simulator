@@ -273,6 +273,19 @@ local function findFarthestCell(adj, startIdx, excludeIdx)
     return bestIdx, bestDist
 end
 
+local function pickForcedCampCell(rng, cells, startCellIdx, upStairIdx, downStairIdx, bossCellIdx)
+    local candidates = {}
+    for i = 1, #cells do
+        if i ~= startCellIdx and i ~= upStairIdx and i ~= downStairIdx and i ~= bossCellIdx then
+            candidates[#candidates + 1] = i
+        end
+    end
+    if #candidates == 0 then
+        return nil
+    end
+    return candidates[rng:nextInt(1, #candidates)]
+end
+
 local function normalizeEventPoolEntry(rawEntry)
     local eventId
     local weight = 1
@@ -447,6 +460,14 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                     bossCellIdx = bossCandidates[rng:nextInt(1, #bossCandidates)]
                 end
 
+                local forcedCampCellIdx = nil
+                if not template.isBoss and tonumber(template.floorIndex) == 3 and (tonumber(template.campId) or 0) > 0 then
+                    forcedCampCellIdx = pickForcedCampCell(rng, cells, startCellIdx, upStairIdx, downStairIdx, bossCellIdx)
+                    if forcedCampCellIdx then
+                        counts.camp = 1
+                    end
+                end
+
                 for i, cell in ipairs(cells) do
                     local roomType
                     local payload
@@ -459,6 +480,9 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                         payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     elseif template.isBoss and i == bossCellIdx then
                         roomType = "boss"
+                        payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
+                    elseif i == forcedCampCellIdx then
+                        roomType = "camp"
                         payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     else
                         roomType = pickRoomType(rng, template, counts, chapterId, usedEventIds)

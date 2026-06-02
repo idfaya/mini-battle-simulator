@@ -106,7 +106,7 @@ Floor = Maze(Room ⇄ Room)
 | 精英战房 | 精英战，必掉装备 + 概率 bless | 10% |
 | 宝箱房 | 开启宝箱，随机获得金币或装备 | 10% |
 | 事件房（Event） | 文字事件 + 多选项决策（含 5e 检定 / 调查物件） | 20% |
-| 营地房（Camp） | 全队回满 + 清状态 + 复活 1 名 | 5% |
+| 营地房（Camp） | 全队回满 + 清状态 + 复活 1 名 | 每章固定第 3 层 1 个 |
 | 商店房（Shop） | 金币兑换装备 / bless / 复活卷轴 | 5% |
 | 楼梯房 | 上 / 下楼梯 | 固定（每层 ≥1） |
 | 空房 | 风味 / 仅作通路 | 余量 |
@@ -143,6 +143,7 @@ Floor = Maze(Room ⇄ Room)
   - 清除全队所有负面状态 / 负面祝福；
   - 复活 1 名阵亡角色（满血）。
 - 无营火点数、无 4 选 1 选项。
+- 营地房每章只出现 1 次，固定在第 `3` 层。
 - 营地结算后房间置为 `cleared`，重复进入仅作通路。
 - **实现**：[`roguelike/roguelike_camp.lua`](../roguelike/roguelike_camp.lua) `ApplyReviveFullRest`；进入营地房即结算并回 map。回归 [`bin/test_roguelike_camp_full_rest.lua`](../bin/test_roguelike_camp_full_rest.lua)。
 

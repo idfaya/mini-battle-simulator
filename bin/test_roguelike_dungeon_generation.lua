@@ -76,6 +76,7 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
         local state, err = DungeonGenerator.Generate(seed, chapterId, profile)
         assert_true(state, string.format("seed=%d chapter=%d generate failed: %s", seed, chapterId, tostring(err)))
         local chapterSeenEventIds = {}
+        local chapterCampCount = 0
 
         local ok, validateErr = DungeonGenerator.Validate(state)
         assert_true(ok, string.format("seed=%d chapter=%d validate failed: %s", seed, chapterId, tostring(validateErr)))
@@ -131,6 +132,14 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
                 assert_true(counts.camp <= maxCamp,
                     string.format("seed=%d chapter=%d depth=%d camp=%d > maxCamp=%d", seed, chapterId, depth, counts.camp, maxCamp))
             end
+            if depth == 3 and not template.isBoss then
+                assert_true(counts.camp == 1,
+                    string.format("seed=%d chapter=%d depth=3 should have exactly one camp, got %d", seed, chapterId, counts.camp))
+            elseif not template.isBoss then
+                assert_true(counts.camp == 0,
+                    string.format("seed=%d chapter=%d depth=%d should have no camp, got %d", seed, chapterId, depth, counts.camp))
+            end
+            chapterCampCount = chapterCampCount + counts.camp
             if maxShop then
                 assert_true(counts.shop <= maxShop,
                     string.format("seed=%d chapter=%d depth=%d shop=%d > maxShop=%d", seed, chapterId, depth, counts.shop, maxShop))
@@ -168,6 +177,8 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
                 chapterSeenEventIds[eventId] = true
             end
         end
+        assert_true(chapterCampCount == 1,
+            string.format("seed=%d chapter=%d should have exactly one camp in chapter, got %d", seed, chapterId, chapterCampCount))
     end
 end
 
