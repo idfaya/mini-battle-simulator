@@ -288,8 +288,9 @@ export class BattleStore {
           }).catch(() => {});
           // #endregion
           this.markCastResult(event.payload.attackerId);
+          const critMark = event.payload.isCrit ? "暴击，" : "";
           appendLog(
-            `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
+            `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${critMark}${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
           );
           pushAnimationEvent(animations, {
             type: "damage",

@@ -237,6 +237,7 @@ test("critical basic attack damage merges with attached skill damage into one re
   expect(merged?.kind).toBe("critical");
   expect(merged?.color).toBe("#ff5a5f");
   expect(merged?.text).toBe("25");
+  expect(store["state"].log).toContain("Hero 对 Target 造成 暴击，18 伤害");
 });
 
 test("active skill cast shows caster pulse label while basic attack does not", () => {
