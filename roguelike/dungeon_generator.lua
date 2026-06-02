@@ -331,13 +331,15 @@ local function listAvailableEventEntries(template, chapterId, usedEventIds)
     return entries
 end
 
-local function pickRoomType(rng, template, counts, chapterId, usedEventIds)
+local function pickRoomType(rng, template, counts, chapterId, usedEventIds, chapterShopCount)
     local weights = template.typeWeights or {}
     local entries = {}
     for typeKey, weight in pairs(weights) do
         local effectiveWeight = tonumber(weight) or 0
         if typeKey == "camp" and (template.constraints and template.constraints.maxCamp) and
             (counts.camp or 0) >= (template.constraints.maxCamp or 0) then
+            effectiveWeight = 0
+        elseif typeKey == "shop" and (tonumber(chapterShopCount) or 0) >= 2 then
             effectiveWeight = 0
         elseif typeKey == "shop" and (template.constraints and template.constraints.maxShop) and
             (counts.shop or 0) >= (template.constraints.maxShop or 0) then
@@ -485,7 +487,14 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                         roomType = "camp"
                         payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     else
-                        roomType = pickRoomType(rng, template, counts, chapterId, usedEventIds)
+                        roomType = pickRoomType(
+                            rng,
+                            template,
+                            counts,
+                            chapterId,
+                            usedEventIds,
+                            options.chapterShopCount
+                        )
                         if roomType == "camp" then counts.camp = counts.camp + 1 end
                         if roomType == "shop" then counts.shop = counts.shop + 1 end
                         if roomType == "battle_elite" then counts.battle_elite = counts.battle_elite + 1 end
@@ -618,6 +627,7 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
         clearedRoomIds = {},
     }
     local usedEventIds = {}
+    local chapterShopCount = 0
 
     for depth, templateId in ipairs(floorTemplateIds) do
         local template = Floors.GetTemplate(templateId)
@@ -632,7 +642,12 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
             depth,
             chapterId,
             template,
-            { hasUpStair = hasUpStair, hasDownStair = hasDownStair, usedEventIds = usedEventIds }
+            {
+                hasUpStair = hasUpStair,
+                hasDownStair = hasDownStair,
+                usedEventIds = usedEventIds,
+                chapterShopCount = chapterShopCount,
+            }
         )
         if not floorState then
             return nil, err or "floor_failed"
@@ -641,6 +656,8 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
             local eventId = tonumber(room.payload and room.payload.eventId)
             if room.roomType == "event" and eventId then
                 usedEventIds[eventId] = true
+            elseif room.roomType == "shop" then
+                chapterShopCount = chapterShopCount + 1
             end
         end
         state.floors[depth] = floorState
