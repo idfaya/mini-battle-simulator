@@ -174,6 +174,14 @@ function ClassesTable.GetCanonicalFeatChain(classId, toLevel)
         if type(feat.prerequisites) ~= "table" or #feat.prerequisites == 0 then
             return true
         end
+        if feat.requireAllPrerequisites == true then
+            for _, pid in ipairs(feat.prerequisites) do
+                if not owned[tonumber(pid) or 0] then
+                    return false
+                end
+            end
+            return true
+        end
         for _, pid in ipairs(feat.prerequisites) do
             if owned[tonumber(pid) or 0] then
                 return true

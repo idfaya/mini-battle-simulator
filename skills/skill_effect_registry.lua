@@ -1060,13 +1060,13 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
-    SkillEffectRegistry.Register("rogue_execute_strike", function(ctx, frameCopy)
+    SkillEffectRegistry.Register("rogue_cunning_strike", function(ctx, frameCopy)
         local RogueBuildPassives = require("skills.rogue_build_passives")
         local target = frameCopy.target or ((frameCopy.targets or {})[1]) or ((ctx.targets or {})[1])
         if not target or target.isDead then
             return nil
         end
-        local damage = RogueBuildPassives.PerformExecuteStrike(ctx.hero, target, ctx.skill)
+        local damage = RogueBuildPassives.PerformCunningStrike(ctx.hero, target, ctx.skill)
         return {
             damage = (tonumber(frameCopy.damage) or 0) + damage,
             targets = { target },
@@ -1219,4 +1219,3 @@ function SkillEffectRegistry.RegisterBuiltins()
 end
 
 return SkillEffectRegistry
-

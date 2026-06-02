@@ -81,7 +81,7 @@ end
 --- §5 单轨：校验玩家自选 feat 必须满足
 ---   1. feat 存在且 classId 匹配；
 ---   2. feat.level <= 角色等级；
----   3. prerequisites 至少一个已被 owned（owned = lv1FeatIds + 已选）；
+---   3. prerequisites 默认至少一个已被 owned；requireAllPrerequisites=true 时必须全部满足；
 ---   4. 同一棵树同一节点不可重复选择。
 --- 不再要求每个 choiceGroup 必须填满（§5 树形选择是开放式 build path）。
 local function validateSelections(classId, level, selectedFeatIds)
@@ -112,9 +112,15 @@ local function validateSelections(classId, level, selectedFeatIds)
         local fid = tonumber(featId) or 0
         local feat = FeatBuildConfig.GetFeat(fid)
         if feat and type(feat.prerequisites) == "table" and #feat.prerequisites > 0 then
-            local ok = false
+            local ok = feat.requireAllPrerequisites == true
             for _, pid in ipairs(feat.prerequisites) do
-                if owned[tonumber(pid) or 0] then
+                local hasParent = owned[tonumber(pid) or 0] == true
+                if feat.requireAllPrerequisites == true then
+                    if not hasParent then
+                        ok = false
+                        break
+                    end
+                elseif hasParent then
                     ok = true
                     break
                 end
@@ -281,4 +287,3 @@ function HeroBuild.CompileBuild(classId, level, selectedFeatIds)
 end
 
 return HeroBuild
-

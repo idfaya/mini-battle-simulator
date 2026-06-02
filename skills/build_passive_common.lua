@@ -423,6 +423,16 @@ function BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill)
             targetId = target and (target.instanceId or target.id) or nil,
         })
     end
+    if runtime.pendingBasicAttackForceCrit == true then
+        opts.forceCrit = true
+        publishCombatLog(string.format("%s 触发%s：对 %s 的本次基础攻击自动暴击",
+            hero and hero.name or "Unknown",
+            runtime.pendingBasicAttackForceCritLabel or "自动暴击",
+            target and target.name or "目标"), {
+            heroId = hero and (hero.instanceId or hero.id) or nil,
+            targetId = target and (target.instanceId or target.id) or nil,
+        })
+    end
     augmentBasicAttackResolveOpts(hero, target, opts, runtime)
     return opts
 end
@@ -458,9 +468,10 @@ function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
     })
 end
 
-function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
+function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage, damageResult)
     local runtime = ensureRuntime(hero)
     runtime.lastBasicAttackHit = (tonumber(damage) or 0) > 0
+    runtime.lastBasicAttackCrit = damageResult and damageResult.isCrit == true or false
     runtime.lastBasicAttackTargetId = target and (target.instanceId or target.id) or nil
     runtime.pendingBasicAttackBonusDice = nil
     runtime.pendingBasicAttackIgnoreAc = nil
@@ -469,6 +480,8 @@ function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage)
     runtime.pendingBasicAttackHitBonusLabel = nil
     runtime.pendingBasicAttackDamageMultiplier = nil
     runtime.pendingBasicAttackDamageMultiplierLabel = nil
+    runtime.pendingBasicAttackForceCrit = nil
+    runtime.pendingBasicAttackForceCritLabel = nil
 end
 
 function BuildPassiveCommon.ResolveQueuedReactions(attacker)

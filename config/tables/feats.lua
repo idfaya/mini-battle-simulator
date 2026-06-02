@@ -24,6 +24,7 @@
 ---@field tags string[]|nil
 ---@field isSubclassCore boolean|nil
 ---@field prerequisites integer[]|nil
+---@field requireAllPrerequisites boolean|nil
 ---@field isRoot boolean|nil
 ---@field trunk string|nil  -- "T1" | "T2"
 ---@field isCapstone boolean|nil
@@ -130,17 +131,12 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_sneak_attack,
         classId = 1,
         level = 1,
-        name = "伏击",
-        description = "核心被动。当目标当前目标不是你，或目标本回合已被其他友军攻击过时，你的基础攻击造成额外伤害。",
+        name = "偷袭基础",
+        description = "基础攻击命中后若目标处于失能态，或至少 1 名友军与目标相邻，额外 +1d6。",
         treeSlot = "R",
         isRoot = true,
-        -- SSOT §5.3：致命准头 B（critThresholdDelta -1）合并到 R 选定路径。
         effects = {
             { type = "grant_skill", skill = 80001101 },
-            { type = "modify_skill", skill = 80001101, add = {
-                critThresholdDelta = -1,
-                classMods = { critThresholdDelta = -1 },
-            } },
         },
     },
     [FeatBuildConfig.Ids.rogue_shadow_step] = {
@@ -180,17 +176,13 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_execute_strike,
         classId = 1,
         level = 3,
-        name = "影袭处决",
-        description = "获得影袭处决，CD3，对后排或低血量目标发动 1 次攻击；该次攻击视为满足伏击条件。",
+        name = "直觉闪避基础",
+        description = "每回合首次被单体攻击命中时，受到的伤害减半。",
         choiceGroup = "rogue_lv3_subclass",
         trunk = "T1",
         treeSlot = "T1",
-        -- SSOT §5.3：T1 mid 核心主动；影袭再起 J（cooldownDelta -1）合并到选定路径。
         effects = {
-            { type = "grant_skill", skill = 80001013 },
-            { type = "modify_skill", skill = 80001013, add = {
-                cooldownDelta = -1,
-            } },
+            { type = "grant_skill", skill = 80001108 },
         },
     },
     [FeatBuildConfig.Ids.rogue_trickster_blade] = {
@@ -252,13 +244,13 @@ local FEATS = {
         id = FeatBuildConfig.Ids.rogue_executioner,
         classId = 1,
         level = 5,
-        name = "直觉闪避",
-        description = "高阶被动。每回合第一次被攻击命中时，受到伤害减半。",
+        name = "诡诈打击基础",
+        description = "执行一次基础攻击且强制满足偷袭；命中后目标体豁失败则 POISON 1 回合。",
         choiceGroup = "rogue_lv5_capstone",
         trunk = "T2",
         treeSlot = "T2",
         effects = {
-            { type = "grant_skill", skill = 80001108 },
+            { type = "grant_skill", skill = 80001013 },
         },
     },
     -- Cleric (classId = 6)
@@ -1091,6 +1083,7 @@ local function defineTreeFeat(idx, spec)
         description = spec.desc or "",
         treeSlot = spec.slot,
         prerequisites = spec.prereqs,
+        requireAllPrerequisites = spec.requireAllPrerequisites == true,
         isCapstone = spec.isCapstone,
         effects = spec.effects or {},
     }
@@ -1176,30 +1169,20 @@ local monkTree = {
 
 -- Rogue 盗贼 (classId=1)
 local rogueTree = {
-    {key="b_rogue_sneak_specialty", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="偷袭专精", desc="伏击额外伤害改为 +1d8。",
-        effects={{type="modify_skill", skill=80001101, add={sneakBonusDice="1d8"}}}},
-    {key="b_rogue_lethal_aim", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="致命准头", desc="基础攻击暴击阈值 -1。",
-        effects={{type="modify_skill", skill=80001011, add={critThresholdDelta=-1}}}},
-    {key="b_rogue_nimble", classId=1, level=4, slot="B", prereqs={F.rogue_R}, name="灵巧", desc="AC +1。",
-        effects={{type="modify_skill", skill=80001101, add={statMods={ac=1}}}}},
-    {key="b_rogue_flank_veteran", classId=1, level=4, slot="B", prereqs={F.rogue_R}, name="夹击老手", desc="伏击触发条件放宽：包含 SLOW 目标。",
-        effects={{type="modify_skill", skill=80001101, add={flankIncludesSlow=true}}}},
-    {key="b_rogue_execute_heavy", classId=1, level=6, slot="B", prereqs={F.rogue_T1}, name="处决重斩", desc="影袭处决伤害 +1d6。",
-        effects={{type="modify_skill", skill=80001013, add={bonusDamageDice="1d6"}}}},
-    {key="b_rogue_pass_thrust", classId=1, level=6, slot="B", prereqs={F.rogue_T1}, name="穿行突刺", desc="影袭处决无视前排。",
-        effects={{type="modify_skill", skill=80001013, add={ignoresFrontRow=true}}}},
-    {key="j_rogue_execute_recharge", classId=1, level=7, slot="J", prereqs={F.rogue_T1}, name="影袭再起", desc="影袭处决 CD -1。",
-        effects={{type="modify_skill", skill=80001013, add={cooldownDelta=-1}}}},
-    {key="j_rogue_bleed", classId=1, level=8, slot="J", prereqs={F.rogue_R}, name="出血", desc="伏击命中后，目标在你下次攻击它时额外 +1d4。",
-        effects={{type="modify_skill", skill=80001101, add={bleedFollowupDice="1d4"}}}},
-    {key="b_rogue_evasion_plus", classId=1, level=7, slot="B", prereqs={F.rogue_T2}, name="闪避加深", desc="直觉闪避也对 AOE 生效。",
-        effects={{type="modify_skill", skill=80001108, add={appliesToAoe=true}}}},
-    {key="b_rogue_intuition_counter", classId=1, level=9, slot="B", prereqs={F.rogue_T2}, name="直觉反击", desc="直觉闪避触发后下次基础攻击视为满足伏击。",
-        effects={{type="modify_skill", skill=80001108, add={grantsSneakNextHit=true}}}},
-    {key="c_rogue_ambush_master", classId=1, level=10, slot="C", prereqs={F.rogue_R}, isCapstone=true, name="伏击大师", desc="击杀本回合被你伏击过的目标后，对最低血敌人发动 1 次基础攻击（每场 2 次）。",
-        effects={{type="modify_skill", skill=80001101, add={onKillBasicAttackCharges=2, onKillTargetLowestHp=true}}}},
-    {key="c_rogue_execute_master", classId=1, level=10, slot="C", prereqs={F.rogue_T1}, isCapstone=true, name="处决大师", desc="影袭处决变为对相邻 2 个目标各发动一次半伤基础攻击，优先后排目标。",
-        effects={{type="modify_skill", skill=80001013, add={splitAdjacentTargets=2, splitDamageScale=50, splitPreferBackRow=true}}}},
+    {key="b_rogue_sneak_bonus", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="偷袭增伤", desc="偷袭额外伤害骰 +1d6。",
+        effects={{type="modify_skill", skill=80001101, add={sneakDiceCountDelta=1}}}},
+    {key="b_rogue_sneak_relax", classId=1, level=2, slot="B", prereqs={F.rogue_R}, name="偷袭放宽", desc="被 BLEED / POISON / MARK 标记的目标也视为满足偷袭。",
+        effects={{type="modify_skill", skill=80001101, add={relaxedSneakStatus=true}}}},
+    {key="j_rogue_reflex_evasion", classId=1, level=4, slot="J", prereqs={F.rogue_T1}, name="反射闪避", desc="受到 AOE / 敏捷豁免类伤害时，成功免伤，失败半伤。",
+        effects={{type="modify_skill", skill=80001108, add={evasion=true}}}},
+    {key="b_rogue_cunning_blind", classId=1, level=6, slot="B", prereqs={F.rogue_T2}, name="诡诈·盲目", desc="诡诈打击命中后追加：目标体豁失败则 BLIND 1 回合。",
+        effects={{type="modify_skill", skill=80001013, add={addBlind=true}}}},
+    {key="j_rogue_cunning_stun", classId=1, level=7, slot="J", prereqs={F.rogue_T2}, requireAllPrerequisites=true, name="诡诈·眩晕", desc="诡诈打击命中后追加：目标感豁失败则 STUN 1 回合。",
+        effects={{type="modify_skill", skill=80001013, add={addDaze=true}}}},
+    {key="c_rogue_deadly_sneak", classId=1, level=10, slot="C", prereqs={F.rogue_R}, requireAllPrerequisites=true, isCapstone=true, name="致命偷袭", desc="偷袭无需任何前置条件即可触发；偷袭命中时暴击阈值 -1；偷袭命中暴击则伤害骰加倍。",
+        effects={{type="modify_skill", skill=80001101, add={unconditional=true, sneakDiceDoubleOnCrit=true}}, {type="modify_skill", skill=80001011, add={critThresholdDelta=1}}}},
+    {key="c_rogue_cunning_master", classId=1, level=10, slot="C", prereqs={F.rogue_T2}, requireAllPrerequisites=true, isCapstone=true, name="诡诈大师", desc="诡诈打击全部附加效果持续 +1 回合；若目标已处于失能态，本次攻击自动暴击。",
+        effects={{type="modify_skill", skill=80001013, add={cunningDurationDelta=1, autoCritOnIncapacitated=true}}}},
 }
 
 -- Ranger 游侠 (classId=5)
@@ -1438,10 +1421,12 @@ do
         { "c_monk_combo_master",            "j_monk_fist_echo" },
         { "c_monk_breath_master",           "b_monk_flow" },
         -- 盗贼 §8.3
-        { "j_rogue_bleed",                  "b_rogue_sneak_specialty" },
-        { "b_rogue_intuition_counter",      "b_rogue_evasion_plus" },
-        { "c_rogue_ambush_master",          "j_rogue_bleed" },
-        { "c_rogue_execute_master",         "j_rogue_execute_recharge" },
+        { "c_rogue_deadly_sneak",           "b_rogue_sneak_bonus" },
+        { "c_rogue_deadly_sneak",           "b_rogue_sneak_relax" },
+        { "c_rogue_deadly_sneak",           "j_rogue_reflex_evasion" },
+        { "j_rogue_cunning_stun",           "b_rogue_cunning_blind" },
+        { "c_rogue_cunning_master",         "b_rogue_cunning_blind" },
+        { "c_rogue_cunning_master",         "j_rogue_cunning_stun" },
         -- 游侠 §8.4
         { "b_ranger_dual_mark",             "b_ranger_mark_specialty" },
         { "j_ranger_mark_burst",            "b_ranger_dual_mark" },
@@ -1485,7 +1470,21 @@ do
         local feat = childId and FEATS[childId]
         assert(feat, "[feats.lua] PREREQ_FIXES child not found: " .. tostring(childKey))
         assert(parentId, "[feats.lua] PREREQ_FIXES parent not found: " .. tostring(parentKey))
-        feat.prerequisites = { parentId }
+        if feat.requireAllPrerequisites == true then
+            feat.prerequisites = feat.prerequisites or {}
+            local exists = false
+            for _, existingId in ipairs(feat.prerequisites) do
+                if tonumber(existingId) == tonumber(parentId) then
+                    exists = true
+                    break
+                end
+            end
+            if not exists then
+                feat.prerequisites[#feat.prerequisites + 1] = parentId
+            end
+        else
+            feat.prerequisites = { parentId }
+        end
     end
 end
 

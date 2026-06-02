@@ -14,6 +14,8 @@
   {"buffId":880003,"name":"眩晕","mainType":3,"subType":30001,"initialStack":1,"maxStack":1,"duration":1,"canStack":false,"stackRule":"refresh","effects":[]},
   {"buffId":880004,"name":"破绽","mainType":2,"subType":880004,"value":1,"duration":1,"canStack":false,"stackRule":"refresh","desc":"AC -1，持续到下回合开始前。","effects":[]},
   {"buffId":880005,"name":"霜冻","mainType":2,"subType":880005,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","desc":"无法移动，但仍可进行远程攻击和释放技能。","effects":[]},
+  {"buffId":880006,"name":"盲目","mainType":2,"subType":880006,"initialStack":1,"maxStack":1,"duration":1,"canStack":false,"stackRule":"refresh","desc":"诡诈打击附加状态，持续期间视为负面状态。","effects":[]},
+  {"buffId":880007,"name":"流血","mainType":2,"subType":880007,"initialStack":1,"maxStack":1,"duration":2,"canStack":false,"stackRule":"refresh","desc":"物理创伤类负面标记，可被偷袭放宽识别。","effects":[]},
   {"buffId":890001,"name":"静电印记","mainType":2,"subType":890001,"value":1,"duration":2,"canStack":false,"stackRule":"refresh","desc":"被雷链和雷暴优先引爆的邪术印记。","effects":[]},
   {"buffId":890002,"name":"狂暴","mainType":1,"subType":890002,"duration":2,"canStack":false,"stackRule":"refresh","desc":"野蛮人进入狂暴状态，持续到下回合结束；期间受到物理伤害 -2，所有攻击造成伤害 +2。","effects":[]},
   {"buffId":890003,"name":"不倦狂暴","mainType":1,"subType":890003,"duration":2,"canStack":false,"stackRule":"refresh","desc":"保留给高阶野蛮人的狂暴相关扩展占位。","effects":[]},

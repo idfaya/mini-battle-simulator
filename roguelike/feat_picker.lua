@@ -49,7 +49,7 @@ end
 --   Lv5 → 仅 trunk == "T2"
 --   Lv10 → 仅 isCapstone == true（且 Run 内未选过其它 capstone）
 --   其它 → 排除 R/T1/T2/Capstone（仅 B / J 自由点）
---   prerequisites：所有列出父节点至少一个已点过才解锁（兼容 nil = 无限制）
+--   prerequisites：默认至少一个父节点已点过；requireAllPrerequisites=true 时必须全部满足
 -- §5 单轨 SSOT：无 fallback；筛出 0 项即视为该等级无可选项，由调用方继续向上跳级。
 local function filterByTreeRules(options, level, ownedSet, runHasCapstone)
     if not options or #options == 0 then
@@ -74,17 +74,21 @@ local function filterByTreeRules(options, level, ownedSet, runHasCapstone)
                 pass = false
             end
         end
-        if pass and feat.prerequisites then
-            local anySatisfied = false
+        if pass and type(feat.prerequisites) == "table" and #feat.prerequisites > 0 then
+            local satisfied = feat.requireAllPrerequisites == true
             for _, parentId in ipairs(feat.prerequisites) do
-                if ownedSet[tonumber(parentId) or 0] then
-                    anySatisfied = true
+                local hasParent = ownedSet[tonumber(parentId) or 0] == true
+                if feat.requireAllPrerequisites == true then
+                    if not hasParent then
+                        satisfied = false
+                        break
+                    end
+                elseif hasParent then
+                    satisfied = true
                     break
                 end
             end
-            if not anySatisfied then
-                pass = false
-            end
+            pass = satisfied
         end
         if pass then
             matched[#matched + 1] = item

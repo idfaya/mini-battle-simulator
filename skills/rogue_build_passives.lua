@@ -7,6 +7,12 @@ local RogueBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
 local BREACH_BUFF_ID = 880004
+local POISON_BUFF_ID = 850001
+local STUN_BUFF_ID = 880003
+local BLIND_BUFF_ID = 880006
+local BLEED_BUFF_ID = 880007
+local RANGER_MARK_BUFF_ID = 890005
+local WARLOCK_MARK_BUFF_ID = 890001
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -79,6 +85,25 @@ local function evaluateSneakCondition(hero, target)
             label = "目标被控制",
         }
     end
+    if FeatModHelper.HasFlag(hero, IDS.rogue_sneak_attack, "relaxedSneakStatus") then
+        if BattleBuff.GetBuffStackNumBySubType(target, POISON_BUFF_ID) > 0
+            or BattleBuff.GetBuffStackNumBySubType(target, BLEED_BUFF_ID) > 0
+            or BattleBuff.GetBuffStackNumBySubType(target, RANGER_MARK_BUFF_ID) > 0
+            or BattleBuff.GetBuffStackNumBySubType(target, WARLOCK_MARK_BUFF_ID) > 0 then
+            return {
+                qualified = true,
+                viaMarked = true,
+                label = "目标带负面标记",
+            }
+        end
+    end
+    if FeatModHelper.HasFlag(hero, IDS.rogue_sneak_attack, "unconditional") then
+        return {
+            qualified = true,
+            viaMastery = true,
+            label = "致命偷袭",
+        }
+    end
     if isFrontRow(target) and countAliveFrontAllies(hero) >= 2 then
         return {
             qualified = true,
@@ -107,27 +132,79 @@ local function applySneakAttack(hero, target, condition)
     if not isAlive(hero) or not isAlive(target) or not condition or not condition.qualified then
         return 0
     end
-    local diceExpr = hasSkill(hero, IDS.rogue_sneak_attack_mastery) and "2d6" or "1d6"
-    if hasSkill(hero, IDS.rogue_executioner) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
-    end
-    if condition.viaFlank and hasSkill(hero, IDS.rogue_flanking_expert) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
+    local diceCount = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_sneak_attack, "sneakDiceCountDelta", 0)))
+    local diceExpr = string.format("%dd6", diceCount)
+    local runtime = ensureRuntime(hero)
+    if runtime.lastBasicAttackCrit == true and FeatModHelper.HasFlag(hero, IDS.rogue_sneak_attack, "sneakDiceDoubleOnCrit") then
+        diceExpr = string.format("%dd6", diceCount * 2)
     end
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
         kind = "physical",
         damageKind = "direct",
         skillId = IDS.rogue_sneak_attack,
-        skillName = "伏击",
+        skillName = "偷袭",
     })
     if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发伏击：对 %s 追加 %d 点伤害（%s）",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发偷袭：对 %s 追加 %d 点伤害（%s）",
             hero.name or "Unknown",
             target.name or "目标",
             bonus,
             condition.label or "满足条件"))
     end
     return bonus
+end
+
+local function getSaveBonus(target, saveType)
+    if saveType == "fort" then
+        return tonumber(target and target.saveFort) or 0
+    end
+    if saveType == "will" then
+        return tonumber(target and target.saveWill) or 0
+    end
+    return tonumber(target and target.saveRef) or 0
+end
+
+local function getSaveLabel(saveType)
+    if saveType == "fort" then
+        return "体质"
+    end
+    if saveType == "will" then
+        return "感知"
+    end
+    return "敏捷"
+end
+
+local function applyBuffOnFailedSave(hero, target, buffId, saveType, duration, label)
+    if not isAlive(hero) or not isAlive(target) then
+        return false
+    end
+    local BattleFormula = require("core.battle_formula")
+    local BattleSkill = require("modules.battle_skill")
+    local dc = tonumber(hero.spellDC) or 10
+    local saveBonus = getSaveBonus(target, saveType) + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(target, saveType)) or 0)
+    local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {})
+    local saveLabel = getSaveLabel(saveType)
+    if saveResult.success then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s %s豁免成功 (%d vs DC %d)",
+            hero.name or "Unknown",
+            label or "诡诈打击",
+            target.name or "目标",
+            saveLabel,
+            saveResult.total or 0,
+            saveResult.dc or dc))
+        return false
+    end
+    BattleSkill.ApplyBuffFromSkill(hero, target, buffId, nil, {
+        duration = duration,
+        isPermanent = false,
+    })
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s %s豁免失败，附加状态 %d 回合",
+        hero.name or "Unknown",
+        label or "诡诈打击",
+        target.name or "目标",
+        saveLabel,
+        duration))
+    return true
 end
 
 local function applyFirstMeleeReduction(hero)
@@ -179,43 +256,40 @@ function RogueBuildPassives.ShouldIgnoreFrontProtection(hero, skill)
     return runtime.rogueShadowStepAvailable == true
 end
 
-function RogueBuildPassives.PerformExecuteStrike(hero, target, skill)
+function RogueBuildPassives.PerformCunningStrike(hero, target, skill)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local BattleBuff = require("modules.battle_buff")
     local runtime = ensureRuntime(hero)
-    local isExecutionWindow = (tonumber(target.hp) or 0) <= math.max(1, math.floor((tonumber(target.maxHp) or 1) * 0.5))
     runtime.rogueForcedSneakCharges = (tonumber(runtime.rogueForcedSneakCharges) or 0) + 1
-    runtime.rogueForcedSneakLabel = "影袭处决"
+    runtime.rogueForcedSneakLabel = "诡诈打击"
+    if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "autoCritOnIncapacitated")
+        and BattleBuff.HasControlBuff(target) then
+        runtime.pendingBasicAttackForceCrit = true
+        runtime.pendingBasicAttackForceCritLabel = "诡诈大师"
+    end
     local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
     local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if damage > 0 then
-        damage = damage + applySneakAttack(hero, target, {
-            qualified = true,
-            viaForced = true,
-            label = "影袭处决",
-        })
-    end
     if (tonumber(runtime.rogueForcedSneakCharges) or 0) > 0 then
         consumeForcedSneak(runtime)
     end
-    if damage > 0 and isExecutionWindow then
-        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "2d6", {
-            kind = "physical",
-            damageKind = "direct",
-            skillId = skill and skill.skillId or IDS.rogue_execute_strike,
-            skillName = skill and skill.name or "影袭处决",
-        })
-        damage = damage + bonus
-        if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动影袭处决：对半血目标 %s 追加 %d 点伤害",
-                hero.name or "Unknown",
-                target.name or "目标",
-                bonus))
+    local duration = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_cunning_strike_build, "cunningDurationDelta", 0)))
+    if damage > 0 and isAlive(target) then
+        applyBuffOnFailedSave(hero, target, POISON_BUFF_ID, "fort", duration, "诡诈打击·涂毒")
+        if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "addBlind") then
+            applyBuffOnFailedSave(hero, target, BLIND_BUFF_ID, "fort", duration, "诡诈打击·盲目")
+        end
+        if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "addDaze") then
+            applyBuffOnFailedSave(hero, target, STUN_BUFF_ID, "will", duration, "诡诈打击·眩晕")
         end
     end
-    return damage + applySubclassMasteryDamage(hero, target)
+    return damage
+end
+
+function RogueBuildPassives.PerformExecuteStrike(hero, target, skill)
+    return RogueBuildPassives.PerformCunningStrike(hero, target, skill)
 end
 
 function RogueBuildPassives.PerformTricksterBlade(hero, target, skill)
@@ -273,26 +347,6 @@ function RogueBuildPassives.CreateSneakAttackPassive(context)
             consumeForcedSneak(runtime)
         end
 
-        -- §C 伏击大师：击杀本回合被你伏击过的目标后，对最低血敌人发动 1 次基础攻击；每场限次。
-        -- 配置来源：feats.lua c_rogue_ambush_master → modify_skill 80001101：
-        --   onKillBasicAttackCharges / onKillTargetLowestHp
-        local killChargesMax = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_sneak_attack, "onKillBasicAttackCharges", 0)))
-        if killChargesMax > 0 and damageDealt > 0 and condition.qualified
-            and target and target.isDead and not runtime.__inAmbushFollowUp then
-            local killUsed = math.max(0, math.floor(tonumber(runtime.rogueAmbushMasterUsed) or 0))
-            if killUsed < killChargesMax then
-                local BattleSkill = require("modules.battle_skill")
-                local followTarget = BattleSkill.SelectLowestHpEnemy(hero)
-                if isAlive(followTarget) then
-                    runtime.rogueAmbushMasterUsed = killUsed + 1
-                    runtime.__inAmbushFollowUp = true
-                    BattleSkill.CastSmallSkill(hero, followTarget)
-                    runtime.__inAmbushFollowUp = false
-                    BuildPassiveCommon.PublishPassiveTriggered(hero, "伏击大师", "击杀追击",
-                        string.format("追击 %s", followTarget.name or "目标"))
-                end
-            end
-        end
     end
 
     return self
@@ -359,6 +413,25 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
         end
         local runtime = ensureRuntime(hero)
         local round = getRound()
+        local isReflexOrAoe = extraParam.isAoe == true
+            or extraParam.damageKind == "aoe"
+            or extraParam.saveType == "ref"
+        if isReflexOrAoe and FeatModHelper.HasFlag(hero, IDS.rogue_uncanny_dodge, "evasion") then
+            local saveSuccess = extraParam.saveSuccess
+            if saveSuccess == nil and type(extraParam.save) == "table" then
+                saveSuccess = extraParam.save.success == true
+            end
+            if saveSuccess == true then
+                extraParam.damage = 0
+                BuildPassiveCommon.PublishPassiveTriggered(hero, "反射闪避", "敏捷豁免成功免伤",
+                    string.format("%d -> %d", damage, extraParam.damage))
+            else
+                extraParam.damage = math.max(0, math.floor(damage * 0.5))
+                BuildPassiveCommon.PublishPassiveTriggered(hero, "反射闪避", "敏捷豁免失败半伤",
+                    string.format("%d -> %d", damage, extraParam.damage))
+            end
+            return
+        end
         if runtime.rogueUncannyRound == round then
             return
         end
@@ -371,4 +444,3 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
 end
 
 return RogueBuildPassives
-

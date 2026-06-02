@@ -74,12 +74,12 @@ do
     local sel = canonicalSelections(1, 5)
     local build = HeroBuild.CompileBuild(1, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_basic_attack), "Rogue Lv5 grants basic attack")
-    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_execute_strike), "Rogue Lv5 grants shadow execution")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_sneak_attack), "Rogue Lv5 keeps ambush")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_uncanny_dodge), "Rogue Lv5 grants uncanny dodge")
+    assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.rogue_cunning_strike_build), "Rogue Lv5 grants cunning strike")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_sneak_attack), "Rogue Lv5 keeps sneak attack")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.rogue_uncanny_dodge), "Rogue Lv3 grants uncanny dodge")
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_basic_attack), "Rogue runtime exports basic attack")
-    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_execute_strike), "Rogue runtime exports mid-tier action")
+    assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.rogue_cunning_strike_build), "Rogue runtime exports high-tier action")
 end
 
 do
@@ -87,7 +87,7 @@ do
         buildFeatIds = canonicalSelections(1, 5),
     })
     assert_true(rogueHero and rogueHero.buildState ~= nil, "HeroData generic build compile works for rogue")
-    assert_true(hasSkill(rogueHero.skillsConfig, SkillRuntimeConfig.Ids.rogue_execute_strike), "HeroData exports rogue mid-tier action")
+    assert_true(hasSkill(rogueHero.skillsConfig, SkillRuntimeConfig.Ids.rogue_cunning_strike_build), "HeroData exports rogue high-tier action")
 end
 
 do
@@ -144,6 +144,126 @@ do
 end
 
 do
+    local hero = new_unit(6311, "EvasionHero")
+    hero.buildState = HeroBuild.CompileBuild(1, 4, {
+        FeatBuildConfig.Ids.rogue_execute_strike,
+        FeatBuildConfig.Ids.j_rogue_reflex_evasion,
+    })
+    local passive = RogueBuildPassives.CreateUncannyDodgePassive({ src = hero })
+    local successCtx = { data = { extraParam = { damage = 12, isAoe = true, saveType = "ref", saveSuccess = true } } }
+    passive:OnDefBeforeDmg(successCtx)
+    assert_true(successCtx.data.extraParam.damage == 0, "reflex evasion negates damage on successful dex save")
+    local failedCtx = { data = { extraParam = { damage = 12, isAoe = true, saveType = "ref", save = { success = false } } } }
+    passive:OnDefBeforeDmg(failedCtx)
+    assert_true(failedCtx.data.extraParam.damage == 6, "reflex evasion halves damage on failed dex save")
+end
+
+do
+    local invalidDeadly = HeroBuild.TryCompileBuild(1, 10, {
+        FeatBuildConfig.Ids.rogue_execute_strike,
+        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.j_rogue_reflex_evasion,
+        FeatBuildConfig.Ids.c_rogue_deadly_sneak,
+    })
+    assert_true(invalidDeadly == nil, "deadly sneak requires all listed prerequisite branches")
+    local invalidCunning = HeroBuild.TryCompileBuild(1, 10, {
+        FeatBuildConfig.Ids.rogue_execute_strike,
+        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.j_rogue_cunning_stun,
+    })
+    assert_true(invalidCunning == nil, "cunning stun requires blind branch before selection")
+end
+
+do
+    local hero = new_unit(6351, "CunningHero")
+    local target = new_unit(6352, "CunningDummy")
+    hero.spellDC = 99
+    hero.buildState = HeroBuild.CompileBuild(1, 10, {
+        FeatBuildConfig.Ids.rogue_execute_strike,
+        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.b_rogue_cunning_blind,
+        FeatBuildConfig.Ids.j_rogue_cunning_stun,
+        FeatBuildConfig.Ids.c_rogue_cunning_master,
+    })
+    local BattleSkill = require("modules.battle_skill")
+    local BattleFormula = require("core.battle_formula")
+    local oldCastSmallSkillWithResult = BattleSkill.CastSmallSkillWithResult
+    local oldApplyBuffFromSkill = BattleSkill.ApplyBuffFromSkill
+    local oldRollSave = BattleFormula.RollSave
+    local applied = {}
+    BattleSkill.CastSmallSkillWithResult = function()
+        return true, { totalDamage = 8 }
+    end
+    BattleSkill.ApplyBuffFromSkill = function(_, _, buffId, _, override)
+        applied[#applied + 1] = { buffId = buffId, duration = override and override.duration or nil }
+    end
+    BattleFormula.RollSave = function()
+        return { success = false, total = 1, dc = 99 }
+    end
+    local damage = RogueBuildPassives.PerformCunningStrike(hero, target, { skillId = SkillRuntimeConfig.Ids.rogue_cunning_strike_build })
+    assert_true(damage == 8, "cunning strike returns base attack damage")
+    assert_true(#applied == 3, "cunning strike applies poison, blind and stun on failed saves")
+    assert_true(applied[1].duration == 2 and applied[2].duration == 2 and applied[3].duration == 2,
+        "cunning mastery extends all cunning strike statuses")
+    BattleSkill.CastSmallSkillWithResult = oldCastSmallSkillWithResult
+    BattleSkill.ApplyBuffFromSkill = oldApplyBuffFromSkill
+    BattleFormula.RollSave = oldRollSave
+end
+
+do
+    local hero = new_unit(6371, "RelaxSneakHero")
+    local target = new_unit(6372, "RelaxSneakDummy")
+    hero.buildState = HeroBuild.CompileBuild(1, 2, {
+        FeatBuildConfig.Ids.b_rogue_sneak_relax,
+    })
+    local passive = RogueBuildPassives.CreateSneakAttackPassive({ src = hero })
+    local oldApplyDirectBonusDamage = BuildPassiveCommon.ApplyDirectBonusDamage
+    local bonusCalls = 0
+    BuildPassiveCommon.ApplyDirectBonusDamage = function()
+        bonusCalls = bonusCalls + 1
+        return 5
+    end
+    BattleBuff.Add(hero, target, {
+        buffId = 880004,
+        name = "破绽",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 880004,
+        duration = 1,
+        canStack = false,
+        value = 1,
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                skillId = SkillRuntimeConfig.Ids.rogue_basic_attack,
+                target = target,
+                damageDealt = 8,
+            },
+        },
+    })
+    assert_true(bonusCalls == 0, "breach does not satisfy relaxed sneak status list")
+    BattleBuff.Add(hero, target, {
+        buffId = 880007,
+        name = "流血",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 880007,
+        duration = 1,
+        canStack = false,
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                skillId = SkillRuntimeConfig.Ids.rogue_basic_attack,
+                target = target,
+                damageDealt = 8,
+            },
+        },
+    })
+    assert_true(bonusCalls == 1, "bleed satisfies relaxed sneak status list")
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
+end
+
+do
     local hero = new_unit(6401, "BreachHero")
     local target = new_unit(6402, "BreachDummy")
     BattleBuff.Add(hero, target, {
@@ -159,4 +279,3 @@ do
 end
 
 log("Rogue build pipeline tests passed.")
-

@@ -491,6 +491,9 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             hitResult.crit = true
         end
     end
+    if hitResult.hit and opts.forceCrit == true then
+        hitResult.crit = true
+    end
     result.isCrit = hitResult.crit == true
     result.isDodged = not hitResult.hit
 
@@ -1430,7 +1433,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 -- 触发击杀被动技能 (DmgMakeKill)
                 BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, {target = actualTarget})
             end
-            BuildPassiveCommon.AfterBasicAttackResolved(hero, actualTarget, damage)
+            BuildPassiveCommon.AfterBasicAttackResolved(hero, actualTarget, damage, damageResult)
         end
     end
 
