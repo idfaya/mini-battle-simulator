@@ -15,6 +15,7 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 local FeatPicker = require("roguelike.feat_picker")
 local FeatBuildConfig = require("config.tables.feats")
 local HeroData = require("config.hero_data")
+local ClassBuildProgression = require("config.tables.classes")
 local LevelCurve = require("config.roguelike.level_curve")
 
 local function assert_true(cond, msg)
@@ -35,10 +36,16 @@ local function makeUnit(classId, level, rosterId)
         teamState = "active",
         source = "feat_picker_test",
     })
-    -- 重置 feats，避免 BuildClassUnit 默认带的 canonical feats 干扰候选差集
+    -- 只保留 Lv1 fixed feats，避免默认 canonical 高阶节点干扰候选差集
     unit.feats = {}
+    for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(classId) or {}) do
+        unit.feats[#unit.feats + 1] = featId
+    end
     if unit.buildState then
         unit.buildState.featIds = {}
+        for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(classId) or {}) do
+            unit.buildState.featIds[#unit.buildState.featIds + 1] = featId
+        end
     end
     return unit
 end
@@ -111,8 +118,7 @@ do
     end
 end
 
--- ========== 用例 3：choiceGroup 同组互斥 ==========
--- rogue Lv2 三个 feat 都在 "rogue_lv2_basic" 组；session 应只入池 1 张 rogue Lv2 feat
+-- ========== 用例 3：盗贼旧 feat 不再进入候选池 ==========
 do
     math.randomseed(9999)
     local rogue = makeUnit(1, 1, 31)
@@ -120,18 +126,23 @@ do
     local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
     assert_true(session ~= nil, "session should be created")
     local rogueLv2Feats = FeatBuildConfig.GetFeatsByLevel(1, 2) or {}
-    -- 收集本 session 中 rogue_lv2_basic 组出现次数
-    local groupCount = 0
+    local allowedFeatIds = {}
     for _, opt in ipairs(session.options) do
-        if opt.choiceGroup == "rogue_lv2_basic" then
-            groupCount = groupCount + 1
+        if tonumber(opt.level) == 2 then
+            allowedFeatIds[tonumber(opt.featId) or 0] = true
         end
     end
-    -- 单英雄场景下保底 1 张；choiceGroup 互斥保证不出现第 2 张同组
-    assert_true(groupCount <= 1,
-        "same choiceGroup should appear at most once per session, got " .. groupCount)
+    assert_true(#rogueLv2Feats == 2, "rogue Lv2 should only expose new tree feats")
     assert_true(#rogueLv2Feats >= 2,
         "fixture sanity: rogue Lv2 should have >= 2 feats")
+    local validLv2Ids = {}
+    for _, feat in ipairs(rogueLv2Feats) do
+        validLv2Ids[tonumber(feat.id) or 0] = true
+    end
+    for featId in pairs(allowedFeatIds) do
+        assert_true(validLv2Ids[featId] == true,
+            "rogue Lv2 session should only contain active tree feat ids")
+    end
 end
 
 -- ========== 用例 4：跳级（当前 level 缺 feat 时向上找）==========

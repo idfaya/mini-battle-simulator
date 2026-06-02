@@ -91,20 +91,6 @@ do
 end
 
 do
-    local hero = new_unit(6101, "ShadowStepHero")
-    hero.skills = {
-        { skillId = SkillRuntimeConfig.Ids.rogue_shadow_step },
-    }
-    local passive = RogueBuildPassives.CreateShadowStepPassive({ src = hero })
-    passive:OnBattleBegin()
-    assert_true(BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, { skillId = SkillRuntimeConfig.Ids.rogue_basic_attack }) == true,
-        "shadow step exposes first basic attack ignore-front flag")
-    passive:OnNormalAtkFinish({ data = { extraParam = { skillId = SkillRuntimeConfig.Ids.rogue_basic_attack } } })
-    assert_true(BuildPassiveCommon.ShouldIgnoreFrontProtection(hero, { skillId = SkillRuntimeConfig.Ids.rogue_basic_attack }) == false,
-        "shadow step is consumed after first basic attack")
-end
-
-do
     local hero = new_unit(6201, "SneakHero")
     local target = new_unit(6202, "SneakDummy")
     hero.skills = {
@@ -146,7 +132,7 @@ end
 do
     local hero = new_unit(6311, "EvasionHero")
     hero.buildState = HeroBuild.CompileBuild(1, 4, {
-        FeatBuildConfig.Ids.rogue_execute_strike,
+        FeatBuildConfig.Ids.rogue_uncanny_dodge,
         FeatBuildConfig.Ids.j_rogue_reflex_evasion,
     })
     local passive = RogueBuildPassives.CreateUncannyDodgePassive({ src = hero })
@@ -160,15 +146,15 @@ end
 
 do
     local invalidDeadly = HeroBuild.TryCompileBuild(1, 10, {
-        FeatBuildConfig.Ids.rogue_execute_strike,
-        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.rogue_uncanny_dodge,
+        FeatBuildConfig.Ids.rogue_cunning_strike,
         FeatBuildConfig.Ids.j_rogue_reflex_evasion,
         FeatBuildConfig.Ids.c_rogue_deadly_sneak,
     })
     assert_true(invalidDeadly == nil, "deadly sneak requires all listed prerequisite branches")
     local invalidCunning = HeroBuild.TryCompileBuild(1, 10, {
-        FeatBuildConfig.Ids.rogue_execute_strike,
-        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.rogue_uncanny_dodge,
+        FeatBuildConfig.Ids.rogue_cunning_strike,
         FeatBuildConfig.Ids.j_rogue_cunning_stun,
     })
     assert_true(invalidCunning == nil, "cunning stun requires blind branch before selection")
@@ -179,8 +165,8 @@ do
     local target = new_unit(6352, "CunningDummy")
     hero.spellDC = 99
     hero.buildState = HeroBuild.CompileBuild(1, 10, {
-        FeatBuildConfig.Ids.rogue_execute_strike,
-        FeatBuildConfig.Ids.rogue_executioner,
+        FeatBuildConfig.Ids.rogue_uncanny_dodge,
+        FeatBuildConfig.Ids.rogue_cunning_strike,
         FeatBuildConfig.Ids.b_rogue_cunning_blind,
         FeatBuildConfig.Ids.j_rogue_cunning_stun,
         FeatBuildConfig.Ids.c_rogue_cunning_master,

@@ -39,16 +39,8 @@ end
 FeatBuildConfig.Ids = {
     rogue_training = FeatId(401, 1),
     rogue_sneak_attack = FeatId(401, 2),
-    rogue_shadow_step = FeatId(402, 1),
-    rogue_flanking_expert = FeatId(402, 2),
-    rogue_evasive_tumble = FeatId(402, 3),
-    rogue_execute_strike = FeatId(403, 1),
-    rogue_trickster_blade = FeatId(403, 2),
-    rogue_swashbuckler_thrust = FeatId(403, 3),
-    rogue_sneak_attack_mastery = FeatId(404, 1),
-    rogue_subclass_mastery = FeatId(404, 2),
-    rogue_lightfoot_mastery = FeatId(404, 3),
-    rogue_executioner = FeatId(405, 1),
+    rogue_uncanny_dodge = FeatId(403, 1),
+    rogue_cunning_strike = FeatId(405, 1),
     cleric_training = FeatId(501, 1),
     cleric_healing_word = FeatId(501, 2),
     cleric_radiant_prayer = FeatId(502, 1),
@@ -139,114 +131,24 @@ local FEATS = {
             { type = "grant_skill", skill = 80001101 },
         },
     },
-    [FeatBuildConfig.Ids.rogue_shadow_step] = {
-        id = FeatBuildConfig.Ids.rogue_shadow_step,
-        classId = 1,
-        level = 2,
-        name = "影步切入",
-        description = "每回合第一次基础武器攻击可无视前排保护。",
-        choiceGroup = "rogue_lv2_basic",
-        effects = {
-            { type = "grant_skill", skill = 80001102 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_flanking_expert] = {
-        id = FeatBuildConfig.Ids.rogue_flanking_expert,
-        classId = 1,
-        level = 2,
-        name = "夹击老手",
-        description = "通过夹击触发偷袭时，偷袭额外再造成 1d4 伤害。",
-        choiceGroup = "rogue_lv2_basic",
-        effects = {
-            { type = "grant_skill", skill = 80001103 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_evasive_tumble] = {
-        id = FeatBuildConfig.Ids.rogue_evasive_tumble,
-        classId = 1,
-        level = 2,
-        name = "翻滚脱离",
-        description = "每回合第一次被近战攻击命中时，受到伤害减少 1d6。",
-        choiceGroup = "rogue_lv2_basic",
-        effects = {
-            { type = "grant_skill", skill = 80001104 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_execute_strike] = {
-        id = FeatBuildConfig.Ids.rogue_execute_strike,
+    [FeatBuildConfig.Ids.rogue_uncanny_dodge] = {
+        id = FeatBuildConfig.Ids.rogue_uncanny_dodge,
         classId = 1,
         level = 3,
         name = "直觉闪避基础",
         description = "每回合首次被单体攻击命中时，受到的伤害减半。",
-        choiceGroup = "rogue_lv3_subclass",
         trunk = "T1",
         treeSlot = "T1",
         effects = {
             { type = "grant_skill", skill = 80001108 },
         },
     },
-    [FeatBuildConfig.Ids.rogue_trickster_blade] = {
-        id = FeatBuildConfig.Ids.rogue_trickster_blade,
-        classId = 1,
-        level = 3,
-        name = "诡术师",
-        description = "获得扰乱飞刃，CD2，对后排目标发动 1 次基础武器攻击；若命中，目标直到下回合开始前 AC -1。",
-        choiceGroup = "rogue_lv3_subclass",
-        effects = {
-            { type = "grant_skill", skill = 80001014 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_swashbuckler_thrust] = {
-        id = FeatBuildConfig.Ids.rogue_swashbuckler_thrust,
-        classId = 1,
-        level = 3,
-        name = "游斗者",
-        description = "获得穿行突刺，CD2，可指定任意一名敌人发动 1 次基础武器攻击；该次攻击视为满足偷袭条件。",
-        choiceGroup = "rogue_lv3_subclass",
-        effects = {
-            { type = "grant_skill", skill = 80001015 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_sneak_attack_mastery] = {
-        id = FeatBuildConfig.Ids.rogue_sneak_attack_mastery,
-        classId = 1,
-        level = 4,
-        name = "偷袭专精",
-        description = "偷袭额外伤害提升为 2d6。",
-        choiceGroup = "rogue_lv4_mastery",
-        effects = {
-            { type = "grant_skill", skill = 80001105 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_subclass_mastery] = {
-        id = FeatBuildConfig.Ids.rogue_subclass_mastery,
-        classId = 1,
-        level = 4,
-        name = "子职专精",
-        description = "Lv3 子职技能额外造成 1d6 伤害。",
-        choiceGroup = "rogue_lv4_mastery",
-        effects = {
-            { type = "grant_skill", skill = 80001106 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_lightfoot_mastery] = {
-        id = FeatBuildConfig.Ids.rogue_lightfoot_mastery,
-        classId = 1,
-        level = 4,
-        name = "轻身专精",
-        description = "每回合第一次被近战攻击命中时，额外再减少 1d4 伤害。",
-        choiceGroup = "rogue_lv4_mastery",
-        effects = {
-            { type = "grant_skill", skill = 80001107 },
-        },
-    },
-    [FeatBuildConfig.Ids.rogue_executioner] = {
-        id = FeatBuildConfig.Ids.rogue_executioner,
+    [FeatBuildConfig.Ids.rogue_cunning_strike] = {
+        id = FeatBuildConfig.Ids.rogue_cunning_strike,
         classId = 1,
         level = 5,
         name = "诡诈打击基础",
         description = "执行一次基础攻击且强制满足偷袭；命中后目标体豁失败则 POISON 1 回合。",
-        choiceGroup = "rogue_lv5_capstone",
         trunk = "T2",
         treeSlot = "T2",
         effects = {
@@ -1093,7 +995,7 @@ end
 local F = {
     fighter_R = Ids.fighter_second_wind, fighter_T1 = Ids.fighter_counter_basic, fighter_T2 = Ids.fighter_guard,
     monk_R = Ids.monk_martial_arts, monk_T1 = Ids.monk_open_hand, monk_T2 = Ids.monk_harmonize,
-    rogue_R = Ids.rogue_sneak_attack, rogue_T1 = Ids.rogue_execute_strike, rogue_T2 = Ids.rogue_executioner,
+    rogue_R = Ids.rogue_sneak_attack, rogue_T1 = Ids.rogue_uncanny_dodge, rogue_T2 = Ids.rogue_cunning_strike,
     ranger_R = Ids.ranger_hunter_mark, ranger_T1 = Ids.ranger_hunter_shot, ranger_T2 = Ids.ranger_hunter_mastery,
     paladin_R = Ids.paladin_shelter_prayer, paladin_T1 = Ids.paladin_vengeance_smite, paladin_T2 = Ids.paladin_lay_on_hands,
     cleric_R = Ids.cleric_shelter_prayer, cleric_T1 = Ids.cleric_healing_word, cleric_T2 = Ids.cleric_guardian_domain,
@@ -1556,8 +1458,30 @@ end
 ---@param classId integer
 ---@return BuildFeatDef[]
 function FeatBuildConfig.GetFeatsByClass(classId)
+    local ClassBuildProgression = require("config.tables.classes")
+    local resolvedClassId = tonumber(classId) or 0
+    local activeFeatIds = {}
+    local seen = {}
+    for _, featId in ipairs(ClassBuildProgression.GetLv1FeatIds(resolvedClassId) or {}) do
+        local id = tonumber(featId) or 0
+        if id > 0 and FEATS[id] and not seen[id] then
+            seen[id] = true
+            activeFeatIds[#activeFeatIds + 1] = id
+        end
+    end
+    for _, featId in ipairs(ClassBuildProgression.GetTreePool(resolvedClassId) or {}) do
+        local id = tonumber(featId) or 0
+        if id > 0 and FEATS[id] and not seen[id] then
+            seen[id] = true
+            activeFeatIds[#activeFeatIds + 1] = id
+        end
+    end
     local result = {}
-    for _, featId in ipairs(FEATS_BY_CLASS[tonumber(classId) or 0] or {}) do
+    local sourceIds = activeFeatIds
+    if #sourceIds == 0 then
+        sourceIds = FEATS_BY_CLASS[resolvedClassId] or {}
+    end
+    for _, featId in ipairs(sourceIds) do
         result[#result + 1] = FEATS[featId]
     end
     return sortById(result)

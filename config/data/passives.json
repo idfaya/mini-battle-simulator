@@ -2,8 +2,6 @@
   {"id":8000020,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80001002,"triggers":[{"luaFuncName":"OnDmgMakeKill","triggerTime":"DmgMakeKill"},{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"},{"luaFuncName":"OnBattleBegin","triggerTime":"BattleBegin"}]},
   {"id":80001101,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
-  {"id":80001102,"triggers":[{"luaFuncName":"OnBattleBegin","triggerTime":"BattleBegin"},{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"},{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
-  {"id":80001104,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80001108,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80002002,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"},{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"},{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
   {"id":80002101,"triggers":[{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},

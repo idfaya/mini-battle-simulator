@@ -1,4 +1,3 @@
-local ClassRoleConfig = require("config.tables.classes")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local BuildPassiveCommon = require("skills.build_passive_common")
 local FeatModHelper = require("skills.feat_mod_helper")
@@ -6,7 +5,6 @@ local FeatModHelper = require("skills.feat_mod_helper")
 local RogueBuildPassives = {}
 
 local IDS = SkillRuntimeConfig.Ids
-local BREACH_BUFF_ID = 880004
 local POISON_BUFF_ID = 850001
 local STUN_BUFF_ID = 880003
 local BLIND_BUFF_ID = 880006
@@ -39,11 +37,6 @@ end
 local function isFrontRow(unit)
     local wpType = tonumber(unit and unit.wpType) or 0
     return wpType > 0 and wpType <= 3
-end
-
-local function isBackRow(unit)
-    local wpType = tonumber(unit and unit.wpType) or 0
-    return wpType >= 4
 end
 
 local function countAliveFrontAllies(hero)
@@ -207,55 +200,6 @@ local function applyBuffOnFailedSave(hero, target, buffId, saveType, duration, l
     return true
 end
 
-local function applyFirstMeleeReduction(hero)
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.rogueFirstMeleeReduceRound == round then
-        return 0
-    end
-    runtime.rogueFirstMeleeReduceRound = round
-    local diceExpr = "1d6"
-    if hasSkill(hero, IDS.rogue_lightfoot_mastery) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    local reduction = BuildPassiveCommon.RollDice(diceExpr)
-    if reduction > 0 then
-        BuildPassiveCommon.PublishPassiveTriggered(hero, "翻滚脱离", "首次近战受击减伤", string.format("减免 %d 伤害", reduction))
-    end
-    return reduction
-end
-
-local function applySubclassMasteryDamage(hero, target)
-    if not hasSkill(hero, IDS.rogue_subclass_mastery) then
-        return 0
-    end
-    local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d6", {
-        kind = "physical",
-        damageKind = "direct",
-        skillId = IDS.rogue_subclass_mastery,
-        skillName = "子职专精",
-    })
-    if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发子职专精：对 %s 追加 %d 点伤害",
-            hero.name or "Unknown",
-            target.name or "目标",
-            bonus))
-    end
-    return bonus
-end
-
-function RogueBuildPassives.ShouldIgnoreFrontProtection(hero, skill)
-    if not isAlive(hero) or not hasSkill(hero, IDS.rogue_shadow_step) then
-        return false
-    end
-    local skillId = tonumber(skill and (skill.skillId or skill.id)) or 0
-    if skillId ~= IDS.rogue_basic_attack then
-        return false
-    end
-    local runtime = ensureRuntime(hero)
-    return runtime.rogueShadowStepAvailable == true
-end
-
 function RogueBuildPassives.PerformCunningStrike(hero, target, skill)
     if not isAlive(hero) or not isAlive(target) then
         return 0
@@ -288,42 +232,6 @@ function RogueBuildPassives.PerformCunningStrike(hero, target, skill)
     return damage
 end
 
-function RogueBuildPassives.PerformExecuteStrike(hero, target, skill)
-    return RogueBuildPassives.PerformCunningStrike(hero, target, skill)
-end
-
-function RogueBuildPassives.PerformTricksterBlade(hero, target, skill)
-    if not isAlive(hero) or not isAlive(target) then
-        return 0
-    end
-    local BattleSkill = require("modules.battle_skill")
-    local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
-    local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if damage > 0 and isBackRow(target) then
-        BattleSkill.ApplyBuffFromSkill(hero, target, BREACH_BUFF_ID, nil, { duration = 1 })
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 发动扰乱飞刃：%s AC -1 直到下回合开始前",
-            hero.name or "Unknown",
-            target.name or "目标"))
-    end
-    return damage + applySubclassMasteryDamage(hero, target)
-end
-
-function RogueBuildPassives.PerformSwashbucklerThrust(hero, target, skill)
-    if not isAlive(hero) or not isAlive(target) then
-        return 0
-    end
-    local BattleSkill = require("modules.battle_skill")
-    local runtime = ensureRuntime(hero)
-    runtime.rogueForcedSneakCharges = (tonumber(runtime.rogueForcedSneakCharges) or 0) + 1
-    runtime.rogueForcedSneakLabel = "穿行突刺"
-    local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
-    local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if (tonumber(runtime.rogueForcedSneakCharges) or 0) > 0 then
-        consumeForcedSneak(runtime)
-    end
-    return damage + applySubclassMasteryDamage(hero, target)
-end
-
 function RogueBuildPassives.CreateSneakAttackPassive(context)
     local self = buildContextState(context)
 
@@ -347,52 +255,6 @@ function RogueBuildPassives.CreateSneakAttackPassive(context)
             consumeForcedSneak(runtime)
         end
 
-    end
-
-    return self
-end
-
-function RogueBuildPassives.CreateShadowStepPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).rogueShadowStepAvailable = true
-    end
-
-    function self:OnSelfTurnBegin()
-        ensureRuntime(self.context and self.context.src).rogueShadowStepAvailable = true
-    end
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        if tonumber(extraParam.skillId) ~= IDS.rogue_basic_attack then
-            return
-        end
-        ensureRuntime(hero).rogueShadowStepAvailable = false
-    end
-
-    return self
-end
-
-function RogueBuildPassives.CreateEvasiveTumblePassive(context)
-    local self = buildContextState(context)
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local attacker = extraParam.attacker
-        if not isAlive(hero) or not isAlive(attacker) then
-            return
-        end
-        local attackerClass = tonumber(attacker.class or attacker.Class) or 0
-        if not ClassRoleConfig.IsMelee(attackerClass) then
-            return
-        end
-        local reduction = applyFirstMeleeReduction(hero)
-        if reduction > 0 then
-            extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
-        end
     end
 
     return self
