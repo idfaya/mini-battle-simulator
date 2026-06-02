@@ -16,6 +16,7 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 local DungeonGenerator = require("roguelike.dungeon_generator")
 local Floors = require("config.tables.floors")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
+local RunEventConfig = require("config.roguelike.run_event_config")
 local RunMapGenProfile = require("config.roguelike.run_map_gen_profile")
 
 local function assert_true(cond, msg)
@@ -29,7 +30,7 @@ local CHAPTER_IDS = { 101, 102, 103 }
 
 local function countRoomTypes(rooms)
     local typeSet = {}
-    local counts = { camp = 0, shop = 0, battle_elite = 0 }
+    local counts = { camp = 0, shop = 0, battle_elite = 0, event = 0 }
     for _, room in pairs(rooms or {}) do
         local rt = tostring(room.roomType or "")
         typeSet[rt] = true
@@ -42,6 +43,18 @@ local function countRoomTypes(rooms)
         typeCount = typeCount + 1
     end
     return typeCount, counts, typeSet
+end
+
+local function collectEventIds(rooms)
+    local ids = {}
+    for _, room in pairs(rooms or {}) do
+        local eventId = tonumber(room.payload and room.payload.eventId)
+        if room.roomType == "event" and eventId then
+            ids[#ids + 1] = eventId
+        end
+    end
+    table.sort(ids)
+    return ids
 end
 
 local function hasBossRoom(rooms)
@@ -59,10 +72,10 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
     assert_true(chapter, "chapter " .. chapterId .. " not found")
     local profile = RunMapGenProfile.GetProfile(chapter.mapGenProfileId)
     assert_true(profile, "profile for chapter " .. chapterId .. " not found")
-
     for seed = 1, SEED_COUNT do
         local state, err = DungeonGenerator.Generate(seed, chapterId, profile)
         assert_true(state, string.format("seed=%d chapter=%d generate failed: %s", seed, chapterId, tostring(err)))
+        local chapterSeenEventIds = {}
 
         local ok, validateErr = DungeonGenerator.Validate(state)
         assert_true(ok, string.format("seed=%d chapter=%d validate failed: %s", seed, chapterId, tostring(validateErr)))
@@ -113,6 +126,7 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
             local maxCamp = template.constraints and template.constraints.maxCamp
             local maxShop = template.constraints and template.constraints.maxShop
             local maxElite = template.constraints and template.constraints.maxElite
+            local maxEvent = template.constraints and template.constraints.maxEvent
             if maxCamp then
                 assert_true(counts.camp <= maxCamp,
                     string.format("seed=%d chapter=%d depth=%d camp=%d > maxCamp=%d", seed, chapterId, depth, counts.camp, maxCamp))
@@ -124,6 +138,34 @@ for _, chapterId in ipairs(CHAPTER_IDS) do
             if maxElite then
                 assert_true(counts.battle_elite <= maxElite,
                     string.format("seed=%d chapter=%d depth=%d elite=%d > maxElite=%d", seed, chapterId, depth, counts.battle_elite, maxElite))
+            end
+            if maxEvent then
+                assert_true(counts.event <= maxEvent,
+                    string.format("seed=%d chapter=%d depth=%d event=%d > maxEvent=%d", seed, chapterId, depth, counts.event, maxEvent))
+            end
+
+            local floorEventIds = collectEventIds(floor.rooms)
+            local floorSeenEventIds = {}
+            for _, eventId in ipairs(floorEventIds) do
+                assert_true(not floorSeenEventIds[eventId],
+                    string.format("seed=%d chapter=%d depth=%d duplicated eventId=%d inside floor", seed, chapterId, depth, eventId))
+                floorSeenEventIds[eventId] = true
+
+                local event = RunEventConfig.GetEvent(eventId)
+                assert_true(event ~= nil,
+                    string.format("seed=%d chapter=%d depth=%d eventId=%d missing config", seed, chapterId, depth, eventId))
+                local allowed = false
+                for _, allowedChapterId in ipairs(event.chapterIds or {}) do
+                    if tonumber(allowedChapterId) == chapterId then
+                        allowed = true
+                        break
+                    end
+                end
+                assert_true(allowed,
+                    string.format("seed=%d chapter=%d depth=%d eventId=%d not allowed for chapter", seed, chapterId, depth, eventId))
+                assert_true(not chapterSeenEventIds[eventId],
+                    string.format("seed=%d chapter=%d repeated eventId=%d across floors", seed, chapterId, eventId))
+                chapterSeenEventIds[eventId] = true
             end
         end
     end

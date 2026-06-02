@@ -118,6 +118,8 @@ Floor = Maze(Room ⇄ Room)
 
 - 进入事件房 → 弹出文字事件 + 2~4 个选项。
 - 选定选项后先展示一次结果面板，再继续进入地图、奖励或战斗。
+- 章节事件池 = 共享事件 + 本章专属事件；支持按楼层配置事件权重，同一章内同一事件最多出现 1 次。
+- 普通层事件房数量受楼层模板约束，当前上限为每层 `1~2` 个；Boss 层与隐藏层不生成事件房。
 - 选项可能：
   - 直接结算（拿金币 / 受小伤）；
   - 触发 5e 检定（调查 / 感知 / 神秘 / 宗教 / 运动），玩家选 1 名英雄出面，`1d20 + 修正 vs DC`：
@@ -130,6 +132,7 @@ Floor = Maze(Room ⇄ Room)
 | 大失败 | 触发战斗 / 受负面祝福 |
 
 - 每个事件至少有 1 种"零风险使用方式"（`zeroRisk` 选项 / 直接离开），让玩家可主动规避。
+- 共享事件 `余烬圣坛` 额外提供一次性“献上灰烬唤回亡者”：支付金币，复活 1 名阵亡队友并恢复 `50%` 生命。
 - **配置 SSOT**：`config/data/events.json` → [`config/tables/events.lua`](../config/tables/events.lua)；结算 [`roguelike/event_resolver.lua`](../roguelike/event_resolver.lua)（`1d20 + 5e 修正 vs DC`，nat20/nat1 四档）。
 - **回归**：[`bin/test_roguelike_event_skill_check.lua`](../bin/test_roguelike_event_skill_check.lua)、[`bin/test_events_json_loader.lua`](../bin/test_events_json_loader.lua)。
 

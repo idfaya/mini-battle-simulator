@@ -184,6 +184,10 @@
 | 回归 | `bin/test_roguelike_event_skill_check.lua`、`bin/test_events_json_loader.lua` | |
 
 - 大成功 `unlock_hidden_floor`：[`roguelike_run.lua`](../roguelike/roguelike_run.lua) `EventChoose` → `injectHiddenFloor()`（见 §5.4）。
+- 事件结果类型额外支持 `revive_one`；当前共享事件 `101002 余烬圣坛` 提供支付金币复活 `1` 名阵亡队友并恢复 `50%` 生命的分支。
+- `floors.json` 的 `eventPoolIds` 支持 `eventId` 或 `{ id, weight }`；当前按章节拆池：共享事件低权、本章专属高权、`101099`「远古裂隙」低权稀有。
+- 同一章地图生成期间，同一 `eventId` 只会出现一次；若事件池耗尽，后续房间不再强行塞重复事件。
+- 单层事件数量受 `constraints.maxEvent` 控制；当前普通层按 `1,1,2,2` 限制事件房上限，Boss / 隐藏层不生成事件房。
 
 ### 5.4 章节 Trinket 与隐藏层（dungeon §3.3、§4.7）
 

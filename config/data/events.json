@@ -65,9 +65,11 @@
       },
       {
         "id": 4,
-        "label": "开启封印祭室",
-        "resultType": "trigger_battle",
-        "result": { "battleId": 101104, "rewardGroupId": 101301 }
+        "label": "献上灰烬唤回亡者",
+        "costType": "gold",
+        "costValue": 80,
+        "resultType": "revive_one",
+        "result": { "healPct": 0.5 }
       }
     ]
   },

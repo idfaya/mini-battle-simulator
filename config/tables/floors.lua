@@ -18,11 +18,16 @@ local ConfigJsonLoader = require("config.json_loader")
 ---@field maxCamp integer|nil
 ---@field maxShop integer|nil
 ---@field maxElite integer|nil
+---@field maxEvent integer|nil
 
 ---@class FloorBattlePoolIds
 ---@field battle_normal integer|nil
 ---@field battle_elite integer|nil
 ---@field boss integer|nil
+
+---@class FloorEventPoolEntry
+---@field id integer
+---@field weight integer|nil
 
 ---@class FloorTemplateEntry
 ---@field id integer
@@ -36,7 +41,7 @@ local ConfigJsonLoader = require("config.json_loader")
 ---@field typeWeights table<FloorRoomTypeKey, number>
 ---@field constraints FloorConstraints
 ---@field battlePoolIds FloorBattlePoolIds
----@field eventPoolIds integer[]
+---@field eventPoolIds (integer|FloorEventPoolEntry)[]
 ---@field shopId integer|nil
 ---@field campId integer|nil
 ---@field fixedRooms FloorRoomTypeKey[]|nil

@@ -28,6 +28,10 @@ assert(legacy.chapterId == 101, "chapterId should derive from chapterIds")
 assert(#legacy.chapterIds >= 1, "chapterIds should be preserved")
 assert(legacy.options[1].resultType == "grant_gold", "legacy option should keep grant_gold")
 
+local shrine = Events.GetEvent(101002)
+assert(shrine and shrine.options[4] and shrine.options[4].resultType == "revive_one",
+    "101002 should expose revive_one branch")
+
 local skillEvent = Events.GetEvent(101004)
 assert(skillEvent, "101004 should exist")
 assert(skillEvent.options[2].skillCheck and skillEvent.options[2].skillCheck.dc == 12,

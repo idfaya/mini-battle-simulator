@@ -37,6 +37,31 @@ local function applyTeamHeal(runState, healPct)
     end
 end
 
+local function hasDeadTeamHero(runState)
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
+        if hero.isDead then
+            return true
+        end
+    end
+    return false
+end
+
+local function reviveOne(runState, healPct)
+    for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(runState)) do
+        if hero.isDead then
+            hero.isDead = false
+            hero.teamState = "active"
+            hero.currentHp = math.max(1, math.floor((hero.maxHp or 0) * (tonumber(healPct) or 0)))
+            hero.buffs = {}
+            hero.debuffs = {}
+            hero.statuses = {}
+            hero.riskHooks = nil
+            return true
+        end
+    end
+    return false
+end
+
 local function applyHpCost(runState, costType, costValue)
     local pct = tonumber(costValue) or 0
     if pct <= 0 then
@@ -163,6 +188,9 @@ local function buildResultSummary(resultType, result)
         local equipment = RunEquipmentConfig.GetEquipment(tonumber(result and result.equipmentId) or 0)
         return string.format("获得装备：%s", equipment and equipment.name or ("装备 " .. tostring(result and result.equipmentId)))
     end
+    if resultType == "revive_one" then
+        return string.format("复活 1 名阵亡队友并恢复 %.0f%% 生命", (tonumber(result and result.healPct) or 0.5) * 100)
+    end
     if resultType == "trigger_battle" then
         return "事件引发战斗"
     end
@@ -197,6 +225,8 @@ local function buildResultDetails(option, resultType, result, skillCheckOutcome,
         end
     elseif resultType == "trigger_battle" then
         details[#details + 1] = "准备进入战斗结算。"
+    elseif resultType == "revive_one" then
+        details[#details + 1] = string.format("目标以 %.0f%% 最大生命复苏。", (tonumber(result and result.healPct) or 0.5) * 100)
     elseif resultType == "unlock_hidden_floor" then
         details[#details + 1] = "返回地图后可前往相邻的隐藏层入口房间。"
     end
@@ -267,6 +297,21 @@ local function applyResult(runState, resultType, result, skillCheckOutcome)
             eventResult = buildEventResult(nil, resultType, result, skillCheckOutcome, expReward),
         }
     end
+    if resultType == "revive_one" then
+        local revived = reviveOne(runState, result.healPct or 0.5)
+        if not revived then
+            return false, "no_dead_hero"
+        end
+        runState.lastActionMessage = formatSkillCheckMessage(skillCheckOutcome)
+        if not skillCheckOutcome then
+            runState.lastActionMessage = "事件复活队友"
+        end
+        local expReward = grantEventExp(runState, skillCheckOutcome)
+        return true, {
+            kind = "done",
+            eventResult = buildEventResult(nil, resultType, result, skillCheckOutcome, expReward),
+        }
+    end
     if resultType == "trigger_battle" then
         -- 触发战斗自身会通过 BattleExpReward 发放 EXP，事件不再额外给。
         runState.lastActionMessage = formatSkillCheckMessage(skillCheckOutcome)
@@ -314,6 +359,10 @@ function RoguelikeEvent.ResolveOption(runState, eventId, optionId, rosterHeroId)
         return false, "option_not_found"
     end
     runState.lastEventExpReward = 0
+
+    if selected.resultType == "revive_one" and not hasDeadTeamHero(runState) then
+        return false, "no_dead_hero"
+    end
 
     if selected.costType == "gold" then
         if not hasEnoughGold(runState, selected.costValue) then

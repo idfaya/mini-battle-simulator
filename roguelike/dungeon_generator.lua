@@ -1,4 +1,5 @@
 local Floors = require("config.tables.floors")
+local RunEventConfig = require("config.roguelike.run_event_config")
 local Rng = require("roguelike.rng")
 
 ---@alias DungeonRoomType
@@ -62,6 +63,14 @@ local MAX_ATTEMPTS = 24
 
 -- 房间id：floorDepth * 1000 + index（index 1-based）。Hidden floor 用 floorDepth = 9。
 local HIDDEN_FLOOR_DEPTH = 9
+
+local function cloneSet(source)
+    local target = {}
+    for key, value in pairs(source or {}) do
+        target[key] = value
+    end
+    return target
+end
 
 local function makeRoomId(floorDepth, index)
     return tonumber(floorDepth) * 1000 + tonumber(index)
@@ -264,7 +273,52 @@ local function findFarthestCell(adj, startIdx, excludeIdx)
     return bestIdx, bestDist
 end
 
-local function pickRoomType(rng, template, counts)
+local function normalizeEventPoolEntry(rawEntry)
+    local eventId
+    local weight = 1
+    if type(rawEntry) == "table" then
+        eventId = tonumber(rawEntry.id)
+        weight = math.max(1, math.floor(tonumber(rawEntry.weight) or 1))
+    else
+        eventId = tonumber(rawEntry)
+    end
+    if not eventId then
+        return nil
+    end
+    return {
+        id = eventId,
+        weight = weight,
+    }
+end
+
+local function listAvailableEventEntries(template, chapterId, usedEventIds)
+    local entries = {}
+    for _, rawEntry in ipairs((template and template.eventPoolIds) or {}) do
+        local entry = normalizeEventPoolEntry(rawEntry)
+        local eventId = entry and entry.id or nil
+        if eventId and not usedEventIds[eventId] then
+            local event = RunEventConfig.GetEvent(eventId)
+            local allowed = false
+            if event then
+                for _, allowedChapterId in ipairs(event.chapterIds or {}) do
+                    if tonumber(allowedChapterId) == tonumber(chapterId) then
+                        allowed = true
+                        break
+                    end
+                end
+            end
+            if allowed then
+                entries[#entries + 1] = entry
+            end
+        end
+    end
+    table.sort(entries, function(a, b)
+        return a.id < b.id
+    end)
+    return entries
+end
+
+local function pickRoomType(rng, template, counts, chapterId, usedEventIds)
     local weights = template.typeWeights or {}
     local entries = {}
     for typeKey, weight in pairs(weights) do
@@ -277,6 +331,11 @@ local function pickRoomType(rng, template, counts)
             effectiveWeight = 0
         elseif typeKey == "battle_elite" and (template.constraints and template.constraints.maxElite) and
             (counts.battle_elite or 0) >= (template.constraints.maxElite or 0) then
+            effectiveWeight = 0
+        elseif typeKey == "event" and (template.constraints and template.constraints.maxEvent) and
+            (counts.event or 0) >= (template.constraints.maxEvent or 0) then
+            effectiveWeight = 0
+        elseif typeKey == "event" and #listAvailableEventEntries(template, chapterId, usedEventIds or {}) <= 0 then
             effectiveWeight = 0
         end
         if effectiveWeight > 0 then
@@ -293,15 +352,19 @@ local function pickRoomType(rng, template, counts)
     return (picked and picked.type) or "empty"
 end
 
-local function buildPayload(template, roomType, rng)
+local function buildPayload(template, roomType, rng, chapterId, usedEventIds)
     local payload = {}
     if roomType == "battle_normal" or roomType == "battle_elite" or roomType == "boss" then
         local battlePoolIds = template.battlePoolIds or {}
         payload.battlePoolId = tonumber(battlePoolIds[roomType])
     elseif roomType == "event" then
-        local eventIds = template.eventPoolIds or {}
-        if #eventIds > 0 then
-            payload.eventId = tonumber(rng:pick(eventIds))
+        local eventEntries = listAvailableEventEntries(template, chapterId, usedEventIds or {})
+        if #eventEntries > 0 then
+            local picked = rng:weightedPick(eventEntries, "weight")
+            payload.eventId = tonumber(picked and picked.id)
+            if payload.eventId then
+                usedEventIds[payload.eventId] = true
+            end
         end
     elseif roomType == "shop" then
         payload.shopId = tonumber(template.shopId)
@@ -330,6 +393,7 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
 
     for attempt = 1, MAX_ATTEMPTS do
         local rng = Rng.New(baseSeed + attempt * 9973)
+        local usedEventIds = cloneSet(options.usedEventIds)
         local roomCountMin = math.max(1, math.floor((template.roomCount and template.roomCount.min) or 3))
         local roomCountMax = math.max(roomCountMin, math.floor((template.roomCount and template.roomCount.max) or roomCountMin))
         local roomCount = rng:nextInt(roomCountMin, roomCountMax)
@@ -358,7 +422,7 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                 -- Determine room types per cell
                 local rooms = {}
                 local doorList = {}
-                local counts = { camp = 0, shop = 0, battle_elite = 0 }
+                local counts = { camp = 0, shop = 0, battle_elite = 0, event = 0 }
 
                 -- For boss floor: pick a non-stair cell to be boss
                 local bossCellIdx = nil
@@ -389,20 +453,26 @@ function DungeonGenerator.GenerateFloor(seed, floorDepth, chapterId, template, o
                     local roomId = makeRoomId(floorDepth, i)
                     if i == upStairIdx and hasUpStair and i ~= downStairIdx then
                         roomType = "stair_up"
-                        payload = buildPayload(template, roomType, rng)
+                        payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     elseif i == downStairIdx and hasDownStair then
                         roomType = "stair_down"
-                        payload = buildPayload(template, roomType, rng)
+                        payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     elseif template.isBoss and i == bossCellIdx then
                         roomType = "boss"
-                        payload = buildPayload(template, roomType, rng)
+                        payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
                     else
-                        roomType = pickRoomType(rng, template, counts)
+                        roomType = pickRoomType(rng, template, counts, chapterId, usedEventIds)
                         if roomType == "camp" then counts.camp = counts.camp + 1 end
                         if roomType == "shop" then counts.shop = counts.shop + 1 end
                         if roomType == "battle_elite" then counts.battle_elite = counts.battle_elite + 1 end
+                        if roomType == "event" then counts.event = counts.event + 1 end
                         -- 始终用原始 pickRoomType 结果计算 payload，以维持 RNG 稳定。
-                        payload = buildPayload(template, roomType, rng)
+                        payload = buildPayload(template, roomType, rng, chapterId, usedEventIds)
+                        if roomType == "event" and not payload.eventId then
+                            roomType = "empty"
+                            payload = {}
+                            counts.event = math.max(0, (counts.event or 0) - 1)
+                        end
                         -- 首层（无 stair_up）起点房改为 entrance：仅作通路，不混杂战斗/事件。
                         -- 注：保留前序 pickRoomType + buildPayload 调用以维持 RNG 与 counts 稳定，仅覆盖结果类型。
                         if i == startCellIdx and not hasUpStair then
@@ -523,6 +593,7 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
         currentRoomId = nil,
         clearedRoomIds = {},
     }
+    local usedEventIds = {}
 
     for depth, templateId in ipairs(floorTemplateIds) do
         local template = Floors.GetTemplate(templateId)
@@ -537,10 +608,16 @@ function DungeonGenerator.Generate(seed, chapterId, profile)
             depth,
             chapterId,
             template,
-            { hasUpStair = hasUpStair, hasDownStair = hasDownStair }
+            { hasUpStair = hasUpStair, hasDownStair = hasDownStair, usedEventIds = usedEventIds }
         )
         if not floorState then
             return nil, err or "floor_failed"
+        end
+        for _, room in pairs(floorState.rooms or {}) do
+            local eventId = tonumber(room.payload and room.payload.eventId)
+            if room.roomType == "event" and eventId then
+                usedEventIds[eventId] = true
+            end
         end
         state.floors[depth] = floorState
     end

@@ -14,6 +14,7 @@ local ConfigJsonLoader = require("config.json_loader")
 ---| "team_heal_pct"
 ---| "grant_blessing"
 ---| "grant_equipment"
+---| "revive_one"
 
 ---@class RunEventSkillCheckResult
 ---@field resultType RunEventResultType
@@ -31,6 +32,7 @@ local ConfigJsonLoader = require("config.json_loader")
 ---@field value number|nil
 ---@field blessingId integer|nil
 ---@field equipmentId integer|nil
+---@field healPct number|nil
 
 ---@class RunEventOption
 ---@field id integer

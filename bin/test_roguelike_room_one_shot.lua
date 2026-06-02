@@ -54,6 +54,35 @@ local function runBattleUntilMap(maxSteps)
     error("battle did not finish")
 end
 
+local function settleUntilMap(maxSteps)
+    for _ = 1, maxSteps do
+        local snapshot = Run.GetSnapshot()
+        if snapshot.phase == "map" then
+            return snapshot
+        end
+        if snapshot.phase == "battle" then
+            snapshot = runBattleUntilMap(800)
+        elseif snapshot.phase == "reward" then
+            snapshot = drainRewards()
+        elseif snapshot.phase == "event" then
+            if snapshot.eventState and snapshot.eventState.result then
+                local ok, reason = Run.ContinueEvent()
+                assert_true(ok, "continue event: " .. tostring(reason))
+            else
+                local ok, reason = Run.ChooseEventOption(1)
+                assert_true(ok, "choose event option: " .. tostring(reason))
+            end
+        elseif snapshot.phase == "shop" then
+            Run.ShopLeave()
+        elseif snapshot.phase == "camp" then
+            Run.CampLeave()
+        else
+            error("unexpected phase while settling to map: " .. tostring(snapshot.phase))
+        end
+    end
+    error("did not settle back to map")
+end
+
 -- 战斗房：打完一次后重入不再开战
 do
     Run.StartRun({
@@ -62,9 +91,21 @@ do
         seed = 12345,
     })
     local snapshot = Run.GetSnapshot()
-    local battleId = findSelectableNode(snapshot, function(node)
-        return node.nodeType == "battle_normal" or node.nodeType == "battle_elite"
-    end)
+    local battleId = nil
+    for _ = 1, 24 do
+        battleId = findSelectableNode(snapshot, function(node)
+            return node.nodeType == "battle_normal" or node.nodeType == "battle_elite"
+        end)
+        if battleId then
+            break
+        end
+        local nextNodeId = findSelectableNode(snapshot, function(node)
+            return true
+        end)
+        assert_true(nextNodeId, "need a selectable node while routing to battle")
+        chooseAndEnter(nextNodeId)
+        snapshot = settleUntilMap(800)
+    end
     assert_true(battleId, "need a selectable battle node")
 
     chooseAndEnter(battleId)
@@ -109,19 +150,29 @@ do
         seed = 88001,
     })
     local snapshot = Run.GetSnapshot()
-    local eventId = findSelectableNode(snapshot, function(node)
-        return node.nodeType == "event"
-    end)
+    local eventId = nil
+    for _ = 1, 24 do
+        eventId = findSelectableNode(snapshot, function(node)
+            return node.nodeType == "event"
+        end)
+        if eventId then
+            break
+        end
+        local nextNodeId = findSelectableNode(snapshot, function(node)
+            return true
+        end)
+        assert_true(nextNodeId, "need a selectable node while routing to event")
+        chooseAndEnter(nextNodeId)
+        snapshot = settleUntilMap(800)
+    end
     assert_true(eventId, "need a selectable event node")
 
     chooseAndEnter(eventId)
     snapshot = Run.GetSnapshot()
     assert_true(snapshot.phase == "event", "first event enter should open event")
-    Run.ChooseEventOption(1)
-    snapshot = drainRewards()
-    if snapshot.phase == "reward" then
-        snapshot = drainRewards()
-    end
+    local ok, reason = Run.ChooseEventOption(1)
+    assert_true(ok, "choose event option: " .. tostring(reason))
+    snapshot = settleUntilMap(800)
     assert_true(snapshot.phase == "map", "event should return to map")
 
     local viaId = findSelectableNode(snapshot, function(node)
@@ -156,25 +207,12 @@ do
     })
     local routeState = { recentNodeIds = { 0, 0 }, lastNodeId = 0, firstBattleResolved = false }
     local snapshot = Run.GetSnapshot()
-    for _ = 1, 80 do
+    for _ = 1, 120 do
         if snapshot.phase == "stair" and snapshot.stairState and snapshot.stairState.direction == "down" then
             break
         end
         if snapshot.phase ~= "map" and snapshot.phase ~= "stair" then
-            if snapshot.phase == "shop" then
-                Run.ShopLeave()
-            elseif snapshot.phase == "event" then
-                Run.ChooseEventOption(1)
-            elseif snapshot.phase == "camp" then
-                Run.CampLeave()
-            elseif snapshot.phase == "reward" then
-                -- 战斗胜利 / 宝箱房 / 事件后均可能进入 reward；统一 drain 后回到 map。
-                drainRewards()
-            elseif snapshot.phase == "battle" then
-                runBattleUntilMap(800)
-            else
-                error("unexpected phase while routing to stair: " .. tostring(snapshot.phase))
-            end
+            snapshot = settleUntilMap(800)
         else
             local nextNode = RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
             assert_true(nextNode, "need path to stair_down")
