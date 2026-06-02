@@ -168,10 +168,10 @@ BattleFormation.Init({
 })
 
 local holyCaster = BattleFormation.FindHeroByCampAndPos(true, 2)
-local holyLightSkill = BattleSkill.CreateSkillInstance(80006001, {})
+local holyLightSkill = BattleSkill.CreateSkillInstance(80006011, {})
 local holyTargets = BattleSkill.SelectTarget(holyCaster, holyLightSkill)
-assert_eq(#holyTargets, 1, "cleric basic attack should choose one target")
-assert_eq(holyTargets[1].isLeft, false, "cleric basic attack should target an enemy")
+assert_eq(#holyTargets, 1, "cleric basic spell should choose one target")
+assert_eq(holyTargets[1].isLeft, false, "cleric basic spell should target an enemy")
 
 local areaTargets = BattleSkill.ExpandAreaTargets(BattleFormation.FindHeroByCampAndPos(false, 2), {
     includeRow = true,
@@ -190,8 +190,8 @@ assert_eq(chainTargets[1].wpType, 2, "chain lightning should start from selected
 local injuredAlly = BattleFormation.FindHeroByCampAndPos(true, 4)
 injuredAlly.hp = injuredAlly.maxHp
 local holyEnemyTargets = BattleSkill.SelectTarget(holyCaster, holyLightSkill)
-assert_eq(#holyEnemyTargets, 1, "cleric basic attack should resolve one enemy target")
-assert_eq(holyEnemyTargets[1].isLeft, false, "cleric basic attack should always target enemies")
+assert_eq(#holyEnemyTargets, 1, "cleric basic spell should resolve one enemy target")
+assert_eq(holyEnemyTargets[1].isLeft, false, "cleric basic spell should always target enemies")
 
 BattleFormation.OnFinal()
 
@@ -209,26 +209,11 @@ local supportCaster = BattleFormation.FindHeroByCampAndPos(true, 2)
 local supportAlly = BattleFormation.FindHeroByCampAndPos(true, 4)
 local poisonEnemy = BattleFormation.FindHeroByCampAndPos(false, 2)
 
-local holySpecial = BattleSkill.CreateSkillInstance(80006001, {})
-assert_eq(holySpecial.specialEffectTag, nil, "cleric basic attack should not infer holy_light special effect tag")
-local holyTimeline = require("config.skill.skill_80006001").BuildTimeline(supportCaster, { poisonEnemy }, holySpecial)
+local holySpecial = BattleSkill.CreateSkillInstance(80006011, {})
+assert_eq(holySpecial.specialEffectTag, nil, "cleric basic spell should not infer special effect tag")
+local holyTimeline = require("config.skill.skill_80006011").BuildTimeline(supportCaster, { poisonEnemy }, holySpecial)
 local _, holyResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, holySpecial, holyTimeline)
-assert_true((holyResult and holyResult.totalDamage or 0) > 0, "cleric basic attack timeline should resolve enemy damage")
-
-local buffSkill = BattleSkill.CreateSkillInstance(80004003, {})
-assert_eq(buffSkill.specialEffectTag, "battle_intent_buff", "battle intent skill should infer special effect tag")
-local buffTimeline = require("config.skill.skill_80004003").BuildTimeline(supportCaster, { supportCaster, supportAlly }, buffSkill)
-SkillTimeline.Execute(supportCaster, { supportCaster, supportAlly }, buffSkill, buffTimeline)
-assert_true(BattleBuff.GetBuff(supportCaster, 840002) ~= nil, "battle intent buff should be applied to caster")
-assert_true(BattleBuff.GetBuff(supportAlly, 840002) ~= nil, "battle intent buff should be applied to ally")
-
-BattleSkill.ApplyPoison(poisonEnemy, 2, supportCaster)
-local poisonBurstSkill = BattleSkill.CreateSkillInstance(80005004, {})
-assert_eq(poisonBurstSkill.specialEffectTag, "poison_burst", "poison burst should infer special effect tag")
-local poisonBurstTimeline = require("config.skill.skill_80005004").BuildTimeline(supportCaster, { poisonEnemy }, poisonBurstSkill)
-local _, poisonBurstResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, poisonBurstSkill, poisonBurstTimeline)
-assert_true((poisonBurstResult and poisonBurstResult.totalDamage or 0) > 0, "poison burst timeline should detonate poison damage")
-assert_true(BattleBuff.GetBuff(poisonEnemy, 850001) == nil, "poison burst should clear poison buff")
+assert_true((holyResult and holyResult.totalDamage or 0) > 0, "cleric basic spell timeline should resolve enemy damage")
 
 BattleFormation.OnFinal()
 
@@ -244,11 +229,6 @@ BattleFormation.Init({
 })
 
 local caster = BattleFormation.FindHeroByCampAndPos(true, 2)
-local healSkill = BattleSkill.CreateSkillInstance(80006003, {})
-local healTargets = BattleSkill.SelectTarget(caster, healSkill)
-assert_eq(#healTargets, 1, "healing word should pick one lowest hp ally by inferred config")
-assert_eq(healTargets[1].name, "LowHpAlly", "group heal should pick lowest hp ally first")
-
 local slashSkill = BattleSkill.CreateSkillInstance(80001003, {})
 assert_true(slashSkill.targetsSelections.preferLowestHp == true, "slash skill should infer lowest hp targeting")
 
@@ -256,14 +236,9 @@ local meteorSkill = BattleSkill.CreateSkillInstance(80007004, {})
 assert_eq(meteorSkill.targetsSelections.measureType, E_MEASURE_TYPE.AOE, "meteor should infer aoe targeting")
 assert_true(meteorSkill.targetsSelections.ignoreFrontProtection == true, "meteor should ignore front protection")
 
-local warGodSkill = BattleSkill.CreateSkillInstance(80004004, {})
-assert_eq(warGodSkill.targetsSelections.castTarget, E_CAST_TARGET.Alias, "war god should target allies")
-assert_true(warGodSkill.targetsSelections.includeSelf == true, "war god should include self")
-
 BattleFormation.OnFinal()
 BattleSkill.OnFinal()
 
 print("skill targeting test passed")
-
 
 

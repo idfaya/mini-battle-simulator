@@ -97,12 +97,7 @@ local function resolveSkillDisplayName(skillId, mergedConfig)
 end
 
 local SPECIAL_EFFECT_TAGS = {
-    [80004003] = "battle_intent_buff",
-    [80004004] = "battle_intent_buff",
-    [80005004] = "poison_burst",
     [80002005] = "activate_guard_stance",
-    [80006003] = "group_heal",
-    [80006004] = "revive_latest_ally",
 }
 
 -- 是否已初始化
@@ -1889,33 +1884,18 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
             count = skillParam[2] or 2,
         })
     end
-    if name == "收割" or name == "陨石术" or name == "暴风雪" or name == "雷暴术" or name == "毒性爆发" then
+    if name == "收割"
+        or name == "陨石术"
+        or name == "烈焰风暴"
+        or name == "暴风雪"
+        or name == "雷暴术"
+        or name == "雷暴"
+        or name == "毒性爆发"
+        or name == "毒爆" then
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Enemy,
             measureType = E_MEASURE_TYPE.AOE,
             ignoreFrontProtection = true,
-        })
-    end
-    if inferredSkillId == 80006003 or name == "群疗" then
-        local tier = tonumber(skill and skill.level) or 1
-        local targetCount = (tier >= 2) and 2 or 1
-        return BuildTargetSelection({
-            castTarget = E_CAST_TARGET.Alias,
-            measureType = E_MEASURE_TYPE.Muti,
-            count = targetCount,
-            includeSelf = true,
-            preferLowestHp = true,
-        })
-    end
-    if inferredSkillId == 80006004
-        or name == "全军突击"
-        or name == "战神降临"
-        or name == "圣光普照"
-        or inferredTag == "battle_intent_buff" then
-        return BuildTargetSelection({
-            castTarget = E_CAST_TARGET.Alias,
-            measureType = E_MEASURE_TYPE.AOE,
-            includeSelf = true,
         })
     end
 

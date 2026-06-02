@@ -114,13 +114,13 @@ context = {
 
 ```json
 {
-  "id": 80003001,
-  "symbol": "monk_combo_slash",
+  "id": 80003011,
+  "symbol": "monk_basic_attack",
   "skillType": 1,
   "cooldown": 0,
-  "luaFile": "config.skill.skill_80003001",
+  "luaFile": "config.skill.skill_80003011",
   "rules": {
-    "damageDice": "8",
+    "damageDice": "",
     "kind": "physical",
     "attackMode": "physical_attack"
   }
@@ -459,6 +459,5 @@ Buff 完整 SSOT 见 [buff_system_implementation.md](./buff_system_implementatio
 ---
 
 *文档结束*
-
 
 

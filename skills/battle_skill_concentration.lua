@@ -15,15 +15,7 @@ local BattleVisualEvents = require("ui.battle_visual_events")
 local BattleSkillConcentration = {}
 
 --- 专注技能 → 对应 buff id 列表。
---- 当前仅两个技能进入专注体系（Bless / Bane），显式表驱动，后续拓展时在此新增。
 local function GetConcentrationBuffIds(skillId)
-    local sid = tonumber(skillId) or 0
-    if sid == 80004003 then
-        return { 840002 }
-    end
-    if sid == 80004004 then
-        return { 840003 }
-    end
     return nil
 end
 

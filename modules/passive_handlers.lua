@@ -368,7 +368,6 @@ PassiveHandlers.factories = {
     [80003002] = CreateComboMasterPassive,
     [80004002] = CreateWarSpiritPassive,
     [80005002] = CreateInfectPassive,
-    [80006002] = CreateClericChannelPassive,
     [80007002] = CreateFireAffinityPassive,
     [80008002] = CreateIceAffinityPassive,
     [80009002] = CreateThunderAffinityPassive,

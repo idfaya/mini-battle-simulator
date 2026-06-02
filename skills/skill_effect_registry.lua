@@ -147,12 +147,6 @@ local function ResolveBattleIntentBuff(skill)
     local skillLevel = tonumber(skill and skill.level)
         or tonumber(skillConfig and skillConfig.skillTier)
         or 1
-    if skillId == 80004004 then
-        return 840003, 2
-    end
-    if skillId == 80004003 then
-        return 840002, 2
-    end
     if skillLevel >= 4 then
         return 840003, 2
     end
@@ -293,50 +287,6 @@ function SkillEffectRegistry.RegisterBuiltins()
     end
     builtinsRegistered = true
 
-    SkillEffectRegistry.Register("group_heal", function(ctx, frameCopy)
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        local BattleBuff = require("modules.battle_buff")
-        local allies = ResolveFriendTargets(ctx.hero, frameCopy.targets or (ctx and ctx.targets) or {})
-        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
-        local healCount = (tier >= 2) and 2 or 1
-        local Skill5eMeta = require("config.tables.skill_meta")
-        local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 80006003)
-        local healDice = (meta and meta.healDice) or "1d8+2"
-        local sortedAllies = SortByLowestHpRatio(allies)
-        local selected = {}
-        local healed = 0
-        local channelReady = IsClericChannelReady(ctx.hero)
-        local consumedChannel = false
-        for i = 1, math.min(healCount, #sortedAllies) do
-            local ally = sortedAllies[i]
-            if ally then
-                local healAmount = CalculateHealByDice(ctx.hero, ally, healDice)
-                if tier >= 4 then
-                    healAmount = healAmount + math.max(2, math.floor(healAmount * 0.25))
-                end
-                if channelReady and not consumedChannel then
-                    healAmount = healAmount + math.max(2, math.floor(healAmount * 0.25))
-                    consumedChannel = true
-                end
-                BattleDmgHeal.ApplyHeal(ally, healAmount, ctx.hero)
-                if tier >= 3 then
-                    BattleBuff.DelBuffBySubType(ally, 850001)
-                    BattleBuff.DelBuffBySubType(ally, 870001)
-                end
-                healed = healed + healAmount
-                table.insert(selected, ally)
-            end
-        end
-        if consumedChannel then
-            ConsumeClericChannel(ctx.hero)
-        end
-        return {
-            effectValue = healed,
-            healAmount = healed,
-            targets = selected,
-        }
-    end)
-
     SkillEffectRegistry.Register("cleric_radiant_strike", function(ctx, frameCopy)
         local BattleSkill = require("modules.battle_skill")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -386,44 +336,6 @@ function SkillEffectRegistry.RegisterBuiltins()
             effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + extraTotal,
             targets = (#appliedTargets > 0) and appliedTargets or frameCopy.targets,
         }
-    end)
-
-    SkillEffectRegistry.Register("revive_latest_ally", function(ctx, frameCopy)
-        local BattleSkill = require("modules.battle_skill")
-        local Skill5eMeta = require("config.tables.skill_meta")
-        local skillId = (ctx.skill and ctx.skill.skillId) or 80006004
-        local meta = Skill5eMeta.Get(skillId) or {}
-        local tier = tonumber(ctx and ctx.skill and ctx.skill.level) or 1
-        local hpPct = tonumber(meta.revivePct) or 0.20
-        local turns = tonumber(meta.revivePenaltyTurns) or 2
-        local atkMul = tonumber(meta.revivePenaltyAtkMul) or 0.75
-        local defMul = tonumber(meta.revivePenaltyDefMul) or 0.75
-        local speedMul = tonumber(meta.revivePenaltySpeedMul) or 0.80
-        if tier >= 2 then
-            hpPct = 0.25
-            turns = 1
-            atkMul = 0.85
-            defMul = 0.85
-            speedMul = 0.85
-        end
-        if tier >= 3 then
-            hpPct = 0.30
-            turns = 1
-            atkMul = 0.90
-            defMul = 0.90
-            speedMul = 0.90
-        end
-        local revived = BattleSkill.ReviveLatestDeadAlly(ctx.hero, {
-            hpPct = hpPct,
-            turns = turns,
-            atkMul = atkMul,
-            defMul = defMul,
-            speedMul = speedMul,
-        })
-        if not revived then
-            return { effectValue = 0, targets = {} }
-        end
-        return { effectValue = revived.hp or 0, healAmount = revived.hp or 0, targets = { revived }, target = revived }
     end)
 
     SkillEffectRegistry.Register("battle_intent_buff", function(ctx, frameCopy)

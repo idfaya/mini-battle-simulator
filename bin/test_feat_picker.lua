@@ -145,7 +145,43 @@ do
     end
 end
 
--- ========== 用例 4：跳级（当前 level 缺 feat 时向上找）==========
+-- ========== 用例 4：其他职业旧 feat 不再进入候选池 ==========
+do
+    math.randomseed(10001)
+    local cases = {
+        { classId = 3, rosterId = 32, expectedNames = { "拳力加深", "灵巧步法" } },
+        { classId = 4, rosterId = 33, expectedNames = { "灵光熟练", "灵光扩张" } },
+        { classId = 5, rosterId = 34, expectedNames = { "印记专精", "精准射击" } },
+        { classId = 6, rosterId = 35, expectedNames = { "圣火加深", "驱散基础" } },
+    }
+    for _, case in ipairs(cases) do
+        local unit = makeUnit(case.classId, 1, case.rosterId)
+        local state = makeMockState({ unit }, LevelCurve.GetExpThreshold(2) + 1)
+        local session = FeatPicker.BeginSession(state, LEVEL_EXP_THRESHOLDS)
+        assert_true(session ~= nil, "session should be created for classId=" .. tostring(case.classId))
+        local activeLv2Feats = FeatBuildConfig.GetFeatsByLevel(case.classId, 2) or {}
+        assert_true(#activeLv2Feats == 2, "classId=" .. tostring(case.classId) .. " Lv2 should only expose active tree feats")
+        local allowedIds = {}
+        local foundFeatNames = {}
+        for _, feat in ipairs(activeLv2Feats) do
+            allowedIds[tonumber(feat.id) or 0] = true
+            foundFeatNames[feat.name] = true
+        end
+        for _, opt in ipairs(session.options) do
+            if tonumber(opt.level) == 2 then
+                local featId = tonumber(opt.featId) or 0
+                assert_true(allowedIds[featId] == true,
+                    "classId=" .. tostring(case.classId) .. " Lv2 session should only contain active tree feat ids")
+            end
+        end
+        for _, expectedName in ipairs(case.expectedNames) do
+            assert_true(foundFeatNames[expectedName] == true,
+                "classId=" .. tostring(case.classId) .. " Lv2 active pool should contain " .. expectedName)
+        end
+    end
+end
+
+-- ========== 用例 5：跳级（当前 level 缺 feat 时向上找）==========
 -- 以 fighter 为例：若 Lv2 没有 feat 但 Lv3 有，partyLevel=3 时应跳到 Lv3。
 -- 此处不假设具体 classId，只验证若英雄 Lv1 + partyLevel=3 → option.level >= 2
 do
@@ -162,7 +198,7 @@ do
     end
 end
 
--- ========== 用例 5：partyExp 未跨阈值时返回 nil ==========
+-- ========== 用例 6：partyExp 未跨阈值时返回 nil ==========
 do
     math.randomseed(22222)
     local rogue = makeUnit(1, 1, 51)
@@ -171,7 +207,7 @@ do
     assert_true(session == nil, "session should be nil when no level-up is owed")
 end
 
--- ========== 用例 6：subclass core 加权（采样验证概率上偏）==========
+-- ========== 用例 7：subclass core 加权（采样验证概率上偏）==========
 -- 选 rogue Lv3：3 个候选都是 rogue_lv3_subclass 组的 isSubclassCore = true
 -- 同组互斥意味着只能出 1 张，无法直接验证权重；改为针对 rogue Lv4（mastery，medium 但都不是 subclassCore）
 -- 这里只做基础检查：option.tier 是否被正确传递。
@@ -195,7 +231,7 @@ do
         "Lv5 candidate pool should contain at least one subclass core option")
 end
 
--- ========== 用例 7：加权抽样频率断言（×1.5 权重）==========
+-- ========== 用例 8：加权抽样频率断言（×1.5 权重）==========
 -- 构造 medium tier 池：1 张 isSubclassCore=true + 4 张 isSubclassCore=false
 -- 期望 isSubclassCore=true 频率 = 1.5 / (1.5 + 4) = 1.5/5.5 ≈ 0.273
 -- 不加权基线 = 1/5 = 0.20。断言实际 > 0.24（明显高于不加权基线）。
@@ -226,7 +262,7 @@ do
         string.format("subclass core weighted freq sanity upper bound 0.40, got %.4f", freq))
 end
 
--- ========== 用例 8：树形规则过滤（设计 §3 / §4）==========
+-- ========== 用例 9：树形规则过滤（设计 §3 / §4）==========
 -- 构造一组虚拟 options，验证 filterByTreeRules 的核心约束：
 --   Lv3 → 仅 trunk == "T1"
 --   Lv5 → 仅 trunk == "T2"
