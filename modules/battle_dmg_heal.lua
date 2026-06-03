@@ -136,12 +136,34 @@ end
 ---@param attacker table 攻击者（可选）
 ---@param params table|nil 额外参数
 function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
-    if not target or damage <= 0 then
+    if not target then
         return
     end
 
     params = params or {}
     local incomingDamage = math.max(0, math.floor(tonumber(damage) or 0))
+    if incomingDamage <= 0 then
+        -- 即使没有伤害，只要本次攻击已完成检定（带 attackRoll/saveRoll），仍然发布带 0 伤害的可视化事件，
+        -- 让战斗日志能展示"减免/免疫导致 0 伤害"的骰子信息；其他副作用全部跳过。
+        if params.attackRoll or params.saveRoll then
+            local BattleVisualEvents = require("ui.battle_visual_events")
+            BattleEvent.Publish(BattleVisualEvents.DAMAGE_DEALT, BattleVisualEvents.BuildDamageDealt(
+                attacker, target, 0, {
+                    damageType = params.damageType or 1,
+                    isCrit = params.isCrit or false,
+                    isDodged = params.isDodged or false,
+                    isBlocked = params.isBlocked or false,
+                    skillId = params.skillId,
+                    skillName = params.skillName,
+                    preferSkillColor = params.preferSkillColor or false,
+                    attackRoll = params.attackRoll,
+                    saveRoll = params.saveRoll,
+                    damageRoll = params.damageRoll,
+                }))
+        end
+        return
+    end
+
     local reducedDamage = incomingDamage
     local flatReduce = math.max(0, math.floor(tonumber(target.damageReduce) or 0))
     if flatReduce > 0 then
@@ -225,10 +247,13 @@ end
 ---@param target table 目标
 ---@param heal number 治疗值
 ---@param caster table 施法者（可选）
-function BattleDmgHeal.ApplyHeal(target, heal, caster)
+---@param params table|nil 额外参数
+function BattleDmgHeal.ApplyHeal(target, heal, caster, params)
     if not target or heal <= 0 then
         return
     end
+
+    params = params or {}
 
     local curHp = BattleAttribute.GetHeroCurHp(target)
     local maxHp = target.maxHp or 100
@@ -239,7 +264,11 @@ function BattleDmgHeal.ApplyHeal(target, heal, caster)
     -- 触发可视化治疗事件
     local BattleVisualEvents = require("ui.battle_visual_events")
     BattleEvent.Publish(BattleVisualEvents.HEAL_RECEIVED, BattleVisualEvents.BuildHealReceived(
-        caster, target, heal, {}))
+        caster, target, heal, {
+            isCrit = params.isCrit,
+            skillId = params.skillId,
+            skillName = params.skillName,
+        }))
     
     -- 触发目标状态变化事件
     BattleEvent.Publish(BattleVisualEvents.HERO_STATE_CHANGED, BattleVisualEvents.BuildHeroStateChanged(target))

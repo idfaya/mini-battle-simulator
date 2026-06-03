@@ -178,10 +178,6 @@ local function publishCombatLog(message, extraPayload)
     BattleEvent.Publish("CombatLog", payload)
 end
 
-function FighterBuildPassives.HasSignatureMastery(hero)
-    return ensureRuntime(hero).fighterSignatureMastery == true
-end
-
 function FighterBuildPassives.ActivateGuardStance(hero)
     local BattleSkill = require("modules.battle_skill")
     local runtime = ensureRuntime(hero)
@@ -481,21 +477,6 @@ function FighterBuildPassives.ApplyDirectBonusDamage(hero, target, diceExpr)
     return damage
 end
 
-function FighterBuildPassives.TryTriggerSweepingAttack(hero, primaryTarget)
-    if not isAlive(hero) then
-        return 0
-    end
-    local secondaryTarget = pickAnotherAliveEnemy(hero, primaryTarget)
-    if not isAlive(secondaryTarget) then
-        return 0
-    end
-    local damage = FighterBuildPassives.ApplyDirectBonusDamage(hero, secondaryTarget, getBasicAttackDamageDice())
-    if damage > 0 then
-        publishPassiveTriggered(hero, "横扫攻击", "追加横扫", string.format("波及 %s 造成 %d 伤害", secondaryTarget.name or "目标", damage))
-    end
-    return damage
-end
-
 function FighterBuildPassives.PerformPressureStrike(hero, target, skill)
     if not isAlive(hero) or not isAlive(target) then
         return 0
@@ -682,13 +663,18 @@ function FighterBuildPassives.PerformSecondWindAction(hero, skill)
         healDice = joinDiceParts(healDice, bonusDice)
     end
     local heal = rollDice(healDice) + getConModifier(hero)
-    applyHeal(hero, heal)
+    if heal > 0 then
+        local BattleDmgHeal = require("modules.battle_dmg_heal")
+        BattleDmgHeal.ApplyHeal(hero, heal, hero, {
+            skillId = skill and skill.skillId or IDS.fighter_second_wind_action,
+            skillName = skill and skill.skillName or "回气",
+        })
+    end
     local acBonus = math.max(0, FeatModHelper.GetSkillMod(hero, skill and skill.skillId or IDS.fighter_second_wind_action, "postUseAcDelta", 0))
     if acBonus > 0 then
         runtime.secondWindAcBonus = acBonus
         runtime.secondWindAcExpireRound = getRound() + 1
     end
-    publishCombatLog(string.format("%s 使用回气：回复 %d 生命", hero.name or "Unknown", heal))
     return heal
 end
 
@@ -696,73 +682,6 @@ local function buildContextState(context)
     return {
         context = context,
     }
-end
-
-function FighterBuildPassives.CreateSecondWindPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        if not isAlive(hero) then
-            return
-        end
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local incomingDamage = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
-        if incomingDamage <= 0 then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        -- §6 secondWindCharges：默认 1 次，feat 可叠加额外充能。
-        local maxCharges = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.fighter_second_wind, "secondWindCharges", 0)))
-        local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.secondWindCharges)) or 0
-        if classExtra > 0 then
-            maxCharges = maxCharges + math.floor(classExtra)
-        end
-        local used = tonumber(runtime.secondWindChargesUsed) or 0
-        if runtime.secondWindUsed and used == 0 then
-            used = 1
-        end
-        if used >= maxCharges then
-            return
-        end
-        local maxHp = tonumber(hero.maxHp) or 1
-        if maxHp <= 0 then
-            return
-        end
-        local currentHp = tonumber(hero.hp) or 0
-        if currentHp > incomingDamage then
-            return
-        end
-        runtime.secondWindChargesUsed = used + 1
-        runtime.secondWindUsed = true
-        local heal = math.max(1, math.floor(maxHp * 0.5))
-        extraParam.damage = 0
-        applyHeal(hero, math.max(0, heal - currentHp))
-        local BattleBuff = require("modules.battle_buff")
-        for _, buff in ipairs(BattleBuff.GetAllBuffs(hero) or {}) do
-            buff.__removeByIndomitableWind = true
-        end
-        local buffs = BattleBuff.GetAllBuffs(hero) or {}
-        for i = #buffs, 1, -1 do
-            if buffs[i].__removeByIndomitableWind then
-                table.remove(buffs, i)
-            end
-        end
-        publishPassiveTriggered(hero, "不屈之风", "濒死稳固", string.format("保留%d生命并清除状态", heal))
-    end
-
-    return self
-end
-
-function FighterBuildPassives.CreatePreciseAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        local runtime = ensureRuntime(self.context and self.context.src)
-        runtime.basicAttackIgnoreAc = (tonumber(runtime.basicAttackIgnoreAc) or 0) + 2
-    end
-
-    return self
 end
 
 function FighterBuildPassives.CreateCounterBasicPassive(context)

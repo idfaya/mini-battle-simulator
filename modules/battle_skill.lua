@@ -21,8 +21,7 @@
 ---                                               SelectEnemyTargets / SelectAllyTargets / SelectAllTargets
 ---   [8] 技能配置加载/查询       (行 ~1990..2140)  GetSkillConfig / LoadSkillConfigFromFile / LoadSkillLua
 ---                                               TriggerSkillCastEvent / GetHeroSkills / GetSkillsByType
----   [9] 额外效果（Combo/Pursuit）(行 ~2140..2270) ProcessComboEffect / GetPassiveAdjustedChance
----                                                ProcessPursuitEffect
+---   [9] 额外效果（Combo）       (行 ~2140..2270) ProcessComboEffect / GetPassiveAdjustedChance
 ---   [10] 辅助选择 & 状态施加（**本文件仅保留转发**，实现见）：
 ---          → skills/battle_skill_target_helper.lua
 ---             SelectLowestHpEnemy / SelectLowestHpAlly
@@ -1364,7 +1363,9 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
 
             -- 使用 ApplyDamage 应用伤害（会触发事件）
             local BattleDmgHeal = require("modules.battle_dmg_heal")
-            if damage > 0 then
+            local hitMissed = damageResult and damageResult.hit and damageResult.hit.hit == false
+            if not hitMissed then
+                -- 命中或豁免（含被减免到 0）：始终调用 ApplyDamage，由其内部决定是否发送 0 伤事件
                 BattleDmgHeal.ApplyDamage(actualTarget, damage, hero, {
                     isCrit = damageResult and damageResult.isCrit or false,
                     isDodged = damageResult and damageResult.isDodged or false,
@@ -1376,36 +1377,29 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     saveRoll = damageResult and damageResult.save or nil,
                     damageRoll = damageResult and damageResult.damageRoll or nil,
                 })
-                if okBarbarian and BarbarianBuildPassives and BarbarianBuildPassives.ApplyRageLifesteal then
-                    BarbarianBuildPassives.ApplyRageLifesteal(hero, damage, skill and skill.name or "普通攻击")
+                if damage > 0 then
+                    local okBarbarian2, BarbarianBuildPassives2 = pcall(require, "skills.barbarian_build_passives")
+                    if okBarbarian2 and BarbarianBuildPassives2 and BarbarianBuildPassives2.ApplyRageLifesteal then
+                        BarbarianBuildPassives2.ApplyRageLifesteal(hero, damage, skill and skill.name or "普通攻击")
+                    end
                 end
             else
                 -- Log miss/save for readability (design goal: readable outcomes).
-                if damageResult and damageResult.hit and damageResult.hit.hit == false then
-                    Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
-                        hero.name or "Unknown",
-                        actualTarget.name or "Unknown",
-                        damageResult.hit.roll or 0,
-                        damageResult.hit.total or 0,
-                        damageResult.hit.targetAC or 0))
-                    BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
-                        BattleVisualEvents.MISS,
-                        hero,
-                        actualTarget,
-                        {
-                            skillId = skill and skill.skillId or nil,
-                            skillName = skill and skill.name or nil,
-                            attackRoll = damageResult.hit,
-                        }))
-                elseif damageResult and damageResult.save then
-                    Logger.Log(string.format("[SAVE] %s 对 %s 豁免%s (roll=%d total=%d vs DC=%d)",
-                        target.name or "Unknown",
-                        hero.name or "Unknown",
-                        (damageResult.save.success and "成功" or "失败"),
-                        damageResult.save.roll or 0,
-                        damageResult.save.total or 0,
-                        damageResult.save.dc or 0))
-                end
+                Logger.Log(string.format("[HIT] %s 对 %s 未命中 (roll=%d total=%d vs AC=%d)",
+                    hero.name or "Unknown",
+                    actualTarget.name or "Unknown",
+                    damageResult.hit.roll or 0,
+                    damageResult.hit.total or 0,
+                    damageResult.hit.targetAC or 0))
+                BattleEvent.Publish(BattleVisualEvents.MISS, BattleVisualEvents.BuildCombatEvent(
+                    BattleVisualEvents.MISS,
+                    hero,
+                    actualTarget,
+                    {
+                        skillId = skill and skill.skillId or nil,
+                        skillName = skill and skill.name or nil,
+                        attackRoll = damageResult.hit,
+                    }))
             end
 
             if damage > 0 and energyStats then
@@ -1871,7 +1865,7 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
     local inferredSkillId = tonumber((skillCfg and skillCfg.id) or (mergedConfig and mergedConfig.skillId) or 0) or 0
     local inferredTag = InferSpecialEffectTag(inferredSkillId, skillCfg, mergedConfig)
 
-    if inferredSkillId == 80001003 or name == "斩杀" or name == "Cunning Strike" then
+    if name == "斩杀" or name == "Cunning Strike" then
         return BuildTargetSelection({
             castTarget = E_CAST_TARGET.Enemy,
             preferLowestHp = true,
@@ -2428,63 +2422,6 @@ function BattleSkill.GetPassiveAdjustedChance(hero, baseChance, passiveKey)
         return 10000
     end
     return finalChance
-end
-
---- 处理追击效果（A1 追击流）
----@param hero table 攻击者
----@param target table 被击杀的目标
----@param skill table 技能对象
-function BattleSkill.ProcessPursuitEffect(hero, target, skill)
-    if not target or not target.isDead then return false end
-    
-    -- 检查是否有追击能力（兼容旧的“追击”命名与当前 Rogue 被动 skillId）
-    local hasPursuit = false
-    if hero.skills then
-        for _, s in ipairs(hero.skills) do
-            if (s.skillId == 80001002) or (s.name == "追击") then
-                hasPursuit = true
-                break
-            end
-        end
-    end
-    
-    if hasPursuit then
-        local pursuitRate = 10000  -- 100%追击
-        if GetClassId(hero) == 1 then
-            pursuitRate = 10000
-        end
-        local roll = math.random(1, 10000)
-        if roll <= pursuitRate then
-            Logger.Log(string.format("[ProcessPursuitEffect] %s 触发追击！目标: %s", 
-                hero.name or "Unknown", target.name or "Unknown"))
-            
-            -- 选择新目标进行追击攻击
-            local newTarget = BattleSkill.SelectLowestHpEnemy(hero)
-            if not newTarget then
-                -- Fallback for tests / callers that do not set isLeft: scan all alive units.
-                local BattleActionOrder = require("modules.battle_action_order")
-                local best = nil
-                local bestHp = math.huge
-                for _, u in ipairs(BattleActionOrder.GetAliveHeroes() or {}) do
-                    if u and not u.isDead and u ~= hero and u ~= target
-                       and u.isLeft ~= hero.isLeft then
-                        local hp = tonumber(u.hp) or 0
-                        if hp > 0 and hp < bestHp then
-                            bestHp = hp
-                            best = u
-                        end
-                    end
-                end
-                newTarget = best
-            end
-            if newTarget and not newTarget.isDead then
-                BattleSkill.CastSmallSkill(hero, newTarget)
-                return true
-            end
-        end
-    end
-    
-    return false
 end
 
 --- 选择血量最低的敌人（用于斩杀/收割）

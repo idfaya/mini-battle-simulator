@@ -132,6 +132,7 @@ export class BattleStore {
 
   private listeners = new Set<Listener>();
   private pendingCastResults = new Map<string, boolean>();
+  private pendingCastLogIndex = new Map<string, number>();
 
   subscribe(listener: Listener) {
     this.listeners.add(listener);
@@ -145,6 +146,7 @@ export class BattleStore {
 
   resetBattleState() {
     this.pendingCastResults.clear();
+    this.pendingCastLogIndex.clear();
     this.state = {
       ...this.state,
       log: [],
@@ -172,6 +174,19 @@ export class BattleStore {
 
     const log = [...this.state.log];
     const appendLog = (message: string) => {
+      log.push(message);
+    };
+    const replaceCastOrAppend = (heroId: unknown, message: string) => {
+      const key = String(heroId ?? "");
+      if (key !== "") {
+        const index = this.pendingCastLogIndex.get(key);
+        if (index !== undefined && index >= 0 && index < log.length) {
+          log[index] = message;
+          this.pendingCastLogIndex.delete(key);
+          return;
+        }
+        this.pendingCastLogIndex.delete(key);
+      }
       log.push(message);
     };
     const animations: AnimationEvent[] = [];
@@ -208,6 +223,7 @@ export class BattleStore {
       switch (event.type) {
         case "battle_started":
           this.pendingCastResults.clear();
+          this.pendingCastLogIndex.clear();
           log.length = 0;
           animations.length = 0;
           flashUntil = 0;
@@ -289,7 +305,8 @@ export class BattleStore {
           // #endregion
           this.markCastResult(event.payload.attackerId);
           const critMark = event.payload.isCrit ? "暴击，" : "";
-          appendLog(
+          replaceCastOrAppend(
+            event.payload.attackerId,
             `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${critMark}${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
           );
           pushAnimationEvent(animations, {
@@ -305,7 +322,10 @@ export class BattleStore {
           break;
         case "heal_received":
           this.markCastResult(event.payload.healerId);
-          appendLog(`${String(event.payload.healerName ?? "")} 治疗 ${String(event.payload.targetName ?? "")} ${String(event.payload.healAmount ?? 0)}`);
+          replaceCastOrAppend(
+            event.payload.healerId,
+            `${String(event.payload.healerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 治疗 ${String(event.payload.targetName ?? "")} ${String(event.payload.healAmount ?? 0)}`,
+          );
           animations.push({
             type: "heal",
             heroId: String(event.payload.targetId ?? ""),
@@ -314,7 +334,8 @@ export class BattleStore {
           break;
         case "miss":
           this.markCastResult(event.payload.attackerId);
-          appendLog(
+          replaceCastOrAppend(
+            event.payload.attackerId,
             `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 未命中${formatRollSuffix(event.payload, false)}`,
           );
           animations.push({
@@ -325,7 +346,8 @@ export class BattleStore {
           break;
         case "dodge":
           this.markCastResult(event.payload.attackerId);
-          appendLog(
+          replaceCastOrAppend(
+            event.payload.attackerId,
             `${String(event.payload.targetName ?? "")} 闪避了 ${String(event.payload.attackerName ?? "")} 的攻击${formatRollSuffix(event.payload, false)}`,
           );
           animations.push({
@@ -336,6 +358,7 @@ export class BattleStore {
           break;
         case "skill_cast_started":
           this.pendingCastResults.set(String(event.payload.heroId ?? ""), false);
+          this.pendingCastLogIndex.set(String(event.payload.heroId ?? ""), log.length);
           appendLog(`${String(event.payload.heroName ?? "")} 使用 ${String(event.payload.skillName ?? "")}`);
           banner = `${String(event.payload.heroName ?? "")} · ${String(event.payload.skillName ?? "")}`;
           flashUntil = performance.now() + 200;
@@ -397,10 +420,8 @@ export class BattleStore {
             totalDamage: Number(event.payload.totalDamage ?? 0),
             succeeded: Boolean(event.payload.succeeded),
           });
-          if (!this.pendingCastResults.get(String(event.payload.heroId ?? ""))) {
-            appendLog(`${String(event.payload.heroName ?? "")} 的 ${String(event.payload.skillName ?? "")} 未产生效果`);
-          }
           this.pendingCastResults.delete(String(event.payload.heroId ?? ""));
+          this.pendingCastLogIndex.delete(String(event.payload.heroId ?? ""));
           break;
         case "ultimate_ready":
           appendLog(`${String(event.payload.heroName ?? "")} 大招已就绪`);

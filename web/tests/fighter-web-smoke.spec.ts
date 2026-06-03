@@ -609,7 +609,7 @@ test("fighter web flow follows second wind -> counter -> guard progression", asy
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
-    .toContain("战士 使用 基础武器攻击");
+    .toContain("战士 的 基础武器攻击 对");
   const level1Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(level1Logs).toContain("基础武器攻击");
   expect(level1Logs).not.toContain("反击：登记反击");
@@ -633,7 +633,7 @@ test("fighter low tier keeps second wind instead of old extra attack", async ({ 
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
-    .toContain("战士 使用 回气");
+    .toContain("战士 的 回气 治疗 战士");
   const logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(logs).not.toContain("战士 触发被动 反击：登记反击");
   expect(logs).not.toContain("触发额外攻击：对同一目标");
@@ -671,18 +671,16 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
     .toContain("战士 触发被动 反击：登记反击 将对 兽人 发动反击");
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 10000 })
-    .toContain("战士 使用 基础武器攻击");
+    .toContain("战士 的 基础武器攻击 对 兽人");
 
   const logs = await page.locator(".battle-log li").allTextContents();
-  const attackIndex = findLineIndex(logs, (line) => line.includes("兽人 使用 基础武器攻击"));
+  const attackIndex = findLineIndex(logs, (line) => line.includes("兽人 的 基础武器攻击 对 战士"));
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击 将对 兽人 发动反击"));
-  const resultIndex = findLineIndex(logs, (line) => line.includes("兽人 的 基础武器攻击 对 战士"), queueIndex + 1);
-  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), resultIndex + 1);
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 的 基础武器攻击 对 兽人"), queueIndex + 1);
 
   expect(attackIndex).toBeGreaterThanOrEqual(0);
   expect(queueIndex).toBeGreaterThan(attackIndex);
-  expect(resultIndex).toBeGreaterThan(queueIndex);
-  expect(counterIndex).toBeGreaterThan(resultIndex);
+  expect(counterIndex).toBeGreaterThan(queueIndex);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 
@@ -708,7 +706,7 @@ test("fighter counter attack starts before the enemy returns to base position", 
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 反击：登记反击"));
-  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 的 基础武器攻击 对"), queueIndex + 1);
   expect(queueIndex).toBeGreaterThanOrEqual(0);
   expect(counterIndex).toBeGreaterThan(queueIndex);
   expect(pageErrors).toEqual([]);
@@ -738,7 +736,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
 
   await expect
     .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 15000 })
-    .toContain("战士 使用 基础武器攻击");
+    .toContain("战士 的 基础武器攻击 对");
 
   expect(await motionCheck).toBe(true);
   expect(await stationaryCheck).toBe(true);
@@ -747,7 +745,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
-  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 使用 基础武器攻击"), queueIndex + 1);
+  const counterIndex = findLineIndex(logs, (line) => line.includes("战士 的 基础武器攻击 对"), queueIndex + 1);
   const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("哥布林 的 基础武器攻击 对 战士"), queueIndex + 1);
   expect(queueIndex).toBeGreaterThanOrEqual(0);
   expect(redirectedHitIndex).toBeGreaterThan(queueIndex);
