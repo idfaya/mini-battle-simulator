@@ -76,6 +76,13 @@ for _, spec in ipairs(enemies) do
     assert_true(enemy.SkillIDs == nil, "Enemy has no static SkillIDs: " .. tostring(spec.id))
 end
 
+local explicitMetaEnemyIds = { 910008, 910009, 910010, 910011 }
+for _, enemyId in ipairs(explicitMetaEnemyIds) do
+    local meta = EnemyData.GetChallengeMeta(enemyId)
+    assert_true(meta.role ~= "unknown", "Enemy has explicit challenge role: " .. tostring(enemyId))
+    assert_true((tonumber(meta.xp) or 0) > 0, "Enemy has explicit challenge xp: " .. tostring(enemyId))
+end
+
 -- 普通怪 Lv1 实战 = Build Lv1
 assert_array_equals(skillIdsFromHeroData(910002, 1), skillIdsFromBuild(1, 1), "Goblin Lv1 battle")
 assert_array_equals(skillIdsFromHeroData(910001, 1), skillIdsFromBuild(3, 1), "Slime Lv1 battle")

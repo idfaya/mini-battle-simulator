@@ -45,6 +45,10 @@ local ENEMY_CR_META = {
     [910005] = { cr = "1", xp = 200, role = "caster" },    -- DarkMage
     [910006] = { cr = "3", xp = 700, role = "elite_caster" }, -- IceDemon
     [910007] = { cr = "4", xp = 1100, role = "elite_caster" }, -- ThunderLord
+    [910008] = { cr = "1/4", xp = 50, role = "skirmisher" }, -- ScoutArcher
+    [910009] = { cr = "1/4", xp = 50, role = "caster" },   -- Acolyte
+    [910010] = { cr = "1/2", xp = 100, role = "frontliner" }, -- Oathguard
+    [910011] = { cr = "1/2", xp = 100, role = "brute" },   -- Berserker
 }
 
 ---@type table<integer, MonsterTypeTemplate>
@@ -148,6 +152,10 @@ local ENEMY_ABILITY_SCORES = {
     [910005] = { str = 8,  dex = 12, con = 10, int = 14, wis = 12, cha = 10 }, -- DarkMage
     [910006] = { str = 10, dex = 12, con = 14, int = 16, wis = 12, cha = 10 }, -- IceDemon
     [910007] = { str = 10, dex = 14, con = 12, int = 16, wis = 10, cha = 10 }, -- ThunderLord
+    [910008] = { str = 10, dex = 14, con = 12, int = 8,  wis = 12, cha = 8  }, -- ScoutArcher
+    [910009] = { str = 10, dex = 10, con = 12, int = 8,  wis = 14, cha = 10 }, -- Acolyte
+    [910010] = { str = 14, dex = 12, con = 14, int = 8,  wis = 10, cha = 12 }, -- Oathguard
+    [910011] = { str = 16, dex = 12, con = 14, int = 8,  wis = 10, cha = 8  }, -- Berserker
 }
 
 local function clampAbility(score)
@@ -497,4 +505,3 @@ end
 EnemyData.Init()
 
 return EnemyData
-
