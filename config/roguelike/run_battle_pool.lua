@@ -77,6 +77,110 @@ RunBattlePool.POOLS = {
             { battleTemplateId = 201302, weight = 50 },
         },
     },
+    [102001] = {
+        id = 102001,
+        chapterId = 102,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 202001, weight = 100 },
+        },
+    },
+    [102002] = {
+        id = 102002,
+        chapterId = 102,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 202002, weight = 60 },
+            { battleTemplateId = 202003, weight = 40 },
+        },
+    },
+    [102003] = {
+        id = 102003,
+        chapterId = 102,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 202002, weight = 25 },
+            { battleTemplateId = 202003, weight = 75 },
+        },
+    },
+    [102101] = {
+        id = 102101,
+        chapterId = 102,
+        kind = "elite",
+        entries = {
+            { battleTemplateId = 202101, weight = 55 },
+            { battleTemplateId = 202102, weight = 45 },
+        },
+    },
+    [102102] = {
+        id = 102102,
+        chapterId = 102,
+        kind = "elite",
+        entries = {
+            { battleTemplateId = 202101, weight = 20 },
+            { battleTemplateId = 202102, weight = 80 },
+        },
+    },
+    [102201] = {
+        id = 102201,
+        chapterId = 102,
+        kind = "boss",
+        entries = {
+            { battleTemplateId = 202201, weight = 100 },
+        },
+    },
+    [103001] = {
+        id = 103001,
+        chapterId = 103,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 203001, weight = 100 },
+        },
+    },
+    [103002] = {
+        id = 103002,
+        chapterId = 103,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 203002, weight = 60 },
+            { battleTemplateId = 203003, weight = 40 },
+        },
+    },
+    [103003] = {
+        id = 103003,
+        chapterId = 103,
+        kind = "normal",
+        entries = {
+            { battleTemplateId = 203002, weight = 20 },
+            { battleTemplateId = 203003, weight = 80 },
+        },
+    },
+    [103101] = {
+        id = 103101,
+        chapterId = 103,
+        kind = "elite",
+        entries = {
+            { battleTemplateId = 203101, weight = 45 },
+            { battleTemplateId = 203102, weight = 55 },
+        },
+    },
+    [103102] = {
+        id = 103102,
+        chapterId = 103,
+        kind = "elite",
+        entries = {
+            { battleTemplateId = 203101, weight = 20 },
+            { battleTemplateId = 203102, weight = 80 },
+        },
+    },
+    [103201] = {
+        id = 103201,
+        chapterId = 103,
+        kind = "boss",
+        entries = {
+            { battleTemplateId = 203201, weight = 100 },
+        },
+    },
 }
 
 function RunBattlePool.GetPool(poolId)
