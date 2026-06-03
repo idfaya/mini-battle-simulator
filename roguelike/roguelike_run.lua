@@ -157,23 +157,14 @@ end
 
 local function grantBattleExp(_battle)
     local chapterId = tonumber(state.chapterId) or 101
-    local floorDepth = tonumber(state.dungeonState and state.dungeonState.currentFloorDepth) or 1
-    local combatEnemyLevel = tonumber(state.currentBattleEnemyLevel) or 1
-    local expEnemyLevel = math.max(
-        combatEnemyLevel,
-        EncounterLevelCurve.GetFloorExpLevel(chapterId, floorDepth)
-    )
     local chapterMult = CHAPTER_BATTLE_EXP_MULTIPLIER[chapterId] or 1.0
     local expReward = BattleExpReward.ComputeVictoryExp({
         enemyIds = state.currentBattleEnemyIds or {},
         partySize = countAliveTeamSize(),
         partyLevel = tonumber(state.partyLevel) or STARTER_LEVEL,
-        levelCap = tonumber(state.levelCap) or CHAPTER_LEVEL_CAP,
-        enemyLevel = expEnemyLevel,
         chapterMultiplier = chapterMult,
     })
     state.currentBattleEnemyIds = nil
-    state.currentBattleEnemyLevel = nil
     state.lastBattleExpReward = expReward
     if expReward > 0 then
         state.partyExp = (state.partyExp or 0) + expReward
@@ -608,7 +599,6 @@ leaveNodeBackToMap = function()
     state.currentBattleId = nil
     state.currentBattleConfig = nil
     state.currentBattleEnemyIds = nil
-    state.currentBattleEnemyLevel = nil
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end

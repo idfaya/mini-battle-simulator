@@ -308,7 +308,15 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
         elseif snapshot.phase == "shop" then
             Run.ShopLeave()
         elseif snapshot.phase == "event" then
-            RoguelikeTestRoute.resolveEvent(Run, snapshot)
+            if snapshot.eventState and snapshot.eventState.result then
+                Run.ContinueEvent()
+            else
+                RoguelikeTestRoute.resolveEvent(Run, snapshot)
+                local nextSnapshot = Run.GetSnapshot()
+                if nextSnapshot.phase == "event" and nextSnapshot.eventState and nextSnapshot.eventState.result then
+                    Run.ContinueEvent()
+                end
+            end
         elseif snapshot.phase == "stair" then
             local stair = snapshot.stairState or {}
             local depth = tonumber(stair.currentFloorDepth) or 1

@@ -64,8 +64,8 @@ RunBattleTemplate.TEMPLATES = {
         loseRule = "all_hero_dead",
         battleEntries = {
             { battleId = 101002, weight = 60 },
-            { battleId = 101003, weight = 25 },
-            { battleId = 101104, weight = 15 },
+            { battleId = 101003, weight = 20 },
+            { battleId = 101104, weight = 20 },
         },
         waveGroupPoolId = 401002,
     },
@@ -84,7 +84,8 @@ RunBattleTemplate.TEMPLATES = {
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         battleEntries = {
-            { battleId = 101104, weight = 100 },
+            { battleId = 101003, weight = 45 },
+            { battleId = 101104, weight = 55 },
         },
         waveGroupPoolId = 401003,
     },
@@ -105,7 +106,8 @@ RunBattleTemplate.TEMPLATES = {
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         battleEntries = {
-            { battleId = 101101, weight = 100 },
+            { battleId = 101101, weight = 55 },
+            { battleId = 101102, weight = 45 },
         },
         waveGroupPoolId = 401101,
     },
@@ -182,9 +184,9 @@ RunBattleTemplate.TEMPLATES = {
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
         battleEntries = {
-            { battleId = 101002, weight = 60 },
-            { battleId = 101003, weight = 25 },
-            { battleId = 101104, weight = 15 },
+            { battleId = 101002, weight = 50 },
+            { battleId = 101003, weight = 20 },
+            { battleId = 101104, weight = 30 },
         },
         waveGroupPoolId = 401002,
     },

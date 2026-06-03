@@ -40,32 +40,38 @@ RunWaveGroupPool.POOLS = {
         id = 401002,
         entries = {
             { templateId = 501001, weight = 35 },
-            { templateId = 501002, weight = 45 },
-            { templateId = 501003, weight = 20 },
+            { templateId = 501002, weight = 35 },
+            { templateId = 501003, weight = 15 },
+            { templateId = 501004, weight = 15 },
         },
     },
     [401003] = {
         id = 401003,
         entries = {
-            { templateId = 501005, weight = 100 },
+            { templateId = 501003, weight = 25 },
+            { templateId = 501004, weight = 30 },
+            { templateId = 501005, weight = 45 },
         },
     },
     [401101] = {
         id = 401101,
         entries = {
-            { templateId = 501101, weight = 100 },
+            { templateId = 501101, weight = 55 },
+            { templateId = 501103, weight = 45 },
         },
     },
     [401102] = {
         id = 401102,
         entries = {
-            { templateId = 501102, weight = 100 },
+            { templateId = 501102, weight = 60 },
+            { templateId = 501103, weight = 40 },
         },
     },
     [401201] = {
         id = 401201,
         entries = {
-            { templateId = 501201, weight = 100 },
+            { templateId = 501201, weight = 55 },
+            { templateId = 501202, weight = 45 },
         },
     },
 }
@@ -132,6 +138,15 @@ RunWaveGroupPool.TEMPLATES = {
         name = "精英秘团波次",
         formationProfileId = 601102,
         frontPoolId = 701004,
+        backPoolId = 701006,
+        reinforcePoolId = nil,
+    },
+    [501103] = {
+        id = 501103,
+        code = "elite_wave_guarded",
+        name = "精英护卫波次",
+        formationProfileId = 601101,
+        frontPoolId = 701202,
         backPoolId = 701006,
         reinforcePoolId = nil,
     },

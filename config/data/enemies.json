@@ -1,13 +1,324 @@
 [
-  {"ID":910001,"EnemyName":"史莱姆","Class":3,"MonsterType":0,"Level":1,"Star":1,"Quality":1},
-  {"ID":910002,"EnemyName":"哥布林","Class":1,"MonsterType":0,"Level":2,"Star":2,"Quality":2},
-  {"ID":910003,"EnemyName":"兽人","Class":2,"MonsterType":0,"Level":3,"Star":3,"Quality":3},
-  {"ID":910004,"EnemyName":"骷髅兵","Class":2,"MonsterType":1,"Level":4,"Star":3,"Quality":3},
-  {"ID":910005,"EnemyName":"暗法师","Class":7,"MonsterType":1,"Level":4,"Star":4,"Quality":4},
-  {"ID":910006,"EnemyName":"冰魔","Class":8,"MonsterType":2,"Level":6,"Star":5,"Quality":5},
-  {"ID":910007,"EnemyName":"雷霆领主","Class":9,"MonsterType":2,"Level":7,"Star":6,"Quality":6},
-  {"ID":910008,"EnemyName":"斥候弓手","Class":5,"MonsterType":0,"Level":2,"Star":2,"Quality":2},
-  {"ID":910009,"EnemyName":"侍僧","Class":6,"MonsterType":0,"Level":2,"Star":2,"Quality":2},
-  {"ID":910010,"EnemyName":"誓卫","Class":4,"MonsterType":0,"Level":3,"Star":3,"Quality":3},
-  {"ID":910011,"EnemyName":"狂战士","Class":10,"MonsterType":0,"Level":3,"Star":3,"Quality":3}
+  {
+    "ID": 910001,
+    "EnemyName": "史莱姆",
+    "Class": 3,
+    "MonsterType": 0,
+    "Level": 1,
+    "CR": "1/8",
+    "XP": 25,
+    "Role": "fodder",
+    "BaseHp": 9,
+    "AcBonus": 1,
+    "AbilityScores": { "str": 8, "dex": 8, "con": 12, "int": 2, "wis": 8, "cha": 2 },
+    "SkillIDs": [
+      { "skillId": 80003011, "level": 1 },
+      { "skillId": 80003101, "level": 1 }
+    ],
+    "Star": 1,
+    "Quality": 1
+  },
+  {
+    "ID": 910002,
+    "EnemyName": "哥布林",
+    "Class": 1,
+    "MonsterType": 0,
+    "Level": 2,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "skirmisher",
+    "BaseHp": 7,
+    "AcBonus": 3,
+    "AbilityScores": { "str": 8, "dex": 14, "con": 10, "int": 8, "wis": 8, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80001011, "level": 1 },
+      { "skillId": 80001101, "level": 1 }
+    ],
+    "Star": 2,
+    "Quality": 2
+  },
+  {
+    "ID": 910003,
+    "EnemyName": "兽人",
+    "Class": 2,
+    "MonsterType": 0,
+    "Level": 3,
+    "CR": "1/2",
+    "XP": 100,
+    "Role": "brute",
+    "BaseHp": 15,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 8, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80002001, "level": 1 },
+      { "skillId": 80002006, "level": 1 },
+      { "skillId": 80002104, "level": 1 }
+    ],
+    "Star": 3,
+    "Quality": 3
+  },
+  {
+    "ID": 910004,
+    "EnemyName": "骷髅兵",
+    "Class": 2,
+    "MonsterType": 1,
+    "Level": 4,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "frontliner",
+    "BaseHp": 13,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 12, "dex": 12, "con": 12, "int": 6, "wis": 8, "cha": 5 },
+    "SkillIDs": [
+      { "skillId": 80002001, "level": 1 },
+      { "skillId": 80002005, "level": 1 },
+      { "skillId": 80002006, "level": 1 },
+      { "skillId": 80002104, "level": 1 },
+      { "skillId": 80002105, "level": 1 }
+    ],
+    "Star": 3,
+    "Quality": 3
+  },
+  {
+    "ID": 910005,
+    "EnemyName": "暗法师",
+    "Class": 7,
+    "MonsterType": 1,
+    "Level": 4,
+    "CR": "1",
+    "XP": 200,
+    "Role": "caster",
+    "BaseHp": 33,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 8, "dex": 12, "con": 10, "int": 14, "wis": 12, "cha": 10 },
+    "SkillIDs": [
+      { "skillId": 80007001, "level": 1 },
+      { "skillId": 80007003, "level": 1 },
+      { "skillId": 80007004, "level": 1 },
+      { "skillId": 80007002, "level": 1 }
+    ],
+    "Star": 4,
+    "Quality": 4
+  },
+  {
+    "ID": 910006,
+    "EnemyName": "冰魔",
+    "Class": 8,
+    "MonsterType": 2,
+    "Level": 6,
+    "CR": "3",
+    "XP": 700,
+    "Role": "elite_caster",
+    "BaseHp": 58,
+    "AcBonus": 3,
+    "AbilityScores": { "str": 10, "dex": 12, "con": 14, "int": 16, "wis": 12, "cha": 10 },
+    "SkillIDs": [
+      { "skillId": 80008001, "level": 1 },
+      { "skillId": 80008003, "level": 1 },
+      { "skillId": 80008004, "level": 1 },
+      { "skillId": 80008002, "level": 1 }
+    ],
+    "Star": 5,
+    "Quality": 5
+  },
+  {
+    "ID": 910007,
+    "EnemyName": "雷霆领主",
+    "Class": 9,
+    "MonsterType": 2,
+    "Level": 7,
+    "CR": "4",
+    "XP": 1100,
+    "Role": "elite_caster",
+    "BaseHp": 67,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 10, "dex": 14, "con": 12, "int": 16, "wis": 10, "cha": 10 },
+    "SkillIDs": [
+      { "skillId": 80009001, "level": 1 },
+      { "skillId": 80009003, "level": 1 },
+      { "skillId": 80009004, "level": 1 },
+      { "skillId": 80009002, "level": 1 }
+    ],
+    "Star": 6,
+    "Quality": 6
+  },
+  {
+    "ID": 910008,
+    "EnemyName": "斥候弓手",
+    "Class": 5,
+    "MonsterType": 0,
+    "Level": 2,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "skirmisher",
+    "BaseHp": 16,
+    "AcBonus": 1,
+    "AbilityScores": { "str": 10, "dex": 14, "con": 12, "int": 8, "wis": 12, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80005011, "level": 1 },
+      { "skillId": 80005101, "level": 1 }
+    ],
+    "Star": 2,
+    "Quality": 2
+  },
+  {
+    "ID": 910009,
+    "EnemyName": "侍僧",
+    "Class": 6,
+    "MonsterType": 0,
+    "Level": 2,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "caster",
+    "BaseHp": 9,
+    "AcBonus": 0,
+    "AbilityScores": { "str": 10, "dex": 10, "con": 12, "int": 8, "wis": 14, "cha": 10 },
+    "SkillIDs": [
+      { "skillId": 80006011, "level": 1 },
+      { "skillId": 80006103, "level": 1 }
+    ],
+    "Star": 2,
+    "Quality": 2
+  },
+  {
+    "ID": 910010,
+    "EnemyName": "誓卫",
+    "Class": 4,
+    "MonsterType": 0,
+    "Level": 3,
+    "CR": "1/2",
+    "XP": 100,
+    "Role": "frontliner",
+    "BaseHp": 11,
+    "AcBonus": 5,
+    "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 12 },
+    "SkillIDs": [
+      { "skillId": 80004011, "level": 1 },
+      { "skillId": 80004014, "level": 1 },
+      { "skillId": 80004102, "level": 1 }
+    ],
+    "Star": 3,
+    "Quality": 3
+  },
+  {
+    "ID": 910011,
+    "EnemyName": "狂战士",
+    "Class": 10,
+    "MonsterType": 0,
+    "Level": 3,
+    "CR": "1/2",
+    "XP": 100,
+    "Role": "brute",
+    "BaseHp": 67,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 16, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80010011, "level": 1 },
+      { "skillId": 80010013, "level": 1 },
+      { "skillId": 80010101, "level": 1 }
+    ],
+    "Star": 3,
+    "Quality": 3
+  },
+  {
+    "ID": 910012,
+    "EnemyName": "哥布林投矛手",
+    "Class": 5,
+    "MonsterType": 0,
+    "Level": 2,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "skirmisher",
+    "BaseHp": 8,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 8, "dex": 14, "con": 10, "int": 8, "wis": 8, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80005011, "level": 1 },
+      { "skillId": 80005014, "level": 1 }
+    ],
+    "Star": 2,
+    "Quality": 2
+  },
+  {
+    "ID": 910013,
+    "EnemyName": "骸骨弓手",
+    "Class": 5,
+    "MonsterType": 0,
+    "Level": 2,
+    "CR": "1/4",
+    "XP": 50,
+    "Role": "ranged",
+    "BaseHp": 13,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 10, "dex": 14, "con": 12, "int": 6, "wis": 8, "cha": 5 },
+    "SkillIDs": [
+      { "skillId": 80005011, "level": 1 },
+      { "skillId": 80005013, "level": 1 }
+    ],
+    "Star": 2,
+    "Quality": 2
+  },
+  {
+    "ID": 910014,
+    "EnemyName": "兽人斗士",
+    "Class": 2,
+    "MonsterType": 0,
+    "Level": 3,
+    "CR": "1/2",
+    "XP": 100,
+    "Role": "brute",
+    "BaseHp": 18,
+    "AcBonus": 2,
+    "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 8, "cha": 8 },
+    "SkillIDs": [
+      { "skillId": 80002001, "level": 1 },
+      { "skillId": 80002006, "level": 1 },
+      { "skillId": 80002104, "level": 1 }
+    ],
+    "Star": 3,
+    "Quality": 3
+  },
+  {
+    "ID": 910015,
+    "EnemyName": "骸骨队长",
+    "Class": 2,
+    "MonsterType": 1,
+    "Level": 4,
+    "CR": "1",
+    "XP": 200,
+    "Role": "frontliner",
+    "BaseHp": 27,
+    "AcBonus": 4,
+    "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 6, "wis": 8, "cha": 5 },
+    "SkillIDs": [
+      { "skillId": 80002001, "level": 1 },
+      { "skillId": 80002005, "level": 1 },
+      { "skillId": 80002006, "level": 1 },
+      { "skillId": 80002104, "level": 1 },
+      { "skillId": 80002105, "level": 1 }
+    ],
+    "Star": 4,
+    "Quality": 4
+  },
+  {
+    "ID": 910016,
+    "EnemyName": "暗影祭司",
+    "Class": 6,
+    "MonsterType": 1,
+    "Level": 5,
+    "CR": "2",
+    "XP": 450,
+    "Role": "support",
+    "BaseHp": 27,
+    "AcBonus": 1,
+    "AbilityScores": { "str": 10, "dex": 10, "con": 12, "int": 8, "wis": 14, "cha": 10 },
+    "SkillIDs": [
+      { "skillId": 80006011, "level": 1 },
+      { "skillId": 80006012, "level": 1 },
+      { "skillId": 80006015, "level": 1 },
+      { "skillId": 80006103, "level": 1 }
+    ],
+    "Star": 4,
+    "Quality": 4
+  }
 ]

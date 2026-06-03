@@ -120,7 +120,7 @@
       "empty": 5
     },
     "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101003, "battle_elite": 101102 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },
       { "id": 101002, "weight": 1 },
@@ -171,7 +171,7 @@
       "empty": 5
     },
     "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
       { "id": 101002, "weight": 2 },
@@ -276,7 +276,7 @@
       "empty": 5
     },
     "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101003, "battle_elite": 101102 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },
       { "id": 101002, "weight": 1 },
@@ -328,7 +328,7 @@
       "empty": 5
     },
     "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
       { "id": 101002, "weight": 2 },
@@ -433,7 +433,7 @@
       "empty": 5
     },
     "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 2 },
-    "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
+    "battlePoolIds": { "battle_normal": 101003, "battle_elite": 101102 },
     "eventPoolIds": [
       { "id": 101001, "weight": 1 },
       { "id": 101002, "weight": 1 },

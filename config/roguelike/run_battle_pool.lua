@@ -51,6 +51,15 @@ RunBattlePool.POOLS = {
             { battleTemplateId = 201102, weight = 55 },
         },
     },
+    [101102] = {
+        id = 101102,
+        chapterId = 101,
+        kind = "elite",
+        entries = {
+            { battleTemplateId = 201101, weight = 20 },
+            { battleTemplateId = 201102, weight = 80 },
+        },
+    },
     [101201] = {
         id = 101201,
         chapterId = 101,

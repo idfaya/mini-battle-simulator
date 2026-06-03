@@ -12,7 +12,6 @@ local RunBattlePool = require("config.roguelike.run_battle_pool")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
 local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
-local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
     [101] = 1.00,
@@ -90,7 +89,7 @@ local function enemyIdsForTemplate(template)
     return enemyIds
 end
 
-local function getPoolAverageEncounterExp(poolId, partyLevel, enemyLevel, chapterMult)
+local function getPoolAverageEncounterExp(poolId, partyLevel, chapterMult)
     local pool = RunBattlePool.GetPool(poolId)
     assert(pool, "missing battle pool " .. tostring(poolId))
     local totalWeight = 0
@@ -105,7 +104,6 @@ local function getPoolAverageEncounterExp(poolId, partyLevel, enemyLevel, chapte
             enemyIds = enemyIds,
             partySize = 4,
             partyLevel = partyLevel,
-            enemyLevel = enemyLevel,
             chapterMultiplier = chapterMult,
         })
         totalWeight = totalWeight + weight
@@ -130,10 +128,7 @@ local function estimateChapterExp(chapterId, seedFrom, seedTo)
             for _, room in pairs(floor.rooms or {}) do
                 if room.roomType == "battle_normal" or room.roomType == "battle_elite" or room.roomType == "boss" then
                     runBattles = runBattles + 1
-                    local roomKind = room.roomType == "battle_elite" and "elite"
-                        or (room.roomType == "boss" and "boss" or "normal")
-                    local enemyLevel = EncounterLevelCurve.GetFloorCombatLevel(101, floorIndex)
-                    local gain = getPoolAverageEncounterExp(room.payload.battlePoolId, partyLevel, enemyLevel, mult)
+                    local gain = getPoolAverageEncounterExp(room.payload.battlePoolId, partyLevel, mult)
                     runExp = runExp + gain
                     partyLevel = LevelCurve.GetLevelForExp(runExp, LevelCurve.CHAPTER_LEVEL_CAP)
                 end
@@ -150,10 +145,10 @@ local function assertAct1Pacing5e()
     local avgLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
     assert(avgBattles >= 6 and avgBattles <= 20,
         string.format("act1 battle count out of range: %.2f", avgBattles))
-    -- partyLevel = 累计三选一次数 + 1（4 人队语义）。第一章 ~13 场战斗，期望累计三选一
-    -- 至少够"全队从 Lv1 升到平均 Lv3"≈ 12 次三选一 → partyLevel ≈ 13–18。
-    assert(avgLevel >= 10 and avgLevel <= 18,
-        string.format("act1 怪物 Lv1-5 节奏下期望 partyLevel 10-18，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
+    -- 改为 CR 主导后，战斗 EXP 不再吃 enemyLevel 膨胀；Act1 终局平均等级应明显低于旧口径，
+    -- 但仍要保证具备稳定成长感与进入中段 build 的空间。
+    assert(avgLevel >= 7 and avgLevel <= 10,
+        string.format("act1 CR 主导节奏下期望 partyLevel 7-10，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
     print(string.format("[OK] act1 5e avgExp=%.0f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgLevel))
 end
 
@@ -165,32 +160,33 @@ local function assertEscalatingSteps()
     assert(step10 > step5, "high levels need more exp per level")
 end
 
-local function assertSingleBattleNoCap()
-    -- cap 已删除：单战 EXP = baseXp × countMult × levelScale × chapterMult，全量给到 partyExp 池。
-    -- 升级节奏改由 PARTY_EXP_THRESHOLD_SCALE + waveCount 控制；这里只验"高怪等级线性叠加 levelScale"。
+local function assertSingleBattleUsesCrOnly()
     local partyLevel = 1
-    local highEnemyLv = 10
-    local lowEnemyLv = 1
     local highGain = BattleExpReward.ComputeVictoryExp({
         enemyIds = { 910006, 910007, 910006, 910007 },
         partySize = 4,
         partyLevel = partyLevel,
-        enemyLevel = highEnemyLv,
         chapterMultiplier = 1,
     })
     local lowGain = BattleExpReward.ComputeVictoryExp({
         enemyIds = { 910006, 910007, 910006, 910007 },
         partySize = 4,
         partyLevel = partyLevel,
-        enemyLevel = lowEnemyLv,
         chapterMultiplier = 1,
     })
-    assert(highGain > lowGain,
-        string.format("higher enemy level should grant more exp: low=%d high=%d", lowGain, highGain))
+    local goblinGain = BattleExpReward.ComputeVictoryExp({
+        enemyIds = { 910002, 910002, 910002, 910002 },
+        partySize = 4,
+        partyLevel = partyLevel,
+        chapterMultiplier = 1,
+    })
+    assert(highGain == lowGain, "same encounter without enemyLevel scaling should keep same exp")
+    assert(highGain > goblinGain,
+        string.format("higher CR encounters should grant more exp: goblin=%d boss=%d", goblinGain, highGain))
 end
 
 assertLevelCurve5e()
 assertEscalatingSteps()
-assertSingleBattleNoCap()
+assertSingleBattleUsesCrOnly()
 assertAct1Pacing5e()
 print("[OK] roguelike progression pacing (5e)")

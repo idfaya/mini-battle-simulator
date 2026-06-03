@@ -9,7 +9,6 @@ local ClassRoleConfig = require("config.tables.classes")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
-local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local TrinketEffects = require("roguelike.trinket_effects")
@@ -22,8 +21,7 @@ local BACK_POSITIONS = { 5, 4, 6 }
 
 -- 队伍 EXP 改造后，state.partyLevel 反映 partyExp 跨过的阈值（可一次跳 +N），
 -- 但实际每次升级三选一只让 1 名英雄升级，因此存活英雄的真实平均等级会显著低于 partyLevel。
--- 用真实存活均值来缩放敌人等级 / budget，避免单场战斗后立刻把敌人按高 partyLevel 拉飞，
--- 导致还没把所有英雄升满的队伍 team_wipe。
+-- 这里保留真实存活均值，仅用于 encounter budget 参考，避免整场预算跳升过快。
 local function computeAlivePartyLevel(runState)
     local total = 0
     local count = 0
@@ -266,8 +264,8 @@ local function buildBattleBudgetAdjust(runState, battleProfileLike, aliveCount)
     }
 end
 
-local function buildEnemyForBattle(enemyId, level, wpType, budgetAdjust)
-    local enemyData = EnemyData.ConvertToHeroData(enemyId, level)
+local function buildEnemyForBattle(enemyId, wpType, budgetAdjust)
+    local enemyData = EnemyData.ConvertToHeroData(enemyId)
     if not enemyData then
         return nil
     end
@@ -355,7 +353,7 @@ local function pickInitialEnemyIds(battle)
     return enemyIds
 end
 
-local function buildReserveEnemies(battle, levelProvider, budgetAdjust)
+local function buildReserveEnemies(battle, budgetAdjust)
     local reserve = {}
     if not battle then
         return reserve
@@ -365,7 +363,7 @@ local function buildReserveEnemies(battle, levelProvider, budgetAdjust)
         local groupEnemyIds = {}
         appendEnemyGroupIds(groupEnemyIds, waveGroupIds[waveIndex])
         for _, enemyId in ipairs(groupEnemyIds) do
-            local enemyData = buildEnemyForBattle(enemyId, levelProvider(enemyId), 0, budgetAdjust)
+            local enemyData = buildEnemyForBattle(enemyId, 0, budgetAdjust)
             if enemyData then
                 enemyData.wpType = 0
                 reserve[#reserve + 1] = enemyData
@@ -435,66 +433,12 @@ local function buildBattleConfig(runState, battle, battleProfile)
     local budgetAdjust = buildBattleBudgetAdjust(runState, battleProfileForBudget, #teamLeft)
     runState.currentBattleBudget = budgetAdjust.report
 
-    -- Keep enemy level close to the party's recommended level.
-    -- Battle profiles still define "intended" pacing (battleProfile.level), but we cap how far
-    -- above the party enemies can be to avoid hard wipes after moving to single-hero leveling.
-    local partyLevel = effectivePartyLevel
-    local battleKind = (battleProfile and battleProfile.kind) or (battle and battle.kind)
-    local floorDepth = tonumber(runState.dungeonState and runState.dungeonState.currentFloorDepth) or 1
-    
-    local totalLevel = EncounterLevelCurve.GetFloorTotalEnemyLevel(tonumber(runState.chapterId) or 101, floorDepth)
-    if battleKind == "elite" then
-        totalLevel = totalLevel + math.max(1, math.floor(totalLevel * 0.3))
-    elseif battleKind == "boss" then
-        totalLevel = totalLevel + math.max(2, math.floor(totalLevel * 0.6))
-    end
-    
-    -- Limit the enemy budget based on current party level to prevent massive spikes
-    -- But also ensure a minimum challenge
-    local maxReasonableTotalLevel = partyLevel * 4 + (battleKind == "elite" and 4 or (battleKind == "boss" and 8 or 2))
-    if totalLevel > maxReasonableTotalLevel then
-        totalLevel = maxReasonableTotalLevel
-    end
-    
-    local allEnemyIds = flattenBattleEnemyIds(battle)
-    local totalCount = math.max(1, #allEnemyIds)
-    
-    local baseLevel = math.floor(totalLevel / totalCount)
-    if baseLevel < 1 then baseLevel = 1 end
-    local extraLevels = totalLevel - (baseLevel * totalCount)
-    if extraLevels < 0 then extraLevels = 0 end
-    local highestBudgetEnemyLevel = baseLevel + (extraLevels > 0 and 1 or 0)
-    
-    local function getNextEnemyLevel()
-        local lvl = baseLevel
-        if extraLevels > 0 then
-            lvl = lvl + 1
-            extraLevels = extraLevels - 1
-        end
-        return lvl
-    end
-
     local bossId = resolveBattleBossId(battle)
-    local function resolveSpawnEnemyLevel(enemyId)
-        local level = getNextEnemyLevel()
-        if battleKind == "boss" and bossId and tonumber(enemyId) == bossId then
-            -- Boss 本体按总等级分配出的最高单体等级再抬 2 级。
-            level = math.max(level, highestBudgetEnemyLevel + 2)
-        end
-        return math.max(1, level)
-    end
-
-    local effectiveEnemyLevel = baseLevel
-
-    if os.getenv("BATTLE_DIAG") then
-        print(string.format("[BATTLE_DIAG] floor=%s kind=%s partyLevel=%s effPartyLevel=%s totalLv=%d count=%d baseLv=%d",
-            tostring(floorDepth), tostring(battleKind), tostring(runState.partyLevel), tostring(partyLevel), totalLevel, totalCount, baseLevel))
-    end
 
     local openingEnemyIds = pickInitialEnemyIds(battle)
     for index, enemyId in ipairs(openingEnemyIds or {}) do
         local wpType = index <= 3 and FRONT_POSITIONS[index] or BACK_POSITIONS[index - 3] or index
-        local enemyData = buildEnemyForBattle(enemyId, resolveSpawnEnemyLevel(enemyId), wpType, budgetAdjust)
+        local enemyData = buildEnemyForBattle(enemyId, wpType, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
         end
@@ -510,7 +454,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
     return {
         teamLeft = teamLeft,
         teamRight = teamRight,
-        enemyReserve = buildReserveEnemies(battle, resolveSpawnEnemyLevel, budgetAdjust),
+        enemyReserve = buildReserveEnemies(battle, budgetAdjust),
         refreshTurns = tonumber(battle and battle.refreshTurns) or 0,
         refreshOnClear = battle and battle.refreshOnClear == true,
         spawnOrder = battle and battle.spawnOrder or nil,
@@ -520,7 +464,7 @@ local function buildBattleConfig(runState, battle, battleProfile)
         seedArray = buildDeterministicSeedArray(runState, battleProfile or battle),
         initialEnergy = (battleProfile and battleProfile.initialEnergy) or 40,
         disableDefaultRenderer = true,
-    }, modifiers, effectiveEnemyLevel
+    }, modifiers, nil
 end
 
 local function applyLeftEnergyBonus(extraEnergy)
@@ -569,7 +513,7 @@ local function applyPostBattleRest(runState)
 end
 
 function RoguelikeBattleBridge.StartBattle(runState, battle, battleProfile)
-    local config, modifiers, enemyLevel, reason = buildBattleConfig(runState, battle, battleProfile)
+    local config, modifiers, _enemyLevel, reason = buildBattleConfig(runState, battle, battleProfile)
     if not config then
         return false, reason
     end
@@ -578,7 +522,6 @@ function RoguelikeBattleBridge.StartBattle(runState, battle, battleProfile)
     applyLeftEnergyBonus(modifiers.extraEnergy)
     runState.currentBattleModifiers = modifiers
     runState.currentBattleEnemyIds = flattenBattleEnemyIds(battle)
-    runState.currentBattleEnemyLevel = enemyLevel
     return true, snapshot
 end
 

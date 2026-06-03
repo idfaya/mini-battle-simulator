@@ -94,9 +94,9 @@
 
 | 来源 | 字段 |
 | --- | --- |
-| `Ability5e` + `HERO_ABILITY_SCORES` / `ENEMY_ABILITY_SCORES` | HP、AC、命中、法术攻击/DC、豁免、六维及调整值 |
+| `Ability5e` + 英雄/怪物静态能力值模板 | HP、AC、命中、法术攻击/DC、豁免、六维及调整值 |
 | `config/data/classes.json` → `weapon.weaponDice` | 物理武器骰 |
-| `MONSTER_TYPE_TEMPLATES`（敌人） | AC / 命中 / 法术 DC / 豁免 delta |
+| `config/data/enemies.json`（敌人） | CR、基础 HP、AC bonus、能力值、静态 SkillIDs、role |
 | `HeroBuild` / Feat `statMods`、Roguelike 祝福 | 命中、HP、`healingFlatBonus`、`damageReduce` 等 |
 | `BattleAttribute` 活跃槽位 | HP、ATK（与 `hit` 镜像）、DMG_REDUCE、DMG_INCREASE |
 
@@ -157,15 +157,15 @@
 | 模块 | 路径 | 说明 |
 | --- | --- | --- |
 | PHB 阈值 / 怪物 CR XP | `config/roguelike/exp_5e.lua` | `partyExp` 升级阈值；`MONSTER_XP_BY_CR` |
-| 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `ENEMY_LEVEL_XP_FACTOR`（当前 `0.70`）；单场封顶见 `GetExpToNextLevel` |
+| 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `PARTY_EXP_SCALE` × `chapterMultiplier` |
 | 阈值转发 | `config/roguelike/level_curve.lua` | 转发 `exp_5e`，供 FeatPicker |
-| 楼层怪物等级 | `config/roguelike/encounter_level_curve.lua` | 第一章普通战 F1–F5 → Lv1–Lv5；101 精英/Boss `kindOffset` 0/1（其它章 +1/+2） |
+| 楼层难度分层 | `config/roguelike/encounter_level_curve.lua` | 仅用于章节节奏、展示口径与历史兼容；不再驱动单怪运行时强度 |
 | 第一章压强 | `config/roguelike/run_battle_profile.lua` | 101 普通/精英/Boss `easy` + 下调 `pressureFactor`（2026-05 平衡） |
 | Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
-| 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 用 `max(战斗等级, GetFloorExpLevel)`；**不读**模板 `expReward` |
+| 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 只按当场敌人 `CR` 组合结算；**不读**模板 `expReward` |
 
-- 第一章 `run_chapter_config` `targetMaxLevel = 8` 仅定义常规战斗节奏；Boss 本体在 `roguelike_battle_bridge.lua` 单独抬档，口径为“总等级预算分配出的最高单体等级 +2”。
-- 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua`，勿在 `run_battle_template.expReward` 手填。
+- 第一章 `run_chapter_config` `targetMaxLevel = 8` 仅定义队伍节奏与展示口径；敌人本体强度由 `config/data/enemies.json` 的固定模板给出。
+- 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`run_battle_profile.lua` 与怪物池/波次组合，勿在 `run_battle_template.expReward` 手填。
 
 ### 5.2 房间一次性（dungeon §4.2）
 

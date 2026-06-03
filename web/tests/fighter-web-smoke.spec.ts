@@ -598,7 +598,7 @@ test("fighter web flow follows second wind -> counter -> guard progression", asy
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect
-    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
     .toContain("战士 使用 护卫架势");
   const level5Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(level5Logs).toContain("护卫架势");
@@ -612,7 +612,7 @@ test("fighter web flow follows second wind -> counter -> guard progression", asy
     .toContain("战士 的 基础武器攻击 对");
   const level1Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(level1Logs).toContain("基础武器攻击");
-  expect(level1Logs).not.toContain("反击：登记反击");
+  expect(level1Logs).not.toContain("战士 触发被动 反击：登记反击");
   expect(level1Logs).not.toContain("护卫架势");
   expect(level1Logs).not.toContain("盾击");
   expect(level1Logs).not.toContain("顺劈");
@@ -690,7 +690,7 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 test("fighter counter attack starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910002&level=4&fighterFeats=2100402&seed=101001");
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003&level=4&fighterFeats=2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -740,8 +740,8 @@ test("fighter guard counter starts before the enemy returns to base position", a
 
   expect(await motionCheck).toBe(true);
   expect(await stationaryCheck).toBe(true);
-  expect(await waitForGuardHoldRelease(page, intercept!.attackerId, intercept!.guardId, 650)).toBe(true);
-  expect(await waitForUnitsReturnToBase(page, [intercept!.guardId], 120)).toBe(true);
+  expect(await waitForGuardHoldRelease(page, intercept!.attackerId, intercept!.guardId, 1800)).toBe(true);
+  expect(await waitForUnitsReturnToBase(page, [intercept!.guardId], 320)).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));

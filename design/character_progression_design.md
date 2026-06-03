@@ -23,7 +23,7 @@
 - 当 `partyExp` 达到下一级阈值 → 触发"队伍升级"。
 - `partyExp` 阈值与 **PHB 角色升级表**对齐，SSOT：`config/roguelike/exp_5e.lua`（`PARTY_EXP_SCALE` 可整体缩放 Run 节奏）。
 - 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 敌方生成等级系数，见 `config/roguelike/battle_exp_reward.lua`。
-- 第一章**普通怪等级**：F1–F5 → Lv1–Lv5（`encounter_level_curve.lua`，普通战不按 profile 抬高）；精英/Boss 在楼层基线 +1/+2。EXP 等级系数见 `battle_exp_reward.lua` 的 `ENEMY_LEVEL_XP_FACTOR`。
+- 第一章怪物模板按 `CR` 固定强度，`Level` 仅作显示；章节推进通过更高 `CR` 的怪物组合、精英/Boss 配置与 `run_battle_profile.budget` 形成节奏。
 - 第一章**队伍** `targetMaxLevel = 8`（`run_chapter_config`），与 5e 遭遇 + 低怪等级下的实测节奏一致；不再以 Boss 前 Lv12 为硬指标。
 - 程序实现与回归：[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5.1；节奏模拟 [`bin/test_roguelike_progression_pacing.lua`](../bin/test_roguelike_progression_pacing.lua)。
 - **章节 trinket**（Boss / 隐藏 Boss 发放，非 Feat、非 `equipmentIds`）：见 [`dungeon_design.md`](./dungeon_design.md) §4.7、§3.3；`state.trinketIds` + [`roguelike/trinket.lua`](../roguelike/trinket.lua)。

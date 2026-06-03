@@ -1,4 +1,4 @@
--- 战斗胜利队伍 EXP：5e 遭遇 XP（CR 表 + 数量倍率）+ 敌方等级缩放。
+-- 战斗胜利队伍 EXP：5e 遭遇 XP（CR 表 + 数量倍率）× 章节系数。
 local Exp5e = require("config.roguelike.exp_5e")
 local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 local EnemyData = require("config.enemy_data")
@@ -7,20 +7,13 @@ local EnemyData = require("config.enemy_data")
 ---@field enemyIds integer[]
 ---@field partySize integer
 ---@field partyLevel integer
----@field levelCap integer|nil
----@field enemyLevel integer|nil
 ---@field chapterMultiplier number|nil
 
 ---@class BattleExpRewardModule
----@field ENEMY_LEVEL_XP_FACTOR number
 ---@field ComputeVictoryExp fun(opts: BattleExpRewardOptions): integer, table
 
 ---@type BattleExpRewardModule
 local M = {}
-
--- 遭遇内怪物「生成等级」高于 1 时，在 5e CR 经验上按级递增（非 RAW，用于 Run 内成长同步）。
--- 怪物等级对遭遇 XP 的加成；第一章普通怪固定 Lv1–5 时靠此系数维持升级节奏。
-M.ENEMY_LEVEL_XP_FACTOR = 0.70
 
 ---@param opts BattleExpRewardOptions
 ---@return integer expReward
@@ -30,8 +23,6 @@ function M.ComputeVictoryExp(opts)
     local enemyIds = opts.enemyIds or {}
     local partySize = math.max(1, math.floor(tonumber(opts.partySize) or 4))
     local partyLevel = math.max(1, math.floor(tonumber(opts.partyLevel) or 1))
-    local levelCap = tonumber(opts.levelCap) or Exp5e.MAX_CHARACTER_LEVEL
-    local enemyLevel = math.max(1, math.floor(tonumber(opts.enemyLevel) or 1))
     local chapterMult = tonumber(opts.chapterMultiplier) or 1.0
 
     local metas = {}
@@ -40,12 +31,9 @@ function M.ComputeVictoryExp(opts)
     end
 
     local report = RunEncounterBudget.BuildReport(partyLevel, partySize, metas, "medium", 1.0)
-    local levelScale = 1 + (enemyLevel - 1) * M.ENEMY_LEVEL_XP_FACTOR
-    local scaled = math.floor(report.adjustedXp * Exp5e.PARTY_EXP_SCALE * levelScale * chapterMult + 0.5)
+    local scaled = math.floor(report.adjustedXp * Exp5e.PARTY_EXP_SCALE * chapterMult + 0.5)
 
-    -- 不再 cap：单战 EXP = baseXp × countMult × levelScale × chapterMult。
-    -- 升级节奏改由 PARTY_EXP_THRESHOLD_SCALE + 战斗模板的 waveCount 控制（每战减少波次而非截断 EXP），
-    -- 避免「cap 一次跨多个 partyLevel 阈值」与「日志 +300 看上去通胀」两端失衡。
+    -- 不再 cap：单战 EXP = baseXp × countMult × chapterMult。
     return math.max(0, scaled), report
 end
 
