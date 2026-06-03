@@ -376,43 +376,6 @@ do
     assert_true(BattleBuff.GetBuff(target, 890001) ~= nil, "Eldritch Blast applies static mark")
 end
 
--- Test 9: Pursuit attacks a second target after kill (80001003)
-do
-    local hero = new_unit(1701, "Tester_Pursuit", 10000, 300, 0)
-    hero.skills = {
-        { skillType = E_SKILL_TYPE_NORMAL, skillId = 80001001, name = "刺击" },
-        { skillType = E_SKILL_TYPE_PASSIVE, skillId = 80001002, name = "追击" },
-    }
-    local low = new_unit(2701, "Low_Target", 10000, 0, 0)
-    low.hp = 1
-    local nextTarget = new_unit(2702, "Next_Target", 10000, 0, 0)
-    local BattleFormation = require("modules.battle_formation")
-    local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
-    local oldCastSmallSkill = BattleSkill.CastSmallSkill
-    local pursuitTarget = nil
-    BattleFormation.GetEnemyTeam = function(src)
-        if src == hero then
-            return { low, nextTarget }
-        end
-        return oldGetEnemyTeam(src)
-    end
-    BattleSkill.CastSmallSkill = function(src, dst)
-        pursuitTarget = dst
-        dst.hp = math.max(0, dst.hp - 1)
-        return true
-    end
-    local skillLua = require("config.skill.skill_80001003")
-    local timeline = skillLua.BuildTimeline(hero, { low }, { skillId = 80001003, name = "斩杀" })
-    local SkillTimeline = require("core.skill_timeline")
-    local ok, _ = SkillTimeline.Execute(hero, { low }, { skillId = 80001003, name = "斩杀" }, timeline)
-    BattleFormation.GetEnemyTeam = oldGetEnemyTeam
-    BattleSkill.CastSmallSkill = oldCastSmallSkill
-    assert_true(ok, "Pursuit timeline execute ok")
-    assert_true(low.isDead == true, "Pursuit primary target is killed")
-    assert_true(pursuitTarget == nextTarget, "Pursuit selects second target")
-    assert_true(nextTarget.hp < nextTarget.maxHp, "Pursuit triggers follow-up attack")
-end
-
 -- Test 13: Fire Affinity extends Flame Storm burn duration (80007004 + 870002)
 do
     local hero = new_unit(2101, "Tester_Meteor", 10000, 250, 0)

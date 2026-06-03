@@ -525,9 +525,6 @@ function FighterBuildPassives.PerformPressureStrike(hero, target, skill)
             BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = actualTarget })
         end
     end
-    if damage > 0 and FighterBuildPassives.HasSignatureMastery(hero) and isAlive(actualTarget) then
-        damage = damage + FighterBuildPassives.ApplyDirectBonusDamage(hero, actualTarget, "1d6")
-    end
     return damage
 end
 
@@ -738,50 +735,12 @@ function FighterBuildPassives.CreateGuardCounterPassive(context)
     return self
 end
 
-function FighterBuildPassives.CreateSecondWindMasteryPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        ensureRuntime(self.context and self.context.src).fighterSecondWindMastery = true
-    end
-
-    return self
-end
-
 function FighterBuildPassives.CreateExtraAttackPassive(context)
     local BuildPassiveCommon = require("skills.build_passive_common")
     return BuildPassiveCommon.CreateExtraAttackPassive(context, {
         basicAttackSkillId = IDS.fighter_basic_attack,
         tokenKey = "extraAttackActionToken",
     })
-end
-
-function FighterBuildPassives.CreateSweepingAttackPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) or not target then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.fighter_basic_attack then
-            return
-        end
-        if (tonumber(extraParam.damageDealt) or 0) <= 0 then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        if runtime.__inSweepingAttack then
-            return
-        end
-        runtime.__inSweepingAttack = true
-        FighterBuildPassives.TryTriggerSweepingAttack(hero, target)
-        runtime.__inSweepingAttack = false
-    end
-
-    return self
 end
 
 return FighterBuildPassives

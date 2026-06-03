@@ -98,16 +98,6 @@ do
 end
 
 do
-    local hero = new_unit(9151, "PreciseHero")
-    local passive = FighterBuildPassives.CreatePreciseAttackPassive({ src = hero })
-
-    hero.passiveRuntime = {}
-    passive:OnBattleBegin()
-
-    assert_true(hero.passiveRuntime.basicAttackIgnoreAc == 2, "precise attack grants 2 AC ignore to basic attack")
-end
-
-do
     local target = new_unit(9153, "BasicAttackExprTarget")
     for classId = 1, 6 do
         local hero = new_unit(9150 + classId, "BasicAttackExprHero" .. tostring(classId))
@@ -662,95 +652,6 @@ do
     assert_true(castCalls[2].target == secondTarget, "action surge opened action can independently trigger extra attack on its chosen target")
 
     BattleSkill.CastSmallSkill = oldCastSmallSkill
-end
-
-do
-    local hero = new_unit(9581, "SweepingHero")
-    local primaryTarget = new_unit(9582, "PrimaryDummy")
-    local secondaryTarget = new_unit(9583, "SecondaryDummy")
-    local passive = FighterBuildPassives.CreateSweepingAttackPassive({ src = hero })
-    local oldGetEnemyTeam = BattleFormation.GetEnemyTeam
-    local oldApplyDirectBonusDamage = FighterBuildPassives.ApplyDirectBonusDamage
-    local hitTarget = nil
-
-    BattleFormation.GetEnemyTeam = function()
-        return { primaryTarget, secondaryTarget }
-    end
-    FighterBuildPassives.ApplyDirectBonusDamage = function(_, target, diceExpr)
-        hitTarget = { target = target, diceExpr = diceExpr }
-        return 6
-    end
-
-    passive:OnNormalAtkFinish({
-        data = {
-            extraParam = {
-                target = primaryTarget,
-                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
-                damageDealt = 8,
-            },
-        },
-    })
-
-    assert_true(hitTarget ~= nil and hitTarget.target == secondaryTarget, "sweeping attack hits another alive enemy instead of the primary target")
-    assert_true(hitTarget ~= nil and hitTarget.diceExpr == "1d8", "sweeping attack uses fighter weapon damage die under 5e rules")
-
-    BattleFormation.GetEnemyTeam = oldGetEnemyTeam
-    FighterBuildPassives.ApplyDirectBonusDamage = oldApplyDirectBonusDamage
-end
-
-do
-    local hero = new_unit(9601, "SecondWindHero")
-    local passive = FighterBuildPassives.CreateSecondWindPassive({ src = hero })
-    local oldApplyHeal = BattleDmgHeal.ApplyHeal
-    local passiveEvent = nil
-    local healed = 0
-
-    hero.level = 3
-    hero.hp = 20
-    hero.maxHp = 100
-    hero.passiveRuntime = {}
-
-    BattleDmgHeal.ApplyHeal = function(_, amount)
-        healed = amount
-    end
-
-    local listener = function(payload)
-        passiveEvent = payload
-    end
-    BattleEvent.AddListener("PassiveSkillTriggered", listener)
-
-    local ctx = { data = { extraParam = { attacker = new_unit(9602, "Enemy"), damage = 25 } } }
-    passive:OnDefBeforeDmg(ctx)
-
-    BattleEvent.RemoveListener("PassiveSkillTriggered", listener)
-    BattleDmgHeal.ApplyHeal = oldApplyHeal
-
-    assert_true(healed == 30, "indomitable wind heals to half max hp before lethal damage")
-    assert_true(ctx.data.extraParam.damage == 0, "indomitable wind prevents lethal damage")
-    assert_true(passiveEvent ~= nil, "second wind publishes passive trigger event")
-    assert_true(passiveEvent.skillName == "不屈之风", "indomitable wind passive trigger event exposes skill name")
-end
-
-do
-    local hero = new_unit(9611, "SecondWindMasterHero")
-    local passive = FighterBuildPassives.CreateSecondWindPassive({ src = hero })
-    local oldApplyHeal = BattleDmgHeal.ApplyHeal
-    local healed = 0
-
-    hero.level = 5
-    hero.hp = 10
-    hero.maxHp = 100
-    hero.passiveRuntime = {}
-
-    BattleDmgHeal.ApplyHeal = function(_, amount)
-        healed = amount
-    end
-
-    passive:OnDefBeforeDmg({ data = { extraParam = { attacker = new_unit(9612, "Enemy"), damage = 12 } } })
-
-    BattleDmgHeal.ApplyHeal = oldApplyHeal
-
-    assert_true(healed == 40, "indomitable wind restores hero to half max hp")
 end
 
 log("Fighter build runtime tests passed.")

@@ -69,55 +69,6 @@ local function CreateBlockPassive(context)
     return self
 end
 
-local function CreatePursuitPassive(context)
-    local self = BuildContextState(context)
-
-    function self:OnBattleBegin(ctx)
-        local hero = self.context and self.context.src or nil
-        if not hero or hero.isDead then
-            return
-        end
-        -- 5e 风味：Expertise（简化为战斗内 hit +1）。
-        if (tonumber(hero.level) or 1) >= 2 and not hero.__expertiseApplied then
-            local baseSpellAttack = tonumber(hero.spellAttack) or tonumber(hero.hit) or 0
-            hero.hit = (tonumber(hero.hit) or 0) + 1
-            hero.spellAttack = baseSpellAttack + 1
-            hero.__expertiseApplied = true
-        end
-    end
-
-    function self:OnDmgMakeKill(ctx)
-        -- 追击逻辑由技能 tag `pursuit_on_kill` 触发（保持技能体系一致性）。
-        return
-    end
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        if not hero or hero.isDead then
-            return
-        end
-        -- Uncanny Dodge：Lv5 后每回合第一次被单体伤害时减半（简单化）。
-        if (tonumber(hero.level) or 1) < 5 then
-            return
-        end
-        local BattleLogic = require("modules.battle_logic")
-        local round = BattleLogic.GetCurRound()
-        local runtime = EnsurePassiveRuntime(hero)
-        if runtime.__uncannyRound == round then
-            return
-        end
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local damage = tonumber(extraParam.damage) or 0
-        if damage <= 0 then
-            return
-        end
-        runtime.__uncannyRound = round
-        extraParam.damage = math.max(0, math.floor(damage * 0.5))
-    end
-
-    return self
-end
-
 local function CreateBlockCounterPassive(context)
     local self = BuildContextState(context)
 
@@ -361,7 +312,6 @@ end
 
 PassiveHandlers.factories = {
     [8000020] = CreateBlockPassive,
-    [80001002] = CreatePursuitPassive,
     [80001101] = RogueBuildPassives.CreateSneakAttackPassive,
     [80001108] = RogueBuildPassives.CreateUncannyDodgePassive,
     [80002002] = CreateBlockCounterPassive,
@@ -371,26 +321,13 @@ PassiveHandlers.factories = {
     [80007002] = CreateFireAffinityPassive,
     [80008002] = CreateIceAffinityPassive,
     [80009002] = CreateThunderAffinityPassive,
-    [80002101] = FighterBuildPassives.CreateSecondWindPassive,
-    [80002102] = FighterBuildPassives.CreatePreciseAttackPassive,
     [80002104] = FighterBuildPassives.CreateCounterBasicPassive,
     [80002105] = FighterBuildPassives.CreateGuardCounterPassive,
-    [80002107] = FighterBuildPassives.CreateSecondWindMasteryPassive,
     [80002109] = FighterBuildPassives.CreateExtraAttackPassive,
-    [80002110] = FighterBuildPassives.CreateSweepingAttackPassive,
     [80003101] = MonkBuildPassives.CreateMartialArtsPassive,
-    [80003103] = MonkBuildPassives.CreateIronMindPassive,
-    [80003104] = MonkBuildPassives.CreateSwiftStepPassive,
-    [80003105] = MonkBuildPassives.CreateBodyMasteryPassive,
-    [80003107] = MonkBuildPassives.CreateBodyGuardPassive,
-    [80003108] = MonkBuildPassives.CreateExtraAttackPassive,
-    [80004101] = PaladinBuildPassives.CreateDivineSmitePassive,
-    [80004103] = PaladinBuildPassives.CreateHeavyArmorPrayerPassive,
-    [80004108] = PaladinBuildPassives.CreateExtraAttackPassive,
+    [80004102] = PaladinBuildPassives.CreateShelterPrayerPassive,
     [80006103] = ClericBuildPassives.CreateShelterPrayerPassive,
     [80005101] = RangerBuildPassives.CreateHunterMarkPassive,
-    [80005104] = RangerBuildPassives.CreateWildEndurancePassive,
-    [80005108] = RangerBuildPassives.CreateExtraAttackPassive,
     [80010101] = BarbarianBuildPassives.CreateRagePassive,
     [80010103] = BarbarianBuildPassives.CreateBerserkPassive,
 }

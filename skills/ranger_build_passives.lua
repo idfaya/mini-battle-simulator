@@ -7,7 +7,6 @@ local RangerBuildPassives = {}
 local IDS = SkillRuntimeConfig.Ids
 local RESTRAINED_PROXY_BUFF_ID = 880002
 local HUNTER_MARK_BUFF_ID = 890005
-local WILD_ENDURANCE_BUFF_ID = 890010
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -56,30 +55,6 @@ local function buildContextState(context)
     }
 end
 
-local function syncWildEnduranceBuff(hero)
-    local BattleBuff = require("modules.battle_buff")
-    local BattleSkill = require("modules.battle_skill")
-    if not isAlive(hero) then
-        return
-    end
-    if not hasSkill(hero, IDS.ranger_wild_endurance) and not hasSkill(hero, IDS.ranger_survival_mastery) then
-        return
-    end
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    local used = runtime.rangerReduceRound == round
-    local buff = BattleBuff.GetBuff(hero, WILD_ENDURANCE_BUFF_ID)
-    if used then
-        if buff then
-            BattleBuff.DelBuffByBuffIdAndCaster(hero, WILD_ENDURANCE_BUFF_ID, hero, 1)
-        end
-        return
-    end
-    if not buff then
-        BattleSkill.ApplyBuffFromSkill(hero, hero, WILD_ENDURANCE_BUFF_ID, nil, { duration = 1 })
-    end
-end
-
 local function applyMarkedBonusDamage(hero, target)
     if not isAlive(hero) or not isAlive(target) then
         return 0
@@ -102,12 +77,6 @@ local function applyMarkedBonusDamage(hero, target)
     runtime.rangerMarkedDamageCount = (tonumber(runtime.rangerMarkedDamageCount) or 0) + 1
     runtime.rangerMarkedDamageRound = round
     local diceExpr = "1d4"
-    if hasSkill(hero, IDS.ranger_tracking_skill) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
-    end
-    if hasSkill(hero, IDS.ranger_mark_mastery) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
-    end
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
         kind = "physical",
         damageKind = "direct",
@@ -197,18 +166,6 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
         target.name or "目标"))
 end
 
-function RangerBuildPassives.AugmentBasicAttackResolveOpts(hero, target, opts, runtime)
-    if not isAlive(hero) or not isAlive(target) then
-        return
-    end
-    if hasSkill(hero, IDS.ranger_precise_shot) and RangerBuildPassives.IsTargetMarkedBy(hero, target) then
-        opts.attackBonus = (tonumber(opts.attackBonus) or 0) + 1
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发精准射击：对 %s 命中 +1",
-            hero.name or "Unknown",
-            target.name or "目标"))
-    end
-end
-
 local function tryApplySnare(hero, target, label)
     if not isAlive(hero) or not isAlive(target) then
         return false
@@ -235,56 +192,6 @@ local function tryApplySnare(hero, target, label)
     return true
 end
 
-local function applyFirstHitReduction(hero, label)
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.rangerReduceRound == round then
-        return 0
-    end
-    local diceExpr = ""
-    if hasSkill(hero, IDS.ranger_wild_endurance) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
-    end
-    if hasSkill(hero, IDS.ranger_survival_mastery) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    if diceExpr == "" then
-        return 0
-    end
-    runtime.rangerReduceRound = round
-    syncWildEnduranceBuff(hero)
-    local reduction = BuildPassiveCommon.RollDice(diceExpr)
-    if reduction > 0 then
-        BuildPassiveCommon.PublishPassiveTriggered(hero, label or "野外坚忍", "首次受击减伤", string.format("减免 %d 伤害", reduction))
-    end
-    return reduction
-end
-
-local function applySubclassMasteryDamage(hero, target, skill)
-    if not hasSkill(hero, IDS.ranger_subclass_mastery) then
-        return 0
-    end
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.rangerSubclassMasteryRound == round then
-        return 0
-    end
-    runtime.rangerSubclassMasteryRound = round
-    local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "1d6", {
-        kind = "physical",
-        damageKind = "direct",
-        skillId = IDS.ranger_subclass_mastery,
-        skillName = "子职专精",
-    })
-    if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发子职专精：对 %s 追加 %d 点伤害",
-            hero.name or "Unknown",
-            target.name or "目标",
-            bonus))
-    end
-    return bonus
-end
-
 function RangerBuildPassives.PerformHunterShot(hero, target, skill)
     if not isAlive(hero) or not isAlive(target) then
         return 0
@@ -307,7 +214,7 @@ function RangerBuildPassives.PerformHunterShot(hero, target, skill)
                 bonus))
         end
     end
-    return damage + applySubclassMasteryDamage(hero, target, skill)
+    return damage
 end
 
 function RangerBuildPassives.PerformShadowShot(hero, target, skill)
@@ -332,7 +239,7 @@ function RangerBuildPassives.PerformShadowShot(hero, target, skill)
                 bonus))
         end
     end
-    return damage + applySubclassMasteryDamage(hero, target, skill)
+    return damage
 end
 
 function RangerBuildPassives.PerformSnareShot(hero, target, skill)
@@ -345,7 +252,7 @@ function RangerBuildPassives.PerformSnareShot(hero, target, skill)
     if damage > 0 then
         tryApplySnare(hero, target, "缠绕箭")
     end
-    return damage + applySubclassMasteryDamage(hero, target, skill)
+    return damage
 end
 
 function RangerBuildPassives.PerformArrowRain(hero, skill)
@@ -424,48 +331,6 @@ function RangerBuildPassives.CreateHunterMarkPassive(context)
     end
 
     return self
-end
-
-function RangerBuildPassives.CreateWildEndurancePassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        local hero = self.context and self.context.src or nil
-        local runtime = ensureRuntime(hero)
-        runtime.rangerReduceRound = nil
-        syncWildEnduranceBuff(hero)
-    end
-
-    function self:OnSelfTurnBegin()
-        local hero = self.context and self.context.src or nil
-        local runtime = ensureRuntime(hero)
-        if runtime then
-            runtime.rangerReduceRound = nil
-        end
-        syncWildEnduranceBuff(hero)
-    end
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        if not isAlive(hero) then
-            return
-        end
-        local reduction = applyFirstHitReduction(hero, "野外坚忍")
-        if reduction > 0 then
-            extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
-        end
-        syncWildEnduranceBuff(hero)
-    end
-
-    return self
-end
-
-function RangerBuildPassives.CreateExtraAttackPassive(context)
-    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
-        basicAttackSkillId = IDS.ranger_basic_attack,
-        tokenKey = "rangerExtraAttackToken",
-    })
 end
 
 return RangerBuildPassives

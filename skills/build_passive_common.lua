@@ -161,20 +161,6 @@ local function pickLowestHpAlly(hero, includeSelf)
     return picked
 end
 
-local function augmentBasicAttackResolveOpts(hero, target, opts, runtime)
-    local modules = {
-        "skills.cleric_build_passives",
-        "skills.paladin_build_passives",
-        "skills.ranger_build_passives",
-    }
-    for _, moduleName in ipairs(modules) do
-        local ok, mod = pcall(require, moduleName)
-        if ok and mod and mod.AugmentBasicAttackResolveOpts then
-            mod.AugmentBasicAttackResolveOpts(hero, target, opts, runtime)
-        end
-    end
-end
-
 local function shouldIgnoreFrontProtection(hero, skill)
     local modules = {
         "skills.rogue_build_passives",
@@ -433,7 +419,6 @@ function BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, target, skill)
             targetId = target and (target.instanceId or target.id) or nil,
         })
     end
-    augmentBasicAttackResolveOpts(hero, target, opts, runtime)
     return opts
 end
 

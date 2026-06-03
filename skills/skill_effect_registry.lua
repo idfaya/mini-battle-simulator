@@ -732,16 +732,6 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { targets = { t }, target = t }
     end)
 
-    SkillEffectRegistry.Register("pursuit_on_kill", function(ctx, frameCopy)
-        local BattleSkill = require("modules.battle_skill")
-        for _, t in ipairs(frameCopy.targets or {}) do
-            if t and t.isDead then
-                BattleSkill.ProcessPursuitEffect(ctx.hero, t, ctx.skill)
-            end
-        end
-        return nil
-    end)
-
     SkillEffectRegistry.Register("chain_lightning", function(ctx, frameCopy, _, spec)
         local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
@@ -809,7 +799,6 @@ function SkillEffectRegistry.RegisterBuiltins()
         local Skill5eMeta = require("config.tables.skill_meta")
         local p = type(spec) == "table" and spec.param or {}
         local hits = tonumber(p and p.hits) or 1
-        local enablePursuit = p and p.pursuitOnKill == true
         local total = 0
         local meta = Skill5eMeta.Get(ctx.skill and ctx.skill.skillId or 0) or {}
         local diceExpr = meta.multiHitDice or meta.damageDice
@@ -827,9 +816,6 @@ function SkillEffectRegistry.RegisterBuiltins()
                     damageKind = "direct",
                 })
                 total = total + dmg
-                if enablePursuit and t.isDead then
-                    BattleSkill.ProcessPursuitEffect(ctx.hero, t, ctx.skill)
-                end
             end
         end
         return { damage = (tonumber(frameCopy.damage) or 0) + total }

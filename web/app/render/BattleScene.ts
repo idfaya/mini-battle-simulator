@@ -1863,7 +1863,7 @@ export class BattleScene {
 
   private looksLikeAoeSkill(effect: string, skillName: string) {
     const normalized = `${String(effect ?? "")} ${String(skillName ?? "")}`.toLowerCase();
-    return /80001004|80005003|80005004|80007004|80008003|80008004|80009004|fireball|nova|blizzard|thunderstorm|storm|poison_burst|poison burst|mist|flurry|blade flurry|poison mist|毒雾|爆毒|火球|冻结新星|暴风雪|雷暴/.test(normalized);
+    return /80005003|80005004|80007004|80008003|80008004|80009004|fireball|nova|blizzard|thunderstorm|storm|poison_burst|poison burst|mist|flurry|blade flurry|poison mist|毒雾|爆毒|火球|冻结新星|暴风雪|雷暴/.test(normalized);
   }
 
   private looksLikeStormSkill(effect: string, skillName: string) {

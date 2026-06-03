@@ -158,23 +158,6 @@ do
 end
 
 do
-    local hero = {
-        id = 9101,
-        instanceId = 9101,
-        name = "SwiftMonk",
-        hp = 100,
-        maxHp = 100,
-        isDead = false,
-        isAlive = true,
-        passiveRuntime = {},
-    }
-    local passive = MonkBuildPassives.CreateSwiftStepPassive({ src = hero })
-    passive:OnSelfTurnBegin()
-    assert_true(hero.passiveRuntime.pendingBasicAttackHitBonus == 1, "Monk swift step grants first attack hit bonus")
-    assert_true(hero.passiveRuntime.pendingBasicAttackBonusDice == "1d4", "Monk swift step grants first attack bonus damage die")
-end
-
-do
     BattleFormation.OnFinal()
 
     local monk = new_unit(9201, "DecisionMonk")

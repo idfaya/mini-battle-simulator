@@ -10,10 +10,6 @@ local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
 end
 
-local function hasSkill(hero, skillId)
-    return BuildPassiveCommon.HasSkill(hero, skillId)
-end
-
 local function ensureRuntime(hero)
     return BuildPassiveCommon.EnsureRuntime(hero)
 end
@@ -99,33 +95,6 @@ local function triggerMartialArts(hero, target, opts)
             damage))
     end
     return damage
-end
-
-local function applyFirstHitReduction(hero, label)
-    if not isAlive(hero) then
-        return 0
-    end
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    if runtime.monkFirstHitReduceRound == round then
-        return 0
-    end
-    local diceExpr = ""
-    if hasSkill(hero, IDS.monk_iron_mind) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    if hasSkill(hero, IDS.monk_body_guard) then
-        diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d4")
-    end
-    if diceExpr == "" then
-        return 0
-    end
-    runtime.monkFirstHitReduceRound = round
-    local reduction = BuildPassiveCommon.RollDice(diceExpr)
-    if reduction > 0 then
-        BuildPassiveCommon.PublishPassiveTriggered(hero, label or "守心技", "首次受击减伤", string.format("减免 %d 伤害", reduction))
-    end
-    return reduction
 end
 
 function MonkBuildPassives.PerformOpenHandStrike(hero, target, skill)
@@ -260,69 +229,6 @@ function MonkBuildPassives.CreateMartialArtsPassive(context)
     end
 
     return self
-end
-
-function MonkBuildPassives.CreateIronMindPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local reduction = applyFirstHitReduction(hero, "守心技")
-        if reduction > 0 then
-            extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
-        end
-    end
-
-    return self
-end
-
-function MonkBuildPassives.CreateSwiftStepPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnSelfTurnBegin()
-        local hero = self.context and self.context.src or nil
-        if not isAlive(hero) then
-            return
-        end
-        BuildPassiveCommon.AppendPendingBasicAttackHitBonus(hero, 1, "疾风技")
-        BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, "1d4")
-    end
-
-    return self
-end
-
-function MonkBuildPassives.CreateBodyMasteryPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        local runtime = ensureRuntime(self.context and self.context.src)
-        runtime.basicAttackBonusDice = BuildPassiveCommon.JoinDiceParts(runtime.basicAttackBonusDice, "1d4")
-    end
-
-    return self
-end
-
-function MonkBuildPassives.CreateBodyGuardPassive(context)
-    local self = buildContextState(context)
-
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local reduction = applyFirstHitReduction(hero, "护体专精")
-        if reduction > 0 then
-            extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
-        end
-    end
-
-    return self
-end
-
-function MonkBuildPassives.CreateExtraAttackPassive(context)
-    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
-        basicAttackSkillId = IDS.monk_basic_attack,
-        tokenKey = "monkExtraAttackToken",
-    })
 end
 
 return MonkBuildPassives

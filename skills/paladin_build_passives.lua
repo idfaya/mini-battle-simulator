@@ -9,7 +9,6 @@ local POISON_BUFF_SUBTYPE = 850001
 local BURN_BUFF_SUBTYPE = 870001
 local GUARDIAN_AURA_BUFF_ID = 890008
 local SHELTER_PRAYER_BUFF_ID = 890012
-local HEAVY_ARMOR_PRAYER_BUFF_ID = 890013
 
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
@@ -67,8 +66,7 @@ local function eachFriendlyPaladin(defender, callback)
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
         if isAlive(ally)
             and (hasSkill(ally, IDS.paladin_shelter_prayer)
-                or hasSkill(ally, IDS.paladin_guardian_aura)
-                or hasSkill(ally, IDS.paladin_divine_smite)) then
+                or hasSkill(ally, IDS.paladin_guardian_aura)) then
             local result = callback(ally, ensureRuntime(ally))
             if result ~= nil then
                 return result
@@ -83,24 +81,6 @@ local function clearTurnStates(hero)
     local runtime = ensureRuntime(hero)
     runtime.guardianAuraActive = false
     BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARDIAN_AURA_BUFF_ID, hero, 1)
-end
-
-function PaladinBuildPassives.AugmentBasicAttackResolveOpts(hero, target, opts, runtime)
-    if not isAlive(hero) or not isAlive(target) then
-        return
-    end
-    if hasSkill(hero, IDS.paladin_judgement_prayer) and runtime.paladinSmiteRound ~= getRound() then
-        local originalAc = tonumber(target.ac) or 0
-        local adjustedAc = math.max(0, originalAc - 1)
-        if adjustedAc < originalAc then
-            opts.targetAC = math.min(opts.targetAC or originalAc, adjustedAc)
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发裁决祷法：%s AC %d -> %d",
-                hero.name or "Unknown",
-                target.name or "目标",
-                originalAc,
-                opts.targetAC))
-        end
-    end
 end
 
 function PaladinBuildPassives.ActivateGuardianAura(hero)
@@ -159,9 +139,6 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
     end
     local BattleBuff = require("modules.battle_buff")
     local healDice = "2d8+4"
-    if hasSkill(hero, IDS.paladin_healing_mastery) then
-        healDice = BuildPassiveCommon.JoinDiceParts(healDice, "1d8")
-    end
     local amount = BuildPassiveCommon.RollDice(healDice)
     BuildPassiveCommon.ApplyHeal(ally, amount)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
@@ -210,67 +187,13 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
     return damage
 end
 
-function PaladinBuildPassives.CreateDivineSmitePassive(context)
-    local self = buildContextState(context)
-
-    function self:OnBattleBegin()
-        local hero = self.context and self.context.src or nil
-        clearTurnStates(hero)
-        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_shelter_prayer))
-    end
-
-    function self:OnSelfTurnBegin()
-        local hero = self.context and self.context.src or nil
-        clearTurnStates(hero)
-        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_shelter_prayer))
-    end
-
-    function self:OnNormalAtkFinish(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
-            return
-        end
-        if tonumber(extraParam.skillId) ~= IDS.paladin_basic_attack then
-            return
-        end
-        if (tonumber(extraParam.damageDealt) or 0) <= 0 then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local round = getRound()
-        if runtime.paladinSmiteRound == round then
-            return
-        end
-        runtime.paladinSmiteRound = round
-        local diceExpr = "1d6"
-        if hasSkill(hero, IDS.paladin_smite_mastery) then
-            diceExpr = BuildPassiveCommon.JoinDiceParts(diceExpr, "1d6")
-        end
-        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
-            kind = "physical",
-            damageKind = "direct",
-            skillId = IDS.paladin_divine_smite,
-            skillName = "神圣惩击",
-        })
-        if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 触发神圣惩击：对 %s 追加 %d 点光耀伤害",
-                hero.name or "Unknown",
-                target.name or "目标",
-                bonus))
-        end
-    end
-
-    return self
-end
-
-function PaladinBuildPassives.CreateHeavyArmorPrayerPassive(context)
+function PaladinBuildPassives.CreateShelterPrayerPassive(context)
     local self = buildContextState(context)
 
     local function syncSelf()
         local hero = self.context and self.context.src or nil
-        syncPermanentBuff(hero, HEAVY_ARMOR_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_heavy_armor_prayer))
+        clearTurnStates(hero)
+        syncPermanentBuff(hero, SHELTER_PRAYER_BUFF_ID, hasSkill(hero, IDS.paladin_shelter_prayer))
     end
 
     function self:OnBattleBegin()
@@ -281,31 +204,7 @@ function PaladinBuildPassives.CreateHeavyArmorPrayerPassive(context)
         syncSelf()
     end
 
-    function self:OnDefBeforeDmg(ctx)
-        local hero = self.context and self.context.src or nil
-        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
-        if not isAlive(hero) then
-            return
-        end
-        local runtime = ensureRuntime(hero)
-        local round = getRound()
-        if runtime.paladinHeavyArmorRound == round then
-            return
-        end
-        runtime.paladinHeavyArmorRound = round
-        local reduction = BuildPassiveCommon.RollDice("1d6")
-        extraParam.damage = math.max(0, (tonumber(extraParam.damage) or 0) - reduction)
-        BuildPassiveCommon.PublishPassiveTriggered(hero, "重甲祷法", "首次受击减伤", string.format("减免 %d 伤害", reduction))
-    end
-
     return self
-end
-
-function PaladinBuildPassives.CreateExtraAttackPassive(context)
-    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
-        basicAttackSkillId = IDS.paladin_basic_attack,
-        tokenKey = "paladinExtraAttackToken",
-    })
 end
 
 return PaladinBuildPassives

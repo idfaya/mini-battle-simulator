@@ -37,7 +37,7 @@ local function new_unit(id, name, wpType, isLeft, hp, maxHp)
         def = 10,
         speed = 100,
         skillsConfig = {
-            { skillId = 80001001, skillType = E_SKILL_TYPE_NORMAL, name = "刺击", skillCost = 0 },
+            { skillId = 80001011, skillType = E_SKILL_TYPE_NORMAL, name = "基础武器攻击", skillCost = 0 },
         },
         isLeft = isLeft,
     }
@@ -229,9 +229,6 @@ BattleFormation.Init({
 })
 
 local caster = BattleFormation.FindHeroByCampAndPos(true, 2)
-local slashSkill = BattleSkill.CreateSkillInstance(80001003, {})
-assert_true(slashSkill.targetsSelections.preferLowestHp == true, "slash skill should infer lowest hp targeting")
-
 local meteorSkill = BattleSkill.CreateSkillInstance(80007004, {})
 assert_eq(meteorSkill.targetsSelections.measureType, E_MEASURE_TYPE.AOE, "meteor should infer aoe targeting")
 assert_true(meteorSkill.targetsSelections.ignoreFrontProtection == true, "meteor should ignore front protection")

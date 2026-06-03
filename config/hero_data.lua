@@ -271,7 +271,7 @@ local function LoadHeroInfo()
 end
 
 local function EnsureSkillConfigReady()
-    if not SkillConfig.GetSkillConfig(80001001) then
+    if not SkillConfig.GetSkillConfig(80001011) then
         SkillConfig.Init()
     end
 end

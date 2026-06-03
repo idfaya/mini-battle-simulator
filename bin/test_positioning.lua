@@ -27,7 +27,7 @@ local function new_unit(id, name, wpType, isLeft)
         def = 10,
         speed = 100,
         skillsConfig = {
-            { skillId = 80001001, skillType = E_SKILL_TYPE_NORMAL, name = "刺击", skillCost = 0 },
+            { skillId = 80001011, skillType = E_SKILL_TYPE_NORMAL, name = "基础武器攻击", skillCost = 0 },
         },
         isLeft = isLeft,
     }
