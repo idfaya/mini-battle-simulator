@@ -124,8 +124,8 @@
 
 | 节点 | 父节点 | 类型 | 效果 | 落点 |
 | --- | --- | --- | --- | --- |
-| `R 连击基础` | — | `R` | 徒手打击命中后 `60%` 概率追加一次额外攻击；额外攻击不再触发连击 | `grant low 核心被动` |
-| `B 连击熟练` | `连击基础` | `B` | 连击触发概率 `+15%` | `modify 连击` |
+| `R 连击基础` | — | `R` | 徒手打击命中后 `50%` 概率追加一次额外攻击；额外攻击不再触发连击 | `grant low 核心被动` |
+| `B 连击熟练` | `连击基础` | `B` | 连击触发概率 `+15%`（`50% -> 65%`） | `modify 连击` |
 | `B 连击影步` | `连击基础` | `B` | 攻击后若目标在后排，本回合 `AC +1`，且下次徒手打击 `hit +1` | `modify 徒手打击` |
 | `T1 截脉基础` | `连击基础` | `T1` | Lv3 主干：mid 核心主动；造成 `1d8` 钝击，体豁失败 `STUN 1` 回合 | `grant mid_slot` |
 | `B 截脉延续` | `截脉基础` | `B` | 震劲掌 `STUN` 持续 `+1` 回合，封顶 `2` | `modify T1` |
@@ -286,8 +286,29 @@
 | `markRecastPerRound` | 印记每回合可施加次数 | 邪 B 印记加深 | 邪术师 passive 文件 |
 | `guardExtendsToRanged` | 护卫架势承担远程攻击 | 战 B 护卫熟练 | 战士 passive / 护卫架势 skill |
 | `comboReentryOnce` | 一回合内连击破例再触发 1 次 | 武 J 连击精通、武 C 连击大师 | 武僧 passive 文件 |
+| `comboTriggerChanceDelta` | 连击触发概率修正 | 武 B 连击熟练 | 武僧 passive 文件 |
+| `firstHitGuaranteedCombo` | 每回合首次徒手命中必触发连击 | 武 C 连击大师 | 武僧 passive 文件 |
+| `vsStunComboBonusDice` | 对 `STUN` 目标的连击额外伤害骰 | 武 C 连击大师 | 武僧 passive 文件 |
 | `secondWindCharges` | 回气每场触发次数 | 战 C 回气大师 | 战士 passive / 回气 skill |
+| `extraAttackBonusHit` | 额外攻击第二击命中修正 | 战 B 连击熟练 | 战士 passive 文件 |
+| `extraAttackBonusDice` | 额外攻击第二击附加伤害骰 | 战 J 连击精通 | 战士 passive 文件 |
+| `extraAttackRetargetOnKill` | 额外攻击击杀后改打另一目标 | 战 C 连击大师 | 战士 passive 文件 |
 | `shelterPerUnit` | 庇护从 team-once 改为 per-unit | 牧 J 庇护精通 | 牧师 passive 文件 |
+| `shelterTempHpDice` | 庇护触发后授予临时生命骰 | 牧 B 庇护熟练 | 牧师 passive 文件 |
+| `shelterTempHpFlat` | 庇护触发后授予固定临时生命 | 牧 C 庇护大师 | 牧师 passive 文件 |
+| `shelterDebuffDurationDelta` | 庇护后缩短下一次负面状态持续 | 牧 C 庇护大师 | 牧师 passive 文件 |
+| `paladinAuraRangeDelta` | 神圣灵光范围扩张 | 圣 B 灵光扩张 | 圣骑 passive 文件 |
+| `paladinAuraGlobal` | 神圣灵光改为全队覆盖 | 圣 J 灵光精通、圣 C 灵光大师 | 圣骑 passive 文件 |
+| `paladinAuraAcBonus` | 神圣灵光 AC 加值 | 圣 R 灵光基础、圣 C 灵光大师 | 圣骑 passive 文件 |
+| `paladinAuraSaveBonus` | 神圣灵光豁免加值 | 圣 B 灵光熟练 | 圣骑 passive 文件 |
+| `markBonusDice` | 印记兑现额外伤害骰 | 游 C 印记大师、邪 B 印记熟练 | 游侠 / 邪术师 passive 文件 |
+| `healLowestCount` | 治愈之言额外覆盖最低血目标数 | 牧 C 治愈大师 | 牧师 passive 文件 |
+| `dispelOnlyPrimary` | 治愈之言只对主目标驱散负面 | 牧 C 治愈大师 | 牧师 passive 文件 |
+| `onRageEnterTempHpDice` | 进入狂暴时授予临时生命骰 | 野 B 嗜血拼命、野 T2 狂暴精通 | 野蛮人 passive 文件 |
+| `onKillHealDice` | 狂暴击杀回血骰 | 野 J 嗜血精通 | 野蛮人 passive 文件 |
+| `frontRowSplitTargets` | 重击分裂到额外前排目标数 | 野 C 重击大师 | 野蛮人 passive 文件 |
+| `rageCritThresholdDelta` | 狂暴中重击额外暴击阈值修正 | 野 C 重击大师 | 野蛮人 passive 文件 |
+| `rageLifestealPct` | 狂暴期间按实际伤害吸血比例 | 野 C 狂暴大师 | 野蛮人 passive 文件 |
 
 ## 10. Schema 与 feats.lua 对接
 

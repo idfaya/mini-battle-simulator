@@ -21,6 +21,9 @@ local FeatPicker = require("roguelike.feat_picker")
 local HeroData = require("config.hero_data")
 local SkillRuntime = require("modules.skill_runtime")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local FighterBuildPassives = require("skills.fighter_build_passives")
+local BuildPassiveCommon = require("skills.build_passive_common")
+local FIGHTER_EXTRA_ATTACK_PASSIVE_ID = 80002109
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -207,6 +210,80 @@ do
     ClassBuildProgression.HasClass = oldHasClass
     FeatBuildConfig.GetFeat = oldGetFeat
     SkillRuntimeConfig.Get = oldRuntimeGet
+end
+
+do
+    local hero = {
+        id = 9201,
+        instanceId = 9201,
+        name = "ExtraAttackFighter",
+        hp = 100,
+        maxHp = 100,
+        isDead = false,
+        isAlive = true,
+        buildState = {
+            skillMods = {
+                [FIGHTER_EXTRA_ATTACK_PASSIVE_ID] = {
+                    extraAttackBonusHit = 1,
+                    extraAttackBonusDice = "1d6",
+                    extraAttackRetargetOnKill = true,
+                },
+            },
+            classMods = {},
+        },
+        passiveRuntime = {},
+        skills = {
+            { skillId = SkillRuntimeConfig.Ids.fighter_basic_attack },
+            { skillId = FIGHTER_EXTRA_ATTACK_PASSIVE_ID },
+        },
+    }
+    local targetA = {
+        id = 9202,
+        instanceId = 9202,
+        name = "PrimaryTarget",
+        hp = 0,
+        maxHp = 100,
+        isDead = true,
+        isAlive = false,
+    }
+    local targetB = {
+        id = 9203,
+        instanceId = 9203,
+        name = "RetargetEnemy",
+        hp = 100,
+        maxHp = 100,
+        isDead = false,
+        isAlive = true,
+    }
+    local passive = FighterBuildPassives.CreateExtraAttackPassive({ src = hero })
+    local oldPickAnother = BuildPassiveCommon.PickAnotherAliveEnemy
+    local oldCastSmall = require("modules.battle_skill").CastSmallSkill
+    local castTarget = nil
+    local castExtra = nil
+    BuildPassiveCommon.PickAnotherAliveEnemy = function()
+        return targetB
+    end
+    require("modules.battle_skill").CastSmallSkill = function(_, target, extra)
+        castTarget = target
+        castExtra = extra
+    end
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                skillId = SkillRuntimeConfig.Ids.fighter_basic_attack,
+                target = targetA,
+                damageDealt = 12,
+                targetIsDead = true,
+                basicAttackActionToken = 1,
+            },
+        },
+    })
+    require("modules.battle_skill").CastSmallSkill = oldCastSmall
+    BuildPassiveCommon.PickAnotherAliveEnemy = oldPickAnother
+    assert_true(castTarget == targetB, "fighter extra attack retargets on kill")
+    assert_true(castExtra and castExtra.basicAttackIsFollowUp == true, "fighter extra attack marks follow-up cast")
+    assert_true((hero.passiveRuntime.pendingBasicAttackHitBonus or 0) == 1, "fighter extra attack grants bonus hit to follow-up")
+    assert_true(hero.passiveRuntime.pendingBasicAttackBonusDice == "1d6", "fighter extra attack grants bonus dice to follow-up")
 end
 
 log("Fighter build pipeline tests passed.")

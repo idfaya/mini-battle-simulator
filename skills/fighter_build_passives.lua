@@ -5,6 +5,7 @@ local FeatModHelper = require("skills.feat_mod_helper")
 
 local FighterBuildPassives = {}
 local IDS = SkillRuntimeConfig.Ids
+local FIGHTER_EXTRA_ATTACK_PASSIVE_ID = 80002109
 
 local GUARD_STANCE_BUFF_ID = 890004
 
@@ -740,6 +741,29 @@ function FighterBuildPassives.CreateExtraAttackPassive(context)
     return BuildPassiveCommon.CreateExtraAttackPassive(context, {
         basicAttackSkillId = IDS.fighter_basic_attack,
         tokenKey = "extraAttackActionToken",
+        buildCastExtra = function(hero, target, runtime, extraParam)
+            local FeatModHelper = require("skills.feat_mod_helper")
+            local custom = {}
+            local bonusHit = math.floor(tonumber(FeatModHelper.GetSkillMod(hero, FIGHTER_EXTRA_ATTACK_PASSIVE_ID, "extraAttackBonusHit", 0)) or 0)
+            if bonusHit ~= 0 then
+                BuildPassiveCommon.AppendPendingBasicAttackHitBonus(hero, bonusHit, "连击精通")
+            end
+            local bonusDice = FeatModHelper.GetSkillMod(hero, FIGHTER_EXTRA_ATTACK_PASSIVE_ID, "extraAttackBonusDice", nil)
+            if type(bonusDice) == "string" and bonusDice ~= "" then
+                BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, bonusDice)
+            end
+            local retargetOnKill = FeatModHelper.HasFlag(hero, FIGHTER_EXTRA_ATTACK_PASSIVE_ID, "extraAttackRetargetOnKill")
+            local targetDead = extraParam.targetIsDead == true
+                or (target and (target.isDead == true or (tonumber(target.hp) or 1) <= 0))
+                or tonumber(extraParam.targetHpAfter) == 0
+            if retargetOnKill and targetDead then
+                local anotherTarget = BuildPassiveCommon.PickAnotherAliveEnemy(hero, target)
+                if anotherTarget then
+                    custom.target = anotherTarget
+                end
+            end
+            return custom
+        end,
     })
 end
 

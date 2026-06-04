@@ -188,18 +188,18 @@ lua bin/test_roguelike_balance.lua --runs=4
 
 ### 3.1.5 Stage D1.5 — 升级速度与数值平衡（✅ 已落地）
 
-> **状态（2026-05）**：5e 队伍 EXP 与第一章怪物 1–5 已接入；`bin/test_roguelike_progression_pacing.lua` 当前断言 101 章终局约 Lv10–Lv18，Boss 本体按总等级预算中的最高单体等级再抬 2 级。
+> **状态（2026-06）**：5e 队伍 EXP 与第一章 CR 怪物生态已接入；`bin/test_roguelike_progression_pacing.lua` 当前断言 101 章终局约 Lv10–Lv18，怪物强度以固定 `CR` 与章节战斗池为准，`Level` 仅用于展示。
 
 #### 配置层（当前 SSOT）
 
 | 文件 | 状态 | 内容 |
 | --- | --- | --- |
 | [`exp_5e.lua`](../../config/roguelike/exp_5e.lua) | ✅ | PHB `CHARACTER_LEVEL_EXP`；`MONSTER_XP_BY_CR`；`PARTY_EXP_SCALE` |
-| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | ✅ | `ComputeVictoryExp`；`ENEMY_LEVEL_XP_FACTOR=0.70` |
-| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 101 普通 F1–F5 = Lv1–Lv5；101 精英/Boss `kindOffset` 0/1 |
+| [`battle_exp_reward.lua`](../../config/roguelike/battle_exp_reward.lua) | ✅ | `ComputeVictoryExp`；按敌方 `CR` 汇总战斗 XP，再走章节节奏缩放 |
+| [`encounter_level_curve.lua`](../../config/roguelike/encounter_level_curve.lua) | ✅ | 仅保留展示层等级带；不再驱动怪物技能或数值成长 |
 | [`run_battle_profile.lua`](../../config/roguelike/run_battle_profile.lua) | ✅ | 101 压强下调（普通 ~0.10、Boss 0.16） |
 | [`level_curve.lua`](../../config/roguelike/level_curve.lua) | ✅ | 转发 `exp_5e` |
-| [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` 仅定义常规节奏，Boss 单体额外等级由战斗桥接按总等级预算抬档 |
+| [`run_chapter_config.lua`](../../config/roguelike/run_chapter_config.lua) | ✅ | 101 `targetMaxLevel=8` 仅定义常规节奏；Boss 强度由章节独立战斗池、波次池与 `CR` 组合控制 |
 | [`run_battle_template.lua`](../../config/roguelike/run_battle_template.lua) | 遗留 | `expReward` 字段**运行时不用**；勿再据此调节奏 |
 
 #### 测试

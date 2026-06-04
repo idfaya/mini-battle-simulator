@@ -44,10 +44,16 @@
 
 | 等级 | feat 档位 | 类型 |
 | --- | --- | --- |
-| Lv2 | small | 通用 |
-| Lv3 | medium | **子职业核心**（解锁子职） |
-| Lv4 | medium | 通用 |
-| Lv5 | high | **子职业专属 capstone** |
+| Lv2 | `B` | 自由分支节点 |
+| Lv3 | `T1` | 主干核心节点 |
+| Lv4 | `B / J` | 自由分支或合流强化 |
+| Lv5 | `T2` | 高阶主干核心节点 |
+| Lv6+ | `B / J / C` | 自由分支、合流强化与 capstone；`C` 只在满足前置时入池 |
+
+- `R` 为职业根节点，Lv1 自动获得，不进入升级池。
+- Lv3 只从 `T1` 候选中抽取，Lv5 只从 `T2` 候选中抽取。
+- 自由层统一从满足前置的 `B / J` 中抽取；`C` 视为 capstone，只在解锁后参与高等级候选。
+- 升级池与节点语义的 SSOT 以 [`roguelike_feat_skill_fill_sheet.md`](./roguelike_feat_skill_fill_sheet.md) 为准。
 
 ### 3.3 战斗胜利结算顺序
 

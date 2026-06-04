@@ -377,7 +377,7 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
         local target = extraParam.target
-        if not isAlive(hero) or not isAlive(target) then
+        if not isAlive(hero) or target == nil then
             return
         end
         if tonumber(extraParam.skillId) ~= tonumber(options.basicAttackSkillId) then
@@ -405,6 +405,7 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
             basicAttackActionSource = extraParam.basicAttackActionSource or "normal_action",
             basicAttackIsFollowUp = true,
         }
+        local followUpTarget = target
         local suppressDefaultFollowUp = false
         if type(options.buildCastExtra) == "function" then
             local custom = options.buildCastExtra(hero, target, runtime, extraParam)
@@ -412,6 +413,8 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
                 for key, value in pairs(custom) do
                     if key == "suppressDefaultFollowUp" then
                         suppressDefaultFollowUp = value == true
+                    elseif key == "target" then
+                        followUpTarget = value
                     else
                         castExtra[key] = value
                     end
@@ -423,7 +426,7 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
         end
         local BattleSkill = require("modules.battle_skill")
         runtime[inProgressKey] = true
-        BattleSkill.CastSmallSkill(hero, target, castExtra)
+        BattleSkill.CastSmallSkill(hero, followUpTarget, castExtra)
         runtime[inProgressKey] = false
     end
 
