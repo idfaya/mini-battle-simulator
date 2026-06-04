@@ -28,6 +28,7 @@ local SkillEffectRegistry = require("skills.skill_effect_registry")
 local BattleSkillStatus = require("skills.battle_skill_status")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 local skill_80009003 = require("config.skill.skill_80009003")
+local BattleLogic = require("modules.battle_logic")
 
 local IDS = SkillRuntimeConfig.Ids
 
@@ -159,6 +160,43 @@ do
 end
 
 do
+    local monk = new_unit(111, "BreathMasterMonk", true, 4)
+    monk.class = 3
+    monk.classId = 3
+    monk.hp = 50
+    monk.maxHp = 100
+    monk.buildState.skillMods[IDS.monk_harmonize] = {
+        autoTriggerHpThresholdPct = 35,
+        autoTriggerCharges = 1,
+        autoTriggerTempHpFlat = 4,
+    }
+    local passive = MonkBuildPassives.CreateMartialArtsPassive({ src = monk })
+    local oldGetCurRound = BattleLogic.GetCurRound
+    local oldRollDice = BuildPassiveCommon.RollDice
+    BattleLogic.GetCurRound = function() return 1 end
+    BuildPassiveCommon.RollDice = function(expr)
+        if expr == "2d8+6" then
+            return 10
+        end
+        return 0
+    end
+    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 15 } } })
+    assert_true(monk.hp == 50, "monk breath master does not trigger exactly at threshold")
+    assert_true((tonumber(monk.passiveRuntime.monkBreathMasterUsed) or 0) == 0, "monk breath master preserves charges when threshold not crossed")
+    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 16 } } })
+    assert_true(monk.hp == 60, "monk breath master heals once after crossing threshold")
+    assert_true((tonumber(monk.tempHp) or 0) == 4, "monk breath master grants temp hp on trigger")
+    assert_true((tonumber(monk.passiveRuntime.monkBreathMasterUsed) or 0) == 1, "monk breath master consumes one charge")
+    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 40 } } })
+    assert_true(monk.hp == 60, "monk breath master cannot trigger twice in one battle")
+    monk.hp = 10
+    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 10 } } })
+    assert_true(monk.hp == 10, "monk breath master does not intercept lethal damage")
+    BattleLogic.GetCurRound = oldGetCurRound
+    BuildPassiveCommon.RollDice = oldRollDice
+end
+
+do
     BattleFormation.OnFinal()
     local ranger = new_unit(201, "RuntimeRanger", true, 2)
     local enemyA = new_unit(202, "MarkedA", false, 1)
@@ -198,6 +236,33 @@ end
 do
     BattleFormation.OnFinal()
     BattleBuff.Init()
+    local ranger = new_unit(211, "SlotRanger", true, 2)
+    local enemyA = new_unit(212, "SlotA", false, 1)
+    local enemyB = new_unit(213, "SlotB", false, 2)
+    local enemyC = new_unit(214, "SlotC", false, 4)
+    ranger.class = 5
+    ranger.classId = 5
+    ranger.buildState.skillMods[IDS.ranger_hunter_mark] = {
+        markSlotMax = 1,
+    }
+    BattleFormation.Init({
+        teamLeft = { ranger },
+        teamRight = { enemyA, enemyB, enemyC },
+    })
+    local oldGetCurRound = BattleLogic.GetCurRound
+    BattleLogic.GetCurRound = function() return 1 end
+    RangerBuildPassives.ApplyHunterMark(ranger, enemyB)
+    RangerBuildPassives.ApplyHunterMark(ranger, enemyA)
+    RangerBuildPassives.ApplyHunterMark(ranger, enemyC)
+    BattleLogic.GetCurRound = oldGetCurRound
+    assert_true(not RangerBuildPassives.IsTargetMarkedBy(ranger, enemyB), "ranger mark slots evict the oldest applied mark first")
+    assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, enemyA), "ranger mark slots keep newer applied mark when overflowing")
+    assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, enemyC), "ranger mark slots keep the latest applied mark")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
     local paladin = new_unit(301, "RuntimePaladin", true, 2)
     local mainTarget = new_unit(302, "SmiteMain", false, 1)
     local splashTarget = new_unit(303, "SmiteSplash", false, 2)
@@ -231,6 +296,44 @@ do
     local damageContext = { attacker = paladin, damage = 5 }
     PaladinBuildPassives.ApplyPaladinProtections(mainTarget, { damageContext = damageContext })
     assert_true(damageContext.damage == 6, "holy mark adds global vulnerable damage on next hit")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local paladin = new_unit(311, "HolyMarkPaladin", true, 2)
+    local allyAttacker = new_unit(312, "OtherAttacker", true, 1)
+    local target = new_unit(313, "HolyMarkTarget", false, 1)
+    paladin.class = 4
+    paladin.classId = 4
+    paladin.buildState.skillMods[IDS.paladin_vengeance_smite] = {
+        onHitVulnerableDelta = 1,
+        onHitVulnerableDuration = 1,
+    }
+    local oldGetCurRound = BattleLogic.GetCurRound
+    BattleLogic.GetCurRound = function() return 1 end
+    local oldCast = BattleSkill.CastSmallSkillWithResult
+    local oldApply = BuildPassiveCommon.ApplyDirectBonusDamage
+    BattleSkill.CastSmallSkillWithResult = function()
+        return true, { totalDamage = 6 }
+    end
+    BuildPassiveCommon.ApplyDirectBonusDamage = function()
+        return 4
+    end
+    PaladinBuildPassives.PerformVengeanceSmite(paladin, target, { skillId = IDS.paladin_vengeance_smite, name = "破邪斩" })
+    local otherDamageContext = { attacker = allyAttacker, damage = 5 }
+    PaladinBuildPassives.ApplyPaladinProtections(target, { damageContext = otherDamageContext })
+    assert_true(otherDamageContext.damage == 5, "holy mark only benefits the paladin who applied it")
+    local ownDamageContext = { attacker = paladin, damage = 5 }
+    PaladinBuildPassives.ApplyPaladinProtections(target, { damageContext = ownDamageContext })
+    assert_true(ownDamageContext.damage == 6, "holy mark applies bonus damage for the original paladin attacker")
+    BattleLogic.GetCurRound = function() return 3 end
+    local expiredDamageContext = { attacker = paladin, damage = 5 }
+    PaladinBuildPassives.ApplyPaladinProtections(target, { damageContext = expiredDamageContext })
+    assert_true(expiredDamageContext.damage == 5, "holy mark expires after its configured duration")
+    BattleLogic.GetCurRound = oldGetCurRound
+    BattleSkill.CastSmallSkillWithResult = oldCast
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldApply
 end
 
 do

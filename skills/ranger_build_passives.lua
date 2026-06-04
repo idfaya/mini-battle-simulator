@@ -139,6 +139,7 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
     local BattleBuff = require("modules.battle_buff")
     local BattleSkill = require("modules.battle_skill")
     local sourceId = tonumber(hero.instanceId or hero.id) or 0
+    local heroRuntime = ensureRuntime(hero)
 
     -- §6 markSlotMax：默认 1 个印记，feat 可允许同时维持多个。
     local slotMax = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markSlotMax", 0)))
@@ -175,6 +176,16 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
             end
         end
         while #activeMarks >= slotMax do
+            table.sort(activeMarks, function(a, b)
+                local aSeq = math.floor(tonumber(a and a.mark and a.mark.appliedSeq) or 0)
+                local bSeq = math.floor(tonumber(b and b.mark and b.mark.appliedSeq) or 0)
+                if aSeq ~= bSeq then
+                    return aSeq < bSeq
+                end
+                local aId = tonumber(a and a.enemy and (a.enemy.instanceId or a.enemy.id)) or 0
+                local bId = tonumber(b and b.enemy and (b.enemy.instanceId or b.enemy.id)) or 0
+                return aId < bId
+            end)
             local oldest = table.remove(activeMarks, 1)
             local marks = getMarkTable(oldest.enemy)
             marks[sourceId] = nil
@@ -182,9 +193,11 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
         end
     end
 
+    heroRuntime.rangerMarkApplySeq = math.floor(tonumber(heroRuntime.rangerMarkApplySeq) or 0) + 1
     local marks = getMarkTable(target)
     marks[sourceId] = {
         expireRound = getRound() + 1 + durationDelta,
+        appliedSeq = heroRuntime.rangerMarkApplySeq,
     }
     BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, { duration = 2 + durationDelta })
     BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记",
