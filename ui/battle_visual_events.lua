@@ -256,21 +256,28 @@ end
 ---@return table
 function BattleVisualEvents.BuildSkillTimelineFrame(hero, skill, frameData, index)
     local targets = {}
+    local seen = {}
     local function AppendTarget(target)
         if not target then
             return
         end
+        local targetId = target.instanceId or target.id
+        if not targetId or seen[targetId] then
+            return
+        end
+        seen[targetId] = true
         table.insert(targets, {
-            id = target.instanceId or target.id,
+            id = targetId,
             name = target.name,
         })
     end
 
-    AppendTarget(frameData and frameData.target)
-    if frameData and frameData.targets then
+    if frameData and frameData.targets and #frameData.targets > 0 then
         for _, target in ipairs(frameData.targets) do
             AppendTarget(target)
         end
+    else
+        AppendTarget(frameData and frameData.target)
     end
 
     return {
@@ -408,4 +415,3 @@ function BattleVisualEvents.BuildCombatEvent(eventType, attacker, target, params
 end
 
 return BattleVisualEvents
-

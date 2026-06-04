@@ -952,6 +952,9 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
                 preferSkillColor = true,
             })
         end
+        if hero then
+            hero.__lastNormalAttackTarget = nil
+        end
     end
 
     BuildPassiveCommon.ResolveQueuedReactions(hero)
@@ -1334,6 +1337,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 attacker = hero,
                 skill = skill,
             })
+            hero.__lastNormalAttackTarget = actualTarget
             local damageResult = BattleSkill.ResolveScaledDamage(hero, actualTarget, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, actualTarget, skill))
             local damage = tonumber(damageResult and damageResult.damage) or 0
             local damageContext = {

@@ -15,7 +15,6 @@ local function assert_true(cond, name)
     end
 end
 
-local BattleEnum = require("core.battle_enum")
 local BattleEvent = require("core.battle_event")
 local BattleBuff = require("modules.battle_buff")
 local BattleSkill = require("modules.battle_skill")
@@ -139,6 +138,52 @@ do
     assert_true(projectileFrame.targets ~= nil and #projectileFrame.targets == 1, "Ranger basic attack projectile frame keeps target ids")
     assert_true((projectileFrame.targets[1] and projectileFrame.targets[1].id) == target.instanceId, "Ranger basic attack projectile frame targets the selected enemy")
     BattleEvent.RemoveListener(BattleVisualEvents.SKILL_TIMELINE_FRAME, listener)
+end
+
+-- Test 1aa: Timeline frame serialization should prefer actual resolved targets
+do
+    local hero = new_unit(1012, "TimelineHero", 10000, 200, 0)
+    local selectedTarget = new_unit(2012, "SelectedTarget", 10000, 0, 0)
+    local actualTarget = new_unit(2013, "ActualTarget", 10000, 0, 0)
+    local evt = BattleVisualEvents.BuildSkillTimelineFrame(hero, { skillId = 999001, name = "单体法术" }, {
+        frame = 24,
+        op = "damage",
+        target = selectedTarget,
+        targets = { actualTarget, actualTarget },
+        buffId = 880005,
+    }, 1)
+    assert_true(evt.targets ~= nil and #evt.targets == 1, "Timeline frame prefers resolved targets and dedupes ids")
+    assert_true((evt.targets[1] and evt.targets[1].id) == actualTarget.instanceId,
+        "Timeline frame exposes only the actual affected target")
+end
+
+-- Test 1ab: Basic attack finish should track the actual intercepted target
+do
+    local BuildPassiveCommon = require("skills.build_passive_common")
+    local hero = new_unit(1013, "BasicAtkHero", 10000, 200, 0)
+    local selectedTarget = new_unit(2014, "SelectedBackline", 10000, 0, 0)
+    local guardTarget = new_unit(2015, "GuardFrontline", 10000, 0, 0)
+    local originalResolveProtectedDefender = BuildPassiveCommon.ResolveProtectedDefender
+    hero.__energyCastStats = { successfulHits = 0, killCount = 0, didCrit = false }
+    BuildPassiveCommon.ResolveProtectedDefender = function(defender)
+        if defender == selectedTarget then
+            return guardTarget, { guard = guardTarget }
+        end
+        return defender, nil
+    end
+    local ok, err = pcall(function()
+        local totalDamage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, { selectedTarget }, {
+            skillId = 80005011,
+            name = "远程基础攻击",
+            skillType = E_SKILL_TYPE_NORMAL,
+        })
+        assert_true(totalDamage > 0, "Basic attack still deals damage after interception")
+        assert_true(hero.__lastNormalAttackTarget == guardTarget, "Basic attack finish tracks intercepted defender")
+    end)
+    BuildPassiveCommon.ResolveProtectedDefender = originalResolveProtectedDefender
+    if not ok then
+        error(err)
+    end
 end
 
 -- Test 1b: Spell-like multi-hit applies at most one status stack per cast
@@ -406,5 +451,3 @@ end
 
 log("All timeline & passive assertions passed.")
 os.exit(0)
-
-
