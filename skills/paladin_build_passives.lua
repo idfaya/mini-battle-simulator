@@ -280,7 +280,10 @@ function PaladinBuildPassives.ApplyPaladinProtections(defender, extraParam)
 end
 
 function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
-    local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero
+    local heroMaxHp = math.max(1, tonumber(hero and hero.maxHp) or tonumber(hero and hero.hp) or 1)
+    local heroHp = math.max(0, tonumber(hero and hero.hp) or heroMaxHp)
+    local shouldHealSelf = (heroHp / heroMaxHp) <= 0.5
+    local ally = shouldHealSelf and hero or (BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero)
     if not isAlive(ally) then
         return 0, nil
     end

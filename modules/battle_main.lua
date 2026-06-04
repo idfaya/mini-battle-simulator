@@ -518,6 +518,10 @@ local function GetSkillAiConfig(skill)
     return ai
 end
 
+local function HasSkillAiConfig(skill)
+    return GetSkillAiConfig(skill) ~= nil
+end
+
 -- 通用门槛：根据 skill.ai.gates 字段判定能否选择该技能
 local function PassAiGates(hero, skill, previewTargets)
     local ai = GetSkillAiConfig(skill)
@@ -527,6 +531,10 @@ local function PassAiGates(hero, skill, previewTargets)
     end
 
     if gates.requireSelfInjured and GetTargetMissingHpRatio(hero) <= 0 then
+        return false
+    end
+
+    if gates.requireSelfHpBelow and GetTargetHpRatio(hero) > tonumber(gates.requireSelfHpBelow) then
         return false
     end
 
@@ -676,6 +684,10 @@ end
 local function BuildSkillCandidate(hero, skill, opts)
     opts = opts or {}
     if not hero or not skill or not skill.skillId then
+        return nil
+    end
+
+    if opts.requireAiConfig and not HasSkillAiConfig(skill) then
         return nil
     end
 
@@ -1327,13 +1339,15 @@ local function SelectAvailableSkill(hero)
         end
     end
 
-    -- Enemy AI auto-casts limited skills when ready. Player side still uses manual/auto queue.
-    if hero and not hero.isLeft then
+    -- 左右两侧自动战斗都允许按 AI 门槛自动施放 LIMITED；
+    -- 左侧若手动勾了大招，则仍优先消费排队结果。
+    if hero then
         local limitedCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_LIMITED, {
             requireLimitedGate = true,
+            requireAiConfig = hero.isLeft == true,
         })
         if limitedCandidate then
-            Logger.Log(string.format("[SelectAvailableSkill] %s 敌方自动选择限次数技能: %s (score=%d)",
+            Logger.Log(string.format("[SelectAvailableSkill] %s 自动选择限次数技能: %s (score=%d)",
                 hero.name or "Unknown",
                 limitedCandidate.skill.name or tostring(limitedCandidate.skillId),
                 limitedCandidate.score))

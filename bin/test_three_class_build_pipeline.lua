@@ -52,6 +52,15 @@ local function hasSkill(list, skillId)
     return false
 end
 
+local function findSkill(list, skillId)
+    for _, entry in ipairs(list or {}) do
+        if tonumber(entry.id or entry.skillId) == tonumber(skillId) then
+            return entry
+        end
+    end
+    return nil
+end
+
 local function new_unit(id, name)
     return {
         id = id,
@@ -81,6 +90,8 @@ do
     local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.monk_basic_attack), "Monk runtime exports basic attack")
     assert_true(hasSkill(runtimeSkills, SkillRuntimeConfig.Ids.monk_open_hand), "Monk runtime exports mid-tier active skill")
+    assert_true((findSkill(runtimeSkills, SkillRuntimeConfig.Ids.monk_harmonize) or {}).skillType == 3,
+        "Monk runtime exports harmonize as LIMITED")
 end
 
 do
@@ -111,6 +122,9 @@ do
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands), "Paladin Lv5 grants lay on hands")
     assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.paladin_shelter_prayer), "Paladin Lv5 grants holy shelter as T2")
     assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_guardian_aura), "Paladin Lv5 does not auto-grant guardian aura active")
+    local runtimeSkills = SkillRuntime.BuildSkillsConfig(build)
+    assert_true((findSkill(runtimeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands) or {}).skillType == 3,
+        "Paladin runtime exports lay on hands as LIMITED")
 end
 
 do
@@ -181,6 +195,32 @@ end
 do
     BattleFormation.OnFinal()
 
+    local fighter = new_unit(9101, "DecisionFighter")
+    local enemy = new_unit(9102, "FighterEnemy")
+    fighter.class = 2
+    fighter.classId = 2
+    fighter.wpType = 1
+    enemy.class = 2
+    enemy.classId = 2
+    enemy.wpType = 1
+    enemy.isLeft = false
+    fighter.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(2, 5, canonicalSelections(2, 5)))
+
+    BattleFormation.Init({
+        teamLeft = { fighter },
+        teamRight = { enemy },
+    })
+
+    local battleFighter = BattleFormation.GetTeams()[1]
+    BattleSkill.Init(battleFighter, battleFighter.skillsConfig)
+    battleFighter.hp = 50
+    battleFighter.maxHp = 100
+    local injuredFighterSkill = BattleMain.DebugSelectAvailableSkill(battleFighter)
+    assert_true(injuredFighterSkill and injuredFighterSkill.skillId == SkillRuntimeConfig.Ids.fighter_second_wind_action,
+        "Fighter uses second wind automatically at half HP")
+
+    BattleFormation.OnFinal()
+
     local monk = new_unit(9201, "DecisionMonk")
     local ally = new_unit(9202, "MonkAlly")
     local enemy = new_unit(9203, "EnemyTarget")
@@ -207,10 +247,50 @@ do
     assert_true(fullHpSkill and fullHpSkill.skillId == SkillRuntimeConfig.Ids.monk_open_hand,
         "Monk does not spend harmonize at full HP")
 
-    battleMonk.hp = 60
+    battleMonk.hp = 50
     local injuredSkill = BattleMain.DebugSelectAvailableSkill(battleMonk)
     assert_true(injuredSkill and injuredSkill.skillId == SkillRuntimeConfig.Ids.monk_harmonize,
-        "Monk uses harmonize after taking damage")
+        "Monk uses harmonize automatically at half HP")
+
+    BattleFormation.OnFinal()
+end
+
+do
+    BattleFormation.OnFinal()
+
+    local paladin = new_unit(9301, "DecisionPaladin")
+    local ally = new_unit(9302, "PaladinAlly")
+    local enemy = new_unit(9303, "PaladinEnemy")
+    paladin.class = 4
+    paladin.classId = 4
+    paladin.wpType = 1
+    ally.class = 2
+    ally.classId = 2
+    ally.wpType = 1
+    enemy.class = 2
+    enemy.classId = 2
+    enemy.wpType = 1
+    enemy.isLeft = false
+    paladin.skillsConfig = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(4, 5, canonicalSelections(4, 5)))
+
+    BattleFormation.Init({
+        teamLeft = { paladin, ally },
+        teamRight = { enemy },
+    })
+
+    local teamLeft = BattleFormation.GetTeams()
+    local battlePaladin = teamLeft[1]
+    local battleAlly = teamLeft[2]
+    BattleSkill.Init(battlePaladin, battlePaladin.skillsConfig)
+    battlePaladin.hp = 50
+    battlePaladin.maxHp = 100
+    battleAlly.hp = 28
+    battleAlly.maxHp = 100
+    local emergencySkill, emergencyTargets = BattleMain.DebugSelectAvailableSkill(battlePaladin)
+    assert_true(emergencySkill and emergencySkill.skillId == SkillRuntimeConfig.Ids.paladin_lay_on_hands,
+        "Paladin uses lay on hands automatically at half HP")
+    assert_true(#(emergencyTargets or {}) == 1 and emergencyTargets[1] == battlePaladin,
+        "Paladin targets self with lay on hands when self is at half HP")
 
     BattleFormation.OnFinal()
 end

@@ -1890,6 +1890,15 @@ local function ShouldPreferAllyIfInjured(targetsSelections)
         or targetsSelections.dualHolyLight == true
 end
 
+local function ShouldPreferSelfAtHpBelow(hero, targetsSelections)
+    if not hero or not targetsSelections or targetsSelections.preferSelfHpBelow == nil then
+        return false
+    end
+    local maxHp = math.max(1, tonumber(hero.maxHp) or tonumber(hero.hp) or 1)
+    local hp = math.max(0, tonumber(hero.hp) or maxHp)
+    return (hp / maxHp) <= tonumber(targetsSelections.preferSelfHpBelow)
+end
+
 local function PickLowestHpInjuredAlly(hero)
     local ally = BattleSkill.SelectLowestHpAlly(hero)
     if not ally then
@@ -2050,6 +2059,10 @@ function BattleSkill.SelectTarget(hero, skill)
     end
 
     local castTarget = NormalizeCastTargetValue(targetsSelections.castTarget) or E_CAST_TARGET.Enemy
+
+    if ShouldPreferSelfAtHpBelow(hero, targetsSelections) then
+        return { hero }
+    end
 
     if ShouldPreferAllyIfInjured(targetsSelections) then
         if targetsSelections.dualHolyLight == true and not ShouldPreferDualHolyLightAlly(hero) then
