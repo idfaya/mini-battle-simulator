@@ -4,6 +4,7 @@ local BattleEvent = require("core.battle_event")
 local BattleFormation = require("modules.battle_formation")
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local Logger = require("utils.logger")
+local BuildPassiveCommon = require("skills.build_passive_common")
 local RogueBuildPassives = require("skills.rogue_build_passives")
 local FighterBuildPassives = require("skills.fighter_build_passives")
 local MonkBuildPassives = require("skills.monk_build_passives")
@@ -265,6 +266,29 @@ end
 local function CreateFireAffinityPassive(context)
     local self = BuildContextState(context)
 
+    local function getOnKillExplodeDice(hero)
+        local buildState = hero and hero.buildState or nil
+        local skillMods = buildState and buildState.skillMods or nil
+        local entry = skillMods and skillMods[80007002] or nil
+        local value = entry and entry.onKillExplodeDice or nil
+        return type(value) == "string" and value or nil
+    end
+
+    local function isSameUnit(a, b)
+        if a == nil or b == nil then
+            return false
+        end
+        if a == b then
+            return true
+        end
+        local aInstanceId = tonumber(a.instanceId)
+        local aId = tonumber(a.id)
+        local bInstanceId = tonumber(b.instanceId)
+        local bId = tonumber(b.id)
+        return (aInstanceId ~= nil and (aInstanceId == bInstanceId or aInstanceId == bId))
+            or (aId ~= nil and (aId == bId or aId == bInstanceId))
+    end
+
     function self:OnSelfTurnBegin(ctx)
         local hero = self.context and self.context.src or nil
         if not hero or hero.isDead then
@@ -272,6 +296,43 @@ local function CreateFireAffinityPassive(context)
         end
         if not BattleBuff.GetBuff(hero, 870002) then
             BattleSkill.ApplyBuffFromSkill(hero, hero, 870002, nil)
+        end
+    end
+
+    function self:OnDmgMakeKill(ctx)
+        local hero = self.context and self.context.src or nil
+        if not hero or hero.isDead then
+            return
+        end
+        local target = ctx and ctx.data and ctx.data.extraParam and ctx.data.extraParam.target or nil
+        if not target or not BattleBuff.GetBuff(target, 870001) then
+            return
+        end
+        local explodeDice = getOnKillExplodeDice(hero)
+        if not explodeDice or explodeDice == "" then
+            return
+        end
+        local runtime = EnsurePassiveRuntime(hero)
+        local BattleLogic = require("modules.battle_logic")
+        local round = (BattleLogic.GetCurRound and BattleLogic.GetCurRound()) or 0
+        if runtime.sorcererBurnExplodeRound ~= round then
+            runtime.sorcererBurnExplodeRound = round
+            runtime.sorcererBurnExplodeCount = 0
+        end
+        if (tonumber(runtime.sorcererBurnExplodeCount) or 0) >= 1 then
+            return
+        end
+        runtime.sorcererBurnExplodeCount = (tonumber(runtime.sorcererBurnExplodeCount) or 0) + 1
+        local splashTargets = BattleSkill.ExpandAreaTargets(target, { includeRow = true, includeColumn = false })
+        for _, splashTarget in ipairs(splashTargets or {}) do
+            if splashTarget and not splashTarget.isDead and not isSameUnit(splashTarget, target) then
+                BuildPassiveCommon.ApplyDirectBonusDamage(hero, splashTarget, explodeDice, {
+                    kind = "spell",
+                    damageKind = "fire",
+                    skillId = 80007002,
+                    skillName = "点燃精通",
+                })
+            end
         end
     end
 

@@ -59,6 +59,9 @@ function FeatModHelper.GetSkillMod(hero, skillId, key, default)
     if num ~= nil then
         return num
     end
+    if default == nil then
+        return value
+    end
     return fallback
 end
 

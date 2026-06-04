@@ -10,6 +10,18 @@ local BURN_BUFF_SUBTYPE = 870001
 local GUARDIAN_AURA_BUFF_ID = 890008
 local SHELTER_PRAYER_BUFF_ID = 890012
 
+local function joinDiceParts(a, b)
+    a = tostring(a or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    b = tostring(b or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if a == "" then
+        return b
+    end
+    if b == "" then
+        return a
+    end
+    return a .. ";" .. b
+end
+
 local function isAlive(unit)
     return BuildPassiveCommon.IsAlive(unit)
 end
@@ -83,6 +95,79 @@ local function clearTurnStates(hero)
     BattleBuff.DelBuffByBuffIdAndCaster(hero, GUARDIAN_AURA_BUFF_ID, hero, 1)
 end
 
+local function getHolyMarkState(target)
+    local runtime = ensureRuntime(target)
+    runtime.paladinHolyMarks = runtime.paladinHolyMarks or {}
+    return runtime.paladinHolyMarks
+end
+
+local function applyHolyMark(hero, target, amount, duration)
+    if not isAlive(hero) or not isAlive(target) or amount <= 0 then
+        return
+    end
+    local sourceId = tonumber(hero.instanceId or hero.id) or 0
+    local marks = getHolyMarkState(target)
+    marks[sourceId] = {
+        expireRound = getRound() + math.max(1, math.floor(tonumber(duration) or 1)),
+        amount = math.max(1, math.floor(tonumber(amount) or 1)),
+    }
+end
+
+local function getHolyMarkAmount(attacker, defender)
+    if not isAlive(attacker) or not isAlive(defender) then
+        return 0
+    end
+    local sourceId = tonumber(attacker.instanceId or attacker.id) or 0
+    local mark = getHolyMarkState(defender)[sourceId]
+    if not mark then
+        return 0
+    end
+    if (tonumber(mark.expireRound) or 0) < getRound() then
+        return 0
+    end
+    return math.max(0, math.floor(tonumber(mark.amount) or 0))
+end
+
+local function collectAdjacentEnemies(hero, target, totalTargets)
+    local BattleFormation = require("modules.battle_formation")
+    local picked = {}
+    local extraCount = math.max(0, math.floor(tonumber(totalTargets) or 1) - 1)
+    if extraCount <= 0 then
+        return picked
+    end
+    local targetRow = isFrontRow(target) and "front" or "back"
+    local targetId = tonumber(target and (target.instanceId or target.id)) or 0
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+        local sameRow = (targetRow == "front" and isFrontRow(enemy)) or (targetRow == "back" and not isFrontRow(enemy))
+        if isAlive(enemy) and enemyId ~= targetId and sameRow then
+            picked[#picked + 1] = enemy
+            if #picked >= extraCount then
+                return picked
+            end
+        end
+    end
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+        if isAlive(enemy) and enemyId ~= targetId then
+            local seen = false
+            for _, existed in ipairs(picked) do
+                if tonumber(existed.instanceId or existed.id) == enemyId then
+                    seen = true
+                    break
+                end
+            end
+            if not seen then
+                picked[#picked + 1] = enemy
+                if #picked >= extraCount then
+                    break
+                end
+            end
+        end
+    end
+    return picked
+end
+
 function PaladinBuildPassives.ActivateGuardianAura(hero)
     local BattleSkill = require("modules.battle_skill")
     local runtime = ensureRuntime(hero)
@@ -129,7 +214,20 @@ function PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)
 end
 
 function PaladinBuildPassives.ApplyPaladinProtections(defender, extraParam)
-    return
+    local damageContext = extraParam and extraParam.damageContext or nil
+    local attacker = damageContext and damageContext.attacker or nil
+    if not damageContext or not isAlive(defender) or not isAlive(attacker) then
+        return
+    end
+    local bonus = getHolyMarkAmount(attacker, defender)
+    if bonus <= 0 then
+        return
+    end
+    damageContext.damage = math.max(0, math.floor(tonumber(damageContext.damage) or 0)) + bonus
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发惩戒印记：%s 额外承受 %d 点伤害",
+        attacker.name or "Unknown",
+        defender.name or "目标",
+        bonus))
 end
 
 function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
@@ -139,6 +237,10 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
     end
     local BattleBuff = require("modules.battle_buff")
     local healDice = "2d8+4"
+    local bonusHealDice = FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "bonusHealDice", nil)
+    if type(bonusHealDice) == "string" and bonusHealDice ~= "" then
+        healDice = joinDiceParts(healDice, bonusHealDice)
+    end
     local amount = BuildPassiveCommon.RollDice(healDice)
     BuildPassiveCommon.ApplyHeal(ally, amount)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
@@ -146,6 +248,10 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
     BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.SILENT)
     BattleBuff.DelBuffBySubType(ally, POISON_BUFF_SUBTYPE)
     BattleBuff.DelBuffBySubType(ally, BURN_BUFF_SUBTYPE)
+    local shieldAmount = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "postHealShield", 0)) or 0))
+    if shieldAmount > 0 then
+        ally.tempHp = math.max(math.floor(tonumber(ally.tempHp) or 0), shieldAmount)
+    end
     BuildPassiveCommon.PublishCombatLog(string.format("%s 发动圣疗之手：为 %s 回复 %d 生命并净化负面状态",
         hero and hero.name or "Unknown",
         ally.name or "目标",
@@ -158,26 +264,59 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local BattleBuff = require("modules.battle_buff")
     local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
     local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
     if damage > 0 then
-        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "2d8", {
+        local bonusDice = "2d8"
+        local extraDice = FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "bonusDamageDice", nil)
+        if type(extraDice) == "string" and extraDice ~= "" then
+            bonusDice = joinDiceParts(bonusDice, extraDice)
+        end
+        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, bonusDice, {
             kind = "physical",
             damageKind = "direct",
             skillId = skill and skill.skillId or IDS.paladin_vengeance_smite,
             skillName = skill and skill.name or "破邪斩",
         })
         damage = damage + bonus
-        local BattleBuff = require("modules.battle_buff")
         local buffs = BattleBuff.GetAllBuffs(target) or {}
+        local dispelCount = 1
+        if getHolyMarkAmount(hero, target) > 0 then
+            dispelCount = dispelCount + math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "vsHolyMarkDispelBonus", 0)) or 0))
+        end
+        local dispelled = 0
         for i = #buffs, 1, -1 do
-            if tonumber(buffs[i].mainType) == E_BUFF_MAIN_TYPE.GOOD then
+            if tonumber(buffs[i].mainType) == E_BUFF_MAIN_TYPE.GOOD and dispelled < dispelCount then
                 table.remove(buffs, i)
-                BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：驱散 %s 的 1 个正面状态",
-                    hero.name or "Unknown",
-                    target.name or "目标"))
-                break
+                dispelled = dispelled + 1
             end
+        end
+        if dispelled > 0 then
+            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：驱散 %s 的 %d 个正面状态",
+                hero.name or "Unknown",
+                target.name or "目标",
+                dispelled))
+        end
+        local holyMarkDelta = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "onHitVulnerableDelta", 0)) or 0))
+        local holyMarkDuration = math.max(1, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "onHitVulnerableDuration", 1)) or 1))
+        if holyMarkDelta > 0 then
+            applyHolyMark(hero, target, holyMarkDelta, holyMarkDuration)
+        end
+        local splitTargets = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "splitAdjacentTargets", 0)) or 0))
+        local splitBonusDice = FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "splitBonusDice", nil)
+        for _, splashTarget in ipairs(collectAdjacentEnemies(hero, target, splitTargets)) do
+            local splashOk, splashResult = BattleSkill.CastSmallSkillWithResult(hero, splashTarget)
+            local splashDamage = splashOk and math.max(0, math.floor(tonumber(splashResult and splashResult.totalDamage) or 0)) or 0
+            if splashDamage > 0 and type(splitBonusDice) == "string" and splitBonusDice ~= "" then
+                splashDamage = splashDamage + BuildPassiveCommon.ApplyDirectBonusDamage(hero, splashTarget, splitBonusDice, {
+                    kind = "physical",
+                    damageKind = "direct",
+                    skillId = skill and skill.skillId or IDS.paladin_vengeance_smite,
+                    skillName = "惩戒大师",
+                })
+            end
+            damage = damage + splashDamage
         end
         BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：对 %s 追加 %d 点光耀伤害",
             hero.name or "Unknown",

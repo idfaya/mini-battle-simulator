@@ -35,6 +35,29 @@ local function getDotDurationDelta(caster)
     return delta
 end
 
+local function getSkillDurationDelta(caster, skillId)
+    if not caster or not skillId then
+        return 0
+    end
+    local buildState = caster.buildState
+    if type(buildState) ~= "table" or type(buildState.skillMods) ~= "table" then
+        return 0
+    end
+    local entry = buildState.skillMods[tonumber(skillId)]
+    if type(entry) ~= "table" then
+        return 0
+    end
+    return math.max(0, math.floor(tonumber(entry.dotDurationDelta) or 0))
+end
+
+local function getBurnDurationDelta(caster)
+    return getDotDurationDelta(caster) + getSkillDurationDelta(caster, 80007002)
+end
+
+local function getFrostDurationDelta(caster)
+    return getDotDurationDelta(caster) + getSkillDurationDelta(caster, 80008002)
+end
+
 local function armBurnTick(buff)
     if not buff then
         return
@@ -94,7 +117,7 @@ function BattleSkillStatus.ApplyBurn(target, stacks, turns, caster)
     if caster and BattleBuff.GetBuff(caster, 870002) then
         actualTurns = actualTurns + 1
     end
-    actualTurns = actualTurns + getDotDurationDelta(caster)
+    actualTurns = actualTurns + getBurnDurationDelta(caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
@@ -123,7 +146,7 @@ function BattleSkillStatus.ApplyBurnRefreshOnly(target, turns, caster)
     if caster and BattleBuff.GetBuff(caster, 870002) then
         actualTurns = actualTurns + 1
     end
-    actualTurns = actualTurns + getDotDurationDelta(caster)
+    actualTurns = actualTurns + getBurnDurationDelta(caster)
     local existingBuff = BattleBuff.GetBuff(target, 870001)
     if existingBuff then
         existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
@@ -174,7 +197,7 @@ function BattleSkillStatus.ApplyFrost(target, turns, caster)
     if not target then
         return
     end
-    local actualTurns = (turns or 2) + getDotDurationDelta(caster)
+    local actualTurns = (turns or 2) + getFrostDurationDelta(caster)
     GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880005, nil, {
         duration = actualTurns,
     })

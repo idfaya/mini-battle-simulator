@@ -43,6 +43,18 @@ local function pickRandomAliveEnemy(hero)
     return candidates[math.random(1, #candidates)]
 end
 
+local function joinDiceParts(a, b)
+    a = tostring(a or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    b = tostring(b or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if a == "" then
+        return b
+    end
+    if b == "" then
+        return a
+    end
+    return a .. ";" .. b
+end
+
 local function getMarkTable(target)
     local runtime = ensureRuntime(target)
     runtime.rangerMarks = runtime.rangerMarks or {}
@@ -70,13 +82,25 @@ local function applyMarkedBonusDamage(hero, target)
     if runtime.rangerMarkedDamageRoundKey ~= round then
         runtime.rangerMarkedDamageRoundKey = round
         runtime.rangerMarkedDamageCount = 0
+        runtime.rangerMarkedDamageTargets = {}
     end
     if (tonumber(runtime.rangerMarkedDamageCount) or 0) >= maxPerRound then
         return 0
     end
+    local targetId = tonumber(target.instanceId or target.id) or 0
+    if maxPerRound > 1 and targetId ~= 0 and runtime.rangerMarkedDamageTargets[targetId] == true then
+        return 0
+    end
     runtime.rangerMarkedDamageCount = (tonumber(runtime.rangerMarkedDamageCount) or 0) + 1
     runtime.rangerMarkedDamageRound = round
+    if targetId ~= 0 then
+        runtime.rangerMarkedDamageTargets[targetId] = true
+    end
     local diceExpr = "1d4"
+    local extraDice = FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markBonusDice", nil)
+    if type(extraDice) == "string" and extraDice ~= "" then
+        diceExpr = joinDiceParts(diceExpr, extraDice)
+    end
     local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
         kind = "physical",
         damageKind = "direct",
@@ -200,7 +224,12 @@ function RangerBuildPassives.PerformHunterShot(hero, target, skill)
     local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
     local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
     if damage > 0 and RangerBuildPassives.IsTargetMarkedBy(hero, target) then
-        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, "2d6", {
+        local bonusDice = "2d6"
+        local extraDice = FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_shot, "bonusDamageDice", nil)
+        if type(extraDice) == "string" and extraDice ~= "" then
+            bonusDice = joinDiceParts(bonusDice, extraDice)
+        end
+        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, bonusDice, {
             kind = "physical",
             damageKind = "direct",
             skillId = skill and skill.skillId or IDS.ranger_hunter_shot,
@@ -213,6 +242,10 @@ function RangerBuildPassives.PerformHunterShot(hero, target, skill)
                 target.name or "目标",
                 bonus))
         end
+    end
+    local slowDuration = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_shot, "onHitApplySlowDuration", 0)) or 0))
+    if damage > 0 and slowDuration > 0 then
+        BattleSkill.ApplyBuffFromSkill(hero, target, 880001, skill, { duration = slowDuration })
     end
     return damage
 end
@@ -260,6 +293,7 @@ function RangerBuildPassives.PerformArrowRain(hero, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local BattleFormation = require("modules.battle_formation")
     local totalDamage = 0
     local hitCounts = {}
 
@@ -271,19 +305,43 @@ function RangerBuildPassives.PerformArrowRain(hero, skill)
         extraShots = extraShots + math.floor(classExtra)
     end
     local totalShots = 4 + extraShots
+    local firstRepeatMultiplier = tonumber(FeatModHelper.GetSkillMod(hero, skillIdForMods, "firstRepeatDamageMultiplier", 0)) or 0
+    local prioritizeMarkedTargets = FeatModHelper.HasFlag(hero, skillIdForMods, "prioritizeMarkedTargets")
+    local firstHitMarkedBonusDice = FeatModHelper.GetSkillMod(hero, skillIdForMods, "firstHitMarkedBonusDice", nil)
 
     BuildPassiveCommon.PublishCombatLog(string.format("%s 发动箭雨：连续射出 %d 支箭矢",
         hero.name or "Unknown", totalShots))
     for shotIndex = 1, totalShots do
-        local target = pickRandomAliveEnemy(hero)
+        local target = nil
+        local markedCandidates = {}
+        local normalCandidates = {}
+        for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+            if isAlive(enemy) then
+                normalCandidates[#normalCandidates + 1] = enemy
+                if prioritizeMarkedTargets and RangerBuildPassives.IsTargetMarkedBy(hero, enemy) then
+                    markedCandidates[#markedCandidates + 1] = enemy
+                end
+            end
+        end
+        local pool = (#markedCandidates > 0) and markedCandidates or normalCandidates
+        if #pool > 0 then
+            target = pool[math.random(1, #pool)]
+        end
         if not isAlive(target) then
             break
         end
         local targetId = tonumber(target.instanceId or target.id) or 0
         local hitCount = hitCounts[targetId] or 0
         local multiplier = 1 / (2 ^ hitCount)
+        if hitCount == 1 and firstRepeatMultiplier > 0 and firstRepeatMultiplier < 1 then
+            multiplier = firstRepeatMultiplier
+        end
         if multiplier ~= 1 then
             BuildPassiveCommon.SetPendingBasicAttackDamageMultiplier(hero, multiplier, "箭雨")
+        end
+        if hitCount == 0 and type(firstHitMarkedBonusDice) == "string" and firstHitMarkedBonusDice ~= ""
+            and RangerBuildPassives.IsTargetMarkedBy(hero, target) then
+            BuildPassiveCommon.AppendPendingBasicAttackBonusDice(hero, firstHitMarkedBonusDice)
         end
         BuildPassiveCommon.PublishCombatLog(string.format("%s 的箭雨第 %d 箭锁定 %s%s",
             hero.name or "Unknown",
@@ -334,4 +392,3 @@ function RangerBuildPassives.CreateHunterMarkPassive(context)
 end
 
 return RangerBuildPassives
-

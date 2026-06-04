@@ -583,6 +583,10 @@ end
 
 function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     local total = 0
+    local okMonk, MonkBuildPassives = pcall(require, "skills.monk_build_passives")
+    if okMonk and MonkBuildPassives and MonkBuildPassives.GetShadowStepAcBonus then
+        total = total + (tonumber(MonkBuildPassives.GetShadowStepAcBonus(defender, attacker)) or 0)
+    end
     local okCleric, ClericBuildPassives = pcall(require, "skills.cleric_build_passives")
     if okCleric and ClericBuildPassives and ClericBuildPassives.GetAuraAcBonus then
         total = total + (tonumber(ClericBuildPassives.GetAuraAcBonus(defender, attacker)) or 0)

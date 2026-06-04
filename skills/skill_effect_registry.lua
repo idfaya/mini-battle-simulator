@@ -25,6 +25,17 @@ local function getSkillModInt(unit, skillId, key)
     return math.max(0, math.floor(tonumber(entry[key]) or 0))
 end
 
+local function getSkillModRaw(unit, skillId, key)
+    if not unit or not skillId then return nil end
+    local buildState = unit.buildState
+    if type(buildState) ~= "table" then return nil end
+    local skillMods = buildState.skillMods
+    if type(skillMods) ~= "table" then return nil end
+    local entry = skillMods[skillId]
+    if type(entry) ~= "table" then return nil end
+    return entry[key]
+end
+
 function SkillEffectRegistry.Register(tag, handler)
     if type(tag) ~= "string" or tag == "" then
         return
@@ -214,14 +225,47 @@ local function ClaimSpellLikeStatusApplication(ctx, target, statusKey)
     return true
 end
 
-local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
+local function ApplyChainLightningDirect(hero, hitCount, diceExpr, opts)
+    local BattleBuff = require("modules.battle_buff")
+    local BattleFormation = require("modules.battle_formation")
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
+    opts = type(opts) == "table" and opts or {}
     local totalDamage = 0
-    for _ = 1, hitCount do
-        local picked = BattleSkill.SelectRandomAliveEnemies(hero, 1)
-        local target = picked and picked[1] or nil
+    local pickedIds = {}
+    local firstTarget = opts.firstTarget
+    local preferMarked = opts.preferMarked == true
+    local damageMultiplier = tonumber(opts.damageMultiplier) or 1
+    for _, excludedId in ipairs(opts.excludeTargetIds or {}) do
+        pickedIds[tonumber(excludedId) or 0] = true
+    end
+    for hitIndex = 1, hitCount do
+        local target = nil
+        if hitIndex == 1 and firstTarget and not firstTarget.isDead then
+            local firstId = tonumber(firstTarget.instanceId or firstTarget.id) or 0
+            if firstId == 0 or not pickedIds[firstId] then
+                target = firstTarget
+            end
+        end
+        if not target then
+            local marked = {}
+            local normal = {}
+            for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+                local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+                if enemy and not enemy.isDead and not pickedIds[enemyId] then
+                    normal[#normal + 1] = enemy
+                    if preferMarked and BattleBuff.GetBuff(enemy, 890001) then
+                        marked[#marked + 1] = enemy
+                    end
+                end
+            end
+            local pool = (#marked > 0) and marked or normal
+            if #pool > 0 then
+                target = pool[math.random(1, #pool)]
+            end
+        end
         if target and not target.isDead then
+            pickedIds[tonumber(target.instanceId or target.id) or 0] = true
             local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
                 skipCheck = true,
                 kind = "spell",
@@ -229,8 +273,13 @@ local function ApplyChainLightningDirect(hero, hitCount, diceExpr)
                 damageDice = diceExpr,
             })
             local damage = tonumber(damageResult and damageResult.damage) or 0
+            if damageMultiplier > 0 and damageMultiplier ~= 1 then
+                damage = math.max(0, math.floor(damage * damageMultiplier))
+            end
             BattleDmgHeal.ApplyDamage(target, damage, hero, { damageKind = "spell" })
             totalDamage = totalDamage + damage
+        else
+            break
         end
     end
     return totalDamage
@@ -250,6 +299,34 @@ local function ApplyDirectSpellDamage(hero, target, diceExpr, damageKind, skill)
         damageDice = diceExpr,
     })
     local damage = tonumber(damageResult and damageResult.damage) or 0
+    if damage > 0 then
+        BattleDmgHeal.ApplyDamage(target, damage, hero, {
+            skillId = skill and skill.skillId or nil,
+            skillName = skill and skill.name or nil,
+            damageKind = damageKind or "spell",
+        })
+    end
+    return damage
+end
+
+local function ApplyDirectSpellDamageScaled(hero, target, diceExpr, damageKind, skill, multiplier)
+    if not hero or not target or target.isDead then
+        return 0
+    end
+    local BattleSkill = require("modules.battle_skill")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
+        skipCheck = true,
+        noClassScalar = true,
+        kind = "spell",
+        damageKind = damageKind or "spell",
+        damageDice = diceExpr,
+    })
+    local damage = tonumber(damageResult and damageResult.damage) or 0
+    local amount = tonumber(multiplier) or 1
+    if amount > 0 and amount ~= 1 then
+        damage = math.max(0, math.floor(damage * amount))
+    end
     if damage > 0 then
         BattleDmgHeal.ApplyDamage(target, damage, hero, {
             skillId = skill and skill.skillId or nil,
@@ -425,33 +502,85 @@ function SkillEffectRegistry.RegisterBuiltins()
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 2
+        local skillId = ctx.skill and ctx.skill.skillId or 0
         if phase == "pre" then
+            frameCopy.__allTargets = {}
             frameCopy.__burningTargets = {}
+            local ignoreDamageOnUnignited = getSkillModRaw(ctx.hero, skillId, "ignoreDamageOnUnignited") == true
+            local filteredTargets = {}
+            frameCopy.__burnOnlyTargets = {}
             for _, t in ipairs(frameCopy.targets or {}) do
+                frameCopy.__allTargets[#frameCopy.__allTargets + 1] = t
                 if t and BattleBuff.GetBuff(t, 870001) then
                     frameCopy.__burningTargets[t.instanceId or t.id] = true
+                    filteredTargets[#filteredTargets + 1] = t
+                elseif ignoreDamageOnUnignited then
+                    frameCopy.__burnOnlyTargets[#frameCopy.__burnOnlyTargets + 1] = t
+                else
+                    filteredTargets[#filteredTargets + 1] = t
                 end
+            end
+            if ignoreDamageOnUnignited then
+                frameCopy.targets = filteredTargets
             end
             return nil
         end
 
         local total = 0
         local seen = {}
-        for _, t in ipairs(frameCopy.targets or {}) do
+        local burstFollowUpPerRound = getSkillModInt(ctx.hero, skillId, "vsBurningFollowupHalfChargesPerRound")
+        local bonusVsBurning = getSkillModRaw(ctx.hero, skillId, "vsBurningBonusDice")
+        local extendDuration = getSkillModInt(ctx.hero, skillId, "vsBurningExtendDuration")
+        local splashAdjacentDice = getSkillModRaw(ctx.hero, skillId, "splashAdjacentDice")
+        local targets = frameCopy.__allTargets or frameCopy.targets or {}
+        for _, t in ipairs(targets) do
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
                 seen[targetId] = true
                 local wasBurning = frameCopy.__burningTargets and frameCopy.__burningTargets[t.instanceId or t.id]
                 if wasBurning then
-                    total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "fire", ctx.skill)
+                    local bonusDice = tostring(p.bonusDice or "1d8")
+                    if type(bonusVsBurning) == "string" and bonusVsBurning ~= "" then
+                        bonusDice = bonusDice .. ";" .. bonusVsBurning
+                    end
+                    total = total + ApplyDirectSpellDamage(ctx.hero, t, bonusDice, "fire", ctx.skill)
+                    if burstFollowUpPerRound > 0 and skillId == 80007003 and ctx.hero then
+                        ctx.hero.passiveRuntime = ctx.hero.passiveRuntime or {}
+                        local rt = ctx.hero.passiveRuntime
+                        local BattleLogic = require("modules.battle_logic")
+                        local round = (BattleLogic.GetCurRound and BattleLogic.GetCurRound()) or 0
+                        if rt.sorcererBurstFollowUpRound ~= round then
+                            rt.sorcererBurstFollowUpRound = round
+                            rt.sorcererBurstFollowUpCount = 0
+                        end
+                        if (tonumber(rt.sorcererBurstFollowUpCount) or 0) < burstFollowUpPerRound then
+                            rt.sorcererBurstFollowUpCount = (tonumber(rt.sorcererBurstFollowUpCount) or 0) + 1
+                            total = total + ApplyDirectSpellDamageScaled(ctx.hero, t, "1d10", "fire", ctx.skill, 0.5)
+                        end
+                    end
                     if ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
-                        BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
+                        BattleSkillStatus.ApplyBurnRefreshOnly(t, turns + extendDuration, ctx.hero)
                     end
                 else
                     if ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
                         BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
                     end
                 end
+                if type(splashAdjacentDice) == "string" and splashAdjacentDice ~= "" then
+                    local BattleSkill = require("modules.battle_skill")
+                    local splashTargets = BattleSkill.ExpandAreaTargets(t, { includeRow = true, includeColumn = false })
+                    for _, splashTarget in ipairs(splashTargets or {}) do
+                        local splashId = splashTarget and (splashTarget.instanceId or splashTarget.id) or nil
+                        if splashTarget and not splashTarget.isDead and splashId and splashId ~= targetId then
+                            total = total + ApplyDirectSpellDamage(ctx.hero, splashTarget, splashAdjacentDice, "fire", ctx.skill)
+                        end
+                    end
+                end
+            end
+        end
+        for _, t in ipairs(frameCopy.__burnOnlyTargets or {}) do
+            if t and not t.isDead and ClaimSpellLikeStatusApplication(ctx, t, "buff:870001") then
+                BattleSkillStatus.ApplyBurnRefreshOnly(t, turns, ctx.hero)
             end
         end
         return {
@@ -500,17 +629,38 @@ function SkillEffectRegistry.RegisterBuiltins()
     end)
 
     SkillEffectRegistry.Register("apply_frost", function(ctx, frameCopy, _, spec)
+        local BattleBuff = require("modules.battle_buff")
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         local turns = tonumber(p and p.turns) or 2
         local seen = {}
+        local shieldGranted = false
+        local skillId = ctx.skill and ctx.skill.skillId or 0
+        local refreshFrostOnFrozenHit = getSkillModRaw(ctx.hero, skillId, "refreshFrostOnFrozenHit") == true
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
+            local allowFrostRefresh = refreshFrostOnFrozenHit and t and BattleBuff.GetBuff(t, 880002) ~= nil
+            local canApplyFrost = ClaimSpellLikeStatusApplication(ctx, t, "frost")
+                or (allowFrostRefresh and ClaimSpellLikeStatusApplication(ctx, t, "frost_refresh"))
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t)
-                and ClaimSpellLikeStatusApplication(ctx, t, "frost") then
+                and canApplyFrost then
                 seen[targetId] = true
                 if not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId]) then
                     BattleSkillStatus.ApplyFrost(t, turns, ctx.hero)
+                    if not shieldGranted and ctx.hero then
+                        local shieldAmount = getSkillModInt(ctx.hero, skillId, "onCastShield")
+                        local maxCharges = getSkillModInt(ctx.hero, skillId, "onCastShieldCharges")
+                        if shieldAmount > 0 and maxCharges > 0 then
+                            ctx.hero.passiveRuntime = ctx.hero.passiveRuntime or {}
+                            local rt = ctx.hero.passiveRuntime
+                            rt.wizardFrostArmorShieldUsed = tonumber(rt.wizardFrostArmorShieldUsed) or 0
+                            if rt.wizardFrostArmorShieldUsed < maxCharges then
+                                rt.wizardFrostArmorShieldUsed = rt.wizardFrostArmorShieldUsed + 1
+                                ctx.hero.tempHp = math.max(math.floor(tonumber(ctx.hero.tempHp) or 0), shieldAmount)
+                                shieldGranted = true
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -565,13 +715,18 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("wizard_blizzard_settlement", function(ctx, frameCopy, phase, spec)
         local BattleSkill = require("modules.battle_skill")
+        local BattleBuff = require("modules.battle_buff")
         local BattleSkillStatus = require("skills.battle_skill_status")
         local p = type(spec) == "table" and spec.param or {}
         if phase == "pre" then
             frameCopy.__frostedTargets = {}
+            frameCopy.__frozenTargets = {}
             for _, t in ipairs(frameCopy.targets or {}) do
                 if t and BattleSkillStatus.HasFrost(t) then
                     frameCopy.__frostedTargets[t.instanceId or t.id] = true
+                end
+                if t and BattleBuff.GetBuff(t, 880002) then
+                    frameCopy.__frozenTargets[t.instanceId or t.id] = true
                 end
             end
             return nil
@@ -579,6 +734,9 @@ function SkillEffectRegistry.RegisterBuiltins()
 
         local total = 0
         local seen = {}
+        local skillId = ctx.skill and ctx.skill.skillId or 0
+        local frozenExtend = getSkillModInt(ctx.hero, skillId, "vsFrozenExtendDuration")
+        local frozenCap = math.max(1, getSkillModInt(ctx.hero, skillId, "vsFrozenExtendCap"))
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
@@ -589,6 +747,15 @@ function SkillEffectRegistry.RegisterBuiltins()
                 end
                 if ClaimSpellLikeStatusApplication(ctx, t, "frost") then
                     BattleSkillStatus.ApplyFrost(t, 2, ctx.hero)
+                end
+                if frozenExtend > 0 and frameCopy.__frozenTargets and frameCopy.__frozenTargets[t.instanceId or t.id] then
+                    local frozenBuff = BattleBuff.GetBuff(t, 880002)
+                    if frozenBuff then
+                        local nextDuration = math.min(frozenCap, math.max(tonumber(frozenBuff.duration) or 0, 1) + frozenExtend)
+                        frozenBuff.duration = nextDuration
+                    else
+                        BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880002, ctx.skill, { duration = math.min(frozenCap, 1 + frozenExtend) })
+                    end
                 end
             end
         end
@@ -606,7 +773,9 @@ function SkillEffectRegistry.RegisterBuiltins()
 
         -- §6 markRecastPerRound：仅当显式配置 > 0 时启用 per-round 限速；默认不变。
         local skillId = ctx.skill and ctx.skill.skillId or 0
-        local recastLimit = getSkillModInt(ctx.hero, skillId, "markRecastPerRound") + getClassModInt(ctx.hero, "markRecastPerRound")
+        local recastLimit = getSkillModInt(ctx.hero, skillId, "markRecastPerRound")
+            + getSkillModInt(ctx.hero, 80009002, "markRecastPerRound")
+            + getClassModInt(ctx.hero, "markRecastPerRound")
         local recastUsed = 0
         if recastLimit > 0 and ctx.hero then
             ctx.hero.passiveRuntime = ctx.hero.passiveRuntime or {}
@@ -639,6 +808,27 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { buffId = 890001 }
     end)
 
+    SkillEffectRegistry.Register("extend_static_mark", function(ctx, frameCopy, _, spec)
+        local BattleBuff = require("modules.battle_buff")
+        local p = type(spec) == "table" and spec.param or {}
+        local turns = math.max(0, math.floor(tonumber(p and p.turns) or 0))
+        if turns <= 0 then
+            return nil
+        end
+        local seen = {}
+        for _, t in ipairs(frameCopy.targets or {}) do
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
+                local markBuff = BattleBuff.GetBuff(t, 890001)
+                if markBuff then
+                    markBuff.duration = math.max(tonumber(markBuff.duration) or 0, 1) + turns
+                end
+            end
+        end
+        return { buffId = 890001 }
+    end)
+
     SkillEffectRegistry.Register("warlock_thunderstorm_settlement", function(ctx, frameCopy, phase, spec)
         local BattleBuff = require("modules.battle_buff")
         local BattleSkillStatus = require("skills.battle_skill_status")
@@ -656,12 +846,17 @@ function SkillEffectRegistry.RegisterBuiltins()
 
         local total = 0
         local seen = {}
+        local markedHits = 0
+        local hitTargetIds = {}
+        local skillId = ctx.skill and ctx.skill.skillId or 0
         for _, t in ipairs(frameCopy.targets or {}) do
             local targetId = t and (t.instanceId or t.id) or nil
             if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
                 seen[targetId] = true
+                hitTargetIds[#hitTargetIds + 1] = targetId
                 local wasMarked = frameCopy.__staticMarkedTargets and frameCopy.__staticMarkedTargets[t.instanceId or t.id]
                 if wasMarked then
+                    markedHits = markedHits + 1
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "thunder", ctx.skill)
                     BattleBuff.DelBuffBySubType(t, 890001)
                 else
@@ -669,6 +864,21 @@ function SkillEffectRegistry.RegisterBuiltins()
                         BattleSkillStatus.ApplyStaticMark(t, turns, ctx.hero)
                     end
                 end
+            end
+        end
+        local extraPerMarked = getSkillModInt(ctx.hero, skillId, "onMarkHitChainHalf")
+        local extraCap = getSkillModInt(ctx.hero, skillId, "onMarkHitChainHalfPerCast")
+        if markedHits > 0 and extraPerMarked > 0 then
+            local extraChains = markedHits * extraPerMarked
+            if extraCap > 0 then
+                extraChains = math.min(extraChains, extraCap)
+            end
+            if extraChains > 0 then
+                total = total + ApplyChainLightningDirect(ctx.hero, extraChains, "1d6+1", {
+                    preferMarked = true,
+                    damageMultiplier = 0.5,
+                    excludeTargetIds = hitTargetIds,
+                })
             end
         end
         return {

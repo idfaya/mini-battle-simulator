@@ -227,6 +227,70 @@ local function JoinDiceParts(a, b)
     return a .. ";" .. b
 end
 
+local function GetTargetConditionState(attacker, defender)
+    local BattleBuff = require("modules.battle_buff")
+    local okRanger, RangerBuildPassives = pcall(require, "skills.ranger_build_passives")
+    return {
+        burning = defender and BattleBuff.GetBuff(defender, 870001) ~= nil or false,
+        frosted = defender and BattleBuff.GetBuff(defender, 880005) ~= nil or false,
+        frozen = defender and BattleBuff.GetBuff(defender, 880002) ~= nil or false,
+        stunned = defender and BattleBuff.GetBuff(defender, 880003) ~= nil or false,
+        hunterMarked = okRanger and RangerBuildPassives and RangerBuildPassives.IsTargetMarkedBy
+            and RangerBuildPassives.IsTargetMarkedBy(attacker, defender) == true or false,
+    }
+end
+
+local function GetConditionalHitBonusForTarget(attacker, defender, skillId)
+    local state = GetTargetConditionState(attacker, defender)
+    local bonus = 0
+    if state.frosted or state.frozen then
+        bonus = bonus + math.floor(tonumber(FeatModHelper.GetSkillMod(attacker, skillId, "vsFrostBonusHit", 0)) or 0)
+    end
+    if state.hunterMarked then
+        bonus = bonus + math.floor(tonumber(FeatModHelper.GetSkillMod(attacker, skillId, "vsMarkBonusHit", 0)) or 0)
+    end
+    return bonus
+end
+
+local function AppendConditionalDamageDiceForTarget(attacker, defender, skillId, diceExpr)
+    local state = GetTargetConditionState(attacker, defender)
+    local extra = ""
+    if state.burning then
+        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsBurningBonusDice", nil)
+        if type(bonus) == "string" and bonus ~= "" then
+            extra = JoinDiceParts(extra, bonus)
+        end
+    end
+    if state.frosted or state.frozen then
+        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsFrostBonusDice", nil)
+        if type(bonus) == "string" and bonus ~= "" then
+            extra = JoinDiceParts(extra, bonus)
+        end
+    end
+    if state.frozen then
+        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsFrozenBonusDice", nil)
+        if type(bonus) == "string" and bonus ~= "" then
+            extra = JoinDiceParts(extra, bonus)
+        end
+    end
+    if state.hunterMarked then
+        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsMarkBonusDice", nil)
+        if type(bonus) == "string" and bonus ~= "" then
+            extra = JoinDiceParts(extra, bonus)
+        end
+    end
+    if state.stunned then
+        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "bonusVsStunDice", nil)
+        if type(bonus) == "string" and bonus ~= "" then
+            extra = JoinDiceParts(extra, bonus)
+        end
+    end
+    if extra ~= "" then
+        return JoinDiceParts(diceExpr, extra)
+    end
+    return diceExpr
+end
+
 function BattleSkill.GetPhysicalDamageDice(hero, skill, damageKind)
     local classId = GetClassId(hero)
     return ClassWeaponConfig.GetWeaponDice(classId) or "1d6"
@@ -362,6 +426,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         damageKind = damageKind,
         damage = 0,
     }
+    local skillIdForMods = skill and (skill.skillId or skill.id) or (meta and meta.skillId) or opts.skillId
 
     if opts.skipCheck == true then
         local diceExpr = opts.damageDice or (meta and meta.damageDice) or "1d4"
@@ -405,6 +470,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             or (meta and meta.damageDice)
             or (BattleSkill.GetSpellDamageDice and BattleSkill.GetSpellDamageDice(attacker, skill, meta and meta.isAOE, damageKind))
             or "1d6+3"
+        diceExpr = AppendConditionalDamageDiceForTarget(attacker, defender, skillIdForMods, diceExpr)
         local rolled = 0
         local damageRoll = nil
         if not saveResult.success then
@@ -462,11 +528,11 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     end
 
     -- §6 bonusHit：技能级命中加值（来源 hero.buildState.skillMods[skillId].bonusHit）
-    local skillIdForMods = skill and (skill.skillId or skill.id) or (meta and meta.skillId) or opts.skillId
     local bonusHitMod = FeatModHelper.GetSkillMod(attacker, skillIdForMods, "bonusHit", 0)
     if bonusHitMod ~= 0 then
         attackBonus = (tonumber(attackBonus) or 0) + bonusHitMod
     end
+    attackBonus = (tonumber(attackBonus) or 0) + GetConditionalHitBonusForTarget(attacker, defender, skillIdForMods)
 
     local hitResult = BattleFormula.RollHit(attacker, defender, {
         mode = opts.mode or "normal",
@@ -512,6 +578,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
             or (BattleSkill.GetPhysicalDamageDice and BattleSkill.GetPhysicalDamageDice(attacker, skill, damageKind))
             or "1d6+2"
     end
+    diceExpr = AppendConditionalDamageDiceForTarget(attacker, defender, skillIdForMods, diceExpr)
     local diceTotal, diceDetail = Dice.Roll(diceExpr, { crit = hitResult.crit == true })
     local rolled = diceTotal * diceScale
     result.damageRoll = {

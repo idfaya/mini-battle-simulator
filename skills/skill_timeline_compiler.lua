@@ -2,6 +2,37 @@ local SkillEffectRegistry = require("skills.skill_effect_registry")
 
 local SkillTimelineCompiler = {}
 
+local function getSkillModRaw(unit, skillId, key)
+    if not unit or not skillId then
+        return nil
+    end
+    local buildState = unit.buildState
+    if type(buildState) ~= "table" then
+        return nil
+    end
+    local skillMods = buildState.skillMods
+    if type(skillMods) ~= "table" then
+        return nil
+    end
+    local entry = skillMods[skillId]
+    if type(entry) ~= "table" then
+        return nil
+    end
+    return entry[key]
+end
+
+local function joinDiceParts(a, b)
+    a = type(a) == "string" and a or ""
+    b = type(b) == "string" and b or ""
+    if a == "" then
+        return b
+    end
+    if b == "" then
+        return a
+    end
+    return a .. ";" .. b
+end
+
 -- Keep timeline damage/heal semantics consistent with the default attack path:
 -- - run DefBeforeDmg / DefAfterDmg passives
 -- - trigger damage-related buffs
@@ -62,6 +93,15 @@ local function ExecuteOp(ctx, frameCopy)
         local meta = Skill5eMeta.Get(skillId)
         local attackMode = Skill5eMeta.ResolveAttackMode(meta)
         local diceScale = tonumber(meta and meta.diceScale) or (BattleFormula.GetDiceScale and BattleFormula.GetDiceScale()) or 1
+        local skillBonusDamageDice = getSkillModRaw(ctx.hero, skillId, "bonusDamageDice")
+        local frameBonusDamageDice = frameCopy.bonusDamageDice
+        local effectiveDamageDice = joinDiceParts(
+            frameCopy.damageDice or (meta and meta.damageDice) or "",
+            joinDiceParts(frameBonusDamageDice, skillBonusDamageDice)
+        )
+        if effectiveDamageDice == "" then
+            effectiveDamageDice = nil
+        end
         for _, target in ipairs(targets) do
             if target and not target.isDead then
                 local dmg = 0
@@ -89,7 +129,7 @@ local function ExecuteOp(ctx, frameCopy)
                         skill = ctx.skill,
                         meta = effectiveMeta,
                         damageKind = resolvedKind,
-                        damageDice = frameCopy.damageDice,
+                        damageDice = effectiveDamageDice,
                     })
                     local saveResult = damageResult and damageResult.save or nil
                     hitMetaByTarget[targetId] = { save = saveResult, saveType = saveType, dc = dc }
@@ -154,7 +194,7 @@ local function ExecuteOp(ctx, frameCopy)
                         skill = ctx.skill,
                         meta = meta,
                         damageKind = resolvedKind,
-                        damageDice = frameCopy.damageDice,
+                        damageDice = effectiveDamageDice,
                         attackBonus = attackBonus,
                     })
                     local hitResult = damageResult and damageResult.hit or nil
@@ -300,6 +340,5 @@ function SkillTimelineCompiler.Build(hero, targets, skill, skillDef)
 end
 
 return SkillTimelineCompiler
-
 
 
