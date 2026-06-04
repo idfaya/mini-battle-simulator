@@ -194,4 +194,71 @@ do
     BattleFormation.OnFinal()
 end
 
+do
+    -- 构建链顺序稳定性：合法 selectedFeatIds 反序输入也应稳定通过。
+    local sel = canonicalSelections(3, 5)
+    local reversed = {}
+    for i = #sel, 1, -1 do
+        reversed[#reversed + 1] = sel[i]
+    end
+    local ok = pcall(HeroBuild.CompileBuild, 3, 5, reversed)
+    assert_true(ok, "CompileBuild stable when selectedFeatIds reversed")
+end
+
+do
+    -- 多父 capstone AND 语义：基于 canonical chain (lv10) 校验
+    -- requireAllPrerequisites=true 的 capstone 在缺任一父节点时必须被拒绝。
+    local andCapstoneCases = {
+        -- (class, expectedParentCount) — 用 canonical lv10 链路覆盖完整选包；
+        -- 仅纳入 capstone.requireAllPrerequisites=true 的职业。
+        { class = 1,  parents = 4 }, -- c_rogue_deadly_sneak
+        { class = 3,  parents = 3 }, -- c_monk_combo_grandmaster
+        { class = 5,  parents = 3 }, -- c_ranger_mark_master
+        { class = 9,  parents = 3 }, -- c_warlock_chain_grandmaster
+        { class = 10, parents = 3 }, -- c_barbarian_strike_master
+    }
+    for _, case in ipairs(andCapstoneCases) do
+        local fullSel = canonicalSelections(case.class, 10)
+        -- canonical 链尾节点必须是 isCapstone=true 且 requireAllPrerequisites=true。
+        local capstoneId = fullSel[#fullSel]
+        local capstone = FeatBuildConfig.GetFeat(capstoneId)
+        assert_true(capstone and capstone.isCapstone == true,
+            string.format("class %d canonical chain ends with capstone", case.class))
+        assert_true(capstone.requireAllPrerequisites == true,
+            string.format("class %d capstone %s marked requireAllPrerequisites",
+                case.class, tostring(capstoneId)))
+        local parents = capstone.prerequisites or {}
+        assert_true(#parents == case.parents,
+            string.format("class %d capstone has %d parents", case.class, case.parents))
+        -- 完整 canonical 选包应通过。
+        local okFull = pcall(HeroBuild.CompileBuild, case.class, 10, fullSel)
+        assert_true(okFull,
+            string.format("class %d canonical chain accepts capstone", case.class))
+        -- 去掉任一可选父节点应拒绝（轮询所有父节点，逐个剔除验证 AND 语义）。
+        -- Lv1 fixed feat 由 classes.json 自动注入，不能通过剔除 selectedFeatIds 移除，跳过。
+        local lv1Set = {}
+        for _, fid in ipairs(ClassBuildProgression.GetLv1FeatIds(case.class)) do
+            lv1Set[tonumber(fid) or 0] = true
+        end
+        local prunableCount = 0
+        for _, parentId in ipairs(parents) do
+            if not lv1Set[tonumber(parentId) or 0] then
+                prunableCount = prunableCount + 1
+                local pruned = {}
+                for _, fid in ipairs(fullSel) do
+                    if tonumber(fid) ~= tonumber(parentId) then
+                        pruned[#pruned + 1] = fid
+                    end
+                end
+                local okMissing = pcall(HeroBuild.CompileBuild, case.class, 10, pruned)
+                assert_true(not okMissing,
+                    string.format("class %d capstone rejects build missing parent %s",
+                        case.class, tostring(parentId)))
+            end
+        end
+        assert_true(prunableCount > 0,
+            string.format("class %d capstone has at least one non-Lv1 parent", case.class))
+    end
+end
+
 log("Three-class build pipeline tests passed.")
