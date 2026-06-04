@@ -107,6 +107,7 @@ function skill_80009003.BuildTimeline(hero, targets, skill)
         end
         local tags = {
             { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },
+            { tag = "warlock_static_mark_payout", phase = "post" },
         }
         if markDurationDelta > 0 then
             tags[#tags + 1] = { tag = "extend_static_mark", phase = "post", param = { turns = markDurationDelta } }

@@ -142,6 +142,8 @@ end
 ---@param isLeft boolean 是否在左侧队伍
 ---@return table 英雄对象
 local function CreateHero(heroData, wpType, isLeft)
+    heroData.skillData = heroData.skillData or {}
+    heroData.passiveRuntime = heroData.passiveRuntime or {}
     local hero = {
         -- 基础信息
         instanceId = GenerateInstanceId(),
@@ -191,6 +193,9 @@ local function CreateHero(heroData, wpType, isLeft)
         skills = heroData.skills or {},
         skillsConfig = heroData.skillsConfig or {},
         passiveSkills = heroData.passiveSkills or {},
+        skillData = heroData.skillData,
+        buildState = heroData.buildState or nil,
+        passiveRuntime = heroData.passiveRuntime,
         buffs = {},
         
         -- 能量相关

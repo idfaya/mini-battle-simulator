@@ -3,6 +3,7 @@ local SkillEffectRegistry = {
 }
 
 local builtinsRegistered = false
+local ApplyDirectSpellDamage
 
 -- §6 各 mod 字段的轻量读取（不引入 FeatModHelper 以避免循环依赖）。
 local function getClassModInt(unit, key)
@@ -135,6 +136,68 @@ local function EnsurePassiveRuntime(hero)
     end
     hero.passiveRuntime = hero.passiveRuntime or {}
     return hero.passiveRuntime
+end
+
+local function GetBattleRound()
+    local BattleLogic = require("modules.battle_logic")
+    return tonumber(BattleLogic.GetCurRound and BattleLogic.GetCurRound()) or 0
+end
+
+local function HasStaticMark(target)
+    local BattleBuff = require("modules.battle_buff")
+    return target and BattleBuff.GetBuff(target, 890001) ~= nil
+end
+
+local function GetWarlockMarkPayoutLimit(hero)
+    local configured = math.max(
+        getSkillModInt(hero, 80009002, "markPayoutPerRound"),
+        getClassModInt(hero, "markPayoutPerRound")
+    )
+    if configured > 0 then
+        return configured
+    end
+    return 1
+end
+
+local function ClaimWarlockMarkPayout(hero, target)
+    if not hero or not target then
+        return false
+    end
+    local runtime = EnsurePassiveRuntime(hero)
+    local round = GetBattleRound()
+    if runtime.warlockMarkedDamageRound ~= round then
+        runtime.warlockMarkedDamageRound = round
+        runtime.warlockMarkedDamageCount = 0
+        runtime.warlockMarkedDamageTargets = {}
+    end
+    local maxPerRound = GetWarlockMarkPayoutLimit(hero)
+    if (tonumber(runtime.warlockMarkedDamageCount) or 0) >= maxPerRound then
+        return false
+    end
+    local targetId = tonumber(target.instanceId or target.id) or 0
+    if maxPerRound > 1 and targetId ~= 0 and runtime.warlockMarkedDamageTargets[targetId] == true then
+        return false
+    end
+    runtime.warlockMarkedDamageCount = (tonumber(runtime.warlockMarkedDamageCount) or 0) + 1
+    if targetId ~= 0 then
+        runtime.warlockMarkedDamageTargets[targetId] = true
+    end
+    return true
+end
+
+local function ApplyWarlockStaticMarkPayout(hero, target, skill)
+    if not hero or not target or target.isDead or not HasStaticMark(target) then
+        return 0
+    end
+    if not ClaimWarlockMarkPayout(hero, target) then
+        return 0
+    end
+    local diceExpr = "1d6"
+    local bonusDice = getSkillModRaw(hero, 80009002, "markBonusDice")
+    if type(bonusDice) == "string" and bonusDice ~= "" then
+        diceExpr = diceExpr .. ";" .. bonusDice
+    end
+    return ApplyDirectSpellDamage(hero, target, diceExpr, "thunder", skill)
 end
 
 local function IsClericChannelReady(hero)
@@ -285,7 +348,7 @@ local function ApplyChainLightningDirect(hero, hitCount, diceExpr, opts)
     return totalDamage
 end
 
-local function ApplyDirectSpellDamage(hero, target, diceExpr, damageKind, skill)
+ApplyDirectSpellDamage = function(hero, target, diceExpr, damageKind, skill)
     if not hero or not target or target.isDead then
         return 0
     end
@@ -829,6 +892,28 @@ function SkillEffectRegistry.RegisterBuiltins()
         return { buffId = 890001 }
     end)
 
+    SkillEffectRegistry.Register("warlock_static_mark_payout", function(ctx, frameCopy, phase)
+        if phase ~= "post" then
+            return nil
+        end
+        local total = 0
+        local seen = {}
+        for _, t in ipairs(frameCopy.targets or {}) do
+            local targetId = t and (t.instanceId or t.id) or nil
+            if t and not t.isDead and targetId and not seen[targetId] and DidFrameAffectTarget(frameCopy, t) then
+                seen[targetId] = true
+                total = total + ApplyWarlockStaticMarkPayout(ctx.hero, t, ctx.skill)
+            end
+        end
+        if total <= 0 then
+            return nil
+        end
+        return {
+            damage = (tonumber(frameCopy.damage) or 0) + total,
+            effectValue = (tonumber(frameCopy.effectValue) or tonumber(frameCopy.damage) or 0) + total,
+        }
+    end)
+
     SkillEffectRegistry.Register("warlock_thunderstorm_settlement", function(ctx, frameCopy, phase, spec)
         local BattleBuff = require("modules.battle_buff")
         local BattleSkillStatus = require("skills.battle_skill_status")
@@ -857,6 +942,7 @@ function SkillEffectRegistry.RegisterBuiltins()
                 local wasMarked = frameCopy.__staticMarkedTargets and frameCopy.__staticMarkedTargets[t.instanceId or t.id]
                 if wasMarked then
                     markedHits = markedHits + 1
+                    total = total + ApplyWarlockStaticMarkPayout(ctx.hero, t, ctx.skill)
                     total = total + ApplyDirectSpellDamage(ctx.hero, t, p.bonusDice or "1d8", "thunder", ctx.skill)
                     BattleBuff.DelBuffBySubType(t, 890001)
                 else

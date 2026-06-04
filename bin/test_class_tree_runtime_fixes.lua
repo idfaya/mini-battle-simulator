@@ -166,7 +166,7 @@ do
     ranger.class = 5
     ranger.classId = 5
     ranger.buildState.skillMods[IDS.ranger_hunter_mark] = {
-        markPayoutPerRound = 1,
+        markPayoutPerRound = 2,
         markBonusDice = "1d4",
     }
     BattleFormation.Init({
@@ -231,6 +231,47 @@ do
     local damageContext = { attacker = paladin, damage = 5 }
     PaladinBuildPassives.ApplyPaladinProtections(mainTarget, { damageContext = damageContext })
     assert_true(damageContext.damage == 6, "holy mark adds global vulnerable damage on next hit")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local paladin = new_unit(321, "AuraPaladin", true, 2)
+    local nearAlly = new_unit(322, "AuraNear", true, 1)
+    local farAlly = new_unit(323, "AuraFar", true, 6)
+    paladin.class = 4
+    paladin.classId = 4
+    paladin.skills = {
+        { skillId = IDS.paladin_shelter_prayer },
+        { skillId = IDS.paladin_guardian_aura },
+    }
+    paladin.skillData.skillInstances[IDS.paladin_shelter_prayer] = true
+    paladin.skillData.skillInstances[IDS.paladin_guardian_aura] = true
+    BattleFormation.Init({
+        teamLeft = { paladin, nearAlly, farAlly },
+        teamRight = {},
+    })
+    local friendTeam = BattleFormation.GetFriendTeam(paladin) or {}
+    for _, ally in ipairs(friendTeam) do
+        if ally.wpType == 2 then
+            paladin = ally
+        elseif ally.wpType == 1 then
+            nearAlly = ally
+        elseif ally.wpType == 6 then
+            farAlly = ally
+        end
+    end
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(nearAlly, nil) == 1, "paladin aura base range covers adjacent ally")
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 0, "paladin aura base range excludes distant ally")
+    paladin.buildState.classMods.paladinAuraRangeDelta = 1
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 1, "paladin aura range delta expands aura distance")
+    paladin.buildState.classMods.paladinAuraGlobal = true
+    paladin.buildState.classMods.paladinAuraAcBonus = 1
+    paladin.buildState.classMods.paladinAuraSaveBonus = 1
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 2, "paladin aura global applies passive AC bonuses to full team")
+    assert_true(PaladinBuildPassives.GetAuraSaveBonus(farAlly, "will") == 1, "paladin aura global applies passive save bonuses to full team")
+    PaladinBuildPassives.ActivateGuardianAura(paladin)
+    assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 3, "paladin guardian aura respects global aura coverage")
 end
 
 do
@@ -453,10 +494,92 @@ end
 do
     BattleFormation.OnFinal()
     BattleBuff.Init()
-    local warlock = new_unit(411, "RuntimeWarlockEcho", true, 5)
-    local targetA = new_unit(412, "ChainStart", false, 1)
-    local targetB = new_unit(413, "ChainMid", false, 2)
-    local targetC = new_unit(414, "ChainEnd", false, 4)
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local warlock = new_unit(409, "RuntimeWarlockPayout", true, 5)
+    local targetA = new_unit(410, "PayoutA", false, 1)
+    local targetB = new_unit(411, "PayoutB", false, 2)
+    local targetC = new_unit(412, "PayoutC", false, 3)
+    warlock.class = 9
+    warlock.classId = 9
+    warlock.buildState.skillMods[80009002] = {
+        markBonusDice = "1d4",
+        markPayoutPerRound = 2,
+    }
+    local payoutHandler = SkillEffectRegistry.handlers["warlock_static_mark_payout"]
+    local oldResolve = BattleSkill.ResolveScaledDamage
+    local oldApplyDamage = BattleDmgHeal.ApplyDamage
+    local payoutCalls = {}
+    BattleSkill.ResolveScaledDamage = function(_, target, opts)
+        payoutCalls[#payoutCalls + 1] = {
+            targetId = target and target.instanceId or 0,
+            diceExpr = opts and opts.damageDice or "",
+        }
+        return { damage = 5 }
+    end
+    BattleDmgHeal.ApplyDamage = function() end
+    BattleBuff.Add(warlock, targetA, {
+        buffId = 890001,
+        name = "静电印记A",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 890001,
+        duration = 2,
+        canStack = false,
+    })
+    BattleBuff.Add(warlock, targetB, {
+        buffId = 890001,
+        name = "静电印记B",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 890001,
+        duration = 2,
+        canStack = false,
+    })
+    BattleBuff.Add(warlock, targetC, {
+        buffId = 890001,
+        name = "静电印记C",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 890001,
+        duration = 2,
+        canStack = false,
+    })
+    local payoutCtx = { hero = warlock, skill = { skillId = 80009001, name = "邪能冲击" } }
+    payoutHandler(payoutCtx, {
+        targets = { targetA },
+        __hitMetaByTarget = {
+            [targetA.instanceId] = { damage = 5 },
+        },
+    }, "post")
+    payoutHandler(payoutCtx, {
+        targets = { targetA },
+        __hitMetaByTarget = {
+            [targetA.instanceId] = { damage = 5 },
+        },
+    }, "post")
+    payoutHandler(payoutCtx, {
+        targets = { targetB },
+        __hitMetaByTarget = {
+            [targetB.instanceId] = { damage = 5 },
+        },
+    }, "post")
+    payoutHandler(payoutCtx, {
+        targets = { targetC },
+        __hitMetaByTarget = {
+            [targetC.instanceId] = { damage = 5 },
+        },
+    }, "post")
+    BattleSkill.ResolveScaledDamage = oldResolve
+    BattleDmgHeal.ApplyDamage = oldApplyDamage
+    assert_true(#payoutCalls == 2, "warlock static mark payout uses configured total count and same-target cap")
+    assert_true(payoutCalls[1].diceExpr == "1d6;1d4", "warlock static mark payout merges mark bonus dice")
+    assert_true(payoutCalls[2].targetId == targetB.instanceId, "warlock static mark payout spends second charge on another marked target")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local warlock = new_unit(421, "RuntimeWarlockEcho", true, 5)
+    local targetA = new_unit(422, "ChainStart", false, 1)
+    local targetB = new_unit(423, "ChainMid", false, 2)
+    local targetC = new_unit(424, "ChainEnd", false, 4)
     warlock.class = 9
     warlock.classId = 9
     warlock.buildState.skillMods[80009003] = {

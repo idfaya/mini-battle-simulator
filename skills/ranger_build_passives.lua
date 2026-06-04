@@ -73,11 +73,13 @@ local function applyMarkedBonusDamage(hero, target)
     end
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    -- §6 markPayoutPerRound：默认每回合 1 次，feat 可叠加更多次。
-    local maxPerRound = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markPayoutPerRound", 0)))
-    local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.markPayoutPerRound)) or 0
-    if classExtra > 0 then
-        maxPerRound = maxPerRound + math.floor(classExtra)
+    -- §6 markPayoutPerRound：默认每回合 1 次；显式配置时表示总次数，而非增量。
+    local maxPerRound = 1
+    local configuredSkillLimit = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markPayoutPerRound", 0)))
+    local configuredClassLimit = math.max(0, math.floor(tonumber(hero.buildState and hero.buildState.classMods and hero.buildState.classMods.markPayoutPerRound) or 0))
+    local configuredLimit = math.max(configuredSkillLimit, configuredClassLimit)
+    if configuredLimit > 0 then
+        maxPerRound = configuredLimit
     end
     if runtime.rangerMarkedDamageRoundKey ~= round then
         runtime.rangerMarkedDamageRoundKey = round

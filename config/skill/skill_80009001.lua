@@ -18,6 +18,7 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
                 damageDice = damageDice,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "thunder" } },
+                    { tag = "warlock_static_mark_payout", phase = "post" },
                     { tag = "apply_static_mark", phase = "post", param = { turns = 2 } },
                 },
             },
@@ -27,7 +28,6 @@ function skill_80009001.BuildTimeline(hero, targets, skill)
 end
 
 return skill_80009001
-
 
 
 

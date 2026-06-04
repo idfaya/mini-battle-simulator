@@ -1,4 +1,5 @@
 local BattleEvent = require("core.battle_event")
+local FeatModHelper = require("skills.feat_mod_helper")
 
 local BuildPassiveCommon = {}
 

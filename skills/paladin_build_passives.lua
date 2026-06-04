@@ -43,6 +43,10 @@ local function isFrontRow(unit)
     return wpType >= 1 and wpType <= 3
 end
 
+local function sameUnit(a, b)
+    return BuildPassiveCommon.SameUnit(a, b)
+end
+
 local function buildContextState(context)
     return {
         context = context,
@@ -75,17 +79,56 @@ local function eachFriendlyPaladin(defender, callback)
         return nil
     end
     local BattleFormation = require("modules.battle_formation")
+    local best = nil
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
         if isAlive(ally)
             and (hasSkill(ally, IDS.paladin_shelter_prayer)
                 or hasSkill(ally, IDS.paladin_guardian_aura)) then
             local result = callback(ally, ensureRuntime(ally))
-            if result ~= nil then
-                return result
+            if type(result) == "number" then
+                best = math.max(tonumber(best) or 0, result)
+            elseif result ~= nil and best == nil then
+                best = result
             end
         end
     end
-    return nil
+    return best
+end
+
+local function getAuraDistance(a, b)
+    local BattleFormation = require("modules.battle_formation")
+    local aWpType = tonumber(a and a.wpType)
+    local bWpType = tonumber(b and b.wpType)
+    if not aWpType or not bWpType then
+        return nil
+    end
+    local aRow = BattleFormation.GetHeroRow(aWpType)
+    local bRow = BattleFormation.GetHeroRow(bWpType)
+    local aColumn = BattleFormation.GetHeroColumn(aWpType)
+    local bColumn = BattleFormation.GetHeroColumn(bWpType)
+    if not aRow or not bRow or not aColumn or not bColumn then
+        return nil
+    end
+    return math.abs(aRow - bRow) + math.abs(aColumn - bColumn)
+end
+
+local function getAuraMaxDistance(paladin)
+    if BuildPassiveCommon.HasSkillOrClassFlag(paladin, IDS.paladin_shelter_prayer, "paladinAuraGlobal") then
+        return math.huge
+    end
+    local delta = math.max(0, math.floor(tonumber(FeatModHelper.GetClassMod(paladin, "paladinAuraRangeDelta", 0)) or 0))
+    return 1 + delta
+end
+
+local function isUnitInAuraRange(paladin, unit)
+    if not isAlive(paladin) or not isAlive(unit) or sameUnit(paladin, unit) then
+        return false
+    end
+    local distance = getAuraDistance(paladin, unit)
+    if distance == nil then
+        return true
+    end
+    return distance <= getAuraMaxDistance(paladin)
 end
 
 local function clearTurnStates(hero)
@@ -176,12 +219,15 @@ function PaladinBuildPassives.ActivateGuardianAura(hero)
     BattleSkill.ApplyBuffFromSkill(hero, hero, GUARDIAN_AURA_BUFF_ID, nil, {
         duration = 1,
     })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 展开守护灵光：我方全体获得 AC 加成和首次受击减伤",
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 展开守护灵光：灵光范围内友军获得 AC 加成",
         hero and hero.name or "Unknown"))
 end
 
 function PaladinBuildPassives.GetAuraAcBonus(defender, attacker)
     return eachFriendlyPaladin(defender, function(ally, runtime)
+        if not isUnitInAuraRange(ally, defender) then
+            return nil
+        end
         local total = 0
         if hasSkill(ally, IDS.paladin_shelter_prayer) then
             total = total + 1
@@ -199,6 +245,9 @@ end
 
 function PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)
     return eachFriendlyPaladin(defender, function(ally, runtime)
+        if not isUnitInAuraRange(ally, defender) then
+            return nil
+        end
         local total = 0
         if hasSkill(ally, IDS.paladin_shelter_prayer) then
             total = total + math.max(0, FeatModHelper.GetClassMod(ally, "paladinAuraSaveBonus", 0))
