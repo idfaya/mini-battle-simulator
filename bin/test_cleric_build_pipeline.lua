@@ -98,7 +98,7 @@ do
 end
 
 do
-    local build = HeroBuild.CompileBuild(6, 2, { FeatBuildConfig.Ids.b_cleric_priest_prayer })
+    local build = HeroBuild.CompileBuild(6, 2, { FeatBuildConfig.Ids.b_cleric_turn_undead })
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.cleric_turn_undead), "Cleric Lv2 tree feat grants turn undead")
 end
 
@@ -172,14 +172,14 @@ do
     ally.hp = 20
     ally.maxHp = 100
 
-    local oldPickLowestHpAlly = BuildPassiveCommon.PickLowestHpAlly
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
     local oldCalcHeal = require("modules.battle_skill").CalculateHealDice
     local BattleSkill = require("modules.battle_skill")
     local oldApplyHeal = require("modules.battle_dmg_heal").ApplyHeal
     local healed = 0
 
-    BuildPassiveCommon.PickLowestHpAlly = function()
-        return ally
+    BattleFormation.GetFriendTeam = function()
+        return { hero, ally }
     end
     BattleSkill.CalculateHealDice = function(_, _, dice)
         if dice == "1d8" then return 8 end
@@ -196,9 +196,74 @@ do
     assert_true(second > 0, "healing word can be reused after cooldown control")
     assert_true(healed == total + second, "healing word applies repeated heals without once-per-battle lock")
 
-    BuildPassiveCommon.PickLowestHpAlly = oldPickLowestHpAlly
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
     BattleSkill.CalculateHealDice = oldCalcHeal
     require("modules.battle_dmg_heal").ApplyHeal = oldApplyHeal
+end
+
+do
+    local hero = new_unit(7151, "GrandCleric")
+    local allyA = new_unit(7152, "LowestAlly")
+    local allyB = new_unit(7153, "SecondAlly")
+    local allyC = new_unit(7154, "HealthyAlly")
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.cleric_healing_word] = {
+                healLowestCount = 2,
+                dispelOnlyPrimary = true,
+            },
+        },
+    }
+    allyA.hp = 20
+    allyB.hp = 35
+    allyC.hp = 90
+    BattleBuff.Add(hero, allyA, {
+        buffId = 870001,
+        name = "BurnA",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 870001,
+        duration = 2,
+        canStack = false,
+    })
+    BattleBuff.Add(hero, allyB, {
+        buffId = 870003,
+        name = "PoisonB",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 870003,
+        duration = 2,
+        canStack = false,
+    })
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldCalcHeal = BattleSkill.CalculateHealDice
+    local oldApplyHeal = require("modules.battle_dmg_heal").ApplyHeal
+    local healedTargets = {}
+    BattleFormation.GetFriendTeam = function()
+        return { hero, allyA, allyB, allyC }
+    end
+    BattleSkill.CalculateHealDice = function(_, _, dice)
+        if dice == "1d8" then
+            return 8
+        end
+        return 0
+    end
+    require("modules.battle_dmg_heal").ApplyHeal = function(target, amount)
+        healedTargets[#healedTargets + 1] = {
+            targetId = target.instanceId,
+            amount = amount,
+        }
+    end
+    local total, primary = ClericBuildPassives.PerformHealingWord(hero, {
+        skillId = SkillRuntimeConfig.Ids.cleric_healing_word,
+        name = "治愈之言",
+    })
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+    BattleSkill.CalculateHealDice = oldCalcHeal
+    require("modules.battle_dmg_heal").ApplyHeal = oldApplyHeal
+    assert_true(total == 26, "healing word heals two lowest allies with level scaling")
+    assert_true(primary == allyA, "healing word keeps the lowest ally as primary target")
+    assert_true(#healedTargets == 2, "healing word grandmaster heals two allies")
+    assert_true(BattleBuff.GetBuff(allyA, 870001) == nil, "healing word dispels one debuff from primary target")
+    assert_true(BattleBuff.GetBuff(allyB, 870003) ~= nil, "healing word secondary target keeps debuff when dispel is primary-only")
 end
 
 do
@@ -243,6 +308,53 @@ do
     assert_true(secondDamageContext.damage == 20, "cleric shelter prayer is shared once per round across allies")
 
     BuildPassiveCommon.RollDice = oldRollDice
+    BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local cleric = new_unit(7251, "ShelterMasterCleric")
+    local lowest = new_unit(7252, "LowestProtected")
+    local other = new_unit(7253, "OtherAlly")
+    cleric.skills = {
+        { skillId = SkillRuntimeConfig.Ids.cleric_shelter_prayer },
+    }
+    cleric.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.cleric_shelter_prayer] = {
+                shelterPerUnit = true,
+                shelterTempHpFlat = 4,
+                shelterDebuffDurationDelta = -1,
+                shelterPrioritizeLowestHp = true,
+            },
+        },
+    }
+    lowest.hp = 20
+    other.hp = 60
+    local oldGetFriendTeam = BattleFormation.GetFriendTeam
+    local oldRollDice = BuildPassiveCommon.RollDice
+    BattleFormation.GetFriendTeam = function()
+        return { cleric, lowest, other }
+    end
+    BuildPassiveCommon.RollDice = function(dice)
+        if dice == "1d6" then
+            return 6
+        end
+        return 0
+    end
+    local lowDamage = { damage = 20 }
+    ClericBuildPassives.ApplyClericProtections(lowest, { damageContext = lowDamage })
+    local highDamage = { damage = 20 }
+    ClericBuildPassives.ApplyClericProtections(other, { damageContext = highDamage })
+    BuildPassiveCommon.RollDice = oldRollDice
+    assert_true(lowDamage.damage == 14, "shelter master still reduces damage for lowest ally")
+    assert_true((tonumber(lowest.tempHp) or 0) == 4, "shelter master grants upgraded temp hp")
+    assert_true(highDamage.damage == 20, "shelter master prioritizes the current lowest ally")
+    BattleSkill.ApplyBuffFromSkill(cleric, lowest, 870001, nil, { duration = 2 })
+    local burn = BattleBuff.GetBuff(lowest, 870001)
+    assert_true((tonumber(burn and burn.duration) or 0) == 1, "shelter master shortens next debuff duration by one round")
+    BattleSkill.ApplyBuffFromSkill(cleric, lowest, 870001, nil, { duration = 2 })
+    burn = BattleBuff.GetBuff(lowest, 870001)
+    assert_true((tonumber(burn and burn.duration) or 0) == 2, "shelter master debuff reduction is consumed after one use")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
 end
 

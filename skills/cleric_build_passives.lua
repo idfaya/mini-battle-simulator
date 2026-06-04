@@ -21,6 +21,10 @@ local function ensureRuntime(hero)
     return BuildPassiveCommon.EnsureRuntime(hero)
 end
 
+local function sameUnit(a, b)
+    return BuildPassiveCommon.SameUnit(a, b)
+end
+
 local function getRound()
     return BuildPassiveCommon.GetRound()
 end
@@ -103,6 +107,52 @@ local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, s
         ally.name or "目标",
         healAmount))
     return healAmount
+end
+
+local function getLowestHpAllies(hero, includeSelf, count)
+    local BattleFormation = require("modules.battle_formation")
+    local picked = {}
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if isAlive(ally) and (includeSelf or not sameUnit(ally, hero)) then
+            picked[#picked + 1] = ally
+        end
+    end
+    table.sort(picked, function(a, b)
+        local aMaxHp = math.max(1, tonumber(a.maxHp) or 1)
+        local bMaxHp = math.max(1, tonumber(b.maxHp) or 1)
+        local aRatio = math.max(0, tonumber(a.hp) or 0) / aMaxHp
+        local bRatio = math.max(0, tonumber(b.hp) or 0) / bMaxHp
+        if aRatio ~= bRatio then
+            return aRatio < bRatio
+        end
+        return (tonumber(a.instanceId or a.id) or 0) < (tonumber(b.instanceId or b.id) or 0)
+    end)
+    local maxCount = math.max(1, math.floor(tonumber(count) or 1))
+    while #picked > maxCount do
+        picked[#picked] = nil
+    end
+    return picked
+end
+
+local function clearOneDebuff(target)
+    local BattleBuff = require("modules.battle_buff")
+    for i = #(BattleBuff.GetAllBuffs(target) or {}), 1, -1 do
+        local buff = BattleBuff.GetAllBuffs(target)[i]
+        if buff and (buff.mainType == E_BUFF_MAIN_TYPE.BAD or buff.mainType == E_BUFF_MAIN_TYPE.CONTROL) then
+            return BattleBuff.DelBuffBySubType(target, buff.subType, 1)
+        end
+    end
+    return 0
+end
+
+local function grantShelterDebuffGuard(target, delta)
+    local value = math.floor(tonumber(delta) or 0)
+    if not isAlive(target) or value == 0 then
+        return
+    end
+    local runtime = ensureRuntime(target)
+    runtime.clericShelterDebuffDurationDelta = value
+    runtime.clericShelterDebuffCharges = 1
 end
 
 local function grantTempHp(target, amount, sourceName)
@@ -238,19 +288,30 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
     if not isAlive(hero) then
         return 0, nil
     end
-    local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
-    if not isAlive(ally) then
+    local mods = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[IDS.cleric_healing_word]
+        or {}
+    local healLowestCount = math.max(1, math.floor(tonumber(mods and mods.healLowestCount) or 1))
+    local targets = getLowestHpAllies(hero, true, healLowestCount)
+    local primaryTarget = targets[1]
+    if not isAlive(primaryTarget) then
         return 0, nil
     end
-    local amount = applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1, skill and skill.skillId or IDS.cleric_healing_word, skill and skill.name or "治愈之言")
-    local shieldValue = hero and hero.buildState and hero.buildState.skillMods
-        and hero.buildState.skillMods[IDS.cleric_healing_word]
-        and hero.buildState.skillMods[IDS.cleric_healing_word].postHealShield
-        or 0
-    if tonumber(shieldValue) and tonumber(shieldValue) > 0 then
-        grantTempHp(ally, shieldValue, skill and skill.name or "治愈之言")
+    local total = 0
+    local dispelOnlyPrimary = mods and mods.dispelOnlyPrimary == true
+    local shieldValue = math.max(0, math.floor(tonumber(mods and mods.postHealShield) or 0))
+    for index, ally in ipairs(targets) do
+        total = total + applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1,
+            skill and skill.skillId or IDS.cleric_healing_word,
+            skill and skill.name or "治愈之言")
+        if shieldValue > 0 then
+            grantTempHp(ally, shieldValue, skill and skill.name or "治愈之言")
+        end
+        if index == 1 or not dispelOnlyPrimary then
+            clearOneDebuff(ally)
+        end
     end
-    return amount, ally
+    return total, primaryTarget
 end
 
 function ClericBuildPassives.ActivateSanctuary(hero, skill)
@@ -314,12 +375,20 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
             local round = getRound()
             local bestReduction = 0
             local bestLabel = nil
+            local shelterMods = ally.buildState and ally.buildState.skillMods and ally.buildState.skillMods[IDS.cleric_shelter_prayer] or {}
             local defenderId = tonumber(defender.instanceId or defender.id) or 0
             -- §6 shelterPerUnit：默认按 caster 每回合 1 次；feat 解锁后按 per-defender 计数。
             local shelterPerUnit = FeatModHelper.HasFlag(ally, IDS.cleric_shelter_prayer, "shelterPerUnit")
                 or (ally.buildState and ally.buildState.classMods and ally.buildState.classMods.shelterPerUnit == true)
             if hasSkill(ally, IDS.cleric_shelter_prayer) then
                 local triggered = false
+                local prioritizeLowestHp = shelterMods and shelterMods.shelterPrioritizeLowestHp == true
+                if prioritizeLowestHp then
+                    local lowestAlly = BuildPassiveCommon.PickLowestHpAlly(ally, true)
+                    if not sameUnit(lowestAlly, defender) then
+                        goto continue_ally
+                    end
+                end
                 if shelterPerUnit then
                     runtime.clericShelterProtectedTargets = runtime.clericShelterProtectedTargets or {}
                     if runtime.clericShelterProtectedTargets[defenderId] ~= round then
@@ -344,7 +413,6 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
                     bestLabel or "神术庇护",
                     defender.name or "目标",
                     bestReduction))
-                local shelterMods = ally.buildState and ally.buildState.skillMods and ally.buildState.skillMods[IDS.cleric_shelter_prayer] or {}
                 local tempHpDice = shelterMods and shelterMods.shelterTempHpDice or nil
                 local tempHpFlat = math.max(0, math.floor(tonumber(shelterMods and shelterMods.shelterTempHpFlat) or 0))
                 local tempHp = tempHpFlat
@@ -354,8 +422,10 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
                 if tempHp > 0 then
                     grantTempHp(defender, tempHp, bestLabel)
                 end
+                grantShelterDebuffGuard(defender, shelterMods and shelterMods.shelterDebuffDurationDelta)
             end
         end
+        ::continue_ally::
     end
 end
 

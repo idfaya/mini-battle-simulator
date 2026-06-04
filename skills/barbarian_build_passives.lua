@@ -29,6 +29,38 @@ local function getRageNumberMod(hero, key, default)
     return num
 end
 
+local function getRageStringMod(hero, key)
+    local value = getRageSkillMods(hero)
+    value = value and value[key] or nil
+    return type(value) == "string" and value or nil
+end
+
+local function getHeavyStrikeMods(hero)
+    local buildState = hero and hero.buildState or nil
+    local skillMods = buildState and buildState.skillMods or nil
+    local heavyMods = skillMods and skillMods[IDS.barbarian_heavy_strike] or nil
+    if type(heavyMods) ~= "table" then
+        return nil
+    end
+    return heavyMods
+end
+
+local function getHeavyStrikeNumberMod(hero, key, default)
+    local value = getHeavyStrikeMods(hero)
+    value = value and value[key] or nil
+    local num = tonumber(value)
+    if num == nil then
+        return tonumber(default) or 0
+    end
+    return num
+end
+
+local function getHeavyStrikeStringMod(hero, key)
+    local value = getHeavyStrikeMods(hero)
+    value = value and value[key] or nil
+    return type(value) == "string" and value or nil
+end
+
 local function getBerserkDuration(hero)
     return math.max(1, BERSERK_DURATION_ROUNDS + getRageNumberMod(hero, "rageDurationDelta", 0))
 end
@@ -47,6 +79,73 @@ end
 
 local function getRound()
     return BuildPassiveCommon.GetRound()
+end
+
+local function grantTempHp(hero, amount)
+    local value = math.max(0, math.floor(tonumber(amount) or 0))
+    if not isAlive(hero) or value <= 0 then
+        return 0
+    end
+    hero.tempHp = math.max(math.floor(tonumber(hero.tempHp) or 0), value)
+    return value
+end
+
+local function collectHeavyStrikeSplitTargets(hero, primaryTarget, totalTargets)
+    local BattleFormation = require("modules.battle_formation")
+    local desiredTotal = math.max(1, math.floor(tonumber(totalTargets) or 1))
+    if desiredTotal <= 1 then
+        return {}
+    end
+    local targetRow = BattleFormation.GetHeroRow(tonumber(primaryTarget and primaryTarget.wpType) or 0)
+    if targetRow ~= 1 then
+        return {}
+    end
+    local primaryId = tonumber(primaryTarget and (primaryTarget.instanceId or primaryTarget.id)) or 0
+    local picked = {}
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+        if isAlive(enemy) and enemyId ~= primaryId
+            and BattleFormation.GetHeroRow(tonumber(enemy.wpType) or 0) == targetRow then
+            picked[#picked + 1] = enemy
+            if #picked >= (desiredTotal - 1) then
+                break
+            end
+        end
+    end
+    return picked
+end
+
+local function applyHeavyStrikeSplash(hero, primaryTarget, diceExpr, skill)
+    local BattleFormation = require("modules.battle_formation")
+    if type(diceExpr) ~= "string" or diceExpr == "" then
+        return 0
+    end
+    local primaryId = tonumber(primaryTarget and (primaryTarget.instanceId or primaryTarget.id)) or 0
+    local total = 0
+    for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+        local enemyId = tonumber(enemy and (enemy.instanceId or enemy.id)) or 0
+        if isAlive(enemy) and enemyId ~= primaryId and math.abs((tonumber(enemy.wpType) or 0) - (tonumber(primaryTarget and primaryTarget.wpType) or 0)) == 1 then
+            total = total + math.max(0, BuildPassiveCommon.ApplyDirectBonusDamage(hero, enemy, diceExpr, {
+                kind = "physical",
+                damageKind = "physical",
+                skillId = skill and skill.skillId or IDS.barbarian_heavy_strike,
+                skillName = skill and skill.name or "重击",
+            }))
+        end
+    end
+    return total
+end
+
+local function applyRageKillHeal(hero)
+    local healDice = getRageStringMod(hero, "onKillHealDice")
+    if not BarbarianBuildPassives.IsBerserkActive(hero) or type(healDice) ~= "string" or healDice == "" then
+        return 0
+    end
+    local amount = math.max(0, BuildPassiveCommon.RollDice(healDice))
+    if amount > 0 then
+        BuildPassiveCommon.ApplyHeal(hero, amount)
+    end
+    return amount
 end
 
 local function buildContextState(context)
@@ -110,6 +209,7 @@ function BarbarianBuildPassives.TryActivateBerserk(hero)
     runtime.barbarianBerserkUsed = true
     runtime.barbarianBerserkUntilRound = getRound() + duration - 1
     syncBerserkBuff(hero)
+    grantTempHp(hero, BuildPassiveCommon.RollDice(getRageStringMod(hero, "onRageEnterTempHpDice")))
     BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", duration))
     return true
 end
@@ -155,10 +255,11 @@ function BarbarianBuildPassives.ApplyRageLifesteal(hero, damage, sourceName)
     return heal
 end
 
-function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
+function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill, opts)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end
+    opts = opts or {}
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
     local BattlePassiveSkill = require("modules.battle_passive_skill")
@@ -166,7 +267,10 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
     local hitPenalty = tonumber(meta and meta.hitPenalty) or 0
     local critMin = tonumber(meta and meta.critMin) or 19
-    local damageDice = tostring(meta and meta.damageDice or "")
+    if BarbarianBuildPassives.IsBerserkActive(hero) then
+        critMin = math.max(2, critMin + math.floor(getHeavyStrikeNumberMod(hero, "rageCritThresholdDelta", 0)))
+    end
+    local damageDice = BuildPassiveCommon.JoinDiceParts(tostring(meta and meta.damageDice or ""), getHeavyStrikeStringMod(hero, "bonusDamageDice"))
     local strengthBonus = math.max(0, tonumber(hero.strMod) or 0)
     BattleSkill.ApplyBuffFromSkill(hero, hero, HEAVY_STRIKE_AC_DOWN_BUFF_ID, skill, {
         duration = 1,
@@ -213,6 +317,14 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill)
         BattleSkill.TriggerDamageBuffs(hero, target, damage)
         if target.isDead or (tonumber(target.hp) or 0) <= 0 then
             BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = target })
+        end
+        if opts.suppressSplit ~= true then
+            for _, extraTarget in ipairs(collectHeavyStrikeSplitTargets(hero, target, getHeavyStrikeNumberMod(hero, "frontRowSplitTargets", 1))) do
+                BarbarianBuildPassives.PerformHeavyStrike(hero, extraTarget, skill, { suppressSplit = true, suppressSplash = true })
+            end
+        end
+        if opts.suppressSplash ~= true then
+            applyHeavyStrikeSplash(hero, target, getHeavyStrikeStringMod(hero, "splashAdjacentDice"), skill)
         end
     end
     return damage
@@ -265,6 +377,14 @@ function BarbarianBuildPassives.CreateRagePassive(context)
         local damageReduce = math.max(0, 2 + getRageNumberMod(hero, "ragePhysicalReduceDelta", 0))
         extraParam.damage = math.max(0, before - damageReduce)
         BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴减伤", string.format("%d -> %d", before, extraParam.damage))
+    end
+
+    function self:OnDmgMakeKill()
+        local hero = self.context and self.context.src or nil
+        if not isAlive(hero) then
+            return
+        end
+        applyRageKillHeal(hero)
     end
 
     return self

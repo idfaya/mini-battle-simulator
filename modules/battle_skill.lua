@@ -1640,6 +1640,24 @@ function BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, override)
         buffConfig = merged
     end
 
+    local targetRuntime = target and target.passiveRuntime or nil
+    local durationGuard = tonumber(targetRuntime and targetRuntime.clericShelterDebuffDurationDelta) or 0
+    local durationGuardCharges = tonumber(targetRuntime and targetRuntime.clericShelterDebuffCharges) or 0
+    if durationGuard ~= 0 and durationGuardCharges > 0
+        and (buffConfig.mainType == E_BUFF_MAIN_TYPE.BAD or buffConfig.mainType == E_BUFF_MAIN_TYPE.CONTROL) then
+        local adjustedDuration = math.max(0, math.floor(tonumber(buffConfig.duration) or 0) + math.floor(durationGuard))
+        targetRuntime.clericShelterDebuffCharges = durationGuardCharges - 1
+        if targetRuntime.clericShelterDebuffCharges <= 0 then
+            targetRuntime.clericShelterDebuffCharges = nil
+            targetRuntime.clericShelterDebuffDurationDelta = nil
+        end
+        if adjustedDuration <= 0 then
+            return
+        end
+        buffConfig.duration = adjustedDuration
+        buffConfig.maxDuration = math.max(adjustedDuration, math.floor(tonumber(buffConfig.maxDuration) or adjustedDuration))
+    end
+
     BattleBuff.Add(caster, target, buffConfig)
 
     Logger.Log(string.format("[ApplyBuffFromSkill] %s 对 %s 施加Buff [%s]",

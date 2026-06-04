@@ -26,6 +26,8 @@ local ClassWeaponConfig = require("config.tables.classes")
 local ClassBuildProgression = require("config.tables.classes")
 local FeatBuildConfig = require("config.tables.feats")
 local BattleBuff = require("modules.battle_buff")
+local BattleFormation = require("modules.battle_formation")
+local BuildPassiveCommon = require("skills.build_passive_common")
 
 local function hasSkill(list, skillId)
     for _, entry in ipairs(list or {}) do
@@ -185,6 +187,58 @@ do
 end
 
 do
+    local hero = new_unit(9720, "RageShieldHero")
+    hero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+    }
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.barbarian_rage] = {
+                onRageEnterTempHpDice = "1d6",
+            },
+        },
+    }
+    local oldRollDice = BuildPassiveCommon.RollDice
+    BuildPassiveCommon.RollDice = function(dice)
+        if dice == "1d6" then
+            return 6
+        end
+        return 0
+    end
+    BarbarianBuildPassives.TryActivateBerserk(hero)
+    BuildPassiveCommon.RollDice = oldRollDice
+    assert_true((tonumber(hero.tempHp) or 0) == 6, "Rage entry feat grants temporary hp immediately")
+end
+
+do
+    local hero = new_unit(97205, "KillHealHero")
+    hero.skills = {
+        { skillId = SkillRuntimeConfig.Ids.barbarian_rage },
+    }
+    hero.hp = 40
+    hero.maxHp = 100
+    hero.passiveRuntime.barbarianBerserkUntilRound = 99
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.barbarian_rage] = {
+                onKillHealDice = "1d8",
+            },
+        },
+    }
+    local oldRollDice = BuildPassiveCommon.RollDice
+    BuildPassiveCommon.RollDice = function(dice)
+        if dice == "1d8" then
+            return 8
+        end
+        return 0
+    end
+    local rage = BarbarianBuildPassives.CreateRagePassive({ src = hero })
+    rage:OnDmgMakeKill({})
+    BuildPassiveCommon.RollDice = oldRollDice
+    assert_true(hero.hp == 48, "Rage kill feat heals on kill while berserk is active")
+end
+
+do
     local hero = new_unit(9721, "HeavyStrikeHero")
     local target = new_unit(9722, "HeavyStrikeTarget")
     hero.class = 10
@@ -225,6 +279,83 @@ do
     BattleFormula.RollHit = oldRollHit
     assert_true(damage == 14, "Heavy strike doubles strength bonus on top of base damage")
     assert_true(BattleBuff.GetBuffValueBySubType(hero, 880004) == 2, "Heavy strike applies AC -2 self debuff")
+end
+
+do
+    BattleFormation.OnFinal()
+    local hero = new_unit(9724, "SplitStrikeHero")
+    local targetA = new_unit(9725, "FrontA")
+    local targetB = new_unit(9726, "FrontB")
+    local targetC = new_unit(9727, "BackC")
+    hero.class = 10
+    hero.hit = 8
+    hero.strMod = 4
+    hero.isLeft = true
+    hero.wpType = 4
+    hero.passiveRuntime.barbarianBerserkUntilRound = 99
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.barbarian_heavy_strike] = {
+                bonusDamageDice = "1d6",
+                splashAdjacentDice = "1d6",
+                frontRowSplitTargets = 2,
+                rageCritThresholdDelta = -1,
+            },
+        },
+    }
+    targetA.isLeft = false
+    targetA.wpType = 1
+    targetB.isLeft = false
+    targetB.wpType = 2
+    targetC.isLeft = false
+    targetC.wpType = 5
+    BattleFormation.Init({
+        teamLeft = { hero },
+        teamRight = { targetA, targetB, targetC },
+    })
+    local battleHero = BattleFormation.GetFriendTeam(hero)[1]
+    local enemyTeam = BattleFormation.GetEnemyTeam(battleHero) or {}
+    targetA = enemyTeam[1] or targetA
+    targetB = enemyTeam[2] or targetB
+    local oldResolve = BattleSkill.ResolveScaledDamage
+    local oldApplyDamage = require("modules.battle_dmg_heal").ApplyDamage
+    local oldBonus = BuildPassiveCommon.ApplyDirectBonusDamage
+    local resolveCalls = {}
+    local splashCalls = {}
+    BattleSkill.ResolveScaledDamage = function(_, target, opts)
+        resolveCalls[#resolveCalls + 1] = {
+            targetId = target and target.instanceId or 0,
+            damageDice = opts and opts.damageDice or "",
+            critMin = opts and opts.critMin or 20,
+        }
+        return {
+            hit = { hit = true, crit = false },
+            damage = 10,
+            damageRoll = { expr = opts and opts.damageDice or "", total = 6 },
+            isCrit = false,
+        }
+    end
+    require("modules.battle_dmg_heal").ApplyDamage = function() end
+    BuildPassiveCommon.ApplyDirectBonusDamage = function(_, target, diceExpr)
+        splashCalls[#splashCalls + 1] = {
+            targetId = target and target.instanceId or 0,
+            diceExpr = diceExpr,
+        }
+        return 4
+    end
+    BarbarianBuildPassives.PerformHeavyStrike(battleHero, targetA, {
+        skillId = SkillRuntimeConfig.Ids.barbarian_heavy_strike,
+        name = "重击",
+    })
+    BattleSkill.ResolveScaledDamage = oldResolve
+    require("modules.battle_dmg_heal").ApplyDamage = oldApplyDamage
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldBonus
+    assert_true(#resolveCalls == 2, "Heavy strike grandmaster splits onto a second front-row target")
+    assert_true(resolveCalls[1].damageDice == "1d6", "Heavy strike consumes bonus damage dice")
+    assert_true(resolveCalls[1].critMin == 18, "Heavy strike lowers crit threshold while berserk is active")
+    assert_true(resolveCalls[2].targetId == targetB.instanceId, "Heavy strike split targets the second front-row enemy")
+    assert_true(#splashCalls == 1 and splashCalls[1].targetId == targetB.instanceId and splashCalls[1].diceExpr == "1d6",
+        "Heavy strike mastery splashes adjacent target with configured dice")
 end
 
 do
