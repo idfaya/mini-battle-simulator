@@ -10,14 +10,14 @@
     "extraDoorRatio": 0.15,
     "typeWeights": {
       "battle_normal": 40,
-      "battle_elite": 10,
+      "battle_elite": 0,
       "equip": 10,
       "event": 25,
       "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 0, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101001, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -44,14 +44,14 @@
     "extraDoorRatio": 0.15,
     "typeWeights": {
       "battle_normal": 40,
-      "battle_elite": 10,
+      "battle_elite": 0,
       "equip": 10,
       "event": 25,
       "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 0, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 101002, "battle_elite": 101101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -163,14 +163,14 @@
     "extraDoorRatio": 0.15,
     "typeWeights": {
       "battle_normal": 40,
-      "battle_elite": 10,
+      "battle_elite": 0,
       "equip": 10,
       "event": 25,
       "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 0, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 102001, "battle_elite": 102101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -198,14 +198,14 @@
     "extraDoorRatio": 0.15,
     "typeWeights": {
       "battle_normal": 40,
-      "battle_elite": 10,
+      "battle_elite": 0,
       "equip": 10,
       "event": 25,
       "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 0, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 102002, "battle_elite": 102101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },
@@ -320,14 +320,14 @@
     "extraDoorRatio": 0.15,
     "typeWeights": {
       "battle_normal": 40,
-      "battle_elite": 10,
+      "battle_elite": 0,
       "equip": 10,
       "event": 25,
       "camp": 0,
       "shop": 5,
       "empty": 5
     },
-    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 1, "maxEvent": 1 },
+    "constraints": { "maxCamp": 0, "maxShop": 1, "maxElite": 0, "maxEvent": 1 },
     "battlePoolIds": { "battle_normal": 103001, "battle_elite": 103101 },
     "eventPoolIds": [
       { "id": 101001, "weight": 2 },

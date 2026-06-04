@@ -39,18 +39,17 @@ RunWaveGroupPool.POOLS = {
     [401002] = {
         id = 401002,
         entries = {
-            { templateId = 501001, weight = 35 },
-            { templateId = 501002, weight = 35 },
-            { templateId = 501003, weight = 15 },
+            { templateId = 501002, weight = 55 },
+            { templateId = 501003, weight = 30 },
             { templateId = 501004, weight = 15 },
         },
     },
     [401003] = {
         id = 401003,
         entries = {
-            { templateId = 501003, weight = 25 },
+            { templateId = 501003, weight = 35 },
             { templateId = 501004, weight = 30 },
-            { templateId = 501005, weight = 45 },
+            { templateId = 501005, weight = 35 },
         },
     },
     [401101] = {
@@ -83,9 +82,9 @@ RunWaveGroupPool.POOLS = {
     [402002] = {
         id = 402002,
         entries = {
-            { templateId = 502001, weight = 25 },
-            { templateId = 502002, weight = 45 },
-            { templateId = 502003, weight = 30 },
+            { templateId = 502002, weight = 55 },
+            { templateId = 502003, weight = 25 },
+            { templateId = 502004, weight = 20 },
         },
     },
     [402003] = {
@@ -124,9 +123,9 @@ RunWaveGroupPool.POOLS = {
     [403002] = {
         id = 403002,
         entries = {
-            { templateId = 503001, weight = 20 },
-            { templateId = 503002, weight = 40 },
-            { templateId = 503003, weight = 40 },
+            { templateId = 503002, weight = 45 },
+            { templateId = 503003, weight = 30 },
+            { templateId = 503004, weight = 25 },
         },
     },
     [403003] = {
@@ -174,8 +173,8 @@ RunWaveGroupPool.TEMPLATES = {
         code = "normal_wave_mixed",
         name = "普通混编波次",
         formationProfileId = 601002,
-        frontPoolId = 701001,
-        backPoolId = 701002,
+        frontPoolId = 701003,
+        backPoolId = 701005,
         reinforcePoolId = nil,
     },
     [501003] = {
@@ -184,7 +183,7 @@ RunWaveGroupPool.TEMPLATES = {
         name = "普通高压波次",
         formationProfileId = 601003,
         frontPoolId = 701004,
-        backPoolId = 701002,
+        backPoolId = 701005,
         reinforcePoolId = nil,
     },
     [501004] = {
@@ -272,9 +271,9 @@ RunWaveGroupPool.TEMPLATES = {
         code = "act2_normal_wave_mixed",
         name = "Act2 普通混编波次",
         formationProfileId = 601002,
-        frontPoolId = 702001,
-        backPoolId = 702002,
-        reinforcePoolId = 702002,
+        frontPoolId = 702003,
+        backPoolId = 702004,
+        reinforcePoolId = 702004,
     },
     [502003] = {
         id = 502003,
@@ -282,7 +281,7 @@ RunWaveGroupPool.TEMPLATES = {
         name = "Act2 普通高压波次",
         formationProfileId = 601003,
         frontPoolId = 702003,
-        backPoolId = 702002,
+        backPoolId = 702004,
         reinforcePoolId = nil,
     },
     [502004] = {
@@ -339,9 +338,9 @@ RunWaveGroupPool.TEMPLATES = {
         code = "act3_normal_wave_mixed",
         name = "Act3 普通混编波次",
         formationProfileId = 601002,
-        frontPoolId = 703001,
-        backPoolId = 703002,
-        reinforcePoolId = 703002,
+        frontPoolId = 703003,
+        backPoolId = 703004,
+        reinforcePoolId = 703004,
     },
     [503003] = {
         id = 503003,
@@ -349,7 +348,7 @@ RunWaveGroupPool.TEMPLATES = {
         name = "Act3 普通高压波次",
         formationProfileId = 601003,
         frontPoolId = 703003,
-        backPoolId = 703002,
+        backPoolId = 703004,
         reinforcePoolId = nil,
     },
     [503004] = {

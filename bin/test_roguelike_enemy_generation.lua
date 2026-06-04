@@ -5,6 +5,7 @@ LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local EnemyGroup = require("config.roguelike.run_enemy_group")
 local EnemyData = require("config.enemy_data")
+local FloorsTable = require("config.tables.floors")
 local EnemyGenerator = require("roguelike.roguelike_enemy_generator")
 
 local function flattenGroup(groupId)
@@ -44,6 +45,21 @@ end
 local function assertSeen(seen, enemyId, label)
     assert(seen[enemyId] == true, string.format("expected to see %s (%d)", label, enemyId))
 end
+
+local function assertNotSeen(seen, enemyId, label)
+    assert(seen[enemyId] ~= true, string.format("did not expect to see %s (%d)", label, enemyId))
+end
+
+local f1 = FloorsTable.GetTemplate(10101)
+assert(f1 ~= nil, "missing act1 floor1 template")
+assert((f1.typeWeights or {}).battle_elite == 0, "act1 f1 should not generate elite rooms")
+assert((f1.constraints or {}).maxElite == 0, "act1 f1 maxElite should be 0")
+
+local earlySeen = collectPoolEnemyIds(401001, 1, 901, 980)
+assertNotSeen(earlySeen, 910004, "Skeleton Soldier in act1 early pool")
+assertNotSeen(earlySeen, 910014, "Orc Fighter in act1 early pool")
+assertSeen(earlySeen, 910001, "Slime in act1 early pool")
+assertSeen(earlySeen, 910002, "Goblin in act1 early pool")
 
 local normalSeen = collectPoolEnemyIds(401002, 2, 1001, 1120)
 assertSeen(normalSeen, 910012, "Goblin Thrower in normal pool")
