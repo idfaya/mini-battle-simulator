@@ -926,15 +926,32 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
         and skill
         and tonumber(hero.__releasingPendingCastSkillId) == tonumber(skill.skillId)
     if skill and skill.skillType == E_SKILL_TYPE_NORMAL then
+        local atkFinishTarget = hero and hero.__lastNormalAttackTarget or nil
+        -- 5e 一次伤害事件：在 OnNormalAtkFinish 期间开 bucket，让偷袭/狩猎标记/暮影射击/咒誓打击等
+        -- 附加伤害只 roll dice 累加，不立即 ApplyDamage；钩子结束后统一作为合并附加伤害一次结算，
+        -- 同 type 减伤一次、UI 飘字一个数字。
+        BuildPassiveCommon.OpenBonusDamageBucket(hero, atkFinishTarget)
         BattlePassiveSkill.RunSkillOnNormalAtkFinish(hero, {
             damageDealt = totalDamage or 0,
             skillId = skill.skillId,
             skillType = skill.skillType,
-            target = hero and hero.__lastNormalAttackTarget or nil,
+            target = atkFinishTarget,
             basicAttackActionToken = castMeta and castMeta.basicAttackActionToken or nil,
             basicAttackActionSource = castMeta and castMeta.basicAttackActionSource or nil,
             basicAttackIsFollowUp = castMeta and castMeta.basicAttackIsFollowUp == true or false,
         })
+        local bucketRaw, bucketInfo = BuildPassiveCommon.CloseBonusDamageBucket(hero)
+        if bucketRaw > 0 and atkFinishTarget and not atkFinishTarget.isDead then
+            local entries = bucketInfo and bucketInfo.entries or nil
+            local primaryEntry = entries and entries[1] or nil
+            local BattleDmgHeal = require("modules.battle_dmg_heal")
+            BattleDmgHeal.ApplyDamage(atkFinishTarget, bucketRaw, hero, {
+                damageKind = (primaryEntry and primaryEntry.damageKind) or "direct",
+                skillId = primaryEntry and primaryEntry.skillId or nil,
+                skillName = primaryEntry and primaryEntry.skillName or "附加伤害",
+                preferSkillColor = true,
+            })
+        end
     end
 
     BuildPassiveCommon.ResolveQueuedReactions(hero)

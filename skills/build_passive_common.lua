@@ -96,9 +96,64 @@ local function applyHeal(hero, amount)
     end
 end
 
+-- 5e 风格：当 hero 上挂着 __bonusDamageBucket 时，所有附加伤害只 roll dice、累加到 bucket，
+-- 不立即 ApplyDamage、不发可视化事件，由 bucket 持有方统一与主伤害合并后进行一次减伤+扣血+飘字。
+-- 使用栈式存储以便嵌套子普攻（如 monk 连击、fighter 额外攻击）能安全地 push/pop 自己的 bucket。
+local function getActiveBucket(hero, target)
+    if not hero then
+        return nil
+    end
+    local stack = hero.__bonusDamageBucketStack
+    if type(stack) ~= "table" or #stack == 0 then
+        return nil
+    end
+    local top = stack[#stack]
+    if type(top) ~= "table" then
+        return nil
+    end
+    if top.target ~= nil and target ~= nil and top.target ~= target then
+        return nil
+    end
+    return top
+end
+
+local function tryAccumulateToBucket(hero, target, diceExpr, meta)
+    local bucket = getActiveBucket(hero, target)
+    if not bucket then
+        return false, 0
+    end
+    local BattleSkill = require("modules.battle_skill")
+    local result = BattleSkill.ResolveScaledDamage(hero, target, {
+        skipCheck = true,
+        kind = (meta and meta.kind) or "physical",
+        damageKind = (meta and meta.damageKind) or "direct",
+        damageDice = diceExpr,
+        noWeapon = meta and meta.noWeapon ~= false or true,
+        noAbilityMod = meta and meta.noAbilityMod ~= false or true,
+    })
+    local damage = math.max(0, math.floor(tonumber(result and result.damage) or 0))
+    bucket.totalRaw = (tonumber(bucket.totalRaw) or 0) + damage
+    if damage > 0 then
+        bucket.entries = bucket.entries or {}
+        bucket.entries[#bucket.entries + 1] = {
+            damage = damage,
+            skillId = meta and meta.skillId or nil,
+            skillName = meta and meta.skillName or nil,
+            damageKind = (meta and meta.damageKind) or "direct",
+            damageRoll = result and result.damageRoll or nil,
+        }
+    end
+    return true, damage
+end
+
 local function applyDirectBonusDamage(hero, target, diceExpr, meta)
     if not isAlive(hero) or not isAlive(target) or type(diceExpr) ~= "string" or diceExpr == "" then
         return 0
+    end
+    -- 5e 一次伤害事件：若 bucket 已开，把附加伤害合并进主伤害扣血流程，避免逐项独立减伤、逐项独立飘字。
+    local bucketed, bucketDamage = tryAccumulateToBucket(hero, target, diceExpr, meta)
+    if bucketed then
+        return bucketDamage
     end
     local BattleSkill = require("modules.battle_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -120,6 +175,39 @@ local function applyDirectBonusDamage(hero, target, diceExpr, meta)
         })
     end
     return damage
+end
+
+-- 开/关 bonus damage bucket：调用方用 OpenBonusDamageBucket → 触发附加伤害 hooks → CloseBonusDamageBucket 取出累加 raw。
+local function openBonusDamageBucket(hero, target)
+    if not hero then
+        return nil
+    end
+    hero.__bonusDamageBucketStack = hero.__bonusDamageBucketStack or {}
+    local bucket = {
+        target = target,
+        totalRaw = 0,
+        entries = {},
+    }
+    table.insert(hero.__bonusDamageBucketStack, bucket)
+    return bucket
+end
+
+local function closeBonusDamageBucket(hero)
+    if not hero then
+        return 0, nil
+    end
+    local stack = hero.__bonusDamageBucketStack
+    if type(stack) ~= "table" or #stack == 0 then
+        return 0, nil
+    end
+    local bucket = table.remove(stack, #stack)
+    if #stack == 0 then
+        hero.__bonusDamageBucketStack = nil
+    end
+    if type(bucket) ~= "table" then
+        return 0, nil
+    end
+    return math.max(0, math.floor(tonumber(bucket.totalRaw) or 0)), bucket
 end
 
 local function getBasicAttackDamageDice(skillId)
@@ -256,6 +344,14 @@ end
 
 function BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, meta)
     return applyDirectBonusDamage(hero, target, diceExpr, meta)
+end
+
+function BuildPassiveCommon.OpenBonusDamageBucket(hero, target)
+    return openBonusDamageBucket(hero, target)
+end
+
+function BuildPassiveCommon.CloseBonusDamageBucket(hero)
+    return closeBonusDamageBucket(hero)
 end
 
 function BuildPassiveCommon.GetBasicAttackDamageDice(skillId)
@@ -445,12 +541,21 @@ function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
     if bonusDice == "" then
         return 0
     end
-    return applyDirectBonusDamage(hero, target, bonusDice, {
+    if not isAlive(hero) or not isAlive(target) then
+        return 0
+    end
+    -- 5e 风格：基础攻击附加伤害（咆哮加伤、燃焰之拳等）只 roll dice 返回 raw，由 ExecuteDefaultAttackWithPassive
+    -- 把 raw 并入主 damage 一次 ApplyDamage 完成减伤+扣血+飘字，避免独立减伤导致的双计与多飘字。
+    local BattleSkill = require("modules.battle_skill")
+    local result = BattleSkill.ResolveScaledDamage(hero, target, {
+        skipCheck = true,
         kind = "physical",
         damageKind = "direct",
+        damageDice = bonusDice,
         noWeapon = true,
         noAbilityMod = true,
     })
+    return math.max(0, math.floor(tonumber(result and result.damage) or 0))
 end
 
 function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage, damageResult)
