@@ -94,11 +94,11 @@ test("paladin smoke shows judgement prayer, divine smite and oath action", async
     .toContain("破邪斩");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("圣手");
+    .toContain("圣疗");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("破邪斩"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("圣手"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("圣疗"))).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

@@ -409,6 +409,14 @@ local function ApplyRhythmDamageScalar(rawDamage)
     return math.max(0, math.floor(value * scalar))
 end
 
+local function ResolveWeaponDice(attacker, skillId, fallbackDice)
+    local override = FeatModHelper.GetSkillMod(attacker, skillId, "weaponDiceOverride", nil)
+    if type(override) == "string" and override ~= "" then
+        return override
+    end
+    return fallbackDice or ""
+end
+
 function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     local BattleFormula = require("core.battle_formula")
     local Dice = require("core.dice")
@@ -565,7 +573,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     if meta and meta.kind == "physical" then
         local weaponDice = ""
         if opts.noWeapon ~= true and meta.noWeapon ~= true then
-            weaponDice = ClassWeaponConfig.GetWeaponDice(GetClassId(attacker)) or ""
+            weaponDice = ResolveWeaponDice(attacker, skillIdForMods, ClassWeaponConfig.GetWeaponDice(GetClassId(attacker)))
         end
         local skillDice = opts.damageDice or (meta and meta.damageDice) or ""
         diceExpr = JoinDiceParts(weaponDice, skillDice)

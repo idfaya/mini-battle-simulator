@@ -52,6 +52,15 @@ end
 
 local function evaluateSneakCondition(hero, target)
     local BattleBuff = require("modules.battle_buff")
+    local okMonk, MonkBuildPassives = pcall(require, "skills.monk_build_passives")
+    if okMonk and MonkBuildPassives and MonkBuildPassives.HasSneakAttackImmunity
+        and MonkBuildPassives.HasSneakAttackImmunity(target) then
+        return {
+            qualified = false,
+            blocked = true,
+            label = "疾风步",
+        }
+    end
     local runtime = ensureRuntime(hero)
     local targetRuntime = ensureRuntime(target)
     local forcedCharges = tonumber(runtime.rogueForcedSneakCharges) or 0

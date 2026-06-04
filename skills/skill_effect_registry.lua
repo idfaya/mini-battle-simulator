@@ -1293,6 +1293,17 @@ function SkillEffectRegistry.RegisterBuiltins()
         }
     end)
 
+    SkillEffectRegistry.Register("monk_harmonize", function(ctx, frameCopy)
+        local MonkBuildPassives = require("skills.monk_build_passives")
+        local target = frameCopy.target or ctx.hero
+        local effectValue = MonkBuildPassives.PerformHarmonize(target, ctx.skill)
+        return {
+            effectValue = effectValue,
+            healAmount = effectValue,
+            targets = { target },
+        }
+    end)
+
     SkillEffectRegistry.Register("paladin_lay_on_hands", function(ctx, frameCopy)
         local PaladinBuildPassives = require("skills.paladin_build_passives")
         local effectValue, healedTarget = PaladinBuildPassives.PerformLayOnHands(ctx.hero, frameCopy.target, ctx.skill)

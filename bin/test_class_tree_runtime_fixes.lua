@@ -22,11 +22,15 @@ local BattleSkill = require("modules.battle_skill")
 local PassiveHandlers = require("modules.passive_handlers")
 local BuildPassiveCommon = require("skills.build_passive_common")
 local MonkBuildPassives = require("skills.monk_build_passives")
+local RogueBuildPassives = require("skills.rogue_build_passives")
 local RangerBuildPassives = require("skills.ranger_build_passives")
 local PaladinBuildPassives = require("skills.paladin_build_passives")
 local SkillEffectRegistry = require("skills.skill_effect_registry")
 local BattleSkillStatus = require("skills.battle_skill_status")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
+local ClassesTable = require("config.tables.classes")
+local FeatBuildConfig = require("config.tables.feats")
+local HeroBuild = require("modules.hero_build")
 local skill_80009003 = require("config.skill.skill_80009003")
 local BattleLogic = require("modules.battle_logic")
 
@@ -67,11 +71,7 @@ do
     monk.class = 3
     monk.classId = 3
     monk.buildState.skillMods[IDS.monk_martial_arts] = {
-        comboTriggerChanceDelta = 15,
-    }
-    monk.buildState.skillMods[IDS.monk_basic_attack] = {
-        hitAcDelta = 1,
-        bonusHit = 1,
+        firstHitGuaranteedCombo = true,
     }
     local passive = MonkBuildPassives.CreateMartialArtsPassive({ src = monk })
     local oldRandom = math.random
@@ -93,13 +93,18 @@ do
     })
     math.random = oldRandom
     BattleSkill.CastSmallSkillWithResult = oldCast
-    assert_true(comboCalls == 1, "monk combo chance delta lets 60% roll trigger")
-    assert_true(MonkBuildPassives.GetShadowStepAcBonus(monk, nil) == 1, "shadow step grants temporary AC")
-    local basicOpts = BuildPassiveCommon.BuildBasicAttackResolveOpts(monk, target, { skillId = IDS.monk_basic_attack })
-    assert_true(basicOpts.attackBonus == 1, "shadow step queues next basic attack hit bonus")
+    assert_true(comboCalls == 1, "monk first unarmed strike always triggers flurry")
+
+    local BattleBuff = require("modules.battle_buff")
+    local oldHasControlBuff = BattleBuff.HasControlBuff
+    monk.buildState.skillMods[IDS.monk_basic_attack] = { sneakAttackImmune = true }
+    BattleBuff.HasControlBuff = function() return false end
+    assert_true(MonkBuildPassives.HasSneakAttackImmunity(monk) == true, "monk gale step passively grants sneak immunity while not incapacitated")
+    BattleBuff.HasControlBuff = function() return true end
+    assert_true(MonkBuildPassives.HasSneakAttackImmunity(monk) == false, "monk gale step stops working while incapacitated")
+    BattleBuff.HasControlBuff = oldHasControlBuff
 
     monk.passiveRuntime = {}
-    monk.buildState.skillMods[IDS.monk_martial_arts].firstHitGuaranteedCombo = true
     local guaranteedCalls = 0
     math.random = function() return 10000 end
     BattleSkill.CastSmallSkillWithResult = function()
@@ -127,22 +132,27 @@ do
     assert_true(guaranteedCalls == 1, "monk first hit guaranteed combo bypasses chance only once per round")
 
     monk.passiveRuntime = {}
-    monk.buildState.skillMods[IDS.monk_martial_arts].comboReentryOnce = 1
-    local reentryCalls = 0
+    local missGuaranteedCalls = 0
+    math.random = function() return 10000 end
+    BattleSkill.CastSmallSkillWithResult = function()
+        missGuaranteedCalls = missGuaranteedCalls + 1
+        return true, { totalDamage = 0 }
+    end
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                skillId = IDS.monk_basic_attack,
+                target = target,
+                damageDealt = 0,
+            },
+        },
+    })
+    assert_true(missGuaranteedCalls == 1, "monk first hit guaranteed combo triggers even when unarmed strike misses")
+
+    local nonFirstCalls = 0
     math.random = function() return 1 end
     BattleSkill.CastSmallSkillWithResult = function()
-        reentryCalls = reentryCalls + 1
-        if reentryCalls == 1 then
-            passive:OnNormalAtkFinish({
-                data = {
-                    extraParam = {
-                        skillId = IDS.monk_basic_attack,
-                        target = target,
-                        damageDealt = 5,
-                    },
-                },
-            })
-        end
+        nonFirstCalls = nonFirstCalls + 1
         return true, { totalDamage = 5 }
     end
     passive:OnNormalAtkFinish({
@@ -156,44 +166,130 @@ do
     })
     math.random = oldRandom
     BattleSkill.CastSmallSkillWithResult = oldCast
-    assert_true(reentryCalls == 2, "monk combo reentry once accepts numeric feat mod and triggers one extra reentry")
+    assert_true(nonFirstCalls == 0, "monk non-first unarmed strike never triggers flurry")
 end
 
 do
-    local monk = new_unit(111, "BreathMasterMonk", true, 4)
+    local monk = new_unit(106, "UnarmedMonk", true, 4)
+    local target = new_unit(107, "DiceDummy", false, 1)
     monk.class = 3
     monk.classId = 3
-    monk.hp = 50
-    monk.maxHp = 100
-    monk.buildState.skillMods[IDS.monk_harmonize] = {
-        autoTriggerHpThresholdPct = 35,
-        autoTriggerCharges = 1,
-        autoTriggerTempHpFlat = 4,
+    monk.hit = 99
+    target.ac = 0
+    assert_true(ClassesTable.GetWeaponDice(3) == "1d6", "monk baseline unarmed strike is 1d6")
+
+    local baseResult = BattleSkill.ResolveScaledDamage(monk, target, {
+        skill = { skillId = IDS.monk_basic_attack },
+        meta = { kind = "physical" },
+    })
+    assert_true(baseResult.damageRoll and baseResult.damageRoll.expr == "1d6", "monk basic attack rolls baseline 1d6")
+
+    local adeptBuild = HeroBuild.CompileBuild(3, 5, { FeatBuildConfig.Ids.b_monk_combo_plus })
+    monk.buildState = adeptBuild
+    local adeptResult = BattleSkill.ResolveScaledDamage(monk, target, {
+        skill = { skillId = IDS.monk_basic_attack },
+        meta = { kind = "physical" },
+    })
+    assert_true(adeptResult.damageRoll and adeptResult.damageRoll.expr == "1d8", "monk Lv5 unarmed feat upgrades strike to 1d8")
+
+    local masterBuild = HeroBuild.CompileBuild(3, 10, {
+        FeatBuildConfig.Ids.b_monk_combo_plus,
+        FeatBuildConfig.Ids.j_monk_combo_master,
+    })
+    monk.buildState = masterBuild
+    local masterResult = BattleSkill.ResolveScaledDamage(monk, target, {
+        skill = { skillId = IDS.monk_basic_attack },
+        meta = { kind = "physical" },
+    })
+    assert_true(masterResult.damageRoll and masterResult.damageRoll.expr == "1d10", "monk Lv10 unarmed feat upgrades strike to 1d10")
+
+    local coreBuild = HeroBuild.CompileBuild(3, 1, {})
+    assert_true(coreBuild.skillMods[IDS.monk_martial_arts]
+        and coreBuild.skillMods[IDS.monk_martial_arts].firstHitGuaranteedCombo == true,
+        "monk starts with first-hit guaranteed flurry")
+end
+
+do
+    local monk = new_unit(111, "DefenseMonk", true, 4)
+    monk.class = 3
+    monk.classId = 3
+    monk.buildState.skillMods[IDS.monk_martial_arts] = {
+        deflectAttackFlat = 3,
+        deflectSpellFlat = 4,
+        flawlessFirstHitImmune = true,
     }
     local passive = MonkBuildPassives.CreateMartialArtsPassive({ src = monk })
     local oldGetCurRound = BattleLogic.GetCurRound
-    local oldRollDice = BuildPassiveCommon.RollDice
     BattleLogic.GetCurRound = function() return 1 end
-    BuildPassiveCommon.RollDice = function(expr)
-        if expr == "2d8+6" then
-            return 10
-        end
-        return 0
-    end
-    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 15 } } })
-    assert_true(monk.hp == 50, "monk breath master does not trigger exactly at threshold")
-    assert_true((tonumber(monk.passiveRuntime.monkBreathMasterUsed) or 0) == 0, "monk breath master preserves charges when threshold not crossed")
-    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 16 } } })
-    assert_true(monk.hp == 60, "monk breath master heals once after crossing threshold")
-    assert_true((tonumber(monk.tempHp) or 0) == 4, "monk breath master grants temp hp on trigger")
-    assert_true((tonumber(monk.passiveRuntime.monkBreathMasterUsed) or 0) == 1, "monk breath master consumes one charge")
-    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 40 } } })
-    assert_true(monk.hp == 60, "monk breath master cannot trigger twice in one battle")
-    monk.hp = 10
-    passive:OnDefBeforeDmg({ data = { extraParam = { damage = 10 } } })
-    assert_true(monk.hp == 10, "monk breath master does not intercept lethal damage")
+    local hitOne = { damage = 12, damageKind = "fire" }
+    passive:OnDefBeforeDmg({ data = { extraParam = hitOne } })
+    assert_true(hitOne.damage == 0, "monk flawless defense negates first damage each round")
+    local hitTwo = { damage = 12, damageKind = "fire" }
+    passive:OnDefBeforeDmg({ data = { extraParam = hitTwo } })
+    assert_true(hitTwo.damage == 8, "monk deflect energy reduces spell damage")
+    local hitThree = { damage = 12, damageKind = "physical" }
+    passive:OnDefBeforeDmg({ data = { extraParam = hitThree } })
+    assert_true(hitThree.damage == 9, "monk deflect attack reduces physical damage")
+    BattleLogic.GetCurRound = function() return 2 end
+    local hitFour = { damage = 7, damageKind = "physical" }
+    passive:OnDefBeforeDmg({ data = { extraParam = hitFour } })
+    assert_true(hitFour.damage == 0, "monk flawless defense refreshes next round")
     BattleLogic.GetCurRound = oldGetCurRound
+end
+
+do
+    local monk = new_unit(118, "HarmonizeMonk", true, 4)
+    monk.class = 3
+    monk.classId = 3
+    monk.hp = 40
+    monk.maxHp = 100
+    local oldRollDice = BuildPassiveCommon.RollDice
+    local oldDelBuffBySubType = BattleBuff.DelBuffBySubType
+    local cleared = 0
+    BuildPassiveCommon.RollDice = function() return 11 end
+    BattleBuff.DelBuffBySubType = function()
+        cleared = cleared + 1
+        return 1
+    end
+    monk.buildState.skillMods[IDS.monk_harmonize] = {
+        healDiceOverride = "2d8+3",
+    }
+    local healed = MonkBuildPassives.PerformHarmonize(monk, { skillId = IDS.monk_harmonize })
+    assert_true(healed == 11 and monk.hp == 51, "monk base harmonize only heals")
+    assert_true(cleared == 0, "monk base harmonize does not clear debuffs")
+    monk.buildState.skillMods[IDS.monk_harmonize].clearDebuffs = true
+    MonkBuildPassives.PerformHarmonize(monk, { skillId = IDS.monk_harmonize })
+    assert_true(cleared == 3, "monk harmonize training clears three control debuffs")
     BuildPassiveCommon.RollDice = oldRollDice
+    BattleBuff.DelBuffBySubType = oldDelBuffBySubType
+end
+
+do
+    local rogue = new_unit(119, "SneakRogue", true, 1)
+    local monk = new_unit(120, "GuardMonk", false, 1)
+    rogue.class = 1
+    rogue.classId = 1
+    monk.class = 3
+    monk.classId = 3
+    rogue.buildState.skillMods[IDS.rogue_sneak_attack] = {}
+    monk.buildState.skillMods[IDS.monk_basic_attack] = { sneakAttackImmune = true }
+    local passive = RogueBuildPassives.CreateSneakAttackPassive({ src = rogue })
+    local oldApply = BuildPassiveCommon.ApplyDirectBonusDamage
+    local calls = 0
+    BuildPassiveCommon.ApplyDirectBonusDamage = function()
+        calls = calls + 1
+        return 6
+    end
+    local oldHasControlBuff = BattleBuff.HasControlBuff
+    BattleBuff.HasControlBuff = function(unit)
+        return unit == monk and false or oldHasControlBuff(unit)
+    end
+    passive:OnNormalAtkFinish({
+        data = { extraParam = { skillId = IDS.rogue_basic_attack, target = monk, damageDealt = 5 } },
+    })
+    assert_true(calls == 0, "rogue sneak attack is blocked by monk gale step immunity")
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldApply
+    BattleBuff.HasControlBuff = oldHasControlBuff
 end
 
 do
@@ -258,6 +354,60 @@ do
     assert_true(not RangerBuildPassives.IsTargetMarkedBy(ranger, enemyB), "ranger mark slots evict the oldest applied mark first")
     assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, enemyA), "ranger mark slots keep newer applied mark when overflowing")
     assert_true(RangerBuildPassives.IsTargetMarkedBy(ranger, enemyC), "ranger mark slots keep the latest applied mark")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local paladin = new_unit(291, "MercyPaladin", true, 2)
+    local ally = new_unit(292, "DebuffedAlly", true, 1)
+    paladin.class = 4
+    paladin.classId = 4
+    ally.hp = 20
+    ally.maxHp = 100
+    BattleFormation.Init({
+        teamLeft = { paladin, ally },
+        teamRight = {},
+    })
+    BattleBuff.Add(paladin, ally, {
+        buffId = 880005,
+        name = "冻结",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = E_BUFF_SPEC_SUBTYPE.Frozen,
+        duration = 2,
+        canStack = false,
+    })
+    BattleBuff.Add(paladin, ally, {
+        buffId = 850001,
+        name = "中毒",
+        mainType = E_BUFF_MAIN_TYPE.BAD,
+        subType = 850001,
+        duration = 2,
+        canStack = false,
+    })
+    local oldRollDice = BuildPassiveCommon.RollDice
+    BuildPassiveCommon.RollDice = function(expr)
+        if expr == "2d8+4" then
+            return 9
+        end
+        return 0
+    end
+    PaladinBuildPassives.PerformLayOnHands(paladin, ally, { skillId = IDS.paladin_lay_on_hands, name = "圣疗" })
+    local healedAlly = BattleFormation.FindHeroByInstanceId(ally.instanceId) or ally
+    assert_true(BattleBuff.GetBuffBySubType(healedAlly, E_BUFF_SPEC_SUBTYPE.Frozen) ~= nil, "paladin base lay on hands no longer cleanses frozen")
+    assert_true(BattleBuff.GetBuffBySubType(healedAlly, 850001) ~= nil, "paladin base lay on hands no longer cleanses poison")
+    local runtimePaladin = BattleFormation.FindHeroByInstanceId(paladin.instanceId) or paladin
+    runtimePaladin.buildState = runtimePaladin.buildState or { skillMods = {} }
+    runtimePaladin.buildState.skillMods = runtimePaladin.buildState.skillMods or {}
+    runtimePaladin.buildState.skillMods[IDS.paladin_lay_on_hands] = {
+        cleanseDebuffs = true,
+    }
+    PaladinBuildPassives.PerformLayOnHands(runtimePaladin, ally, { skillId = IDS.paladin_lay_on_hands, name = "圣疗" })
+    healedAlly = BattleFormation.FindHeroByInstanceId(ally.instanceId) or ally
+    assert_true(BattleBuff.GetBuffBySubType(healedAlly, E_BUFF_SPEC_SUBTYPE.Frozen) == nil, "paladin lay on hands mastery cleanses frozen")
+    assert_true(BattleBuff.GetBuffBySubType(healedAlly, 850001) == nil, "paladin lay on hands mastery cleanses poison")
+    assert_true((tonumber(healedAlly.tempHp) or 0) == 0, "paladin lay on hands mastery no longer grants temp hp")
+    BuildPassiveCommon.RollDice = oldRollDice
 end
 
 do

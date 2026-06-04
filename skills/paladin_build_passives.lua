@@ -285,26 +285,22 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
         return 0, nil
     end
     local BattleBuff = require("modules.battle_buff")
-    local healDice = "2d8+4"
-    local bonusHealDice = FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "bonusHealDice", nil)
-    if type(bonusHealDice) == "string" and bonusHealDice ~= "" then
-        healDice = joinDiceParts(healDice, bonusHealDice)
-    end
-    local amount = BuildPassiveCommon.RollDice(healDice)
+    local amount = BuildPassiveCommon.RollDice("2d8+4")
     BuildPassiveCommon.ApplyHeal(ally, amount)
-    BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
-    BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.STUN)
-    BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.SILENT)
-    BattleBuff.DelBuffBySubType(ally, POISON_BUFF_SUBTYPE)
-    BattleBuff.DelBuffBySubType(ally, BURN_BUFF_SUBTYPE)
-    local shieldAmount = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "postHealShield", 0)) or 0))
-    if shieldAmount > 0 then
-        ally.tempHp = math.max(math.floor(tonumber(ally.tempHp) or 0), shieldAmount)
+    local cleanseDebuffs = FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "cleanseDebuffs", false) == true
+    if cleanseDebuffs then
+        BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
+        BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.STUN)
+        BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.SILENT)
+        BattleBuff.DelBuffBySubType(ally, POISON_BUFF_SUBTYPE)
+        BattleBuff.DelBuffBySubType(ally, BURN_BUFF_SUBTYPE)
     end
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动圣疗之手：为 %s 回复 %d 生命并净化负面状态",
+    local detail = cleanseDebuffs and "并净化负面状态" or ""
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动圣疗：为 %s 回复 %d 生命%s",
         hero and hero.name or "Unknown",
         ally.name or "目标",
-        amount))
+        amount,
+        detail))
     return amount, ally
 end
 

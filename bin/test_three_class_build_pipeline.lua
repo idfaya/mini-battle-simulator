@@ -84,12 +84,33 @@ do
 end
 
 do
+    local lv1Build = HeroBuild.CompileBuild(4, 1, {})
+    assert_true(hasSkill(lv1Build.activeSkills, SkillRuntimeConfig.Ids.paladin_basic_attack), "Paladin Lv1 grants basic attack")
+    assert_true(hasSkill(lv1Build.activeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands), "Paladin Lv1 grants lay on hands as root skill")
+    assert_true(not hasSkill(lv1Build.passiveSkills, SkillRuntimeConfig.Ids.paladin_shelter_prayer), "Paladin Lv1 no longer starts with holy shelter")
+
+    local lv2Build = HeroBuild.CompileBuild(4, 2, canonicalSelections(4, 2))
+    assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).cleanseDebuffs) == true,
+        "Paladin Lv2 first child enables lay on hands cleanse")
+    assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).bonusHealDice) == nil,
+        "Paladin Lv2 first child no longer adds extra heal dice")
+    assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).postHealShield) == nil,
+        "Paladin Lv2 first child no longer grants post-heal shield")
+
+    local lv3Build = HeroBuild.CompileBuild(4, 3, canonicalSelections(4, 3))
+    assert_true(hasSkill(lv3Build.activeSkills, SkillRuntimeConfig.Ids.paladin_vengeance_smite), "Paladin Lv3 grants smite evil as T1")
+
+    local lv4Build = HeroBuild.CompileBuild(4, 4, canonicalSelections(4, 4))
+    assert_true(((lv4Build.skillMods[SkillRuntimeConfig.Ids.paladin_vengeance_smite] or {}).bonusDamageDice) == "1d8",
+        "Paladin Lv4 first post-T1 child upgrades smite evil")
+
     local sel = canonicalSelections(4, 5)
     local build = HeroBuild.CompileBuild(4, 5, sel)
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_basic_attack), "Paladin Lv5 grants basic attack")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_vengeance_smite), "Paladin Lv5 keeps smite evil")
     assert_true(hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_lay_on_hands), "Paladin Lv5 grants lay on hands")
-    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.paladin_shelter_prayer), "Paladin Lv5 keeps holy shelter")
+    assert_true(hasSkill(build.passiveSkills, SkillRuntimeConfig.Ids.paladin_shelter_prayer), "Paladin Lv5 grants holy shelter as T2")
+    assert_true(not hasSkill(build.activeSkills, SkillRuntimeConfig.Ids.paladin_guardian_aura), "Paladin Lv5 does not auto-grant guardian aura active")
 end
 
 do
@@ -212,7 +233,7 @@ do
         -- (class, expectedParentCount) — 用 canonical lv10 链路覆盖完整选包；
         -- 仅纳入 capstone.requireAllPrerequisites=true 的职业。
         { class = 1,  parents = 4 }, -- c_rogue_deadly_sneak
-        { class = 3,  parents = 3 }, -- c_monk_combo_grandmaster
+        { class = 3,  parents = 2 }, -- c_monk_combo_grandmaster
         { class = 5,  parents = 3 }, -- c_ranger_mark_master
         { class = 9,  parents = 3 }, -- c_warlock_chain_grandmaster
         { class = 10, parents = 3 }, -- c_barbarian_strike_master

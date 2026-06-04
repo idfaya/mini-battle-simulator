@@ -18,18 +18,18 @@
   {
     "classId": 3,
     "role": {"name": "武僧", "icon": "⚡", "streamId": "Monk", "isMelee": true, "preferRow": "front"},
-    "weapon": {"weaponDice": "1d4"},
+    "weapon": {"weaponDice": "1d6"},
     "rhythm": {"physicalDiceScale": 1},
     "lv1FeatIds": [2110101, 2110102],
-    "treePool": [2110301, 2110303, 2303001, 2303002, 2303003, 2303004, 2303005, 2303006, 2303007, 2303008, 2303009]
+    "treePool": [2110301, 2110303, 2303001, 2303002, 2303003, 2303004, 2303005, 2303006, 2303007, 2303008]
   },
   {
     "classId": 4,
     "role": {"name": "圣武士", "icon": "✨", "streamId": "Paladin", "isMelee": true, "preferRow": "front"},
     "weapon": {"weaponDice": "1d6"},
     "rhythm": {"physicalDiceScale": 1, "healScale": 1},
-    "lv1FeatIds": [2120101, 2120201],
-    "treePool": [2120302, 2120301, 2304001, 2304002, 2304003, 2304004, 2304005, 2304006, 2304007, 2304008, 2304009]
+    "lv1FeatIds": [2120101, 2120301],
+    "treePool": [2120302, 2120201, 2304001, 2304002, 2304003, 2304004, 2304005, 2304006]
   },
   {
     "classId": 5,
