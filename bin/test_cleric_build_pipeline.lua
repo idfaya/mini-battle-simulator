@@ -267,6 +267,42 @@ do
 end
 
 do
+    local hero = new_unit(7155, "LockedCleric")
+    local allyA = new_unit(7156, "LowerAlly")
+    local allyB = new_unit(7157, "LockedAlly")
+    hero.buildState = {
+        skillMods = {
+            [SkillRuntimeConfig.Ids.cleric_healing_word] = {
+                healLowestCount = 1,
+            },
+        },
+    }
+    allyA.hp = 15
+    allyB.hp = 40
+    local oldCalcHeal = BattleSkill.CalculateHealDice
+    local oldApplyHeal = require("modules.battle_dmg_heal").ApplyHeal
+    local healedTargetId = nil
+    BattleSkill.CalculateHealDice = function(_, _, dice)
+        if dice == "1d8" then
+            return 8
+        end
+        return 0
+    end
+    require("modules.battle_dmg_heal").ApplyHeal = function(target, amount)
+        healedTargetId = target and target.instanceId or nil
+    end
+    local total, primary = ClericBuildPassives.PerformHealingWord(hero, {
+        skillId = SkillRuntimeConfig.Ids.cleric_healing_word,
+        name = "治愈之言",
+    }, { allyB })
+    BattleSkill.CalculateHealDice = oldCalcHeal
+    require("modules.battle_dmg_heal").ApplyHeal = oldApplyHeal
+    assert_true(total > 0, "healing word still heals when locked target is provided")
+    assert_true(primary == allyB, "healing word respects locked primary target")
+    assert_true(healedTargetId == allyB.instanceId, "healing word applies heal to locked target instead of recomputing lowest ally")
+end
+
+do
     local cleric = new_unit(7201, "GuardianCleric")
     local defender = new_unit(7202, "FrontAlly")
     defender.class = 2
@@ -309,6 +345,26 @@ do
 
     BuildPassiveCommon.RollDice = oldRollDice
     BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local cleric = new_unit(7204, "LockedSanctuaryCleric")
+    local allyA = new_unit(7205, "LowestAlly")
+    local allyB = new_unit(7206, "LockedSanctuaryAlly")
+    allyA.hp = 20
+    allyB.hp = 50
+    local oldApplyHeal = require("modules.battle_dmg_heal").ApplyHeal
+    local healedTargetId = nil
+    require("modules.battle_dmg_heal").ApplyHeal = function(target, amount)
+        healedTargetId = target and target.instanceId or nil
+    end
+    local _, affectedTargets = ClericBuildPassives.ActivateSanctuary(cleric, {
+        skillId = SkillRuntimeConfig.Ids.cleric_sanctuary_prayer,
+        name = "圣域祷言",
+    }, { allyB })
+    require("modules.battle_dmg_heal").ApplyHeal = oldApplyHeal
+    assert_true(healedTargetId == allyB.instanceId, "sanctuary prayer heals locked ally target instead of recomputing lowest ally")
+    assert_true(#(affectedTargets or {}) >= 2, "sanctuary prayer returns caster and locked ally as affected targets")
 end
 
 do
@@ -398,6 +454,36 @@ do
 end
 
 do
+    local hero = new_unit(7501, "TurnUndeadCleric")
+    local enemyA = new_unit(7502, "LockedEnemy")
+    local enemyB = new_unit(7503, "OtherEnemy")
+    enemyA.isLeft = false
+    enemyB.isLeft = false
+    local oldResolve = BattleSkill.ResolveScaledDamage
+    local oldApplyDamage = require("modules.battle_dmg_heal").ApplyDamage
+    local damagedTargets = {}
+    BattleSkill.ResolveScaledDamage = function(_, target)
+        return {
+            damage = target == enemyA and 8 or 6,
+            save = { success = false },
+            damageRoll = nil,
+        }
+    end
+    require("modules.battle_dmg_heal").ApplyDamage = function(target, amount)
+        damagedTargets[#damagedTargets + 1] = target and target.instanceId or nil
+    end
+    local total, affectedTargets = ClericBuildPassives.PerformTurnUndead(hero, {
+        skillId = SkillRuntimeConfig.Ids.cleric_turn_undead,
+        name = "驱散亡灵",
+    }, { enemyA })
+    BattleSkill.ResolveScaledDamage = oldResolve
+    require("modules.battle_dmg_heal").ApplyDamage = oldApplyDamage
+    assert_true(total == 8, "turn undead only sums damage from locked targets")
+    assert_true(#damagedTargets == 1 and damagedTargets[1] == enemyA.instanceId, "turn undead only damages locked targets")
+    assert_true(#(affectedTargets or {}) == 1 and affectedTargets[1] == enemyA, "turn undead returns locked affected targets")
+end
+
+do
     BattleFormation.OnFinal()
 
     local cleric = new_unit(7601, "AutoCleric")
@@ -471,13 +557,17 @@ do
     assert_true(#(mildTargets or {}) == 1 and mildTargets[1].isLeft == true, "moderate injury makes holy spark target the ally for healing")
 
     battleAllyA.hp = 50
-    local emergencySkill = BattleMain.DebugSelectAvailableSkill(battleCleric)
+    local emergencySkill, emergencyTargets = BattleMain.DebugSelectAvailableSkill(battleCleric)
     assert_true(emergencySkill and emergencySkill.skillId == SkillRuntimeConfig.Ids.cleric_healing_word, "cleric uses healing word when the lowest ally is in danger")
+    assert_true(#(emergencyTargets or {}) >= 1 and emergencyTargets[1] == battleAllyA,
+        "cleric healing word preview locks onto the lowest ally instead of self")
 
     battleAllyA.hp = 74
     battleAllyB.hp = 77
-    local pressureSkill = BattleMain.DebugSelectAvailableSkill(battleCleric)
+    local pressureSkill, pressureTargets = BattleMain.DebugSelectAvailableSkill(battleCleric)
     assert_true(pressureSkill and pressureSkill.skillId == SkillRuntimeConfig.Ids.cleric_sanctuary_prayer, "cleric uses sanctuary prayer when multiple allies are pressured")
+    assert_true(#(pressureTargets or {}) >= 1 and pressureTargets[1] == battleAllyA,
+        "cleric sanctuary prayer preview locks onto the lowest ally instead of self")
 
     BattleFormation.OnFinal()
 end

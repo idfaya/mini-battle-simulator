@@ -219,6 +219,20 @@ do
     assert_true(injuredFighterSkill and injuredFighterSkill.skillId == SkillRuntimeConfig.Ids.fighter_second_wind_action,
         "Fighter uses second wind automatically at half HP")
 
+    battleFighter.hp = 100
+    assert_true(BattleMain.QueueUltimate(battleFighter.instanceId), "Fighter can queue limited skill manually")
+    local queuedAtFullHp = BattleMain.DebugSelectAvailableSkill(battleFighter)
+    assert_true(queuedAtFullHp and queuedAtFullHp.skillId ~= SkillRuntimeConfig.Ids.fighter_second_wind_action,
+        "Queued limited skill is not consumed when fighter still fails self-heal gate")
+    assert_true(BattleMain.HasQueuedUltimate(battleFighter.instanceId),
+        "Queued limited skill is preserved when no valid limited candidate exists")
+    battleFighter.hp = 50
+    local queuedAtHalfHp = BattleMain.DebugSelectAvailableSkill(battleFighter)
+    assert_true(queuedAtHalfHp and queuedAtHalfHp.skillId == SkillRuntimeConfig.Ids.fighter_second_wind_action,
+        "Queued limited skill fires once fighter becomes eligible")
+    assert_true(not BattleMain.HasQueuedUltimate(battleFighter.instanceId),
+        "Queued limited skill clears only after a valid limited candidate is selected")
+
     BattleFormation.OnFinal()
 
     local monk = new_unit(9201, "DecisionMonk")
@@ -293,6 +307,27 @@ do
         "Paladin targets self with lay on hands when self is at half HP")
 
     BattleFormation.OnFinal()
+end
+
+do
+    local dualLimitedHero = new_unit(9351, "DualLimitedHero")
+    local fighterRuntime = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(2, 5, canonicalSelections(2, 5)))
+    local paladinRuntime = SkillRuntime.BuildSkillsConfig(HeroBuild.CompileBuild(4, 5, canonicalSelections(4, 5)))
+    dualLimitedHero.skillsConfig = {
+        findSkill(fighterRuntime, SkillRuntimeConfig.Ids.fighter_second_wind_action),
+        findSkill(paladinRuntime, SkillRuntimeConfig.Ids.paladin_lay_on_hands),
+    }
+    BattleSkill.Init(dualLimitedHero, dualLimitedHero.skillsConfig)
+    local fighterCharges, fighterMax = BattleSkill.GetLimitedSkillCharges(dualLimitedHero, SkillRuntimeConfig.Ids.fighter_second_wind_action)
+    local paladinCharges, paladinMax = BattleSkill.GetLimitedSkillCharges(dualLimitedHero, SkillRuntimeConfig.Ids.paladin_lay_on_hands)
+    assert_true(fighterCharges == 1 and fighterMax == 1, "fighter limited skill starts with its own charge")
+    assert_true(paladinCharges == 1 and paladinMax == 1, "paladin limited skill starts with its own charge")
+    assert_true(BattleSkill.ConsumeLimitedSkillCharge(dualLimitedHero, SkillRuntimeConfig.Ids.fighter_second_wind_action),
+        "Consuming one limited skill charge succeeds")
+    fighterCharges = BattleSkill.GetLimitedSkillCharges(dualLimitedHero, SkillRuntimeConfig.Ids.fighter_second_wind_action)
+    paladinCharges = BattleSkill.GetLimitedSkillCharges(dualLimitedHero, SkillRuntimeConfig.Ids.paladin_lay_on_hands)
+    assert_true(fighterCharges == 0, "Consumed limited skill charge is tracked per skill")
+    assert_true(paladinCharges == 1, "Other limited skill keeps its own remaining charge")
 end
 
 do

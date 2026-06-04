@@ -4,6 +4,152 @@ function filterKnownNoise(errors: string[]) {
   return errors.filter((message) => !message.includes("ERR_CONNECTION_REFUSED"));
 }
 
+type RunMapNode = {
+  id: number;
+  nodeType?: string;
+  title?: string;
+  selectable?: boolean;
+  visited?: boolean;
+  current?: boolean;
+  floor?: number;
+  lane?: number;
+  nextNodeIds?: number[];
+};
+
+type RouteSnapshot = {
+  partyLevel?: number;
+  map?: {
+    nodes?: RunMapNode[];
+  };
+};
+
+type RouteState = {
+  firstBattleResolved: boolean;
+};
+
+function findSelectableNodes(snapshot: RouteSnapshot) {
+  return [...(snapshot.map?.nodes ?? [])]
+    .filter((node) => node.selectable)
+    .sort((a, b) => {
+      if ((a.floor ?? 0) !== (b.floor ?? 0)) {
+        return (a.floor ?? 0) - (b.floor ?? 0);
+      }
+      return (a.lane ?? 0) - (b.lane ?? 0);
+    });
+}
+
+function findPathNextHop(
+  snapshot: RouteSnapshot,
+  predicate: (node: RunMapNode) => boolean,
+  avoidUnvisitedBattle = false,
+) {
+  const nodes = snapshot.map?.nodes ?? [];
+  if (nodes.length === 0) {
+    return null;
+  }
+  const indexById = new Map(nodes.map((node) => [node.id, node]));
+  const current = nodes.find((node) => node.current);
+  if (!current) {
+    return null;
+  }
+
+  const queue = [current.id];
+  const visited = new Set<number>([current.id]);
+  const parent = new Map<number, number>();
+  let target: RunMapNode | null = null;
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id == null) {
+      break;
+    }
+    const node = indexById.get(id);
+    if (!node) {
+      continue;
+    }
+    if (node !== current && predicate(node)) {
+      target = node;
+      break;
+    }
+    for (const nextId of node.nextNodeIds ?? []) {
+      const nextNode = indexById.get(nextId);
+      if (!nextNode || visited.has(nextId)) {
+        continue;
+      }
+      const skipBattle =
+        avoidUnvisitedBattle &&
+        !nextNode.visited &&
+        (nextNode.nodeType === "battle_normal" || nextNode.nodeType === "battle_elite") &&
+        !predicate(nextNode);
+      if (skipBattle) {
+        continue;
+      }
+      visited.add(nextId);
+      parent.set(nextId, id);
+      queue.push(nextId);
+    }
+  }
+
+  if (!target) {
+    return null;
+  }
+  let cursor = target.id;
+  while (parent.get(cursor) != null && parent.get(cursor) !== current.id) {
+    cursor = parent.get(cursor)!;
+  }
+  return indexById.get(cursor) ?? null;
+}
+
+function hasUnvisitedBattleOnFloor(snapshot: RouteSnapshot, floorDepth: number) {
+  return (snapshot.map?.nodes ?? []).some(
+    (node) => !node.visited && node.nodeType === "battle_normal" && (node.floor ?? 0) === floorDepth,
+  );
+}
+
+function pickSelectableHop(snapshot: RouteSnapshot, hop: RunMapNode | null) {
+  if (!hop) {
+    return null;
+  }
+  return findSelectableNodes(snapshot).find((node) => node.id === hop.id) ?? null;
+}
+
+function chooseCh101ReachNode(snapshot: RouteSnapshot, routeState: RouteState) {
+  const selectable = findSelectableNodes(snapshot);
+  const currentFloor = (snapshot.map?.nodes ?? []).find((node) => node.current)?.floor ?? 1;
+
+  if (!routeState.firstBattleResolved) {
+    return (
+      selectable.find((node) => !node.visited && node.nodeType === "battle_normal") ??
+      pickSelectableHop(snapshot, findPathNextHop(snapshot, (node) => !node.visited && node.nodeType === "battle_normal"))
+    );
+  }
+
+  if (currentFloor >= 5) {
+    return (
+      pickSelectableHop(snapshot, findPathNextHop(snapshot, (node) => node.nodeType === "boss" && !node.visited, true)) ??
+      pickSelectableHop(snapshot, findPathNextHop(snapshot, (node) => node.nodeType === "boss" && !node.visited))
+    );
+  }
+
+  const stairPred = (node: RunMapNode) => node.nodeType === "stair_down" && (node.floor ?? 0) === currentFloor;
+  let picked =
+    pickSelectableHop(snapshot, findPathNextHop(snapshot, stairPred, true)) ??
+    pickSelectableHop(snapshot, findPathNextHop(snapshot, stairPred));
+  if (!picked && hasUnvisitedBattleOnFloor(snapshot, currentFloor)) {
+    picked = pickSelectableHop(
+      snapshot,
+      findPathNextHop(
+        snapshot,
+        (node) => !node.visited && node.nodeType === "battle_normal" && (node.floor ?? 0) === currentFloor,
+      ),
+    );
+  }
+  if (picked) {
+    return picked;
+  }
+
+  return selectable.find((node) => !node.visited && node.nodeType === "camp") ?? selectable[0] ?? null;
+}
+
 async function driveBattleUntilResolved(page: import("playwright/test").Page, timeout = 90000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -96,9 +242,23 @@ async function chooseRewardIndex(page: import("playwright/test").Page) {
     if (!reward?.options?.length) {
       return 0;
     }
-    // 队伍升级三选一：暂时选第一个 option（后续可按英雄优先级/tier 加权）
     if (reward.kind === "feat_levelup") {
-      return 0;
+      const levelByRoster = new Map<number, number>();
+      for (const hero of snapshot?.team ?? []) {
+        if (hero.rosterId) {
+          levelByRoster.set(hero.rosterId, hero.level ?? 1);
+        }
+      }
+      let bestIndex = 0;
+      let bestLevel = Number.POSITIVE_INFINITY;
+      reward.options.forEach((option, index) => {
+        const level = levelByRoster.get(option.rosterId ?? 0) ?? Number.POSITIVE_INFINITY;
+        if (level < bestLevel) {
+          bestLevel = level;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
     }
     if (reward.kind === "node_recruit") {
       const existing = new Set<number>();
@@ -128,6 +288,23 @@ async function chooseRewardIndex(page: import("playwright/test").Page) {
       if (bestIndex >= 0) {
         return bestIndex;
       }
+    }
+    const rewardPriority: Record<string, number> = {
+      equipment: 1,
+      blessing: 2,
+      gold: 3,
+    };
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+    reward.options.forEach((option, index) => {
+      const score = rewardPriority[option.rewardType ?? ""] ?? 99;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+    if (bestScore < Number.POSITIVE_INFINITY) {
+      return bestIndex;
     }
     return 0;
   });
@@ -247,9 +424,12 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator(".run-team-card").first()).toContainText("Lv1");
   await expect(page.locator(".run-team-card").first()).toContainText("构筑:");
   await page.getByRole("button", { name: "地图" }).click();
+  const routeState: RouteState = {
+    firstBattleResolved: false,
+  };
 
-  const chooseNodeAndEnter = async (preferredTypes: string[]) => {
-    const chosen = await page.evaluate(async (types) => {
+  const chooseNodeAndEnter = async () => {
+    const snapshot = await page.evaluate(async () => {
       const runtime = window as typeof window & {
         __miniBattleHost?: {
           getRunSnapshot: () => Promise<{
@@ -265,12 +445,28 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       if (!host) {
         return null;
       }
-      const snapshot = await host.getRunSnapshot();
-      const selectable = (snapshot.map?.nodes ?? []).filter((node) => node.selectable);
-      const selected =
-        types
-          .map((type) => selectable.find((node) => node.nodeType === type))
-          .find((node) => Boolean(node)) ?? selectable[0] ?? null;
+      return host.getRunSnapshot();
+    });
+    const selected = snapshot ? chooseCh101ReachNode(snapshot as RouteSnapshot, routeState) : null;
+    expect(selected).not.toBeNull();
+    const chosen = await page.evaluate(async (nodeId) => {
+      const runtime = window as typeof window & {
+        __miniBattleHost?: {
+          getRunSnapshot: () => Promise<{
+            map?: {
+              nodes?: Array<{ id: number; nodeType?: string; title?: string; selectable?: boolean }>;
+            };
+          }>;
+          choosePath: (nodeId: number) => Promise<boolean>;
+          enterNode: () => Promise<boolean>;
+        };
+      };
+      const host = runtime.__miniBattleHost;
+      if (!host || nodeId == null) {
+        return null;
+      }
+      const before = await host.getRunSnapshot();
+      const selected = (before.map?.nodes ?? []).find((node) => node.id === nodeId);
       if (!selected) {
         return null;
       }
@@ -281,7 +477,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
         nodeType: selected.nodeType ?? "",
         title: selected.title ?? "",
       };
-    }, preferredTypes);
+    }, selected?.id ?? null);
     expect(chosen).not.toBeNull();
     return chosen;
   };
@@ -344,10 +540,11 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       break;
     }
     if (phase === "map") {
-      await chooseNodeAndEnter(["camp", "shop", "event", "battle_normal", "battle_elite", "boss", "stair_down"]);
+      await chooseNodeAndEnter();
       continue;
     }
     if (phase === "battle") {
+      routeState.firstBattleResolved = true;
       await driveBattleUntilResolved(page, 80000);
       continue;
     }

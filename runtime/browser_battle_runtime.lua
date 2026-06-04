@@ -154,7 +154,7 @@ local function emitEvent(eventType, payload)
     })
 end
 
-local function getUltimateSkill(hero)
+local function getUltimateSkill(hero, requireCharges)
     local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
     if not instances then
         return nil
@@ -162,8 +162,12 @@ local function getUltimateSkill(hero)
 
     for _, skill in pairs(instances) do
         if skill and skill.skillType == E_SKILL_TYPE_ULTIMATE then
+            if requireCharges and not BattleSkill.HasLimitedSkillCharge(hero, skill.skillId) then
+                goto continue_skill
+            end
             return skill
         end
+        ::continue_skill::
     end
 
     return nil
@@ -195,7 +199,7 @@ local function canCastUltimate(hero)
         return false
     end
 
-    local skill = getUltimateSkill(hero)
+    local skill = getUltimateSkill(hero, true)
     if not skill then
         return false
     end
@@ -223,7 +227,7 @@ local function serializeBuff(buff)
 end
 
 local function serializeHero(hero)
-    local skill = getUltimateSkill(hero)
+    local skill = getUltimateSkill(hero, true)
     local buffs = {}
     local initiative = BattleActionOrder.GetHeroInitiative and BattleActionOrder.GetHeroInitiative(hero) or { roll = 0, mod = 0, total = 0 }
     for _, buff in ipairs(BattleBuff.GetAllBuffs(hero) or {}) do

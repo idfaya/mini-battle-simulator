@@ -10,7 +10,7 @@ function skill_80006016.BuildTimeline(hero, targets, skill)
             effect = "cleric_turn_undead_execute",
             targetRef = "selected",
             execute = function()
-                local damage, affectedTargets = ClericBuildPassives.PerformTurnUndead(hero, skill)
+                local damage, affectedTargets = ClericBuildPassives.PerformTurnUndead(hero, skill, targets)
                 return {
                     damage = damage,
                     targets = affectedTargets or {},

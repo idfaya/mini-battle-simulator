@@ -70,10 +70,11 @@ test("monk smoke shows martial arts chain, subclass action and extra attack", as
 
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("连击");
+    .toContain("震慑拳");
 
   const logs = await readLogs(page);
-  expect(logs.some((line) => line.includes("连击"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("震慑拳"))).toBeTruthy();
+  expect(logs.filter((line) => line.includes("徒手打击")).length).toBeGreaterThanOrEqual(2);
   expect(animationSummary.maxProjectileCount).toBe(0);
   expect(animationSummary.maxMeleeClashes).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);

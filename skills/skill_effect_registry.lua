@@ -1306,7 +1306,8 @@ function SkillEffectRegistry.RegisterBuiltins()
 
     SkillEffectRegistry.Register("paladin_lay_on_hands", function(ctx, frameCopy)
         local PaladinBuildPassives = require("skills.paladin_build_passives")
-        local effectValue, healedTarget = PaladinBuildPassives.PerformLayOnHands(ctx.hero, frameCopy.target, ctx.skill)
+        local target = ((ctx.targets or {})[1]) or ((frameCopy.targets or {})[1]) or frameCopy.target or ctx.hero
+        local effectValue, healedTarget = PaladinBuildPassives.PerformLayOnHands(ctx.hero, target, ctx.skill)
         return {
             effectValue = effectValue,
             healAmount = effectValue,

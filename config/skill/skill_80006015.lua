@@ -10,10 +10,10 @@ function skill_80006015.BuildTimeline(hero, targets, skill)
             effect = "cleric_sanctuary_execute",
             targetRef = "self",
             execute = function()
-                local effectValue = ClericBuildPassives.ActivateSanctuary(hero, skill)
+                local effectValue, affectedTargets = ClericBuildPassives.ActivateSanctuary(hero, skill, targets)
                 return {
                     effectValue = effectValue,
-                    targets = { hero },
+                    targets = affectedTargets or { hero },
                 }
             end,
         },

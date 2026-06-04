@@ -280,17 +280,27 @@ function PaladinBuildPassives.ApplyPaladinProtections(defender, extraParam)
 end
 
 function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
-    local heroMaxHp = math.max(1, tonumber(hero and hero.maxHp) or tonumber(hero and hero.hp) or 1)
-    local heroHp = math.max(0, tonumber(hero and hero.hp) or heroMaxHp)
-    local shouldHealSelf = (heroHp / heroMaxHp) <= 0.5
-    local ally = shouldHealSelf and hero or (BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero)
+    local ally = nil
+    if target then
+        local BattleFormation = require("modules.battle_formation")
+        ally = BattleFormation.FindHeroByInstanceId(target.instanceId or target.id) or target
+        if not isAlive(ally) then
+            ally = nil
+        end
+    end
+    if not ally then
+        local heroMaxHp = math.max(1, tonumber(hero and hero.maxHp) or tonumber(hero and hero.hp) or 1)
+        local heroHp = math.max(0, tonumber(hero and hero.hp) or heroMaxHp)
+        local shouldHealSelf = (heroHp / heroMaxHp) <= 0.5
+        ally = shouldHealSelf and hero or (BuildPassiveCommon.PickLowestHpAlly(hero, true) or hero)
+    end
     if not isAlive(ally) then
         return 0, nil
     end
     local BattleBuff = require("modules.battle_buff")
     local amount = BuildPassiveCommon.RollDice("2d8+4")
     BuildPassiveCommon.ApplyHeal(ally, amount)
-    local cleanseDebuffs = FeatModHelper.GetSkillMod(hero, IDS.paladin_lay_on_hands, "cleanseDebuffs", false) == true
+    local cleanseDebuffs = FeatModHelper.HasFlag(hero, IDS.paladin_lay_on_hands, "cleanseDebuffs")
     if cleanseDebuffs then
         BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
         BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.STUN)

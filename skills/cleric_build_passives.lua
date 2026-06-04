@@ -134,6 +134,18 @@ local function getLowestHpAllies(hero, includeSelf, count)
     return picked
 end
 
+local function resolveAliveTarget(target)
+    if not target then
+        return nil
+    end
+    local BattleFormation = require("modules.battle_formation")
+    local resolved = BattleFormation.FindHeroByInstanceId(target.instanceId or target.id) or target
+    if not isAlive(resolved) then
+        return nil
+    end
+    return resolved
+end
+
 local function clearOneDebuff(target)
     local BattleBuff = require("modules.battle_buff")
     for i = #(BattleBuff.GetAllBuffs(target) or {}), 1, -1 do
@@ -284,7 +296,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     return 0
 end
 
-function ClericBuildPassives.PerformHealingWord(hero, skill)
+function ClericBuildPassives.PerformHealingWord(hero, skill, lockedTargets)
     if not isAlive(hero) then
         return 0, nil
     end
@@ -292,7 +304,21 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
         and hero.buildState.skillMods[IDS.cleric_healing_word]
         or {}
     local healLowestCount = math.max(1, math.floor(tonumber(mods and mods.healLowestCount) or 1))
-    local targets = getLowestHpAllies(hero, true, healLowestCount)
+    local targets = {}
+    if type(lockedTargets) == "table" then
+        for _, ally in ipairs(lockedTargets) do
+            local resolvedAlly = resolveAliveTarget(ally)
+            if resolvedAlly then
+                targets[#targets + 1] = resolvedAlly
+            end
+            if #targets >= healLowestCount then
+                break
+            end
+        end
+    end
+    if #targets == 0 then
+        targets = getLowestHpAllies(hero, true, healLowestCount)
+    end
     local primaryTarget = targets[1]
     if not isAlive(primaryTarget) then
         return 0, nil
@@ -311,27 +337,43 @@ function ClericBuildPassives.PerformHealingWord(hero, skill)
             clearOneDebuff(ally)
         end
     end
-    return total, primaryTarget
+    return total, primaryTarget, targets
 end
 
-function ClericBuildPassives.ActivateSanctuary(hero, skill)
+function ClericBuildPassives.ActivateSanctuary(hero, skill, lockedTargets)
     if not isAlive(hero) then
         return 0
     end
     local runtime = ensureRuntime(hero)
     runtime.clericSanctuaryExpireRound = getRound() + 2
     syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
-    local ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
+    local ally = nil
+    if type(lockedTargets) == "table" then
+        for _, lockedTarget in ipairs(lockedTargets) do
+            local resolvedTarget = resolveAliveTarget(lockedTarget)
+            if resolvedTarget and not sameUnit(resolvedTarget, hero) then
+                ally = resolvedTarget
+                break
+            end
+        end
+    end
+    if not ally then
+        ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
+    end
+    local affectedTargets = { hero }
     if isAlive(ally) then
         local heal = BuildPassiveCommon.RollDice("1d4")
         local BattleDmgHeal = require("modules.battle_dmg_heal")
         BattleDmgHeal.ApplyHeal(ally, heal, hero)
         grantTempHp(ally, 4, skill and skill.name or "圣域祷言")
+        if not sameUnit(ally, hero) then
+            affectedTargets[#affectedTargets + 1] = ally
+        end
     end
     BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：我方全体获得圣域护持",
         hero.name or "Unknown",
         skill and skill.name or "圣域祷言"))
-    return 1
+    return 1, affectedTargets
 end
 
 local function getSanctuaryAcBonus(source)
@@ -429,7 +471,7 @@ function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
     end
 end
 
-function ClericBuildPassives.PerformTurnUndead(hero, skill)
+function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
     if not isAlive(hero) then
         return 0, {}
     end
@@ -446,7 +488,12 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill)
         and hero.buildState.skillMods[IDS.cleric_turn_undead]
         and tonumber(hero.buildState.skillMods[IDS.cleric_turn_undead].executeThresholdPct)
         or 0
-    for _, target in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
+    local targetPool = lockedTargets
+    if type(targetPool) ~= "table" or #targetPool == 0 then
+        targetPool = BattleFormation.GetEnemyTeam(hero) or {}
+    end
+    for _, target in ipairs(targetPool) do
+        target = resolveAliveTarget(target)
         if isAlive(target) then
             local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
                 skill = skill,

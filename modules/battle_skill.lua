@@ -746,27 +746,7 @@ function BattleSkill.Init(hero, skillsConfig)
         end
     end
 
-    -- LIMITED 充能：根据每个 LIMITED 技能上的 feat 修饰（secondWindCharges / chargesDelta）累加到 hero.ultimateChargesMax。
-    -- 基础值由外部（roguelike bridge / hero_factory）注入（默认 1）；这里只追加 feat 加成，并把当前 charges 同步刷满。
-    local prevMax = tonumber(hero.ultimateChargesMax) or 1
-    local prevCharges = tonumber(hero.ultimateCharges)
-    local extraCharges = 0
-    for _, skill in ipairs(hero.skills) do
-        if skill and skill.skillType == E_SKILL_TYPE_LIMITED then
-            local sid = skill.skillId
-            extraCharges = extraCharges
-                + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, sid, "secondWindCharges", 0)))
-                + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, sid, "chargesDelta", 0)))
-        end
-    end
-    if extraCharges > 0 then
-        hero.ultimateChargesMax = prevMax + extraCharges
-        if prevCharges == nil or prevCharges >= prevMax then
-            hero.ultimateCharges = hero.ultimateChargesMax
-        else
-            hero.ultimateCharges = math.min(prevCharges, hero.ultimateChargesMax)
-        end
-    end
+    BattleSkill.RefreshLimitedSkillCharges(hero)
 
     Logger.Log("[BattleSkill.Init] Initialized " .. #hero.skills .. " skills for hero: " .. tostring(hero.name))
 end
@@ -912,6 +892,121 @@ function BattleSkill.GetSkillCurCoolDown(hero, skillId)
     return hero.skillData.coolDowns[skillId] or 0
 end
 
+local function EnsureLimitedChargeState(hero)
+    if not hero then
+        return nil, nil
+    end
+    hero.skillData = hero.skillData or {}
+    hero.skillData.limitedCharges = hero.skillData.limitedCharges or {}
+    hero.skillData.limitedChargesMax = hero.skillData.limitedChargesMax or {}
+    return hero.skillData.limitedCharges, hero.skillData.limitedChargesMax
+end
+
+local function ComputeLimitedSkillMaxCharges(hero, skillId)
+    return math.max(
+        1,
+        1
+            + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillId, "secondWindCharges", 0)))
+            + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillId, "chargesDelta", 0)))
+    )
+end
+
+function BattleSkill.RefreshLimitedSkillCharges(hero)
+    local charges, maxCharges = EnsureLimitedChargeState(hero)
+    if not charges or not maxCharges then
+        return
+    end
+
+    local limitedSkillIds = {}
+    local sourceSkills = hero.skills or {}
+    if #sourceSkills == 0 and hero.skillData and hero.skillData.skillInstances then
+        for _, skill in pairs(hero.skillData.skillInstances) do
+            sourceSkills[#sourceSkills + 1] = skill
+        end
+    end
+
+    for _, skill in ipairs(sourceSkills) do
+        if skill and skill.skillType == E_SKILL_TYPE_LIMITED and skill.skillId then
+            local skillId = tonumber(skill.skillId)
+            local skillMaxCharges = ComputeLimitedSkillMaxCharges(hero, skillId)
+            limitedSkillIds[skillId] = true
+            maxCharges[skillId] = skillMaxCharges
+            local current = tonumber(charges[skillId])
+            if current == nil then
+                charges[skillId] = skillMaxCharges
+            else
+                charges[skillId] = math.max(0, math.min(current, skillMaxCharges))
+            end
+        end
+    end
+
+    for skillId in pairs(maxCharges) do
+        if not limitedSkillIds[skillId] then
+            maxCharges[skillId] = nil
+            charges[skillId] = nil
+        end
+    end
+
+    local totalCharges = 0
+    local totalMaxCharges = 0
+    for skillId, skillMaxCharges in pairs(maxCharges) do
+        totalMaxCharges = totalMaxCharges + math.max(0, tonumber(skillMaxCharges) or 0)
+        totalCharges = totalCharges + math.max(0, tonumber(charges[skillId]) or tonumber(skillMaxCharges) or 0)
+    end
+    if totalMaxCharges > 0 then
+        hero.ultimateChargesMax = totalMaxCharges
+        hero.ultimateCharges = totalCharges
+    end
+end
+
+function BattleSkill.GetLimitedSkillCharges(hero, skillId)
+    if not hero or skillId == nil then
+        return nil, nil
+    end
+    local charges, maxCharges = EnsureLimitedChargeState(hero)
+    local sid = tonumber(skillId)
+    if maxCharges[sid] == nil then
+        BattleSkill.RefreshLimitedSkillCharges(hero)
+    end
+    return tonumber(charges[sid]), tonumber(maxCharges[sid])
+end
+
+function BattleSkill.HasLimitedSkillCharge(hero, skillId)
+    local curCharges, maxCharges = BattleSkill.GetLimitedSkillCharges(hero, skillId)
+    if maxCharges == nil then
+        return true
+    end
+    if curCharges == nil then
+        curCharges = maxCharges
+    end
+    return curCharges > 0
+end
+
+function BattleSkill.ConsumeLimitedSkillCharge(hero, skillId)
+    local charges, maxCharges = EnsureLimitedChargeState(hero)
+    local sid = tonumber(skillId)
+    if sid == nil then
+        return false
+    end
+    if maxCharges[sid] == nil then
+        BattleSkill.RefreshLimitedSkillCharges(hero)
+    end
+    local current = tonumber(charges[sid])
+    local skillMaxCharges = tonumber(maxCharges[sid])
+    if skillMaxCharges == nil then
+        return true
+    end
+    if current == nil then
+        current = skillMaxCharges
+    end
+    if current <= 0 then
+        return false
+    end
+    charges[sid] = math.max(0, current - 1)
+    BattleSkill.RefreshLimitedSkillCharges(hero)
+    return true
+end
+
 --- 设置技能冷却时间
 ---@param hero table 英雄对象
 ---@param skillId number 技能ID
@@ -1054,15 +1149,14 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     end
 
     if skill.skillType == E_SKILL_TYPE_LIMITED and not releaseCommittedChant then
-        -- Limited-use skills are gated by per-rest charges (legacy fields: ultimateCharges/ultimateChargesMax).
-        hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
-        hero.ultimateCharges = tonumber(hero.ultimateCharges)
-        if hero.ultimateCharges == nil then
-            hero.ultimateCharges = hero.ultimateChargesMax
-        end
-        hero.ultimateCharges = math.max(0, hero.ultimateCharges - 1)
-        Logger.Log(string.format("[CastSkillInSeq] %s 释放大招消耗次数: %d/%d",
-            hero.name or "Unknown", hero.ultimateCharges, hero.ultimateChargesMax))
+        BattleSkill.ConsumeLimitedSkillCharge(hero, skill.skillId)
+        local charges = BattleSkill.GetLimitedSkillCharges(hero, skill.skillId)
+        Logger.Log(string.format("[CastSkillInSeq] %s 释放限次技能消耗次数: skillId=%s remain=%s total=%d/%d",
+            hero.name or "Unknown",
+            tostring(skill.skillId),
+            tostring(charges),
+            tonumber(hero.ultimateCharges) or 0,
+            tonumber(hero.ultimateChargesMax) or 0))
     end
 
     if hero and releaseCommittedChant then
@@ -1103,12 +1197,7 @@ local function PrepareSkillCast(hero, target, skillId, opts)
     end
 
     if skill.skillType == E_SKILL_TYPE_LIMITED then
-        local maxCharges = tonumber(hero.ultimateChargesMax) or 1
-        local charges = tonumber(hero.ultimateCharges)
-        if charges == nil then
-            charges = maxCharges
-        end
-        if charges <= 0 then
+        if not BattleSkill.HasLimitedSkillCharge(hero, skillId) then
             Logger.Log("[BattleSkill.CastSkillInSeq] Skill has no charges: " .. tostring(skillId))
             return nil
         end
@@ -1260,20 +1349,33 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
     if not opts.ignoreChant and meta and tonumber(meta.chantTurns) and tonumber(meta.chantTurns) > 0 then
         BattleSkill.SetSkillCurCoolDown(hero, skillId, skill.maxCoolDown)
         if skill.skillType == E_SKILL_TYPE_LIMITED then
-            hero.ultimateChargesMax = tonumber(hero.ultimateChargesMax) or 1
-            hero.ultimateCharges = tonumber(hero.ultimateCharges)
-            if hero.ultimateCharges == nil then
-                hero.ultimateCharges = hero.ultimateChargesMax
+            if not BattleSkill.ConsumeLimitedSkillCharge(hero, skillId) then
+                if type(onComplete) == "function" then
+                    onComplete(false, { totalDamage = 0, succeeded = false, reason = "no_charges" })
+                end
+                return false
             end
-            hero.ultimateCharges = math.max(0, hero.ultimateCharges - 1)
-            Logger.Log(string.format("[CHANT] %s 开始吟唱时预扣次数: %d/%d",
-                hero.name or "Unknown", hero.ultimateCharges, hero.ultimateChargesMax))
+            local charges = BattleSkill.GetLimitedSkillCharges(hero, skillId)
+            Logger.Log(string.format("[CHANT] %s 开始吟唱时预扣次数: skillId=%s remain=%s total=%d/%d",
+                hero.name or "Unknown",
+                tostring(skillId),
+                tostring(charges),
+                tonumber(hero.ultimateCharges) or 0,
+                tonumber(hero.ultimateChargesMax) or 0))
         end
         -- Do not start timeline now. The battle loop will count down and release later.
+        local targetIds = {}
+        for _, resolvedTarget in ipairs(targets or {}) do
+            local resolvedId = resolvedTarget and (resolvedTarget.instanceId or resolvedTarget.id) or nil
+            if resolvedId ~= nil then
+                targetIds[#targetIds + 1] = resolvedId
+            end
+        end
         hero.__pendingCast = {
             skillId = skillId,
             skillName = skill and skill.name,
             targetId = targets and targets[1] and (targets[1].instanceId or targets[1].id) or nil,
+            targetIds = targetIds,
             remainTurns = tonumber(meta.chantTurns),
             committed = true,
         }

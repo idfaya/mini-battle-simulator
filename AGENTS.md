@@ -1,7 +1,16 @@
 # AGENTS.md
 
-This repository is a Lua/Unity (ToLua) game prototype with a small Node.js toolchain.
-This document describes project conventions and operational rules for coding agents.
+This document describes behavioral guidelines and operational rules for coding agents.
+For project overview, repository structure, key paths, and developer entry points, see `README.md`.
+
+## Execution Principles
+
+These rules complement the repo-specific constraints below and apply to all coding, review, and refactor tasks.
+
+- **Think before coding**: surface assumptions explicitly, do not silently choose among ambiguous interpretations, and ask only when the ambiguity blocks a correct implementation.
+- **Simplicity first**: implement the minimum code that solves the stated problem; avoid speculative abstractions, unused configurability, and defensive handling for impossible scenarios.
+- **Surgical changes**: touch only the files and lines required by the task, match existing style, and clean up only artifacts created by your own change.
+- **Goal-driven execution**: define concrete success criteria before multi-step work, tie each step to a verification action, and do not stop at "looks right" when a focused check is possible.
 
 ## Non-Negotiables
 
@@ -34,53 +43,24 @@ cd web && npm run export:lua && npm run test:playwright
 - Playwright 默认**不复用**已有 dev 服（`playwright.config.ts`）；本地调试可 `PW_REUSE_SERVER=1 npm run test:playwright`
 - 若 5173 被旧进程占用导致 `.lua` 返回 HTML，先结束该进程再跑测试
 
-## Documentation
+## Documentation Rules
 
-- **`design/`** — 策划设计文档（玩法、数值、关卡、职业）。导航：`design/README.md`
-- **`docs/`** — 程序开发文档（实现、工程约束、落地计划）。导航：`docs/README.md`；Run 养成 / 地牢 SSOT 见 `docs/implementation_guidelines.md` §5
-- **`design/legacy/`** — 过时策划归档：**禁止阅读、禁止维护、禁止在活跃文档中引用或对照**
-- 改代码前：策划规则见 `design/`，实现口径见 `docs/implementation_guidelines.md` 与 `docs/*_IMPLEMENTATION.md`
-
-### 文档与演进原则（开发中工程）
-
-- **不做旧设计兼容**：本工程处于活跃开发阶段。不要为已废弃的接口、字段、公式或迁移路径保留运行时分支、转发层、占位字段或「兼容旧存档/旧读者」式说明；除非用户明确要求，否则直接按当前 SSOT 实现并同步文档。
-- **活跃文档只写现状**：`design/` 与 `docs/` 中的活跃稿件必须清晰陈述**当前**设计与实现，使用现在时。禁止「旧版 / 新版 / 已迁移 / 已删除 / formerly」式对照表；禁止把删除清单当作长期文档结构。
-- **归档即隔离**：需要留档的过时内容只能进入 `design/legacy/`（或从活跃文档中彻底删除），不得在 `docs/*_IMPLEMENTATION.md`、`implementation_guidelines.md` 里长期维护「历史对比」章节。
-- **改代码必改文档**：变更 SSOT（属性、伤害、技能、Run 等）时，同一 PR/任务内更新对应的 `docs/` 或 `design/` 活跃章节，避免策划稿与源码分叉。
-
-## Key Paths
-
-- Roguelike config: `config/roguelike/`
-- Canonical skill data: `config/data/skills.json`
-- Canonical passive data: `config/data/passives.json`
-- Canonical class data: `config/data/classes.json`
-- Canonical hero data: `config/data/heroes.json`
-- Canonical enemy data: `config/data/enemies.json`
-- Canonical buff data: `config/data/buffs.json`
-- Canonical event data: `config/data/events.json`
-- Canonical trinket data: `config/data/trinkets.json`
-- Canonical Lua table loaders: `config/tables/*.lua`
-- Core battle modules: `modules/`
-- Skill modules: `skills/`
-- Web mirror (generated): `web/public/lua/project/`
+- Read active design rules from `design/` and implementation rules from `docs/` before changing code.
+- Treat `design/legacy/` as archive only: do not read it for current implementation, do not maintain it, and do not reference it from active docs.
+- Do not preserve runtime compatibility for removed interfaces, fields, formulas, or migration paths unless the user explicitly asks for it.
+- Keep active docs focused on the current behavior only; avoid long-lived "old vs new" comparisons in `design/` and `docs/`.
+- When changing SSOT behavior for attributes, damage, skills, or run flow, update the corresponding active docs in the same task.
 
 ## Config Tables And EmmyLua
 
-Large static config tables can trigger false positives in EmmyLua/LSP due to overly narrow inference.
-Preferred mitigation:
-
-- Add explicit EmmyLua types:
-  - `---@alias` for literal unions (or inline union types if alias parsing is flaky).
-  - `---@class` for entry schemas.
-  - `---@type table<integer, Entry>` for top-level dictionaries.
+- Large static config tables may trigger EmmyLua/LSP false positives due to narrow inference.
+- Preferred mitigation: add explicit types via `---@alias`, `---@class`, and `---@type table<integer, Entry>`.
 - Keep runtime behavior unchanged; annotations are documentation/type hints only.
 
 ## Skill Metadata Synchronization
 
-When changing skill behavior:
-
-- Update `config/data/skills.json` rules fields and keep `config/tables/skill_meta.lua` in sync.
-- Update `config/data/skills.json` if the schema or fields used by runtime changed.
+- When changing skill behavior, update `config/data/skills.json` rules fields and keep `config/tables/skill_meta.lua` in sync.
+- If runtime-consumed schema or fields changed, update `config/data/skills.json` accordingly.
 
 ## Safety And Hygiene
 
@@ -95,10 +75,3 @@ When changing skill behavior:
 - **危险操作后置**：删除文件、`git reset`、清理目录、覆盖式重写等高风险动作尽量延后到开发末尾统一处理，并在执行前明确告知影响范围；开发过程中优先用「新增 / 修改 / 标记废弃」的方式推进，避免因中途删除阻断流程。
 - **大功能必跑 Playwright**：任何大功能（新系统、跨模块改动、SSOT/数值结构调整等）完成后必须跑 `cd web && npm run export:lua && npm run test:playwright` 做端到端回归，**只跑 `bin/` 下的 Lua 脚本不算验收完成**。
 - **提交节奏**：开发完成后**不要自动 commit**，先汇报结果等待用户确认；用户确认后再执行 `git commit`，commit 完成后**自动执行 `git push`**，无需再次询问。
-
-## Quick Commands
-
-- Refresh web Lua mirror: `cd web && npm run export:lua`
-- Web E2E（Playwright）: `cd web && npm run test:playwright`
-- Roguelike 文档回归：`lua bin/test_roguelike_room_one_shot.lua`、`lua bin/test_roguelike_progression_pacing.lua`、`lua bin/test_roguelike_ch101_reach.lua`
-- Roguelike D2/D3：`lua bin/test_roguelike_event_skill_check.lua`、`lua bin/test_roguelike_hidden_floor.lua`、`lua bin/test_roguelike_boss_trinket.lua`

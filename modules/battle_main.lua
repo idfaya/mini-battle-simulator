@@ -522,6 +522,15 @@ local function HasSkillAiConfig(skill)
     return GetSkillAiConfig(skill) ~= nil
 end
 
+local function IsSupportAiRole(skill)
+    local ai = GetSkillAiConfig(skill)
+    local role = ai and ai.role
+    return role == "heal_self"
+        or role == "heal_emergency"
+        or role == "buff_aura"
+        or role == "hybrid_spark"
+end
+
 -- 通用门槛：根据 skill.ai.gates 字段判定能否选择该技能
 local function PassAiGates(hero, skill, previewTargets)
     local ai = GetSkillAiConfig(skill)
@@ -655,7 +664,7 @@ local function ScoreSkillCandidate(hero, skill, previewTargets)
         score = score + 100
     end
 
-    if IsSupportCastTarget(castTarget) then
+    if IsSupportCastTarget(castTarget) or IsSupportAiRole(skill) then
         local injuredCount, allyMissingHpRatio = SummarizeTargetInjury(previewTargets)
         score = score + injuredCount * 20
         score = score + math.floor(allyMissingHpRatio * 100)
@@ -702,12 +711,7 @@ local function BuildSkillCandidate(hero, skill, opts)
     end
 
     if skill.skillType == E_SKILL_TYPE_LIMITED then
-        local maxCharges = tonumber(hero.ultimateChargesMax) or 1
-        local charges = tonumber(hero.ultimateCharges)
-        if charges == nil then
-            charges = maxCharges
-        end
-        if charges <= 0 then
+        if not BattleSkill.HasLimitedSkillCharge(hero, skillId) then
             return nil
         end
         if opts.requireLimitedGate and not BattleEnergy.CanCastUltimate(hero, skill) then
@@ -1329,8 +1333,8 @@ local function SelectAvailableSkill(hero)
         local queuedCandidate = PickBestSkillCandidate(hero, orderedSkills, E_SKILL_TYPE_LIMITED, {
             requireLimitedGate = false,
         })
-        queuedUltimateByHero[tostring(heroId)] = nil
         if queuedCandidate then
+            queuedUltimateByHero[tostring(heroId)] = nil
             Logger.Log(string.format("[SelectAvailableSkill] %s 使用已排队限次数技能: %s (score=%d)",
                 hero.name or "Unknown",
                 queuedCandidate.skill.name or tostring(queuedCandidate.skillId),
@@ -1448,10 +1452,21 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
 
     local pendingCast = hero.__pendingCast
     if pendingCast and (tonumber(pendingCast.remainTurns) or 0) <= 0 then
-        local target = nil
-        if pendingCast.targetId then
+        local resolvedTargets = {}
+        if type(pendingCast.targetIds) == "table" and #pendingCast.targetIds > 0 then
+            for _, targetId in ipairs(pendingCast.targetIds) do
+                local resolvedTarget = BattleFormation.FindHeroByInstanceId(targetId)
+                if resolvedTarget and not resolvedTarget.isDead and resolvedTarget.isAlive and (tonumber(resolvedTarget.hp) or 0) > 0 then
+                    resolvedTargets[#resolvedTargets + 1] = resolvedTarget
+                end
+            end
+        end
+        local target = resolvedTargets[1]
+        if not target and pendingCast.targetId then
             target = BattleFormation.FindHeroByInstanceId(pendingCast.targetId)
-            if target and (target.isDead or not target.isAlive or (tonumber(target.hp) or 0) <= 0) then
+            if target and not target.isDead and target.isAlive and (tonumber(target.hp) or 0) > 0 then
+                resolvedTargets[1] = target
+            else
                 target = nil
             end
         end
@@ -1475,6 +1490,7 @@ function BattleMain.ExecuteHeroAction(hero, actionState)
             end
         end, {
             ignoreChant = true,
+            resolvedTargets = resolvedTargets,
         })
         PublishEnemyActionTrace("enemy_release_pending_cast_started", hero, {
             skillId = pendingCast.skillId,
