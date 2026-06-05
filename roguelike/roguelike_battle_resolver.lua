@@ -2,6 +2,7 @@ local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunBattlePool = require("config.roguelike.run_battle_pool")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
+local RunChapterConfig = require("config.roguelike.run_chapter_config")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RoguelikeEnemyGenerator = require("roguelike.roguelike_enemy_generator")
 
@@ -81,6 +82,15 @@ local function resolveBattleProfile(template, seed)
     return cloneTable(battleProfile)
 end
 
+local function getFixedBattleBudgetContext(runState, battleProfile)
+    local chapterId = tonumber(battleProfile and battleProfile.chapterId) or tonumber(runState and runState.chapterId) or 101
+    local chapter = RunChapterConfig.GetChapter(chapterId)
+    return {
+        partyLevel = math.max(1, tonumber(battleProfile and battleProfile.level) or tonumber(runState and runState.partyLevel) or 1),
+        partySize = math.max(1, tonumber(chapter and chapter.initialHeroCount) or 4),
+    }
+end
+
 function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
     if not node then
         return nil, nil, "node_not_found"
@@ -114,7 +124,18 @@ function RoguelikeBattleResolver.ResolveNodeBattle(runState, node)
 
     local waveCountRng = makeRng(buildSeed(runState, node, 3))
     local waveCount = waveCountRng:nextInt(template.waveCountMin or 1, template.waveCountMax or template.waveCountMin or 1)
-    local generated, reason = RoguelikeEnemyGenerator.Generate(template.waveGroupPoolId, waveCount, buildSeed(runState, node, 4))
+    local budgetContext = getFixedBattleBudgetContext(runState, battleProfile)
+    local generated, reason = RoguelikeEnemyGenerator.Generate(
+        template.waveGroupPoolId,
+        waveCount,
+        buildSeed(runState, node, 4),
+        {
+            budget = battleProfile.budget,
+            partyLevel = budgetContext.partyLevel,
+            partySize = budgetContext.partySize,
+            sampleCount = 10,
+        }
+    )
     if not generated then
         return nil, nil, reason
     end

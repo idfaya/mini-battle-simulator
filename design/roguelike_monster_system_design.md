@@ -155,7 +155,7 @@ Roguelike 怪物编组层
 
 - `CR` 是单体怪物的真实强度主轴。
 - 随机怪物系统的整场压强仍由 encounter budget 控制，但单体模板必须先对齐 `CR`。
-- 现阶段压强主控仍是 `budget.difficulty + pressureFactor`。
+- 压强主控仍是 `budget.difficulty + pressureFactor`，但预算必须在**遭遇生成阶段**闭环为实际编组，而不是只生成报表后再做运行时热修。
 
 ### 4.5 role
 

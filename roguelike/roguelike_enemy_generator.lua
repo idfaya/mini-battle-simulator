@@ -2,6 +2,8 @@ local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 local RunFormationProfile = require("config.roguelike.run_formation_profile")
 local RunEnemyPickPool = require("config.roguelike.run_enemy_pick_pool")
 local RunWaveGroupPool = require("config.roguelike.run_wave_group_pool")
+local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
+local EnemyData = require("config.enemy_data")
 
 local RoguelikeEnemyGenerator = {}
 
@@ -62,7 +64,35 @@ local function pickEnemyId(rng, poolId, counts, maxSameEnemy)
     return picked.enemyId
 end
 
-local function buildWaveGroupFromTemplate(rng, template, waveIndex, waveCount)
+local function resolveWaveTemplate(rng, pool, waveIndex, waveCount)
+    local entry = rng:weightedPick(pool.entries or {})
+    local template = RunWaveGroupPool.GetTemplate(entry and entry.templateId)
+    if not template then
+        return nil
+    end
+    if template.mustBeLastWave and waveIndex < waveCount then
+        local fallbackTemplate = nil
+        for _, candidate in ipairs(pool.entries or {}) do
+            local candidateTemplate = RunWaveGroupPool.GetTemplate(candidate.templateId)
+            if candidateTemplate and candidateTemplate.mustBeLastWave ~= true then
+                fallbackTemplate = candidateTemplate
+                break
+            end
+        end
+        template = fallbackTemplate or template
+    elseif template.mustBeLastWave ~= true and waveIndex == waveCount then
+        for _, candidate in ipairs(pool.entries or {}) do
+            local candidateTemplate = RunWaveGroupPool.GetTemplate(candidate.templateId)
+            if candidateTemplate and candidateTemplate.mustBeLastWave == true then
+                template = candidateTemplate
+                break
+            end
+        end
+    end
+    return template
+end
+
+local function buildWaveDraftFromTemplate(rng, template, waveIndex, waveCount)
     local profile = RunFormationProfile.GetProfile(template.formationProfileId)
     if not profile then
         return nil, "formation_profile_not_found"
@@ -106,7 +136,7 @@ local function buildWaveGroupFromTemplate(rng, template, waveIndex, waveCount)
         end
     end
 
-    local groupId = RunEnemyGroup.RegisterRuntimeGroup({
+    return {
         code = string.format("%s_wave_%d", template.code or "runtime_wave", waveIndex),
         name = string.format("%s第%d波", template.name or "运行时波次", waveIndex),
         front = front,
@@ -114,59 +144,155 @@ local function buildWaveGroupFromTemplate(rng, template, waveIndex, waveCount)
         elite = {},
         boss = boss,
         guards = guards,
-    })
-
-    return {
-        groupId = groupId,
-        bossEnemyId = boss,
     }
 end
 
-function RoguelikeEnemyGenerator.Generate(templatePoolId, waveCount, seed)
+local function generateDrafts(templatePoolId, waveCount, seed)
     local pool = RunWaveGroupPool.GetPool(templatePoolId)
     if not pool then
         return nil, "wave_group_pool_not_found"
     end
 
     local rng = makeRng(seed)
-    local waveGroupIds = {}
+    local waveDrafts = {}
     local bossEnemyId = nil
     for waveIndex = 1, math.max(1, waveCount or 1) do
-        local entry = rng:weightedPick(pool.entries or {})
-        local template = RunWaveGroupPool.GetTemplate(entry and entry.templateId)
+        local template = resolveWaveTemplate(rng, pool, waveIndex, waveCount)
         if not template then
             return nil, "wave_group_template_not_found"
         end
-        if template.mustBeLastWave and waveIndex < waveCount then
-            local fallbackTemplate = nil
-            for _, candidate in ipairs(pool.entries or {}) do
-                local candidateTemplate = RunWaveGroupPool.GetTemplate(candidate.templateId)
-                if candidateTemplate and candidateTemplate.mustBeLastWave ~= true then
-                    fallbackTemplate = candidateTemplate
-                    break
-                end
-            end
-            template = fallbackTemplate or template
-        elseif template.mustBeLastWave ~= true and waveIndex == waveCount then
-            for _, candidate in ipairs(pool.entries or {}) do
-                local candidateTemplate = RunWaveGroupPool.GetTemplate(candidate.templateId)
-                if candidateTemplate and candidateTemplate.mustBeLastWave == true then
-                    template = candidateTemplate
-                    break
-                end
-            end
-        end
-        local built, reason = buildWaveGroupFromTemplate(rng, template, waveIndex, waveCount)
+        local built, reason = buildWaveDraftFromTemplate(rng, template, waveIndex, waveCount)
         if not built then
             return nil, reason
         end
-        waveGroupIds[#waveGroupIds + 1] = built.groupId
-        bossEnemyId = bossEnemyId or built.bossEnemyId
+        waveDrafts[#waveDrafts + 1] = built
+        bossEnemyId = bossEnemyId or built.boss
     end
 
     return {
-        waveGroupIds = waveGroupIds,
+        waveDrafts = waveDrafts,
         bossEnemyId = bossEnemyId,
+    }
+end
+
+local function registerWaveDrafts(waveDrafts)
+    local waveGroupIds = {}
+    for _, draft in ipairs(waveDrafts or {}) do
+        local groupId = RunEnemyGroup.RegisterRuntimeGroup({
+            code = draft.code,
+            name = draft.name,
+            front = draft.front,
+            back = draft.back,
+            elite = draft.elite,
+            boss = draft.boss,
+            guards = draft.guards,
+        })
+        waveGroupIds[#waveGroupIds + 1] = groupId
+    end
+    return waveGroupIds
+end
+
+local function flattenWaveDraftEnemyIds(waveDrafts)
+    local enemyIds = {}
+    local function push(enemyId)
+        local id = tonumber(enemyId)
+        if id then
+            enemyIds[#enemyIds + 1] = id
+        end
+    end
+    for _, draft in ipairs(waveDrafts or {}) do
+        for _, enemyId in ipairs(draft.front or {}) do
+            push(enemyId)
+        end
+        for _, enemyId in ipairs(draft.back or {}) do
+            push(enemyId)
+        end
+        for _, enemyId in ipairs(draft.elite or {}) do
+            push(enemyId)
+        end
+        push(draft.boss)
+        for _, enemyId in ipairs(draft.guards or {}) do
+            push(enemyId)
+        end
+    end
+    return enemyIds
+end
+
+local function buildBudgetContext(opts)
+    if type(opts) ~= "table" or type(opts.budget) ~= "table" then
+        return nil
+    end
+    return {
+        partyLevel = tonumber(opts.partyLevel) or 1,
+        partySize = math.max(1, math.floor(tonumber(opts.partySize) or 4)),
+        budget = opts.budget,
+        sampleCount = math.max(1, math.floor(tonumber(opts.sampleCount) or 8)),
+    }
+end
+
+local function buildBudgetReport(enemyIds, budgetCtx)
+    local metas = {}
+    for _, enemyId in ipairs(enemyIds or {}) do
+        metas[#metas + 1] = EnemyData.GetChallengeMeta(enemyId)
+    end
+    return RunEncounterBudget.BuildReport(
+        budgetCtx.partyLevel,
+        budgetCtx.partySize,
+        metas,
+        budgetCtx.budget.difficulty or "medium",
+        budgetCtx.budget.pressureFactor or 0.0
+    )
+end
+
+local function scoreBudgetReport(report)
+    local ratio = tonumber(report and report.ratio) or 1.0
+    local delta = math.abs(1.0 - ratio)
+    if ratio > 1.0 then
+        delta = delta * 1.25
+    end
+    return delta
+end
+
+function RoguelikeEnemyGenerator.Generate(templatePoolId, waveCount, seed, opts)
+    local budgetCtx = buildBudgetContext(opts)
+    if not budgetCtx then
+        local generated, reason = generateDrafts(templatePoolId, waveCount, seed)
+        if not generated then
+            return nil, reason
+        end
+        return {
+            waveGroupIds = registerWaveDrafts(generated.waveDrafts),
+            bossEnemyId = generated.bossEnemyId,
+        }
+    end
+
+    local numericSeed = math.max(1, math.floor(tonumber(seed) or 1))
+    local best = nil
+    for attempt = 1, budgetCtx.sampleCount do
+        local attemptSeed = numericSeed + (attempt - 1) * 7919
+        local generated, reason = generateDrafts(templatePoolId, waveCount, attemptSeed)
+        if not generated then
+            return nil, reason
+        end
+        local enemyIds = flattenWaveDraftEnemyIds(generated.waveDrafts)
+        local report = buildBudgetReport(enemyIds, budgetCtx)
+        local score = scoreBudgetReport(report)
+        if not best
+            or score < best.score
+            or (math.abs(score - best.score) < 0.0001 and (report.adjustedXp or 0) < (best.report.adjustedXp or 0)) then
+            best = {
+                waveDrafts = generated.waveDrafts,
+                bossEnemyId = generated.bossEnemyId,
+                report = report,
+                score = score,
+            }
+        end
+    end
+
+    return {
+        waveGroupIds = registerWaveDrafts(best.waveDrafts),
+        bossEnemyId = best.bossEnemyId,
+        budgetReport = best.report,
     }
 end
 

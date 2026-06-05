@@ -138,9 +138,10 @@ local function grantBattleLoot(node, battleProfile)
     }
 end
 
--- 第二、三章战斗经验衰减（同模板池，避免三章叠加过快）；第一章 = 1.0。
+-- 章节战斗经验倍率：Act1 提到 1.20，让章末 partyLevel 回到 9-10 区间，
+-- 至少保证 4 人队平均能升到 Lv3 左右，形成可感知成长。
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
-    [101] = 1.00,
+    [101] = 1.20,
     [102] = 0.50,
     [103] = 0.35,
 }

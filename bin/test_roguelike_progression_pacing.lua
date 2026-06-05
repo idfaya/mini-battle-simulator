@@ -5,16 +5,14 @@ local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
 LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local DungeonGenerator = require("roguelike.dungeon_generator")
+local BattleResolver = require("roguelike.roguelike_battle_resolver")
 local LevelCurve = require("config.roguelike.level_curve")
 local Exp5e = require("config.roguelike.exp_5e")
 local BattleExpReward = require("config.roguelike.battle_exp_reward")
-local RunBattlePool = require("config.roguelike.run_battle_pool")
-local RunBattleTemplate = require("config.roguelike.run_battle_template")
-local RunBattleConfig = require("config.roguelike.run_battle_config")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
-    [101] = 1.00,
+    [101] = 1.20,
     [102] = 0.50,
     [103] = 0.35,
 }
@@ -73,44 +71,57 @@ local function flattenBattleEnemyIds(battle)
     return enemyIds
 end
 
-local function enemyIdsForTemplate(template)
-    local enemyIds = {}
-    for _, entry in ipairs(template.battleEntries or {}) do
-        local battle = RunBattleConfig.GetBattle(entry.battleId)
-        if battle then
-            for _, id in ipairs(flattenBattleEnemyIds(battle)) do
-                enemyIds[#enemyIds + 1] = id
+local function buildBudgetRunState(chapterId, seed, partyLevel)
+    local effectiveLevel = 1 + math.max(0, (tonumber(partyLevel) or 1) - 1) / 4
+    local teamRoster = {}
+    for i = 1, 4 do
+        teamRoster[#teamRoster + 1] = {
+            rosterId = i,
+            level = effectiveLevel,
+            currentHp = 100,
+            maxHp = 100,
+            teamState = "active",
+        }
+    end
+    return {
+        chapterId = chapterId,
+        seed = seed,
+        partyLevel = tonumber(partyLevel) or 1,
+        teamRoster = teamRoster,
+        benchRoster = {},
+    }
+end
+
+local function collectBattleRooms(state)
+    local rooms = {}
+    for floorIndex, floor in ipairs(state.floors or {}) do
+        for roomId, room in pairs(floor.rooms or {}) do
+            if room.roomType == "battle_normal" or room.roomType == "battle_elite" or room.roomType == "boss" then
+                rooms[#rooms + 1] = {
+                    id = tonumber(room.id) or tonumber(roomId) or (floorIndex * 100 + #rooms + 1),
+                    battlePoolId = room.payload and room.payload.battlePoolId or nil,
+                }
             end
         end
     end
-    if template.bossEnemyId then
-        enemyIds[#enemyIds + 1] = template.bossEnemyId
-    end
-    return enemyIds
+    table.sort(rooms, function(a, b)
+        return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+    end)
+    return rooms
 end
 
-local function getPoolAverageEncounterExp(poolId, partyLevel, chapterMult)
-    local pool = RunBattlePool.GetPool(poolId)
-    assert(pool, "missing battle pool " .. tostring(poolId))
-    local totalWeight = 0
-    local weightedExp = 0
-    for _, entry in ipairs(pool.entries or {}) do
-        local template = RunBattleTemplate.GetTemplate(entry.battleTemplateId)
-        assert(template, "missing battle template " .. tostring(entry.battleTemplateId))
-        local weight = math.max(0, tonumber(entry.weight) or 0)
-        local enemyIds = enemyIdsForTemplate(template)
-        assert(#enemyIds > 0, "template has no enemies: " .. tostring(entry.battleTemplateId))
-        local exp = BattleExpReward.ComputeVictoryExp({
-            enemyIds = enemyIds,
-            partySize = 4,
-            partyLevel = partyLevel,
-            chapterMultiplier = chapterMult,
-        })
-        totalWeight = totalWeight + weight
-        weightedExp = weightedExp + weight * exp
-    end
-    assert(totalWeight > 0, "empty battle pool " .. tostring(poolId))
-    return weightedExp / totalWeight
+local function getResolvedEncounterExp(chapterId, seed, node, partyLevel, chapterMult)
+    local runState = buildBudgetRunState(chapterId, seed, partyLevel)
+    local battle, _, reason = BattleResolver.ResolveNodeBattle(runState, node)
+    assert(battle, "battle resolve failed: " .. tostring(reason))
+    local enemyIds = flattenBattleEnemyIds(battle)
+    assert(#enemyIds > 0, "resolved battle has no enemies: " .. tostring(node and node.battlePoolId))
+    return BattleExpReward.ComputeVictoryExp({
+        enemyIds = enemyIds,
+        partySize = 4,
+        partyLevel = partyLevel,
+        chapterMultiplier = chapterMult,
+    })
 end
 
 local function estimateChapterExp(chapterId, seedFrom, seedTo)
@@ -124,15 +135,12 @@ local function estimateChapterExp(chapterId, seedFrom, seedTo)
         assert(state, "dungeon generation failed: " .. tostring(reason))
         local runExp = 0
         local runBattles = 0
-        for floorIndex, floor in ipairs(state.floors or {}) do
-            for _, room in pairs(floor.rooms or {}) do
-                if room.roomType == "battle_normal" or room.roomType == "battle_elite" or room.roomType == "boss" then
-                    runBattles = runBattles + 1
-                    local gain = getPoolAverageEncounterExp(room.payload.battlePoolId, partyLevel, mult)
-                    runExp = runExp + gain
-                    partyLevel = LevelCurve.GetLevelForExp(runExp, LevelCurve.CHAPTER_LEVEL_CAP)
-                end
-            end
+        local partyLevel = 1
+        for _, node in ipairs(collectBattleRooms(state)) do
+            runBattles = runBattles + 1
+            local gain = getResolvedEncounterExp(chapterId, seed, node, partyLevel, mult)
+            runExp = runExp + gain
+            partyLevel = LevelCurve.GetLevelForExp(runExp, LevelCurve.CHAPTER_LEVEL_CAP)
         end
         totalExp = totalExp + runExp
         totalBattles = totalBattles + runBattles
@@ -145,10 +153,8 @@ local function assertAct1Pacing5e()
     local avgLevel = LevelCurve.GetLevelForExp(math.floor(avgExp + 0.5), LevelCurve.CHAPTER_LEVEL_CAP)
     assert(avgBattles >= 6 and avgBattles <= 20,
         string.format("act1 battle count out of range: %.2f", avgBattles))
-    -- 改为 CR 主导后，战斗 EXP 不再吃 enemyLevel 膨胀；Act1 终局平均等级应明显低于旧口径，
-    -- 但仍要保证具备稳定成长感与进入中段 build 的空间。
-    assert(avgLevel >= 7 and avgLevel <= 10,
-        string.format("act1 CR 主导节奏下期望 partyLevel 7-10，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
+    assert(avgLevel >= 9 and avgLevel <= 10,
+        string.format("act1 固定章节难度 + CR 经验节奏期望 partyLevel 9-10，实际 Lv%d (%.0f exp)", avgLevel, avgExp))
     print(string.format("[OK] act1 5e avgExp=%.0f avgBattles=%.2f avgFinalLevel=Lv%d", avgExp, avgBattles, avgLevel))
 end
 

@@ -42,6 +42,21 @@ local function collectPoolEnemyIds(templatePoolId, waveCount, seedStart, seedEnd
     return seen
 end
 
+local function averageAdjustedXp(templatePoolId, waveCount, seedStart, seedEnd, opts)
+    local totalAdjustedXp = 0
+    local count = 0
+    for seed = seedStart, seedEnd do
+        local generated, reason = EnemyGenerator.Generate(templatePoolId, waveCount, seed, opts)
+        assert(generated, "enemy generation failed: " .. tostring(reason))
+        local report = generated.budgetReport
+        assert(report and report.adjustedXp, "budgeted generation should expose adjustedXp report")
+        totalAdjustedXp = totalAdjustedXp + (tonumber(report.adjustedXp) or 0)
+        count = count + 1
+    end
+    assert(count > 0, "averageAdjustedXp requires at least one sample")
+    return totalAdjustedXp / count
+end
+
 local function assertSeen(seen, enemyId, label)
     assert(seen[enemyId] == true, string.format("expected to see %s (%d)", label, enemyId))
 end
@@ -75,5 +90,20 @@ assertSeen(bossSeen, 910006, "Ice Demon in boss pool")
 assertSeen(bossSeen, 910007, "Thunder Lord in boss pool")
 assertSeen(bossSeen, 910015, "Skeleton Captain as boss guard")
 assertSeen(bossSeen, 910016, "Shadow Priest as boss backline")
+
+local lowPressureAvg = averageAdjustedXp(401101, 1, 4001, 4060, {
+    budget = { difficulty = "easy", pressureFactor = 0.10 },
+    partyLevel = 2,
+    partySize = 4,
+    sampleCount = 10,
+})
+local highPressureAvg = averageAdjustedXp(401101, 1, 4001, 4060, {
+    budget = { difficulty = "medium", pressureFactor = 0.35 },
+    partyLevel = 2,
+    partySize = 4,
+    sampleCount = 10,
+})
+assert(highPressureAvg > lowPressureAvg,
+    string.format("higher pressure should pick heavier encounters: low=%.1f high=%.1f", lowPressureAvg, highPressureAvg))
 
 print("[OK] roguelike enemy generation pools include new enemies and bosses")

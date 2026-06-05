@@ -53,16 +53,14 @@
 - 玩家可自由上下穿行（用于补给 / 回头清房 / 触发隐藏事件）。
 - 进入下一章 = 通过 Boss 层之后的楼梯，章节切换不可逆。
 
-### 3.2 难度随层深线性提升
+### 3.2 难度按章节配置固定
 
-```text
-floor_depth     = 当前层（1..15）
-monster_level   = floor(floor_depth × 0.8) + 1
-pressureFactor  = 1.0 + 0.06 × floor_depth
-```
-
-- `monster_level` 决定怪物等级；`pressureFactor` 注入 `roguelike_random_battle_parameter_table.md` 的 budget 计算（不引入 ad-hoc 倍率，遵循 `AGENTS.md` 难度模型规范）。
-- Boss 层在线性基础上额外 +1 等级 + `pressureFactor × 1.3`。
+- 章节难度由固定配置决定，不随当前队伍血线、减员或实时状态变化。
+- 怪物模板仍遵循 `CR 为真，Level 为显`：
+  - `CR` 决定真实预算与强度
+  - `Level` 仅承担显示与楼层带语义
+- 遭遇压强由 `run_battle_profile.budget` 给定，再在敌人生成阶段从候选波次中挑选最接近目标预算的编组。
+- 第一章普通怪仍保持 F1–F5 = Lv1–Lv5 的展示梯度；精英与 Boss 的压力来自固定 profile budget、波次结构和怪物组合，而不是运行时按玩家状态自适应抬难度。
 
 ### 3.3 隐藏层（可选）
 
@@ -251,7 +249,7 @@ Floor = Maze(Room ⇄ Room)
 | 玩家回头刷商店 | 经济失衡 | 商店库存固定不刷新；金币只来自战斗 |
 | 营地房过强 | 玩家把营地房压底 | 每层营地房权重 ≤ 5%，且营地一次性 |
 | 事件房 RNG 灾难 | 大失败连续触发 | 每个事件至少有 1 种「零风险使用方式」 |
-| Boss 层难度跳点 | Boss 比层间难度断层 | Boss 层 `pressureFactor × 1.3` 作为统一倍率 |
+| Boss 层难度跳点 | Boss 比层间难度断层 | 用 Boss 专属 profile budget + 波次 / 护卫结构控制，不再叠统一运行时倍率 |
 | Web UI 复杂度 | 房间 / 楼梯 / 商店 / 事件 4 套面板 | 复用同一组卡牌组件，仅头部 / 边框颜色区分模式 |
 
 ---

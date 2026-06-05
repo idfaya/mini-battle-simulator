@@ -44,7 +44,8 @@ local RunBattleProfile = {}
 --
 -- 难度模型（2026-05-11 收敛）：
 --   * 压强由 `budget.difficulty` + `budget.pressureFactor` 主导（见 run_encounter_budget.lua），
---     通过 BuildReport → gap 计算 hpMul/atkMul/defMul/hitDelta/spellDCDelta/saveDelta。
+--     在 enemy generator 阶段按固定 profile budget 挑选最接近目标预算的编组；
+--     不跟随当前血线/减员/实时等级波动做自适应热修。
 --   * battle profile 不再使用 `playerScale / enemyScale`。
 --   * battle profile 也不再配置 `enemyCount / enemyIds`，这些由 battle template → wave group 生成链决定。
 --   * 如果战斗过强，优先调整 CR 组合、怪物数量、battle profile 等级或 budget，不再靠额外 scale 修正。

@@ -160,11 +160,11 @@
 | 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `PARTY_EXP_SCALE` × `chapterMultiplier` |
 | 阈值转发 | `config/roguelike/level_curve.lua` | 转发 `exp_5e`，供 FeatPicker |
 | 楼层难度分层 | `config/roguelike/encounter_level_curve.lua` | 仅用于章节节奏、展示口径与历史兼容；不再驱动单怪运行时强度 |
-| 第一章压强 | `config/roguelike/run_battle_profile.lua` | 101 普通/精英/Boss `easy` + 下调 `pressureFactor`（2026-05 平衡） |
+| 第一章压强 | `config/roguelike/run_battle_profile.lua` + `roguelike/roguelike_enemy_generator.lua` | 101 普通/精英/Boss 按固定 profile budget 在敌人生成阶段挑选最接近目标压强的编组 |
 | Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 只按当场敌人 `CR` 组合结算；**不读**模板 `expReward` |
 
-- 第一章 `run_chapter_config` `targetMaxLevel = 8` 仅定义队伍节奏与展示口径；敌人本体强度由 `config/data/enemies.json` 的固定模板给出。
+- 第一章 `chapterMultiplier = 1.20`，让章末队伍节奏回到 Lv9-Lv10，避免平均角色等级过低。
 - 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`run_battle_profile.lua` 与怪物池/波次组合，勿在 `run_battle_template.expReward` 手填。
 
 ### 5.2 房间一次性（dungeon §4.2）
