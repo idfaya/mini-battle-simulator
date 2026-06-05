@@ -215,6 +215,12 @@ local holyTimeline = require("config.skill.skill_80006011").BuildTimeline(suppor
 local _, holyResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, holySpecial, holyTimeline)
 assert_true((holyResult and holyResult.totalDamage or 0) > 0, "cleric basic spell timeline should resolve enemy damage")
 
+poisonEnemy.isLeft = true
+local poisonEnemyHp = poisonEnemy.hp
+local _, mismatchedResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, holySpecial, holyTimeline)
+assert_true((mismatchedResult and mismatchedResult.totalHeal or 0) == 0, "cleric basic spell should not heal enemy when target.isLeft drifts")
+assert_true(poisonEnemy.hp < poisonEnemyHp, "cleric basic spell should still damage enemy when target.isLeft drifts")
+
 BattleFormation.OnFinal()
 
 BattleFormation.Init({

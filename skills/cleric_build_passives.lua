@@ -215,6 +215,7 @@ local function applyBasicSpellPostHit(hero, target)
 end
 
 function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
+    target = resolveAliveTarget(target)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end
