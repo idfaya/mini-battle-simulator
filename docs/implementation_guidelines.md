@@ -206,6 +206,10 @@
 | 隐藏 | `hidden_boss_extra_trinket_roll` | `GrantChapterBoss(..., isHidden)` 第三件 roll |
 | 回归 | `bin/test_roguelike_trinket_effects.lua` + boss/hidden 脚本 | 隐藏 Boss 战斗用 `TestForceCurrentBattleVictory`（bin only） |
 
+- 隐藏 Boss 胜利后，`hiddenFloorCleared[chapterId]` 必须在所有胜利出口统一回写，包括直接战斗胜利和 `reward` 结算返回主地图两条链路。
+- 运行时或测试路由在主线地图看到“已清的隐藏层入口”时，只能把它当作已访问通路，不能继续把它当成下楼或推进目标。
+- 对 Act1 难度分析，`bin/test_real_combat_winrate.lua` 与 `bin/test_roguelike_real_combat_balance.lua` 出现 `unknown` 时，必须先修流程问题，再解读 wipe/clear 比例；`unknown=0` 是平衡结论可用的前置条件。
+
 ## 6. Web 可观测性约束
 
 ### 6.1 表现必须对齐规则语义

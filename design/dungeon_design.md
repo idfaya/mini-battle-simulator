@@ -69,6 +69,8 @@
 - **入口**：解锁后在**当前主线楼层、当前房间的一格相邻房**改写为 `stair_down`（标题「隐藏层入口」）；玩家须走到该格并 `StairUse` 下楼（不可隔空触发）。
 - **楼层**：运行时 `HIDDEN_FLOOR_DEPTH = 9`（`dungeon_generator.lua`）；模板 `config/data/floors.json` `id=10901`（`isHidden: true`）。
 - **返回**：隐藏层 `stair_up` 回到解锁时记录的主线 `hiddenReturnDepth` / `hiddenReturnRoomId`；隐藏 Boss **不**触发章节 `chapter_result`（与章末 Boss 区分）。
+- **清除语义**：隐藏 Boss 胜利后必须写回 `hiddenFloorCleared[chapterId] = true`，无论结算经过直接胜利链还是 `reward` 链；否则主线入口会被误当成可重复推进目标。
+- **入口生命周期**：已清的隐藏层入口仍可作为地图节点存在，但只承担回访通路语义，不再承担“优先下楼”或“再次进入隐藏层”的推进语义。
 - **示例事件**：`config/data/events.json` `101099`「远古裂隙」— 选项「离开」为零风险；「解读裂隙符文」为调查 DC14，大成功 `unlock_hidden_floor`。
 - **实现**：[`roguelike/roguelike_run.lua`](../roguelike/roguelike_run.lua) `injectHiddenFloor` / `EventChoose`；[`roguelike/floor_state.lua`](../roguelike/floor_state.lua) `UseStair`；回归 [`bin/test_roguelike_hidden_floor.lua`](../bin/test_roguelike_hidden_floor.lua)。
 
@@ -250,6 +252,7 @@ Floor = Maze(Room ⇄ Room)
 | 营地房过强 | 玩家把营地房压底 | 每层营地房权重 ≤ 5%，且营地一次性 |
 | 事件房 RNG 灾难 | 大失败连续触发 | 每个事件至少有 1 种「零风险使用方式」 |
 | Boss 层难度跳点 | Boss 比层间难度断层 | 用 Boss 专属 profile budget + 波次 / 护卫结构控制，不再叠统一运行时倍率 |
+| 隐藏层入口回环 | 已清隐藏层后仍反复被路由当成推进目标 | 隐藏层入口与出口按一次性推进节点处理；`hiddenFloorCleared` 必须在所有胜利结算链上回写 |
 | Web UI 复杂度 | 房间 / 楼梯 / 商店 / 事件 4 套面板 | 复用同一组卡牌组件，仅头部 / 边框颜色区分模式 |
 
 ---
