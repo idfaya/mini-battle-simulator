@@ -16,6 +16,7 @@
 ---@field GetExpToNextLevel fun(level: integer, cap?: integer): integer
 ---@field GetLevelForExp fun(totalExp: integer, cap?: integer): integer
 ---@field GetMonsterXpByCr fun(cr: string|number): integer
+---@field GetDisplayLevelByCr fun(cr: string|number): integer
 ---@field NormalizeCrKey fun(cr: string|number|nil): string
 
 local M = {}
@@ -82,6 +83,45 @@ M.MONSTER_XP_BY_CR = {
     ["30"] = 155000,
 }
 
+-- DMG 编遭遇表：4 人队对单怪「中等难度」时，CR 与队伍等级的对照（展示用，不影响模板强度）。
+-- 与 MONSTER_XP_BY_CR 并列，为 enemies.json Level 的配置口径 SSOT。
+M.MONSTER_DISPLAY_LEVEL_BY_CR = {
+    ["0"] = 1,
+    ["1/8"] = 1,
+    ["1/4"] = 2,
+    ["1/2"] = 3,
+    ["1"] = 5,
+    ["2"] = 7,
+    ["3"] = 9,
+    ["4"] = 11,
+    ["5"] = 13,
+    ["6"] = 15,
+    ["7"] = 16,
+    ["8"] = 17,
+    ["9"] = 18,
+    ["10"] = 19,
+    ["11"] = 20,
+    ["12"] = 21,
+    ["13"] = 22,
+    ["14"] = 23,
+    ["15"] = 24,
+    ["16"] = 25,
+    ["17"] = 26,
+    ["18"] = 27,
+    ["19"] = 28,
+    ["20"] = 29,
+    ["21"] = 30,
+    ["22"] = 31,
+    ["23"] = 32,
+    ["24"] = 33,
+    ["25"] = 34,
+    ["26"] = 35,
+    ["27"] = 36,
+    ["28"] = 37,
+    ["29"] = 38,
+    ["30"] = 39,
+}
+
 M.MAX_CHARACTER_LEVEL = 20
 M.PARTY_EXP_SCALE = 1.0
 -- 5e 原版每次升级是全队一起升；本工程改为「每次三选一只升 1 个英雄」，
@@ -120,6 +160,10 @@ M.NormalizeCrKey = normalizeCrKey
 
 function M.GetMonsterXpByCr(cr)
     return M.MONSTER_XP_BY_CR[normalizeCrKey(cr)] or 0
+end
+
+function M.GetDisplayLevelByCr(cr)
+    return M.MONSTER_DISPLAY_LEVEL_BY_CR[normalizeCrKey(cr)] or 1
 end
 
 function M.GetCharacterExpThreshold(level)

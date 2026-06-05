@@ -33,17 +33,22 @@ local MONSTER_TYPE_NAMES = {
 
 ---@type table<integer, EnemyChallengeMeta>
 local ENEMY_CR_META = {
-    [910001] = { cr = "1/8", xp = 25, role = "fodder" },   -- Slime
-    [910002] = { cr = "1/4", xp = 50, role = "skirmisher" }, -- Goblin
-    [910003] = { cr = "1/2", xp = 100, role = "brute" },   -- Orc
-    [910004] = { cr = "1/4", xp = 50, role = "frontliner" }, -- Skeleton
-    [910005] = { cr = "1", xp = 200, role = "caster" },    -- DarkMage
-    [910006] = { cr = "3", xp = 700, role = "elite_caster" }, -- IceDemon
-    [910007] = { cr = "4", xp = 1100, role = "elite_caster" }, -- ThunderLord
-    [910008] = { cr = "1/4", xp = 50, role = "skirmisher" }, -- ScoutArcher
-    [910009] = { cr = "1/4", xp = 50, role = "caster" },   -- Acolyte
-    [910010] = { cr = "1/2", xp = 100, role = "frontliner" }, -- Oathguard
-    [910011] = { cr = "1/2", xp = 100, role = "brute" },   -- Berserker
+    [910001] = { cr = "1/8", xp = 25, role = "fodder" },
+    [910002] = { cr = "1/4", xp = 50, role = "skirmisher" },
+    [910003] = { cr = "1/4", xp = 50, role = "brute" },
+    [910004] = { cr = "1/4", xp = 50, role = "frontliner" },
+    [910005] = { cr = "1", xp = 200, role = "caster" },
+    [910006] = { cr = "1", xp = 200, role = "elite_caster" },
+    [910007] = { cr = "2", xp = 450, role = "elite_caster" },
+    [910008] = { cr = "1/4", xp = 50, role = "skirmisher" },
+    [910009] = { cr = "1/8", xp = 25, role = "caster" },
+    [910010] = { cr = "1/2", xp = 100, role = "frontliner" },
+    [910011] = { cr = "1", xp = 200, role = "brute" },
+    [910012] = { cr = "1/8", xp = 25, role = "skirmisher" },
+    [910013] = { cr = "1/4", xp = 50, role = "ranged" },
+    [910014] = { cr = "1/2", xp = 100, role = "brute" },
+    [910015] = { cr = "1", xp = 200, role = "frontliner" },
+    [910016] = { cr = "1/2", xp = 100, role = "support" },
 }
 
 local ENEMY_LEVEL_MAX = 20
@@ -283,6 +288,17 @@ function EnemyData.GetChallengeMeta(enemyId)
     }
 end
 
+--- 展示等级 SSOT：`enemies.json` 的 `Level`（须对齐 `exp_5e.MONSTER_DISPLAY_LEVEL_BY_CR`）；运行时只读取。
+---@param enemyId integer
+---@return integer
+function EnemyData.GetDisplayLevel(enemyId)
+    local enemy = EnemyData.GetEnemy(enemyId)
+    if not enemy then
+        return 1
+    end
+    return math.max(1, math.min(ENEMY_LEVEL_MAX, math.floor(tonumber(enemy.Level) or 1)))
+end
+
 function EnemyData.ConvertToHeroData(enemyId, _displayLevelOverride)
     local enemy = EnemyData.GetEnemy(enemyId)
     if not enemy then
@@ -291,7 +307,10 @@ function EnemyData.ConvertToHeroData(enemyId, _displayLevelOverride)
     end
 
     local name = enemy.EnemyName or string.format("Enemy_%d", enemyId)
-    local level = enemy.Level or 1
+    local level = EnemyData.GetDisplayLevel(enemyId)
+    if _displayLevelOverride ~= nil then
+        level = _displayLevelOverride
+    end
     level = math.max(1, math.min(ENEMY_LEVEL_MAX, tonumber(level) or 1))
     local star = enemy.Star or 1
     local quality = enemy.Quality or 1

@@ -130,6 +130,8 @@ Roguelike 怪物编组层
 设计结论：
 
 - 敌人“有等级”，但等级只服务于玩家认知与内容分层。
+- 展示等级以 `enemies.json` 的 `Level` 为 SSOT；配置口径与 `config/roguelike/exp_5e.lua` 的 `MONSTER_DISPLAY_LEVEL_BY_CR` 对齐（DMG 4 人队单怪中等难度对照）。运行时通过 `EnemyData.GetDisplayLevel` 读取 json 字段。
+- 当前已用 CR 档：`1/8→Lv1`、`1/4→Lv2`、`1/2→Lv3`、`1→Lv5`、`2→Lv7`（更高 CR 见 `exp_5e` 表）。
 - 敌人的真实战斗强度不由 `Level` 决定。
 
 ### 4.3 MonsterType

@@ -8,7 +8,7 @@ local RunBattlePool = require("config.roguelike.run_battle_pool")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
 local RunWaveGroupPool = require("config.roguelike.run_wave_group_pool")
 local RunEnemyPickPool = require("config.roguelike.run_enemy_pick_pool")
-local JsonConfigLoader = require("config.json_loader")
+local EnemyData = require("config.enemy_data")
 
 local function assertTrue(value, message)
     if not value then
@@ -46,18 +46,10 @@ local function getEnemyPool(poolId)
     return pool
 end
 
-local enemyEntries, enemyErr = JsonConfigLoader.Load("data/enemies.json", { expectedType = "table" })
-assertTrue(enemyEntries ~= nil, "failed to load enemies.json: " .. tostring(enemyErr))
-
-local enemyLevelById = {}
-for _, enemy in ipairs(enemyEntries) do
-    enemyLevelById[enemy.ID] = enemy.Level
-end
-
 local function assertEnemyPoolLevelRange(poolId, minLevel, maxLevel, label)
     local pool = getEnemyPool(poolId)
     for _, entry in ipairs(pool.entries or {}) do
-        local level = enemyLevelById[entry.enemyId]
+        local level = EnemyData.GetDisplayLevel(entry.enemyId)
         assertTrue(level ~= nil, ("enemy level missing for %d in %s"):format(entry.enemyId, label))
         assertTrue(level >= minLevel and level <= maxLevel,
             ("%s contains enemy %d with level %d outside [%d,%d]"):format(label, entry.enemyId, level, minLevel, maxLevel))
@@ -110,25 +102,25 @@ assertTrue((getFloor(10301).constraints or {}).maxElite == 0, "act3 f1 should no
 
 assertEnemyPoolLevelRange(701001, 1, 2, "act1_f1_front")
 assertEnemyPoolLevelRange(701002, 1, 2, "act1_f1_back")
-assertEnemyPoolLevelRange(701003, 2, 3, "act1_f23_front")
-assertEnemyPoolLevelRange(701005, 2, 4, "act1_f23_back")
-assertEnemyPoolLevelRange(701004, 3, 4, "act1_f4_front")
-assertEnemyPoolLevelRange(701008, 2, 4, "act1_f4_back")
-assertEnemyPoolLevelRange(701202, 3, 4, "act1_boss_guard")
-assertEnemyPoolLevelRange(701204, 2, 5, "act1_boss_back")
+assertEnemyPoolLevelRange(701003, 1, 2, "act1_f23_front")
+assertEnemyPoolLevelRange(701005, 1, 2, "act1_f23_back")
+assertEnemyPoolLevelRange(701004, 2, 3, "act1_f4_front")
+assertEnemyPoolLevelRange(701008, 1, 2, "act1_f4_back")
+assertEnemyPoolLevelRange(701202, 1, 2, "act1_boss_guard")
+assertEnemyPoolLevelRange(701204, 1, 2, "act1_boss_back")
 
-assertEnemyPoolLevelRange(702001, 3, 3, "act2_f1_front")
-assertEnemyPoolLevelRange(702002, 2, 4, "act2_f1_back")
-assertEnemyPoolLevelRange(702003, 3, 4, "act2_f23_front")
-assertEnemyPoolLevelRange(702004, 2, 5, "act2_f23_back")
-assertEnemyPoolLevelRange(702202, 3, 4, "act2_boss_guard")
-assertEnemyPoolLevelRange(702203, 2, 5, "act2_boss_back")
+assertEnemyPoolLevelRange(702001, 2, 5, "act2_f1_front")
+assertEnemyPoolLevelRange(702002, 1, 5, "act2_f1_back")
+assertEnemyPoolLevelRange(702003, 3, 5, "act2_f23_front")
+assertEnemyPoolLevelRange(702004, 1, 5, "act2_f23_back")
+assertEnemyPoolLevelRange(702202, 3, 5, "act2_boss_guard")
+assertEnemyPoolLevelRange(702203, 1, 5, "act2_boss_back")
 
-assertEnemyPoolLevelRange(703001, 3, 3, "act3_f1_front")
-assertEnemyPoolLevelRange(703002, 4, 5, "act3_f1_back")
+assertEnemyPoolLevelRange(703001, 2, 5, "act3_f1_front")
+assertEnemyPoolLevelRange(703002, 3, 5, "act3_f1_back")
 assertEnemyPoolLevelRange(703003, 3, 5, "act3_f23_front")
-assertEnemyPoolLevelRange(703004, 4, 5, "act3_f23_back")
-assertEnemyPoolLevelRange(703202, 3, 4, "act3_boss_guard")
-assertEnemyPoolLevelRange(703203, 2, 5, "act3_boss_back")
+assertEnemyPoolLevelRange(703004, 3, 5, "act3_f23_back")
+assertEnemyPoolLevelRange(703202, 3, 5, "act3_boss_guard")
+assertEnemyPoolLevelRange(703203, 1, 5, "act3_boss_back")
 
 print("OK: act2/act3 battle pools are isolated from act1")

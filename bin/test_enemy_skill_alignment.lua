@@ -94,7 +94,7 @@ assert_true(EnemyData.ConvertToHeroData(910005, 1).hp == darkMage.hp, "DarkMage 
 assert_array_equals(skillIdsFromHeroData(910005), { 80007001, 80007002, 80007003, 80007004 }, "DarkMage uses static skills")
 
 local iceDemon = EnemyData.ConvertToHeroData(910006, 4)
-assert_true(iceDemon.hp == 18, "IceDemon HP uses current monster baseline")
+assert_true(iceDemon.hp == 28, "IceDemon HP uses current monster baseline")
 assert_true(iceDemon.ac == 11, "IceDemon AC matches monster baseline")
 assert_true(iceDemon.hit == 3, "IceDemon hit stays in Act1 boss lane")
 assert_true(iceDemon.spellDC == 11, "IceDemon spell DC stays in CR lane")
