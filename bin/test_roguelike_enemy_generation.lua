@@ -87,13 +87,22 @@ local earlySeen = collectPoolEnemyIds(401001, 1, 901, 980)
 assertNotSeen(earlySeen, 910004, "Skeleton Soldier in act1 early pool")
 assertNotSeen(earlySeen, 910014, "Orc Fighter in act1 early pool")
 assertNotSeen(earlySeen, 910013, "Skeleton Archer in act1 early pool")
+assertNotSeen(earlySeen, 910003, "Orc in act1 F1 pool")
 assertSeen(earlySeen, 910001, "Slime in act1 early pool")
-assertSeen(earlySeen, 910002, "Goblin in act1 early pool")
 
 local normalSeen = collectPoolEnemyIds(401002, 2, 1001, 1120)
 assertSeen(normalSeen, 910012, "Goblin Thrower in normal pool")
 assertSeen(normalSeen, 910013, "Skeleton Archer in normal pool")
-assertNotSeen(normalSeen, 910014, "Orc Fighter in act1 normal pool")
+assertNotSeen(normalSeen, 910014, "Orc Fighter in act1 F2 pool")
+
+local f3Seen = collectPoolEnemyIds(401004, 2, 1201, 1280)
+assertSeen(f3Seen, 910003, "Orc in act1 F3 pool")
+assertSeen(f3Seen, 910014, "Orc Fighter in act1 F3 pool")
+assertNotSeen(f3Seen, 910001, "Slime in act1 F3 pool")
+
+local lateSeen = collectPoolEnemyIds(401003, 2, 1301, 1380)
+assertSeen(lateSeen, 910016, "Shadow Priest in act1 F4 pool")
+assertNotSeen(lateSeen, 910001, "Slime in act1 F4 pool")
 
 local eliteSeen = collectPoolEnemyIds(401101, 1, 2001, 2120)
 assertSeen(eliteSeen, 910015, "Skeleton Captain in elite pool")
@@ -101,9 +110,9 @@ assertSeen(eliteSeen, 910016, "Shadow Priest in elite pool")
 
 local bossSeen = collectPoolEnemyIds(401201, 2, 3001, 3120)
 assertSeen(bossSeen, 910006, "Ice Demon in boss pool")
-assertSeen(bossSeen, 910007, "Thunder Lord in boss pool")
-assertSeen(bossSeen, 910015, "Skeleton Captain as boss guard")
+assertSeen(bossSeen, 910011, "Berserker as boss guard")
 assertSeen(bossSeen, 910016, "Shadow Priest as boss backline")
+assertNotSeen(bossSeen, 910001, "Slime in act1 boss pool")
 
 local lowPressureAvg = averageAdjustedXp(401101, 1, 4001, 4060, {
     budget = { difficulty = "easy", pressureFactor = 0.10 },

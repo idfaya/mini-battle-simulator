@@ -88,6 +88,18 @@ RunBattleProfile.BATTLE_PROFILES = {
         budget = { difficulty = "easy", pressureFactor = 0.00 },
     },
 
+    [101004] = {
+        id = 101004,
+        kind = "normal",
+        chapterId = 101,
+        difficulty = 2,
+        level = 1,
+        initialEnergy = 90,
+        speed = 1.0,
+        gold = { min = 26, max = 40 },
+        budget = { difficulty = "easy", pressureFactor = 0.02 },
+    },
+
     -- Elite battles
     [101101] = {
         id = 101101,

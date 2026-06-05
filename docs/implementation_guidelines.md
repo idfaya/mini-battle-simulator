@@ -159,7 +159,7 @@
 | PHB 阈值 / 怪物 CR XP | `config/roguelike/exp_5e.lua` | `partyExp` 升级阈值；`MONSTER_XP_BY_CR` |
 | 胜利掉落 | `config/roguelike/battle_exp_reward.lua` | DMG 遭遇 XP × `PARTY_EXP_SCALE` × `chapterMultiplier` |
 | 阈值转发 | `config/roguelike/level_curve.lua` | 转发 `exp_5e`，供 FeatPicker |
-| 楼层难度分层 | `config/roguelike/encounter_level_curve.lua` | 仅用于章节节奏、展示口径与历史兼容；不再驱动单怪运行时强度 |
+| 楼层难度分层 | `config/data/floors.json` → `run_battle_pool.lua` → `run_enemy_pick_pool.lua`；`encounter_level_curve.lua` 未接入运行时敌人生成 | 同章内随楼层换更高 CR 遭遇池 + `run_battle_profile.budget`；单怪强度不随楼层缩放 |
 | 第一章压强 | `config/roguelike/run_battle_profile.lua` + `roguelike/roguelike_enemy_generator.lua` | 101 普通/精英/Boss 按固定 profile budget 在敌人生成阶段挑选最接近目标压强的编组 |
 | Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 只按当场敌人 `CR` 组合结算；**不读**模板 `expReward` |
@@ -279,6 +279,24 @@
 - 新职业或新分支落地后，应至少保留一组 Lua 侧回归验证。
 - 若存在 Web 表现差异，还应保留一组浏览器侧验证。
 - 文档中的验证入口必须能被直接复制使用，不能只写“自行测试”。
+
+### 8.4 数值 / 遭遇平衡：必须真战
+
+改动怪物 CR/HP/技能、`run_enemy_pick_pool`、`run_battle_profile.budget` 或遭遇编组时，**必须**跑真战 bin，不能只靠静态对齐或 `test_roguelike_ch101_reach`（`autoWinBattles=true`，只验触达）。
+
+最小门禁：
+
+```bash
+lua bin/test_roguelike_balance.lua --runs=4
+lua bin/test_roguelike_real_combat_balance.lua
+lua bin/test_real_combat_winrate.lua
+```
+
+配套静态（改池/CR 时同跑）：`test_enemy_cr_alignment.lua`、`test_roguelike_act1_floor_cr.lua`。
+
+- `test_roguelike_progression_pacing.lua` 只验 EXP 节奏，**不跑战斗**，不能替代真战。
+- 真战脚本出现 `unknown` / `Other Fail` 时，先修 Run 流程再解读 wipe/clear；`unknown=0` 是平衡结论可用前置（见 §5.1 旁注、`design/roguelike_monster_system_design.md` §9.7）。
+- Playwright 不能替代真战统计；大改平衡时两者都要。
 
 ## 9. 关联文档
 

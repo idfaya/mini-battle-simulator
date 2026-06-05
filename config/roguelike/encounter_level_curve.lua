@@ -1,4 +1,4 @@
--- Run 遭遇怪物等级：第一章 F1–F5 普通怪固定 Lv1–Lv5；精英/Boss 在楼层基线上加成。
+-- 章节楼层节奏曲线（遗留模块）：当前未接入 roguelike 敌人生成链；怪物难度随楼层提升见 floors.json → run_enemy_pick_pool。
 local RunChapterConfig = require("config.roguelike.run_chapter_config")
 
 ---@class EncounterLevelCurveModule

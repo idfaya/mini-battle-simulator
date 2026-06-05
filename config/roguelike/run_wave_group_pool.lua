@@ -45,7 +45,13 @@ RunWaveGroupPool.POOLS = {
     [401003] = {
         id = 401003,
         entries = {
-            { templateId = 501005, weight = 100 },
+            { templateId = 501003, weight = 100 },
+        },
+    },
+    [401004] = {
+        id = 401004,
+        entries = {
+            { templateId = 501010, weight = 100 },
         },
     },
     [401101] = {
@@ -179,7 +185,7 @@ RunWaveGroupPool.TEMPLATES = {
         name = "普通高压波次",
         formationProfileId = 601003,
         frontPoolId = 701004,
-        backPoolId = 701005,
+        backPoolId = 701011,
         reinforcePoolId = nil,
     },
     [501004] = {
@@ -188,7 +194,7 @@ RunWaveGroupPool.TEMPLATES = {
         name = "普通施法波次",
         formationProfileId = 601002,
         frontPoolId = 701004,
-        backPoolId = 701005,
+        backPoolId = 701011,
         reinforcePoolId = nil,
     },
     [501005] = {
@@ -207,6 +213,15 @@ RunWaveGroupPool.TEMPLATES = {
         formationProfileId = 601003,
         frontPoolId = 701003,
         backPoolId = 701005,
+        reinforcePoolId = nil,
+    },
+    [501010] = {
+        id = 501010,
+        code = "normal_wave_f3",
+        name = "普通 F3 波次",
+        formationProfileId = 601002,
+        frontPoolId = 701009,
+        backPoolId = 701010,
         reinforcePoolId = nil,
     },
     [501101] = {

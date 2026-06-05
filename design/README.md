@@ -40,6 +40,6 @@ combat_system_design.md     ← 术语 + 战场硬规则
 ## 产品口径摘要
 
 - **战斗**：3+3、自动回合、波次清场立刷、单场无成长。
-- **养成**：`partyExp`（5e PHB 阈值）+ Feat 三选一；无职业卡、无招募扩编。第一章普通怪 F1–F5 = Lv1–Lv5，队伍章末约 Lv9–10。
+- **养成**：`partyExp`（5e PHB 阈值）+ Feat 三选一；无职业卡、无招募扩编。第一章怪物难度随楼层抬升（更高 CR 遭遇池 + budget），展示 `Level` 跟 `enemies.json`/`exp_5e` 映射；队伍章末约 Lv9–10。
 - **地牢**：3×5 房间迷宫；事件 5e 检定；精英装备 + 概率 bless；章末 Boss 必掉 trinket；事件大成功可开隐藏层（3~5 房 + 双倍 trinket）。
-- **难度**：仅 `budget.difficulty` + `budget.pressureFactor`。
+- **难度**：`budget.difficulty` + `budget.pressureFactor`；章节内随楼层换更高 CR 的 `run_enemy_pick_pool`（见 `design/dungeon_design.md` §3.2）。

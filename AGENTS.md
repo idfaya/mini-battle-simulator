@@ -43,6 +43,29 @@ cd web && npm run export:lua && npm run test:playwright
 - Playwright 默认**不复用**已有 dev 服（`playwright.config.ts`）；本地调试可 `PW_REUSE_SERVER=1 npm run test:playwright`
 - 若 5173 被旧进程占用导致 `.lua` 返回 HTML，先结束该进程再跑测试
 
+## Balance Regression（数值 / 遭遇平衡）
+
+改动怪物面板、`enemies.json` CR/HP/技能、`run_enemy_pick_pool`、`run_battle_profile.budget`、遭遇编组或任何会改变 Run 内战斗难度的配置时，**必须跑真战 bin 回归**；静态对齐与 `autoWinBattles` 脚本不能替代。
+
+| 层级 | 脚本 | 真战？ | 用途 |
+| --- | --- | --- | --- |
+| 静态/结构 | `test_enemy_cr_alignment`、`test_roguelike_act1_floor_cr`、`test_roguelike_enemy_generation` | 否 | CR/池子/配置写对 |
+| 节奏模拟 | `test_roguelike_progression_pacing`、`test_party_exp_levelup` | 否 | EXP 曲线，不跑战斗 |
+| 路由触达 | `test_roguelike_ch101_reach` | **否**（`autoWinBattles`） | 迷宫能走到 Boss，**与数值无关** |
+| **平衡验收** | `test_roguelike_balance --runs=4`、`test_roguelike_real_combat_balance`、`test_real_combat_winrate` | **是** | wipe/清关率、团灭层、进层血线 |
+
+最小真战门禁（改遭遇强度后必跑）：
+
+```bash
+lua bin/test_roguelike_balance.lua --runs=4
+lua bin/test_roguelike_real_combat_balance.lua
+lua bin/test_real_combat_winrate.lua
+```
+
+- 解读 wipe/clear 比例前，必须先确认真战输出 **`unknown=0` / `Other Fail=0`**；有 `unknown` 先修流程，再调数值。
+- Playwright E2E 验 UI/流程闭环，**不能替代**上述真战统计。
+- 仅改文档、非战斗事件文案、或已通过单战脚本（`test_single_battle` 等）隔离验证的技能改动，可不跑推图真战；若间接影响 Run 推图仍建议至少跑 `test_roguelike_balance.lua --runs=4`。
+
 ## Documentation Rules
 
 - Read active design rules from `design/` and implementation rules from `docs/` before changing code.

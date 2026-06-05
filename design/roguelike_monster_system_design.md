@@ -297,6 +297,7 @@ Roguelike 怪物编组层
 - 单个怪物负责自身身份和玩法。
 - 编组模板负责“这场战斗想表达什么压力”。
 - Encounter 负责整体难度带。
+- **同章内楼层递进**：每层 `floors.json` 绑定不同战斗池；`run_enemy_pick_pool` 随楼层纳入更高 CR 模板（第一章：F1 以 CR 1/8 为主 → F2 CR 1/4 → F3–F4 CR 1/2 → F5 Boss 含 CR 1 护卫）。单怪 `Level`/面板不随楼层运行时缩放；回归见 `bin/test_roguelike_act1_floor_cr.lua`。
 
 ### 8.3 Boss 必须保持强识别度
 

@@ -59,7 +59,7 @@ RunChapterConfig.CHAPTERS = {
         hiddenFloorTemplateId = 10901,
         startGold = 100,
         startFood = 1,
-        -- 普通怪 F1–F5 = Lv1–5；10 只定义章节常规节奏目标，Boss 单体额外等级由战斗桥接按总等级预算抬档。
+        -- targetMaxLevel 定义章节队伍节奏目标；楼层怪物难度由 battlePoolIds → 更高 CR 遭遇池 + budget 控制。
         targetMaxLevel = 10,
         initialHeroCount = 4,
         maxHeroCount = 6,

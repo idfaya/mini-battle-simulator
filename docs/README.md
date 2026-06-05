@@ -37,7 +37,7 @@
 | 战斗引擎 | `modules/`、`core/` |
 | 技能 / 被动 | `skills/` |
 | Roguelike | `roguelike/` |
-| Run EXP / 楼层等级 | `config/roguelike/exp_5e.lua`、`battle_exp_reward.lua`、`encounter_level_curve.lua` |
+| Run EXP / 怪物 CR 与展示 Level | `config/roguelike/exp_5e.lua`（含 `MONSTER_DISPLAY_LEVEL_BY_CR`）、`battle_exp_reward.lua`；楼层 CR 梯度见 `run_enemy_pick_pool.lua` + `bin/test_roguelike_act1_floor_cr.lua` |
 | 权威配置 | `config/data/*.json` → `config/tables/*.lua`（含 `events.json`、`trinkets.json` → `tables/events.lua`、`tables/trinkets.lua`） |
 | Run trinket 池 | `config/roguelike/run_trinket_config.lua` |
 | 单技能逻辑 | `config/skill/skill_*.lua` |
@@ -59,7 +59,14 @@ lua bin/test_party_exp_levelup.lua
 lua bin/test_roguelike_room_one_shot.lua
 lua bin/test_events_json_loader.lua
 lua bin/test_roguelike_act1.lua
-lua bin/test_roguelike_ch101_reach.lua   # 101 章 Boss 触达率（§8）
+lua bin/test_roguelike_act1_floor_cr.lua   # Act1 F1–F5 遭遇池 CR 梯度
+lua bin/test_enemy_cr_alignment.lua
+lua bin/test_roguelike_ch101_reach.lua   # 101 章 Boss 触达（autoWin，只验路由，不验数值）
+
+# 平衡验收（改怪物/池/budget 后必跑真战；详见 AGENTS.md §Balance Regression）
+lua bin/test_roguelike_balance.lua --runs=4
+lua bin/test_roguelike_real_combat_balance.lua
+lua bin/test_real_combat_winrate.lua
 lua bin/test_roguelike_chapter_success.lua
 lua bin/test_roguelike_event_skill_check.lua
 lua bin/test_roguelike_camp_full_rest.lua
