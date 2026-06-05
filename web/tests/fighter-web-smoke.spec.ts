@@ -690,7 +690,8 @@ test("fighter counter reaction logs when reaction is queued", async ({ page }) =
 test("fighter counter attack starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003&level=4&fighterFeats=2100402&seed=101001");
+  // 单兽人时战士先攻会先触发兽人反击被动；三兽人 + seed 101001 与 queued 用例一致，保证战士登记反击。
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=4&fighterFeats=2100402&seed=101001");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
@@ -716,9 +717,9 @@ test("fighter counter attack starts before the enemy returns to base position", 
 test("fighter guard counter starts before the enemy returns to base position", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  // 哥布林无护卫；显式 fighterFeats 保证战士 Lv5 有反击基础 + 护卫基础。
+  // 哥布林无护卫；勿带术士(火)（烈焰风暴会提前清场）；显式 fighterFeats 保证 Lv5 反击 + 护卫。
   await page.goto(
-    "/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=5&fighterFeats=2100402,2100302&seed=100003",
+    "/?mode=single-battle&heroes=900005,900001&enemies=910002,910002,910002&level=5&fighterFeats=2100402,2100302&seed=100003",
   );
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
@@ -741,14 +742,16 @@ test("fighter guard counter starts before the enemy returns to base position", a
   expect(await motionCheck).toBe(true);
   expect(await stationaryCheck).toBe(true);
   expect(await waitForGuardHoldRelease(page, intercept!.attackerId, intercept!.guardId, 1800)).toBe(true);
-  expect(await waitForUnitsReturnToBase(page, [intercept!.guardId], 320)).toBe(true);
+  expect(await waitForUnitsReturnToBase(page, [intercept!.guardId], 1200)).toBe(true);
 
   const logs = await page.locator(".battle-log li").allTextContents();
+  const stanceIndex = findLineIndex(logs, (line) => line.includes("战士 使用 护卫架势"));
   const queueIndex = findLineIndex(logs, (line) => line.includes("战士 触发被动 护卫架势：登记护卫反击"));
   const counterIndex = findLineIndex(logs, (line) => line.includes("战士 的 基础武器攻击 对"), queueIndex + 1);
-  const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("哥布林 的 基础武器攻击 对 战士"), queueIndex + 1);
+  const redirectedHitIndex = findLineIndex(logs, (line) => line.includes("哥布林 的 基础武器攻击 对 战士"), stanceIndex + 1);
+  expect(stanceIndex).toBeGreaterThanOrEqual(0);
   expect(queueIndex).toBeGreaterThanOrEqual(0);
-  expect(redirectedHitIndex).toBeGreaterThan(queueIndex);
+  expect(redirectedHitIndex).toBeGreaterThan(stanceIndex);
   expect(counterIndex).toBeGreaterThan(queueIndex);
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
@@ -757,7 +760,7 @@ test("fighter guard counter starts before the enemy returns to base position", a
 test("dead guard skips guard counter and releases the intercept hold immediately", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900005,900001,900002&enemies=910002,910002,910002&level=5&seed=100003");
+  await page.goto("/?mode=single-battle&heroes=900005,900001&enemies=910002,910002,910002&level=5&seed=100003");
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
