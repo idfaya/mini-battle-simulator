@@ -395,6 +395,8 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
         chapterResult = runState.chapterResult,
         debug = {
             availableNextNodeIds = shallowCopyArray(runState.availableNextNodeIds),
+            currentBattleEnemyIds = shallowCopyArray(runState.currentBattleEnemyIds),
+            currentBattleWaveGroupIds = shallowCopyArray(runState.currentBattleConfig and runState.currentBattleConfig.waveGroupIds),
         },
     }
 end

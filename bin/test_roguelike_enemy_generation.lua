@@ -7,6 +7,7 @@ local EnemyGroup = require("config.roguelike.run_enemy_group")
 local EnemyData = require("config.enemy_data")
 local FloorsTable = require("config.tables.floors")
 local EnemyGenerator = require("roguelike.roguelike_enemy_generator")
+local RunEncounterBudget = require("config.roguelike.run_encounter_budget")
 
 local function flattenGroup(groupId)
     local group = EnemyGroup.GetGroup(groupId)
@@ -57,6 +58,18 @@ local function averageAdjustedXp(templatePoolId, waveCount, seedStart, seedEnd, 
     return totalAdjustedXp / count
 end
 
+local function maxAdjustedXp(templatePoolId, waveCount, seedStart, seedEnd, opts)
+    local best = 0
+    for seed = seedStart, seedEnd do
+        local generated, reason = EnemyGenerator.Generate(templatePoolId, waveCount, seed, opts)
+        assert(generated, "enemy generation failed: " .. tostring(reason))
+        local report = generated.budgetReport
+        assert(report and report.adjustedXp, "budgeted generation should expose adjustedXp report")
+        best = math.max(best, tonumber(report.adjustedXp) or 0)
+    end
+    return best
+end
+
 local function assertSeen(seen, enemyId, label)
     assert(seen[enemyId] == true, string.format("expected to see %s (%d)", label, enemyId))
 end
@@ -73,13 +86,14 @@ assert((f1.constraints or {}).maxElite == 0, "act1 f1 maxElite should be 0")
 local earlySeen = collectPoolEnemyIds(401001, 1, 901, 980)
 assertNotSeen(earlySeen, 910004, "Skeleton Soldier in act1 early pool")
 assertNotSeen(earlySeen, 910014, "Orc Fighter in act1 early pool")
+assertNotSeen(earlySeen, 910013, "Skeleton Archer in act1 early pool")
 assertSeen(earlySeen, 910001, "Slime in act1 early pool")
 assertSeen(earlySeen, 910002, "Goblin in act1 early pool")
 
 local normalSeen = collectPoolEnemyIds(401002, 2, 1001, 1120)
 assertSeen(normalSeen, 910012, "Goblin Thrower in normal pool")
 assertSeen(normalSeen, 910013, "Skeleton Archer in normal pool")
-assertSeen(normalSeen, 910014, "Orc Fighter in normal pool")
+assertNotSeen(normalSeen, 910014, "Orc Fighter in act1 normal pool")
 
 local eliteSeen = collectPoolEnemyIds(401101, 1, 2001, 2120)
 assertSeen(eliteSeen, 910015, "Skeleton Captain in elite pool")
@@ -105,5 +119,14 @@ local highPressureAvg = averageAdjustedXp(401101, 1, 4001, 4060, {
 })
 assert(highPressureAvg > lowPressureAvg,
     string.format("higher pressure should pick heavier encounters: low=%.1f high=%.1f", lowPressureAvg, highPressureAvg))
+
+local earlyMaxAdjusted = maxAdjustedXp(401001, 1, 5001, 5080, {
+    budget = { difficulty = "easy", pressureFactor = 0.10 },
+    partyLevel = 1,
+    partySize = 4,
+    sampleCount = 10,
+})
+assert(earlyMaxAdjusted <= 300,
+    string.format("act1 first normal wave should stay <=300 adjusted xp, got %d", earlyMaxAdjusted))
 
 print("[OK] roguelike enemy generation pools include new enemies and bosses")

@@ -65,7 +65,18 @@ for offset = 0, SEED_COUNT - 1 do
 
         if snap.phase == "map" then
             local nextNode = RoguelikeTestRoute.chooseNextNode(snap, routeState)
-            if not nextNode then break end
+            if not nextNode then
+                -- #region debug-point E:no-next-node
+                Driver.ReportDebugEvent("E", "test_roguelike_real_combat_balance.lua:no_next_node", "route ended without next node", {
+                    seed = seed,
+                    phase = tostring(snap.phase),
+                    floor = depth,
+                    partyLevel = tonumber(snap.partyLevel) or 0,
+                    maxFloor = maxFloor,
+                })
+                -- #endregion
+                break
+            end
             Run.ChoosePath(nextNode.id)
             Run.EnterCurrentNode()
             routeState.recentNodeIds[2] = routeState.recentNodeIds[1]
@@ -91,18 +102,52 @@ for offset = 0, SEED_COUNT - 1 do
             Run.ShopLeave()
         elseif snap.phase == "event" then
             RoguelikeTestRoute.resolveEvent(Run, snap)
+            local nextSnap = Run.GetSnapshot()
+            if nextSnap.phase == "event" and nextSnap.eventState and nextSnap.eventState.result then
+                Run.ContinueEvent()
+            end
         elseif snap.phase == "camp" then
-            if Run.CampChoose(2) ~= true then Run.CampLeave() end
+            local acted = false
+            for _, action in ipairs((snap.campState and snap.campState.actions) or {}) do
+                if action.available ~= false and Run.CampChoose(tonumber(action.id) or 1) == true then
+                    acted = true
+                    break
+                end
+            end
+            if not acted then
+                Run.CampLeave()
+            end
         elseif snap.phase == "stair" then
             local stair = snap.stairState or {}
+            local clearedHiddenEntrance = snap.hiddenFloorCleared == true
+                and tonumber(snap.currentNodeId) == tonumber(snap.hiddenFloorStairRoomId)
+            local onClearedHiddenFloor = snap.hiddenFloorCleared == true
+                and (tonumber(snap.currentFloorDepth) or 0) == 9
             if stair.direction == "down" then
+                if clearedHiddenEntrance then
+                    Run.StairLeave()
+                else
+                    Run.StairUse()
+                end
+            elseif onClearedHiddenFloor then
                 Run.StairUse()
             else
                 Run.StairLeave()
             end
         end
     end
-    if outcome == "unknown" then otherEnd = otherEnd + 1 end
+    if outcome == "unknown" then
+        -- #region debug-point E:unknown-outcome
+        Driver.ReportDebugEvent("E", "test_roguelike_real_combat_balance.lua:unknown_outcome", "real combat balance ended as unknown", {
+            seed = seed,
+            phase = tostring(Run.GetSnapshot().phase),
+            floor = finalFloor,
+            maxFloor = maxFloor,
+            partyLevel = tonumber(Run.GetSnapshot().partyLevel) or 0,
+        })
+        -- #endregion
+        otherEnd = otherEnd + 1
+    end
     results[#results + 1] = { seed = seed, outcome = outcome, finalFloor = finalFloor, maxFloor = maxFloor }
 end
 

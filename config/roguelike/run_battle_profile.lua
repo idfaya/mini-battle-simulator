@@ -57,7 +57,7 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "normal",
         chapterId = 101,
         difficulty = 1,
-        level = 5,
+        level = 1,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 20, max = 30 },
@@ -69,23 +69,23 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "normal",
         chapterId = 101,
         difficulty = 1,
-        level = 5,
+        level = 1,
         initialEnergy = 100,
         speed = 1.0,
         gold = { min = 24, max = 38 },
         -- combat 二战维持低编组，但把白送战回拉成会产生真实损耗的缓坡战。
-        budget = { difficulty = "easy", pressureFactor = 0.10 },
+        budget = { difficulty = "easy", pressureFactor = 0.00 },
     },
     [101003] = {
         id = 101003,
         kind = "normal",
         chapterId = 101,
         difficulty = 2,
-        level = 5,
+        level = 1,
         initialEnergy = 60,
         speed = 1.0,
         gold = { min = 28, max = 42 },
-        budget = { difficulty = "easy", pressureFactor = 0.10 },
+        budget = { difficulty = "easy", pressureFactor = 0.00 },
     },
 
     -- Elite battles
@@ -94,25 +94,25 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "elite",
         chapterId = 101,
         difficulty = 3,
-        level = 6,
+        level = 2,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 52, max = 68 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 1 },
         -- F3–F5 首次精英时 partyLevel≈4–5；压强低于普通战连战后的 Boss。
-        budget = { difficulty = "easy", pressureFactor = 0.14 },
+        budget = { difficulty = "easy", pressureFactor = 0.02 },
     },
     [101102] = {
         id = 101102,
         kind = "elite",
         chapterId = 101,
         difficulty = 4,
-        level = 6,
+        level = 2,
         initialEnergy = 90,
         speed = 1.0,
         gold = { min = 62, max = 84 },
         eliteBonus = { equipmentRoll = 1, rewardRarityBonus = 2 },
-        budget = { difficulty = "easy", pressureFactor = 0.16 },
+        budget = { difficulty = "easy", pressureFactor = 0.04 },
     },
 
     -- Light route battles: used to stop low-risk routes from skipping straight to boss.
@@ -121,11 +121,11 @@ RunBattleProfile.BATTLE_PROFILES = {
         kind = "event_battle",
         chapterId = 101,
         difficulty = 2,
-        level = 8,
+        level = 1,
         initialEnergy = 50,
         speed = 1.0,
         gold = { min = 30, max = 46 },
-        budget = { difficulty = "easy", pressureFactor = 0.34 },
+        budget = { difficulty = "easy", pressureFactor = 0.04 },
     },
     [101104] = {
         id = 101104,
@@ -136,7 +136,7 @@ RunBattleProfile.BATTLE_PROFILES = {
         initialEnergy = 10,
         speed = 1.0,
         gold = { min = 46, max = 64 },
-        budget = { difficulty = "easy", pressureFactor = 0.28 },
+        budget = { difficulty = "easy", pressureFactor = -0.05 },
     },
 
     -- Boss battle
@@ -155,7 +155,7 @@ RunBattleProfile.BATTLE_PROFILES = {
         --     4 人队最终 lvSum 上限 = 20（4×Lv5）。boss 必须按此基线平衡。
         --   * level=1 + easy/0.25 + waveCount=2（template）：
         --     维持 boss 仍有压强，但避免 4×Lv5 必 wipe（test_roguelike_act1 验证）。
-        budget = { difficulty = "easy", pressureFactor = 0.16 },
+        budget = { difficulty = "easy", pressureFactor = -0.10 },
     },
     [102001] = {
         id = 102001,

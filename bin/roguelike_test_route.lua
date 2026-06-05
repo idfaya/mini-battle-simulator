@@ -131,6 +131,15 @@ end
 
 local CH101_PATH_OPTS = { avoidUnvisitedBattle = true }
 
+local function isClearedHiddenEntrance(snapshot, node)
+    if not snapshot or not node then
+        return false
+    end
+    return snapshot.hiddenFloorCleared == true
+        and node.nodeType == "stair_down"
+        and tonumber(node.id) == tonumber(snapshot.hiddenFloorStairRoomId)
+end
+
 --- 第一章 Boss 触达率（design/dungeon_design.md §8）：首战升级后快下楼，F5 进 Boss。
 local function chooseCh101ReachNode(snapshot, routeState, selectable, partyLevel, currentFloor)
     if not routeState.firstBattleResolved then
@@ -146,6 +155,16 @@ local function chooseCh101ReachNode(snapshot, routeState, selectable, partyLevel
     end
 
     if currentFloor >= 5 then
+        local campHop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            return not n.visited and n.nodeType == "camp" and (tonumber(n.floor) or 0) == currentFloor
+        end, CH101_PATH_OPTS)
+            or RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+                return not n.visited and n.nodeType == "camp" and (tonumber(n.floor) or 0) == currentFloor
+            end)
+        local pickedCamp = pickHopIfSelectable(selectable, campHop)
+        if pickedCamp then
+            return pickedCamp
+        end
         local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
             return n.nodeType == "boss" and not n.visited
         end, CH101_PATH_OPTS)
@@ -156,8 +175,22 @@ local function chooseCh101ReachNode(snapshot, routeState, selectable, partyLevel
     end
 
     if currentFloor < 5 and routeState.firstBattleResolved then
+        if currentFloor >= 4 then
+            local campHop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+                return not n.visited and n.nodeType == "camp" and (tonumber(n.floor) or 0) == currentFloor
+            end, CH101_PATH_OPTS)
+                or RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+                    return not n.visited and n.nodeType == "camp" and (tonumber(n.floor) or 0) == currentFloor
+                end)
+            local pickedCamp = pickHopIfSelectable(selectable, campHop)
+            if pickedCamp then
+                return pickedCamp
+            end
+        end
         local stairPred = function(n)
-            return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor
+            return n.nodeType == "stair_down"
+                and (tonumber(n.floor) or 0) == currentFloor
+                and not isClearedHiddenEntrance(snapshot, n)
         end
         local hop = RoguelikeTestRoute.findPathNextHop(snapshot, stairPred, CH101_PATH_OPTS)
             or RoguelikeTestRoute.findPathNextHop(snapshot, stairPred)

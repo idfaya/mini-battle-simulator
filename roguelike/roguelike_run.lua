@@ -981,8 +981,11 @@ function RoguelikeRun.ChooseReward(index)
         end
         -- session 已耗尽：补做战斗后休整，再按 returnMode 路由。
         RoguelikeBattleBridge.ApplyPostBattleRest(state)
+        local currentNode = getNode(state.currentNodeId)
+        if currentNode and currentNode.nodeType == "boss" then
+            grantBossTrinketIfNeeded(currentNode)
+        end
         if state.rewardReturnMode == "chapter_result" then
-            grantBossTrinketIfNeeded(getNode(state.currentNodeId))
             enterChapterResult()
             return true
         end
@@ -995,6 +998,10 @@ function RoguelikeRun.ChooseReward(index)
         return false, reason
     end
     recalcPartyLevel()
+    local currentNode = getNode(state.currentNodeId)
+    if currentNode and currentNode.nodeType == "boss" then
+        grantBossTrinketIfNeeded(currentNode)
+    end
     if state.rewardReturnMode == "chapter_result" then
         enterChapterResult()
         return true

@@ -4,6 +4,78 @@ local ClassRoleConfig = require("config.tables.classes")
 
 local RoguelikeRunDriver = {}
 
+local DEBUG_HOT_BATTLES = {
+    [101002] = true,
+    [101003] = true,
+    [101101] = true,
+    [101102] = true,
+    [101103] = true,
+    [101104] = true,
+    [101201] = true,
+}
+
+local function psQuote(value)
+    local text = tostring(value or "")
+    return "'" .. text:gsub("'", "''") .. "'"
+end
+
+local function getTeamMetrics(snapshot)
+    local team = snapshot and snapshot.team
+    if (not team or #team == 0) and snapshot and snapshot.battleSnapshot then
+        team = snapshot.battleSnapshot.leftTeam
+    end
+    team = team or {}
+    local hp, maxHp, alive = 0, 0, 0
+    for _, hero in ipairs(team) do
+        local heroHp = math.max(0, tonumber(hero.hp) or 0)
+        local heroMax = math.max(0, tonumber(hero.maxHp) or 0)
+        hp = hp + heroHp
+        maxHp = maxHp + heroMax
+        if heroHp > 0 and hero.isDead ~= true then
+            alive = alive + 1
+        end
+    end
+    local hpRatio = 0
+    if maxHp > 0 then
+        hpRatio = hp / maxHp
+    end
+    return {
+        hp = hp,
+        maxHp = maxHp,
+        hpRatio = hpRatio,
+        alive = alive,
+        size = #team,
+    }
+end
+
+local function reportDebugEvent(hypothesisId, location, msg, data)
+    local envPath = ".dbg/roguelike-balance.env"
+    local serverUrl = "http://127.0.0.1:7777/event"
+    local sessionId = "roguelike-balance"
+    local dataParts = {}
+    for key, value in pairs(data or {}) do
+        local valueType = type(value)
+        if valueType == "number" or valueType == "boolean" then
+            dataParts[#dataParts + 1] = tostring(key) .. "=" .. tostring(value)
+        else
+            dataParts[#dataParts + 1] = tostring(key) .. "=" .. psQuote(value)
+        end
+    end
+    local cmd = string.format(
+        "powershell -NoProfile -Command \"$u='%s';$s='%s';if(Test-Path %s){Get-Content %s | ForEach-Object { if($_ -match '^DEBUG_SERVER_URL=(.+)$'){$u=$matches[1]} elseif($_ -match '^DEBUG_SESSION_ID=(.+)$'){$s=$matches[1]} }};$body=@{sessionId=$s;runId='pre-fix';hypothesisId=%s;location=%s;msg=%s;ts=%d;data=@{%s}} | ConvertTo-Json -Depth 4 -Compress;Invoke-RestMethod -Uri $u -Method Post -ContentType 'application/json' -Body $body | Out-Null\" > $null 2>&1",
+        serverUrl,
+        sessionId,
+        psQuote(envPath),
+        psQuote(envPath),
+        psQuote(hypothesisId),
+        psQuote(location),
+        psQuote("[DEBUG] " .. tostring(msg or "")),
+        os.time() * 1000,
+        table.concat(dataParts, ";")
+    )
+    os.execute(cmd)
+end
+
 local function getUltimateSkillForUnit(unitId)
     local hero = BattleFormation.FindHeroByInstanceId and BattleFormation.FindHeroByInstanceId(tonumber(unitId)) or nil
     local instances = hero and hero.skillData and hero.skillData.skillInstances or nil
@@ -148,6 +220,8 @@ function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs, config
     return snapshot
 end
 
+RoguelikeRunDriver.ReportDebugEvent = reportDebugEvent
+
 local function chooseCampAction(snapshot)
     local hasDeadHero = false
     for _, hero in ipairs((snapshot and snapshot.team) or {}) do
@@ -273,8 +347,40 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
                 local beforeFloor = snapshot.currentFloorDepth
                 local beforeLevel = snapshot.partyLevel
                 local battleId = snapshot.currentBattleId or "unknown"
+                local beforeMetrics = getTeamMetrics(snapshot)
                 if config.verbose then print(string.format("Entering Battle: Floor %s, PartyLv %s, BattleId %s", tostring(beforeFloor), tostring(beforeLevel), tostring(battleId))) end
+                if DEBUG_HOT_BATTLES[tonumber(battleId) or -1] then
+                    local debugState = snapshot.debug or {}
+                    -- #region debug-point A:hot-battle-enter
+                    reportDebugEvent("A", "roguelike_run_driver.lua:battle_enter", "hot battle enter", {
+                        seed = seed,
+                        floor = tonumber(beforeFloor) or 0,
+                        partyLevel = tonumber(beforeLevel) or 0,
+                        battleId = tonumber(battleId) or -1,
+                        teamHpRatio = math.floor((beforeMetrics.hpRatio or 0) * 1000) / 1000,
+                        teamAlive = beforeMetrics.alive or 0,
+                        teamSize = beforeMetrics.size or 0,
+                        enemyIds = table.concat(debugState.currentBattleEnemyIds or {}, ","),
+                        waveGroupIds = table.concat(debugState.currentBattleWaveGroupIds or {}, ","),
+                    })
+                    -- #endregion
+                end
                 snapshot = RoguelikeRunDriver.runBattleUntilResolved(Run, config.maxBattleTicks, config.tickMs, config)
+                local afterMetrics = getTeamMetrics(snapshot)
+                if DEBUG_HOT_BATTLES[tonumber(battleId) or -1] then
+                    -- #region debug-point B:hot-battle-exit
+                    reportDebugEvent("B", "roguelike_run_driver.lua:battle_exit", "hot battle exit", {
+                        seed = seed,
+                        floor = tonumber(snapshot.currentFloorDepth or beforeFloor) or 0,
+                        partyLevel = tonumber(snapshot.partyLevel or beforeLevel) or 0,
+                        battleId = tonumber(battleId) or -1,
+                        phase = tostring(snapshot.phase),
+                        teamHpRatio = math.floor((afterMetrics.hpRatio or 0) * 1000) / 1000,
+                        teamAlive = afterMetrics.alive or 0,
+                        teamSize = afterMetrics.size or 0,
+                    })
+                    -- #endregion
+                end
                 if snapshot.phase == "failed" then
                     local failFloor = snapshot.currentFloorDepth or beforeFloor
                     if config.verbose then print(string.format("WIPED! Floor: %s PartyLevel: %s BattleId: %s lastPhase: %s", tostring(failFloor), tostring(beforeLevel), tostring(battleId), tostring(snapshot.phase))) end
@@ -322,7 +428,18 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
             local depth = tonumber(stair.currentFloorDepth) or 1
             local pl = tonumber(snapshot.partyLevel) or 1
             local rushBoss = config.progressionMode == "ch101_reach"
+            local clearedHiddenEntrance = snapshot.hiddenFloorCleared == true
+                and tonumber(snapshot.currentNodeId) == tonumber(snapshot.hiddenFloorStairRoomId)
+            local onClearedHiddenFloor = snapshot.hiddenFloorCleared == true
+                and (tonumber(snapshot.currentFloorDepth) or 0) == 9
             if stair.direction == "down" then
+                if clearedHiddenEntrance then
+                    Run.StairLeave()
+                else
+                    Run.StairUse()
+                end
+            elseif onClearedHiddenFloor then
+                -- Hidden floor stair_up becomes the exit only after the hidden boss is cleared.
                 Run.StairUse()
             elseif stair.direction == "up" and not rushBoss and pl < depth * 2 then
                 -- ch101_reach 模式下不回退练级，避免在 stair_up 落点反复弹楼陷入死循环。
@@ -336,6 +453,21 @@ function RoguelikeRunDriver.simulate(Run, RoguelikeTestRoute, config)
     local final = Run.GetSnapshot()
     report.phase = final.phase
     report.chapterId = tonumber(final.chapterId) or report.chapterId
+    if report.phase ~= "chapter_result" and report.failed ~= true then
+        local finalMetrics = getTeamMetrics(final)
+        -- #region debug-point E:unknown-terminal
+        reportDebugEvent("E", "roguelike_run_driver.lua:final", "non-terminal end", {
+            seed = seed,
+            phase = tostring(final.phase),
+            chapterId = tonumber(final.chapterId) or 0,
+            currentFloorDepth = tonumber(final.currentFloorDepth) or 0,
+            partyLevel = tonumber(final.partyLevel) or 0,
+            teamHpRatio = math.floor((finalMetrics.hpRatio or 0) * 1000) / 1000,
+            teamAlive = finalMetrics.alive or 0,
+            teamSize = finalMetrics.size or 0,
+        })
+        -- #endregion
+    end
     if (report.chapterId or 101) > 101 then
         report.ch101BossReached = true
         report.ch101BossCleared = true

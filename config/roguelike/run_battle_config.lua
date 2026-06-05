@@ -130,7 +130,7 @@ RunBattleConfig.BATTLES = {
         spawnOrder = "back_first_then_front",
         winRule = "reserve_empty_and_board_clear",
         loseRule = "all_hero_dead",
-        bossId = 910007,
+        bossId = 910006,
     },
 }
 
