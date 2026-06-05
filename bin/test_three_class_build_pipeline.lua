@@ -296,6 +296,22 @@ do
     local battlePaladin = teamLeft[1]
     local battleAlly = teamLeft[2]
     BattleSkill.Init(battlePaladin, battlePaladin.skillsConfig)
+    battlePaladin.hp = 99
+    battlePaladin.maxHp = 100
+    battleAlly.hp = 100
+    battleAlly.maxHp = 100
+    local minorInjurySkill = BattleMain.DebugSelectAvailableSkill(battlePaladin)
+    assert_true(minorInjurySkill and minorInjurySkill.skillId ~= SkillRuntimeConfig.Ids.paladin_lay_on_hands,
+        "Paladin does not spend lay on hands when only 1 HP is missing")
+
+    battlePaladin.hp = 51
+    battlePaladin.maxHp = 100
+    battleAlly.hp = 100
+    battleAlly.maxHp = 100
+    local aboveHalfSkill = BattleMain.DebugSelectAvailableSkill(battlePaladin)
+    assert_true(aboveHalfSkill and aboveHalfSkill.skillId ~= SkillRuntimeConfig.Ids.paladin_lay_on_hands,
+        "Paladin does not spend lay on hands above half HP")
+
     battlePaladin.hp = 50
     battlePaladin.maxHp = 100
     battleAlly.hp = 28

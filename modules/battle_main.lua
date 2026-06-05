@@ -563,11 +563,19 @@ local function PassAiGates(hero, skill, previewTargets)
 
     if gates.requireAllyHpBelow or gates.requireAllyMissingRatio then
         local _, lowestRatio, lowestMissing = GetLowestInjuredAlly(hero)
-        local hpOk = gates.requireAllyHpBelow == nil
-            or lowestRatio <= tonumber(gates.requireAllyHpBelow)
-        local missingOk = gates.requireAllyMissingRatio == nil
-            or lowestMissing >= tonumber(gates.requireAllyMissingRatio)
-        if not (hpOk or missingOk) then
+        local hasHpGate = gates.requireAllyHpBelow ~= nil
+        local hasMissingGate = gates.requireAllyMissingRatio ~= nil
+        local hpOk = not hasHpGate or lowestRatio <= tonumber(gates.requireAllyHpBelow)
+        local missingOk = not hasMissingGate or lowestMissing >= tonumber(gates.requireAllyMissingRatio)
+        local passed = false
+        if hasHpGate and hasMissingGate then
+            passed = hpOk or missingOk
+        elseif hasHpGate then
+            passed = hpOk
+        else
+            passed = missingOk
+        end
+        if not passed then
             return false
         end
     end
