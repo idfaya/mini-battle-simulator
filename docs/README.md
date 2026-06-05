@@ -1,22 +1,20 @@
 # 程序开发文档
 
-本目录存放**程序向**文档：模块实现、配置与导出管线、工程约束、落地计划、回归说明。
+本目录存放**程序向**文档：模块实现、配置与导出管线、工程约束、回归说明。
 
 - 活跃文档**只描述当前实现与设计**，不写旧版对照、迁移说明或已删除系统的长期留痕。
 - 与策划稿冲突时：先以源码与 `docs/implementation_guidelines.md` 为准，再回写 `design/` 活跃稿件。
 - 策划设计见 [`design/README.md`](../design/README.md)；`design/legacy/` 禁止阅读维护。
-- `docs/legacy/` 用于归档过时的开发计划与修订稿，不参与当前实现口径维护。
-- Agent 规范见 [`AGENTS.md`](../AGENTS.md)（含「不做旧设计兼容」与文档原则）。
+- Agent 规范见 [`AGENTS.md`](../AGENTS.md)（含「不做旧设计兼容」、文档原则与平衡真战回归）。
 
 ## 必读
 
 | 文档 | 内容 |
 | --- | --- |
-| [implementation_guidelines.md](./implementation_guidelines.md) | Feat/skill、BuildState、Web 表现、测试口径（写代码必读） |
+| [implementation_guidelines.md](./implementation_guidelines.md) | Feat/skill、BuildState、Run 模块与 EXP/地牢 SSOT、Web 表现、测试口径（写代码必读） |
 | [skill_system_implementation.md](./skill_system_implementation.md) | Timeline 技能、三层配置、释放流程 |
 | [buff_system_implementation.md](./buff_system_implementation.md) | Buff 生命周期与注册表 |
 | [buff_shared_table.md](./buff_shared_table.md) | Buff 静态表字段 |
-| [dungeon_system_overall_plan.md](./dungeon_system_overall_plan.md) | 地牢 / Run 落地进度；§2.4 / §3.1.5 为 5e EXP 与第一章怪物节奏 |
 
 ## 策划规则来源（改代码时对照）
 

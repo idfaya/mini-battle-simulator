@@ -2,7 +2,7 @@
 
 # Dungeon 系统开发计划
 
-> **已归档**：执行计划与实测进度请以 [`dungeon_system_overall_plan.md`](./dungeon_system_overall_plan.md) 为准。本文保留作历史拆解参考。
+> **已归档**：执行计划已废弃。当前实现见 [`dungeon_design.md`](../dungeon_design.md) 与 [`docs/implementation_guidelines.md`](../../docs/implementation_guidelines.md) §5。
 
 > 上位规则源：[`design/dungeon_design.md`](../design/dungeon_design.md) + [`design/character_progression_design.md`](../design/character_progression_design.md) + [`AGENTS.md`](../AGENTS.md)
 >

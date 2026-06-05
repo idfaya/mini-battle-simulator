@@ -42,7 +42,7 @@ docs/                      程序实现文档
 | 入口 | 说明 |
 | --- | --- |
 | [design/README.md](design/README.md) | **策划设计**（玩法、数值、关卡、职业） |
-| [docs/README.md](docs/README.md) | **程序开发**（实现、工程约束、落地计划） |
+| [docs/README.md](docs/README.md) | **程序开发**（实现、工程约束、回归命令） |
 | [AGENTS.md](AGENTS.md) | 编码 Agent 行为准则与执行约束 |
 
 改代码前优先看 `design/` 和 `docs/` 的活跃文档；`design/legacy/` 为过时归档，不参与当前实现。

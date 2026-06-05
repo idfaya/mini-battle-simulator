@@ -243,7 +243,7 @@
 - 房间类型：普通战 / 精英 / 装备 / 事件 / 营地 / 商店 / 楼梯 / Boss
 - 10 职业（物理 6 + 法系 4），能力由 Feat → skill 驱动，见 `class_system_design.md` 与 `roguelike_feat_skill_fill_sheet.md`
 - 起手 4 人固定；`partyExp` + 升级 Feat 三选一；精英装备 + 概率 bless
-- 实现进度见 `docs/dungeon_system_overall_plan.md`
+- 程序实现见 [`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5
 
 ---
 

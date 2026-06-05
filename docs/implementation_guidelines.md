@@ -147,6 +147,22 @@
 
 ## 5. Roguelike 成长约束
 
+### 5.0 Run 模块索引
+
+| 模块 | 路径 | 职责 |
+| --- | --- | --- |
+| 地牢生成 | `roguelike/dungeon_generator.lua` | Recursive Backtracker + BFS；隐藏层 `HIDDEN_FLOOR_DEPTH=9` |
+| 楼层状态 | `roguelike/floor_state.lua` | `IsRoomCleared` / `MarkRoomCleared` / `UseStair` |
+| Run 主循环 | `roguelike/roguelike_run.lua` | `dungeonState`、战斗/事件/shop/camp、`grantBattleExp`、隐藏层注入 |
+| 地图视图 | `roguelike/roguelike_map.lua` | `buildNodeView`；cleared 房 neighbors 全作通路 |
+| 楼层模板 | `config/data/floors.json` | `battlePoolIds`、`eventPoolIds`、constraints |
+| 章节 | `config/roguelike/run_chapter_config.lua` | 101/102/103 `floorTemplateIds`、`targetMaxLevel` |
+| 敌人生成 | `roguelike/roguelike_enemy_generator.lua` | 按 profile `budget` 从 pick pool 选编组 |
+| 快照 | `roguelike/roguelike_snapshot.lua` | `dungeonState`、`currentFloorDepth`、`stairState` |
+
+- 策划规则源：[`design/dungeon_design.md`](../design/dungeon_design.md)。
+- `run_node_pool` / `run_recruit_pool` / `roguelike_map_generator` 已移除；勿再引用 lane DAG 或 recruit 链路。
+
 - 战后成长统一发放职业树 `Feat`，不再并行维护第二套成长语义。
 - Lv1 起始 feat 由 `ClassBuildProgression.GetLv1FeatIds(classId)` 自动授予（fixed），不进入升级候选。
 - 升级候选池来自 `ClassBuildProgression.GetTreePool(classId)`，按 §5 树形规则（R/T1/T2/B/J/C）通过 `FeatPicker` 在每级筛出对应受限/自由层级的可选项。
@@ -209,6 +225,18 @@
 - 隐藏 Boss 胜利后，`hiddenFloorCleared[chapterId]` 必须在所有胜利出口统一回写，包括直接战斗胜利和 `reward` 结算返回主地图两条链路。
 - 运行时或测试路由在主线地图看到“已清的隐藏层入口”时，只能把它当作已访问通路，不能继续把它当成下楼或推进目标。
 - 对 Act1 难度分析，`bin/test_real_combat_winrate.lua` 与 `bin/test_roguelike_real_combat_balance.lua` 出现 `unknown` 时，必须先修流程问题，再解读 wipe/clear 比例；`unknown=0` 是平衡结论可用的前置条件。
+
+### 5.5 Run 运行时决策
+
+| 决策 | 口径 |
+| --- | --- |
+| cleared 通路 | `battle_*` / `event` / `boss` 在 `enterNode` 短路为 map 通路；shop 可重复进入 |
+| 邻居可达 | `GetAvailableNextNodeIds` 返回全部 neighbors（含 visited）；路由由 `chooseNextNode` 偏好未访问房 |
+| Trinket 存储 | `state.trinketIds` 独立，**不**写入 `equipmentIds` |
+| EXP 结算 | 5e SSOT：`exp_5e` + `battle_exp_reward` + `grantBattleExp`；**不读** `run_battle_template.expReward` |
+| 楼层难度 | `floors.json` → 战斗池 → `run_enemy_pick_pool` 更高 CR 组合 + `run_battle_profile.budget`；单怪不随楼层缩放 Level/面板 |
+| 隐藏层 | 事件大成功 → 主线相邻房 `stair_down`；Boss 胜利须写回 `hiddenFloorCleared`；已清入口仅作通路 |
+| 复活卷轴定价 | 常规章 ×3 普通装底价、章末 ×4（`run_shop_goods`） |
 
 ## 6. Web 可观测性约束
 
