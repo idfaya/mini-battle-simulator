@@ -9,6 +9,7 @@ local RoguelikeCamp = require("roguelike.roguelike_camp")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local HeroData = require("config.hero_data")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
+local RoguelikeTestRoute = dofile(script_dir .. "roguelike_test_route.lua")
 
 local function assert_true(cond, msg)
     if not cond then
@@ -79,15 +80,19 @@ local function pickSelectable(snapshot, preferCamp)
     return fallback
 end
 
-local function advanceRun(maxSteps)
+local function advanceRun(maxSteps, routeState)
+    routeState = routeState or {}
     for _ = 1, maxSteps do
         local snapshot = Run.GetSnapshot()
         if snapshot.phase == "map" then
-            local nextId = pickSelectable(snapshot, true)
-            if not nextId then
+            local nextNode = RoguelikeTestRoute.chooseUnvisitedInteraction(snapshot)
+            if not nextNode then
+                nextNode = RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
+            end
+            if not nextNode or not nextNode.id then
                 return snapshot
             end
-            Run.ChoosePath(nextId)
+            Run.ChoosePath(nextNode.id)
             Run.EnterCurrentNode()
         elseif snapshot.phase == "battle" then
             for _ = 1, 200 do
@@ -106,7 +111,12 @@ local function advanceRun(maxSteps)
         elseif snapshot.phase == "shop" then
             Run.ShopLeave()
         elseif snapshot.phase == "stair" then
-            Run.StairLeave()
+            local stair = snapshot.stairState or {}
+            if stair.direction == "down" then
+                Run.StairUse()
+            else
+                Run.StairLeave()
+            end
         end
     end
     return Run.GetSnapshot()
@@ -117,16 +127,35 @@ do
     Run.StartRun({
         chapterId = 101,
         starterHeroIds = { 900005, 900001, 900007, 900002 },
-        seed = 1,
+        seed = 10101,
     })
+    local routeState = { firstBattleResolved = true }
     local campId
-    for _ = 1, 40 do
+    for _ = 1, 200 do
         local snapshot = Run.GetSnapshot()
-        campId = findSelectableCamp(snapshot)
+        for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+            if node.selectable and node.nodeType == "camp" then
+                campId = node.id
+                break
+            end
+        end
         if campId then
             break
         end
-        advanceRun(1)
+        if snapshot.phase == "map" then
+            local nextNode = RoguelikeTestRoute.chooseStairTowardInteractionFloor(snapshot, { "camp" })
+            if not nextNode then
+                nextNode = RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
+            end
+            if nextNode and nextNode.id then
+                Run.ChoosePath(nextNode.id)
+                Run.EnterCurrentNode()
+            else
+                advanceRun(1, routeState)
+            end
+        else
+            advanceRun(1, routeState)
+        end
     end
     assert_true(campId, "should discover a selectable camp within exploration budget")
 

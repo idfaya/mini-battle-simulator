@@ -12,7 +12,7 @@ local BattleExpReward = require("config.roguelike.battle_exp_reward")
 local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
-    [101] = 1.20,
+    [101] = 2.00,
     [102] = 0.50,
     [103] = 0.35,
 }

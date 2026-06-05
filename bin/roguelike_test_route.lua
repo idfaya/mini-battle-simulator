@@ -129,6 +129,76 @@ local function pickHopIfSelectable(selectable, hop)
     return nil
 end
 
+RoguelikeTestRoute.pickHopIfSelectable = pickHopIfSelectable
+
+function RoguelikeTestRoute.chooseUnvisitedInteraction(snapshot, opts)
+    opts = opts or {}
+    local nodeTypes = opts.nodeTypes or { "shop", "camp", "event", "equip" }
+    local floorDepth = opts.floorDepth
+    local selectable = RoguelikeTestRoute.findSelectableNodes(snapshot)
+    for _, nodeType in ipairs(nodeTypes) do
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            if n.visited or n.nodeType ~= nodeType then
+                return false
+            end
+            if floorDepth ~= nil and (tonumber(n.floor) or 0) ~= floorDepth then
+                return false
+            end
+            return true
+        end)
+        local picked = pickHopIfSelectable(selectable, hop)
+        if picked then
+            return picked
+        end
+    end
+    return nil
+end
+
+function RoguelikeTestRoute.chooseStairTowardInteractionFloor(snapshot, nodeTypes)
+    nodeTypes = nodeTypes or { "shop", "camp", "equip", "event" }
+    local currentFloor = 1
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if node.current then
+            currentFloor = tonumber(node.floor) or 1
+            break
+        end
+    end
+
+    local onFloor = RoguelikeTestRoute.chooseUnvisitedInteraction(snapshot, {
+        nodeTypes = nodeTypes,
+        floorDepth = currentFloor,
+    })
+    if onFloor then
+        return onFloor
+    end
+
+    local targetFloor
+    for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
+        if not node.visited then
+            for _, nodeType in ipairs(nodeTypes) do
+                if node.nodeType == nodeType then
+                    local floor = tonumber(node.floor) or 0
+                    if floor > currentFloor and (not targetFloor or floor < targetFloor) then
+                        targetFloor = floor
+                    end
+                    break
+                end
+            end
+        end
+    end
+    if not targetFloor then
+        return nil
+    end
+    local selectable = RoguelikeTestRoute.findSelectableNodes(snapshot)
+    if targetFloor > currentFloor then
+        local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(n)
+            return n.nodeType == "stair_down" and (tonumber(n.floor) or 0) == currentFloor and not n.visited
+        end)
+        return pickHopIfSelectable(selectable, hop)
+    end
+    return nil
+end
+
 local CH101_PATH_OPTS = { avoidUnvisitedBattle = true }
 
 local function isClearedHiddenEntrance(snapshot, node)
@@ -224,6 +294,15 @@ function RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
         if node.current then
             currentFloor = tonumber(node.floor) or 1
             break
+        end
+    end
+
+    if routeState and routeState.requireRoomInteraction and routeState.firstBattleResolved then
+        if not (routeState.campSeen or routeState.shopSeen or routeState.eventSeen) then
+            local interaction = RoguelikeTestRoute.chooseStairTowardInteractionFloor(snapshot, { "shop", "camp" })
+            if interaction then
+                return interaction
+            end
         end
     end
 
@@ -413,17 +492,46 @@ function RoguelikeTestRoute.chooseNextNode(snapshot, routeState)
     return best or selectable[1]
 end
 
---- 回归用：优先选无金币消耗或末尾「离开」类选项，避免固定 opts[1] 因 not_enough_gold 失败。
+--- 回归用：优先零风险选项，再试检定选项（遍历队员），最后倒序尝试其余选项。
 function RoguelikeTestRoute.resolveEvent(runModule, snapshot)
     local options = (snapshot and snapshot.eventState and snapshot.eventState.options) or {}
     assert(#options > 0, "event should expose options")
+
+    local function tryOption(optionId, rosterHeroId)
+        if runModule.ChooseEventOption(optionId, rosterHeroId) ~= true then
+            return false
+        end
+        if runModule.ContinueEvent and runModule.ContinueEvent() == true then
+            return true
+        end
+        local phase = runModule.GetSnapshot and runModule.GetSnapshot().phase or nil
+        return phase ~= "event"
+    end
+
+    for _, opt in ipairs(options) do
+        if opt.zeroRisk == true and tryOption(opt.id) then
+            return true
+        end
+    end
+
+    local team = (snapshot and snapshot.team) or {}
+    for _, opt in ipairs(options) do
+        if opt.skillCheck then
+            for _, hero in ipairs(team) do
+                if tryOption(opt.id, hero.rosterId) then
+                    return true
+                end
+            end
+        end
+    end
+
     for i = #options, 1, -1 do
-        if runModule.ChooseEventOption(options[i].id) == true then
+        if tryOption(options[i].id) then
             return true
         end
     end
     for _, opt in ipairs(options) do
-        if runModule.ChooseEventOption(opt.id) == true then
+        if tryOption(opt.id) then
             return true
         end
     end

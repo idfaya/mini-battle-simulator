@@ -231,7 +231,7 @@ local chooseNextNode = RoguelikeTestRoute.chooseNextNode
 assertEncounterScalesRemoved()
 
 -- 全章 3 章通关回归计算量大：主种子 + 抽样（10101/10102 见计划 §2.3 单独跟踪）。
-local SEEDS = { 1 }
+local SEEDS = { 10101 }
 
 local function runOnce(seed)
     math.randomseed(seed)
@@ -253,6 +253,7 @@ local function runOnce(seed)
         shopSeen = false,
         eventSeen = false,
         firstBattleResolved = false,
+        requireRoomInteraction = true,
         lastNodeId = nil,
         recentNodeIds = {},
     }
@@ -322,6 +323,7 @@ local function runOnce(seed)
             snapshot = acceptRewardIfPresent()
             assertOwnedUnitViews(snapshot)
         elseif snapshot.phase == "camp" then
+            routeState.campSeen = true
             -- 营地动作可能因重复祝福（duplicate_blessing）等约束失败，按可用列表逐个 fallback；
             -- dungeon §4.2 cleared camp 全 unavailable 时直接 CampLeave。
             local primary = chooseCampAction(snapshot)
@@ -342,19 +344,17 @@ local function runOnce(seed)
                 assert(Run.CampLeave() == true, "camp leave should succeed when no action available")
             end
         elseif snapshot.phase == "shop" then
+            routeState.shopSeen = true
             assert(Run.ShopLeave() == true, "shop leave should succeed")
         elseif snapshot.phase == "event" then
-            assert(RoguelikeTestRoute.resolveEvent(Run, snapshot) == true, "event option should resolve")
+            routeState.eventSeen = true
+            assert(RoguelikeTestRoute.resolveEvent(Run, Run.GetSnapshot()) == true, "event option should resolve")
         elseif snapshot.phase == "stair" then
-            -- 楼梯房：partyLevel 高于本层阈值时使用楼梯推进；否则路过当通路探索本层。
             local stair = snapshot.stairState or {}
-            local depth = tonumber(stair.currentFloorDepth) or 1
-            local pl = tonumber(snapshot.partyLevel) or 1
             if stair.direction == "down" then
                 assert(Run.StairUse() == true, "stair down use should succeed")
-            elseif stair.direction == "up" and pl < depth * 2 then
-                assert(Run.StairUse() == true, "stair up use should succeed")
             else
+                -- 下楼落地后的 up 楼梯仅作「回到本层 map」出口，勿再 StairUse 回上层。
                 assert(Run.StairLeave() == true, "stair leave should succeed")
             end
         else

@@ -377,7 +377,7 @@ function BuildPassiveCommon.CreateExtraAttackPassive(context, opts)
         local hero = self.context and self.context.src or nil
         local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
         local target = extraParam.target
-        if not isAlive(hero) or target == nil then
+        if not isAlive(hero) or target == nil or not isAlive(target) then
             return
         end
         if tonumber(extraParam.skillId) ~= tonumber(options.basicAttackSkillId) then

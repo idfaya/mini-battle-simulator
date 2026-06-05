@@ -76,6 +76,19 @@ lua bin/test_roguelike_hidden_floor.lua
 # 战斗 / 职业 build
 lua bin/test_single_battle.lua
 lua bin/test_fighter_build_pipeline.lua
+lua bin/test_fighter_build_runtime.lua
+lua bin/test_three_class_build_pipeline.lua
+lua bin/test_class_tree_runtime_fixes.lua
+lua bin/test_enemy_skill_alignment.lua
+lua bin/test_roguelike_enemy_generation.lua
+lua bin/test_roguelike_act23_battle_pools.lua
+lua bin/test_roguelike_event_revive.lua
+lua bin/test_skill_targeting.lua
+lua bin/test_skill_tier_scaling.lua
+lua bin/test_timeline_passive.lua
+lua bin/test_positioning.lua
+lua bin/test_feat_mod_helper.lua
+lua bin/test_browser_battle_runtime.lua
 
 cd web && npm run test:playwright
 ```

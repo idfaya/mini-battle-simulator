@@ -138,10 +138,9 @@ local function grantBattleLoot(node, battleProfile)
     }
 end
 
--- 章节战斗经验倍率：Act1 提到 1.20，让章末 partyLevel 回到 9-10 区间，
--- 至少保证 4 人队平均能升到 Lv3 左右，形成可感知成长。
+-- 章节战斗经验倍率：Act1 提到 2.00，让章末 partyLevel 回到 9-10 区间。
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
-    [101] = 1.20,
+    [101] = 2.00,
     [102] = 0.50,
     [103] = 0.35,
 }
