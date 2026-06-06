@@ -1,31 +1,9 @@
 local BattleDmgHeal = require("modules.battle_dmg_heal")
 local BattleSkill = require("modules.battle_skill")
-local Ability5e = require("modules.ability_5e")
 local BattleFormula = require("core.battle_formula")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
 local BuffEffectRegistry = {}
-
-local function buildDotHandler(damageKind, dicePerStack)
-    return function(buff, hero)
-        if not hero or hero.isDead then
-            return
-        end
-        local stacks = math.max(1, tonumber(buff.stackCount) or 1)
-        local diceExpr = string.format("%d%s", stacks, dicePerStack)
-        local dmgResult = BattleSkill.ResolveScaledDamage(buff.caster or hero, hero, {
-            skipCheck = true,
-            noClassScalar = true,
-            kind = "spell",
-            damageKind = damageKind,
-            damageDice = diceExpr,
-        })
-        local damage = tonumber(dmgResult and dmgResult.damage) or 0
-        BattleDmgHeal.ApplyDamage(hero, damage, buff.caster or hero, {
-            damageKind = damageKind,
-        })
-    end
-end
 
 local function getSaveBonus(hero, saveType)
     if saveType == "fort" then
@@ -90,63 +68,120 @@ local function handleBurnTick(buff, hero)
         damage))
 end
 
-local function getFrozenAcPenalty(hero)
-    local classId = tonumber(hero and (hero.class or hero.Class or hero._class)) or 0
-    local dex = tonumber(hero and hero.dexMod) or 0
-    local wis = tonumber(hero and hero.wisMod) or 0
-    local con = tonumber(hero and hero.conMod) or 0
-    local withDex = Ability5e.CalculateArmorClass(classId, {
-        dex = dex,
-        wis = wis,
-        con = con,
-    })
-    local withoutDex = Ability5e.CalculateArmorClass(classId, {
-        dex = 0,
-        wis = wis,
-        con = con,
-    })
-    return math.max(0, (tonumber(withDex) or 0) - (tonumber(withoutDex) or 0))
-end
-
-local function applyFrozenDexPenalty(buff, hero)
-    if not hero or hero.isDead or buff.__dexPenaltyApplied then
+local function applySlowInitiativePenalty(buff, hero)
+    if not hero or hero.isDead or buff.__slowPenaltyApplied then
         return
     end
-    local acPenalty = getFrozenAcPenalty(hero)
-    local currentSaveRef = tonumber(hero.saveRef) or 0
-    local dexSaveBonus = math.max(0, tonumber(hero.dexMod) or 0)
-    local savePenalty = math.max(0, math.min(currentSaveRef, dexSaveBonus))
-    buff.__frozenAcPenalty = acPenalty
-    buff.__frozenSavePenalty = savePenalty
-    if acPenalty > 0 then
-        hero.ac = math.max(0, math.floor((tonumber(hero.ac) or 0) - acPenalty))
+    local penalty = math.max(1, math.floor(tonumber(buff.value) or 5))
+    buff.__slowPenaltyAmount = penalty
+    local BattleActionOrder = require("modules.battle_action_order")
+    if BattleActionOrder.AddInitiativeModifier then
+        BattleActionOrder.AddInitiativeModifier(hero, -penalty)
     end
-    if savePenalty > 0 then
-        hero.saveRef = math.max(0, math.floor((tonumber(hero.saveRef) or 0) - savePenalty))
-    end
-    buff.__dexPenaltyApplied = true
+    buff.__slowPenaltyApplied = true
 end
 
-local function removeFrozenDexPenalty(buff, hero)
-    if not hero or not buff.__dexPenaltyApplied then
+local function removeSlowInitiativePenalty(buff, hero)
+    if not hero or not buff.__slowPenaltyApplied then
         return
     end
-    local acPenalty = math.max(0, math.floor(tonumber(buff.__frozenAcPenalty) or 0))
-    local savePenalty = math.max(0, math.floor(tonumber(buff.__frozenSavePenalty) or 0))
-    if acPenalty > 0 then
-        hero.ac = math.max(0, math.floor((tonumber(hero.ac) or 0) + acPenalty))
+    local penalty = math.max(1, math.floor(tonumber(buff.__slowPenaltyAmount) or tonumber(buff.value) or 5))
+    local BattleActionOrder = require("modules.battle_action_order")
+    if BattleActionOrder.AddInitiativeModifier then
+        BattleActionOrder.AddInitiativeModifier(hero, penalty)
     end
-    if savePenalty > 0 then
-        hero.saveRef = math.max(0, math.floor((tonumber(hero.saveRef) or 0) + savePenalty))
-    end
-    buff.__dexPenaltyApplied = false
-    buff.__frozenAcPenalty = 0
-    buff.__frozenSavePenalty = 0
+    buff.__slowPenaltyApplied = false
+    buff.__slowPenaltyAmount = 0
 end
 
-BuffEffectRegistry.poison_tick = buildDotHandler("poison", "d4")
+local function handleBleedTick(buff, hero)
+    if not hero or hero.isDead then
+        return
+    end
+
+    local caster = buff.caster or hero
+    local saveType = "fort"
+    local dc = tonumber(caster and caster.spellDC) or 10
+    local saveBonus = getSaveBonus(hero, saveType)
+        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
+    local saveResult = BattleFormula.RollSave(hero, dc, saveBonus, {})
+    local saveLabel = getSaveLabel(saveType)
+    local BattleBuff = require("modules.battle_buff")
+
+    if saveResult.success then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 的流血止住：%s豁免成功 (%d vs DC %d)",
+            hero.name or "目标",
+            saveLabel,
+            saveResult.total or 0,
+            saveResult.dc or dc))
+        BattleBuff.RemoveBuffById(hero, buff.id)
+        return
+    end
+
+    local dmgResult = BattleSkill.ResolveScaledDamage(caster, hero, {
+        skipCheck = true,
+        noClassScalar = true,
+        kind = "physical",
+        damageKind = "slashing",
+        damageDice = "1d4",
+    })
+    local damage = tonumber(dmgResult and dmgResult.damage) or 0
+    BattleDmgHeal.ApplyDamage(hero, damage, caster, {
+        damageKind = "slashing",
+    })
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 的流血持续：%s豁免失败，受到 %d 点物理伤害",
+        hero.name or "目标",
+        saveLabel,
+        damage))
+end
+
+local function handlePoisonTick(buff, hero)
+    if not hero or hero.isDead then
+        return
+    end
+
+    local caster = buff.caster or hero
+    local saveType = "fort"
+    local dc = tonumber(caster and caster.spellDC) or 10
+    local saveBonus = getSaveBonus(hero, saveType)
+        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
+    local saveResult = BattleFormula.RollSave(hero, dc, saveBonus, {})
+    local saveLabel = getSaveLabel(saveType)
+    local BattleBuff = require("modules.battle_buff")
+
+    if saveResult.success then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 的中毒缓解：%s豁免成功 (%d vs DC %d)",
+            hero.name or "目标",
+            saveLabel,
+            saveResult.total or 0,
+            saveResult.dc or dc))
+        BattleBuff.RemoveBuffById(hero, buff.id)
+        return
+    end
+
+    local stacks = math.max(1, tonumber(buff.stackCount) or 1)
+    local diceExpr = string.format("%d%s", stacks, "d4")
+    local dmgResult = BattleSkill.ResolveScaledDamage(caster, hero, {
+        skipCheck = true,
+        noClassScalar = true,
+        kind = "spell",
+        damageKind = "poison",
+        damageDice = diceExpr,
+    })
+    local damage = tonumber(dmgResult and dmgResult.damage) or 0
+    BattleDmgHeal.ApplyDamage(hero, damage, caster, {
+        damageKind = "poison",
+    })
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 的中毒持续：%s豁免失败，受到 %d 点毒素伤害",
+        hero.name or "目标",
+        saveLabel,
+        damage))
+end
+
+BuffEffectRegistry.poison_tick = handlePoisonTick
 BuffEffectRegistry.burn_tick = handleBurnTick
-BuffEffectRegistry.slow_apply_penalty = applyFrozenDexPenalty
-BuffEffectRegistry.slow_remove_penalty = removeFrozenDexPenalty
+BuffEffectRegistry.bleed_tick = handleBleedTick
+BuffEffectRegistry.slow_apply_penalty = applySlowInitiativePenalty
+BuffEffectRegistry.slow_remove_penalty = removeSlowInitiativePenalty
 
 return BuffEffectRegistry

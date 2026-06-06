@@ -18,7 +18,7 @@ function skill_80008001.BuildTimeline(hero, targets, skill)
                 damageDice = damageDice,
                 tags = {
                     { tag = "set_damage_kind", phase = "pre", param = { kind = "ice" } },
-                    { tag = "apply_frost", phase = "post", param = { turns = 2 } },
+                    { tag = "apply_slow", phase = "post", param = { turns = 2 } },
                 },
             })
             table.insert(frames, { frame = 36, op = "effect", effect = "ice_arrow_end", target = t })

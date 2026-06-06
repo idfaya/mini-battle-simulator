@@ -150,7 +150,7 @@ do
         op = "damage",
         target = selectedTarget,
         targets = { actualTarget, actualTarget },
-        buffId = 880005,
+        buffId = 880001,
     }, 1)
     assert_true(evt.targets ~= nil and #evt.targets == 1, "Timeline frame prefers resolved targets and dedupes ids")
     assert_true((evt.targets[1] and evt.targets[1].id) == actualTarget.instanceId,
@@ -290,21 +290,21 @@ do
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { target }, { skillId = 80008001, name = "冰箭术" }, timeline)
     assert_true(ok, "IceArrow timeline execute ok")
-    assert_true(BattleBuff.GetBuff(target, 880005) ~= nil, "IceArrow applies frost buff")
+    assert_true(BattleBuff.GetBuff(target, 880001) ~= nil, "IceArrow applies slow buff")
 end
 
--- Test 3: Frost Nova freezes frosted targets and frosts fresh targets (80008003)
+-- Test 3: Frost Nova freezes slowed targets and slows fresh targets (80008003)
 do
     local hero = new_unit(1102, "Tester_FrostNova", 10000, 200, 0)
     local frozenTarget = new_unit(2102, "Nova_FrozenTarget", 10000, 0, 0)
     local BattleSkillStatus = require("skills.battle_skill_status")
-    BattleSkillStatus.ApplyFrost(frozenTarget, 2, hero)
+    BattleSkillStatus.ApplySlow(frozenTarget, 2, hero)
     local skillLua = require("config.skill.skill_80008003")
     local timeline = skillLua.BuildTimeline(hero, { frozenTarget }, { skillId = 80008003, name = "冰霜新星" })
     local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { frozenTarget }, { skillId = 80008003, name = "冰霜新星" }, timeline)
     assert_true(ok, "FrostNova timeline execute ok")
-    assert_true(BattleBuff.GetBuffBySubType(frozenTarget, E_BUFF_SPEC_SUBTYPE.Frozen) ~= nil, "FrostNova freezes pre-frosted target")
+    assert_true(BattleBuff.GetBuffBySubType(frozenTarget, E_BUFF_SPEC_SUBTYPE.Frozen) ~= nil, "FrostNova freezes pre-slowed target")
     local canAct = BattleSkill.ProcessTurnStartStatus(frozenTarget)
     assert_true(canAct == false, "Frozen target skips action on turn start")
 
@@ -312,7 +312,7 @@ do
     local freshTimeline = skillLua.BuildTimeline(hero, { freshTarget }, { skillId = 80008003, name = "冰霜新星" })
     local freshOk, _ = SkillTimeline.Execute(hero, { freshTarget }, { skillId = 80008003, name = "冰霜新星" }, freshTimeline)
     assert_true(freshOk, "FrostNova fresh-target timeline execute ok")
-    assert_true(BattleBuff.GetBuff(freshTarget, 880005) ~= nil, "FrostNova applies frost to fresh target")
+    assert_true(BattleBuff.GetBuff(freshTarget, 880001) ~= nil, "FrostNova applies slow to fresh target")
 end
 
 -- Test 5: Chain Lightning hits current target and one extra target (80009003)
@@ -372,7 +372,7 @@ do
     assert_true(triggered == 1, "ComboMaster upgrades 25% combo rate to 50% in unified passive framework")
 end
 
--- Test 8c: Ice affinity writes unified passive runtime and blizzard can still apply frost (80008002)
+-- Test 8c: Ice affinity writes unified passive runtime and blizzard can still apply slow (80008002)
 do
     local hero = new_unit(1603, "Tester_IcePassive", 10000, 200, 0)
     local target = new_unit(2603, "Ice_Target", 10000, 0, 0)
@@ -384,9 +384,9 @@ do
 
     local oldRandom = math.random
     local BattleSkillStatus = require("skills.battle_skill_status")
-    local oldApplyFrost = BattleSkillStatus.ApplyFrost
+    local oldApplySlow = BattleSkillStatus.ApplySlow
     local oldSelectAllAliveTargets = BattleSkill.SelectAllAliveTargets
-    local frostTriggered = false
+    local slowTriggered = false
     math.random = function(a, b)
         -- Only force the 1..10000 roll used by chance checks. Keep dice rolls sane.
         if b == 10000 then
@@ -397,17 +397,17 @@ do
     BattleSkill.SelectAllAliveTargets = function(src)
         return { target }
     end
-    BattleSkillStatus.ApplyFrost = function(dst, turns, caster)
-        frostTriggered = true
+    BattleSkillStatus.ApplySlow = function(dst, turns, caster)
+        slowTriggered = true
     end
     local blizzard = require("config.skill.skill_80008004")
     local blizzardTimeline = blizzard.BuildTimeline(hero, { target }, { skillId = 80008004, name = "暴风雪" })
     local SkillTimeline = require("core.skill_timeline")
     SkillTimeline.Execute(hero, { target }, { skillId = 80008004, name = "暴风雪" }, blizzardTimeline)
     BattleSkill.SelectAllAliveTargets = oldSelectAllAliveTargets
-    BattleSkillStatus.ApplyFrost = oldApplyFrost
+    BattleSkillStatus.ApplySlow = oldApplySlow
     math.random = oldRandom
-    assert_true(frostTriggered == true, "Blizzard applies frost through settlement")
+    assert_true(slowTriggered == true, "Blizzard applies slow through settlement")
 end
 
 -- Test 8d: Warlock core marks target with static mark (80009002)

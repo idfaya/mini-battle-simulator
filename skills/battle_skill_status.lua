@@ -1,6 +1,6 @@
 ---
 --- Battle Skill Status Module
---- 集中管理技能引发的状态效果：中毒(Poison)、燃烧(Burn)、冻结(Freeze)、霜冻(Frost)、感染(Infect)
+--- 集中管理技能引发的状态效果：中毒、燃烧、流血、减速、冻结、静电印记、感染加深
 ---
 --- 从 modules/battle_skill.lua [10] 区拆出（2026-04-27），后迁移到 skills/ 目录。
 --- 仍复用 battle_skill.ApplyBuffFromSkill 作为 buff 挂载入口，以保持现有 buff 生命周期一致。
@@ -54,8 +54,12 @@ local function getBurnDurationDelta(caster)
     return getDotDurationDelta(caster) + getSkillDurationDelta(caster, 80007002)
 end
 
-local function getFrostDurationDelta(caster)
+local function getSlowDurationDelta(caster)
     return getDotDurationDelta(caster) + getSkillDurationDelta(caster, 80008002)
+end
+
+local function getFrostDurationDelta(caster)
+    return getSlowDurationDelta(caster)
 end
 
 local function initBurnSaveType(buff)
@@ -161,46 +165,81 @@ function BattleSkillStatus.ApplyBurnRefreshOnly(target, turns, caster)
         target.name or "Unknown", actualTurns))
 end
 
---- 施加冻结（减速 + 硬控两层 buff）
+--- 施加减速（降先攻；重复施加只刷新持续）
+---@param target table
+---@param turns number|nil
+---@param caster table|nil
+---@param initiativePenalty number|nil 先攻降低量，默认 5
+function BattleSkillStatus.ApplySlow(target, turns, caster, initiativePenalty)
+    if not target then
+        return
+    end
+    local BattleBuff = require("modules.battle_buff")
+    local actualTurns = (turns or 2) + getSlowDurationDelta(caster)
+    local penalty = math.max(1, math.floor(tonumber(initiativePenalty) or 5))
+    local existingBuff = BattleBuff.GetBuff(target, 880001)
+    if existingBuff then
+        existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+        existingBuff.value = penalty
+    else
+        GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880001, nil, {
+            duration = actualTurns,
+            value = penalty,
+        })
+    end
+    Logger.Log(string.format("[ApplySlow] %s 减速回合: %d 先攻-%d",
+        target.name or "Unknown", actualTurns, penalty))
+end
+
+--- 施加冻结（可选附带减速）
 ---@param target table
 ---@param turns number|nil 硬控冻结回合（880002）
----@param slowPct number|nil 减速百分比（880001），<=0 则不施加减速
+---@param slowPenalty number|nil 先攻降低量（880001），<=0 则不施加减速
 ---@param caster table|nil
-function BattleSkillStatus.ApplyFreeze(target, turns, slowPct, caster)
+function BattleSkillStatus.ApplyFreeze(target, turns, slowPenalty, caster)
     if not target then
         return
     end
     local BattleSkill = GetBattleSkill()
     local delta = getDotDurationDelta(caster)
-    if slowPct and slowPct > 0 then
-        BattleSkill.ApplyBuffFromSkill(caster or target, target, 880001, nil, {
-            value = slowPct,
-            maxValue = slowPct,
-            duration = math.max(turns or 0, 2) + delta,
-        })
+    if slowPenalty and slowPenalty > 0 then
+        local penalty = slowPenalty > 20 and slowPenalty or 5
+        BattleSkillStatus.ApplySlow(target, math.max(turns or 0, 2) + delta, caster, penalty)
     end
     if turns and turns > 0 then
         BattleSkill.ApplyBuffFromSkill(caster or target, target, 880002, nil, {
             duration = turns + delta,
         })
     end
-    Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速: %d",
-        target.name or "Unknown", (turns or 0) + delta, slowPct or 0))
+    Logger.Log(string.format("[ApplyFreeze] %s 冻结回合: %d 减速先攻: %s",
+        target.name or "Unknown", (turns or 0) + delta, tostring(slowPenalty or 0)))
 end
 
---- 施加霜冻（无法移动的状态标记；当前不阻止远程攻击或施法）
+---@deprecated 兼容旧调用；等价于 ApplySlow
+function BattleSkillStatus.ApplyFrost(target, turns, caster)
+    return BattleSkillStatus.ApplySlow(target, turns, caster)
+end
+
+--- 施加流血（体豁 DoT；只刷新持续，不叠层）
 ---@param target table
 ---@param turns number|nil
 ---@param caster table|nil
-function BattleSkillStatus.ApplyFrost(target, turns, caster)
+function BattleSkillStatus.ApplyBleed(target, turns, caster)
     if not target then
         return
     end
-    local actualTurns = (turns or 2) + getFrostDurationDelta(caster)
-    GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880005, nil, {
-        duration = actualTurns,
-    })
-    Logger.Log(string.format("[ApplyFrost] %s 霜冻回合: %d",
+    local BattleBuff = require("modules.battle_buff")
+    local actualTurns = turns or 2
+    local existingBuff = BattleBuff.GetBuff(target, 880007)
+    if existingBuff then
+        existingBuff.duration = math.max(existingBuff.duration or 0, actualTurns)
+    else
+        GetBattleSkill().ApplyBuffFromSkill(caster or target, target, 880007, nil, {
+            initialStack = 1,
+            duration = actualTurns,
+        })
+    end
+    Logger.Log(string.format("[ApplyBleed] %s 流血刷新到 %d 回合",
         target.name or "Unknown", actualTurns))
 end
 
@@ -234,8 +273,7 @@ end
 ---@param target table
 ---@return boolean
 function BattleSkillStatus.HasFrost(target)
-    local BattleBuff = require("modules.battle_buff")
-    return BattleBuff.GetBuff(target, 880005) ~= nil
+    return BattleSkillStatus.HasSlow(target)
 end
 
 return BattleSkillStatus

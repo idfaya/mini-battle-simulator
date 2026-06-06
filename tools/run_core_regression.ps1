@@ -21,6 +21,7 @@ try {
         "bin/test_skill_targeting.lua",
         "bin/test_skill_tier_scaling.lua",
         "bin/test_timeline_passive.lua",
+        "bin/test_buff_ticks.lua",
         "bin/test_positioning.lua",
         "bin/test_roguelike_act1.lua"
     )

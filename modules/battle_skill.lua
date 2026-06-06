@@ -232,7 +232,8 @@ local function GetTargetConditionState(attacker, defender)
     local okRanger, RangerBuildPassives = pcall(require, "skills.ranger_build_passives")
     return {
         burning = defender and BattleBuff.GetBuff(defender, 870001) ~= nil or false,
-        frosted = defender and BattleBuff.GetBuff(defender, 880005) ~= nil or false,
+        slowed = defender and BattleBuff.GetBuff(defender, 880001) ~= nil or false,
+        frosted = defender and BattleBuff.GetBuff(defender, 880001) ~= nil or false,
         frozen = defender and BattleBuff.GetBuff(defender, 880002) ~= nil or false,
         stunned = defender and BattleBuff.GetBuff(defender, 880003) ~= nil or false,
         hunterMarked = okRanger and RangerBuildPassives and RangerBuildPassives.IsTargetMarkedBy
@@ -243,7 +244,7 @@ end
 local function GetConditionalHitBonusForTarget(attacker, defender, skillId)
     local state = GetTargetConditionState(attacker, defender)
     local bonus = 0
-    if state.frosted or state.frozen then
+    if state.slowed or state.frozen then
         bonus = bonus + math.floor(tonumber(FeatModHelper.GetSkillMod(attacker, skillId, "vsFrostBonusHit", 0)) or 0)
     end
     if state.hunterMarked then
@@ -261,7 +262,7 @@ local function AppendConditionalDamageDiceForTarget(attacker, defender, skillId,
             extra = JoinDiceParts(extra, bonus)
         end
     end
-    if state.frosted or state.frozen then
+    if state.slowed or state.frozen then
         local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsFrostBonusDice", nil)
         if type(bonus) == "string" and bonus ~= "" then
             extra = JoinDiceParts(extra, bonus)
@@ -541,6 +542,13 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
         attackBonus = (tonumber(attackBonus) or 0) + bonusHitMod
     end
     attackBonus = (tonumber(attackBonus) or 0) + GetConditionalHitBonusForTarget(attacker, defender, skillIdForMods)
+
+    local BattleBuff = require("modules.battle_buff")
+    local blindBuff = attacker and BattleBuff.GetBuff(attacker, 880006) or nil
+    if blindBuff then
+        local blindPenalty = math.max(0, math.floor(tonumber(blindBuff.value) or 2))
+        attackBonus = (tonumber(attackBonus) or 0) - blindPenalty
+    end
 
     local hitResult = BattleFormula.RollHit(attacker, defender, {
         mode = opts.mode or "normal",

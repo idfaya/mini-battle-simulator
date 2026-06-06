@@ -169,7 +169,10 @@
 | `反击` | 受到攻击事件后的回手动作 |
 | `连击` | 命中后概率触发的额外攻击 |
 | `偷袭 / 标记 / 印记` | 条件附加伤害或状态，由各职业核心技定义 |
-| `点燃` | 术士负面 DoT（`870001`）；细则见 [`buff_system_design.md`](./buff_system_design.md) §4.1 |
+| `点燃` / 燃烧 | 术士技能链挂上的 `870001`；细则见 [`buff_system_design.md`](./buff_system_design.md) §3.1 |
+| `减速` / `冻结` | 法师冰系铺垫 `880001`（降先攻）与硬控 `880002`；见 [`buff_system_design.md`](./buff_system_design.md) §3.2 |
+| `印记` | 游侠 `890005`（按来源，`IsTargetMarkedBy`）或邪术师 `890001`（单实例引爆链） |
+| 策划状态符 | `STUN`/`FROZEN`/`SLOW`/`POISON`/`BLIND`/`BLEED` 等与 Buff ID 对照见 [`buff_system_design.md`](./buff_system_design.md) §2.4 |
 
 ### 4.6 地牢术语
 

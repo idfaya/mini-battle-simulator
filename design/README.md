@@ -29,7 +29,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 | 任务 | 文档 |
 | --- | --- |
 | 改玩法 / 术语 / 战场 | `combat_system_design.md` → `single_battle_design.md` |
-| 改 Buff / 状态规则 | `buff_system_design.md` → `roguelike_feat_skill_fill_sheet.md` §8 |
+| 改 Buff / 状态规则 | `buff_system_design.md`（§2.4 状态符、§11 设计债）→ `roguelike_feat_skill_fill_sheet.md` §8 |
 | 改职业 / 5e 属性口径 | `class_system_design.md` |
 | 改职业核心技 / Feat 树节点 | `roguelike_feat_skill_fill_sheet.md` |
 | 改自动战斗 AI 目标倾向 | `auto_battle_targeting.md` |

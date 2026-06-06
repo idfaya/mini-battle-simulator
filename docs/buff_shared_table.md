@@ -1,7 +1,7 @@
 # Buff 实现对照表
 
 > **项目**: Mini Battle Simulator
-> **说明**: 逐 ID 对照 `config/data/buffs.json` 与当前运行逻辑，供程序 / 测试速查。策划规则总纲见 [`design/buff_system_design.md`](../design/buff_system_design.md)；按类型分组索引见该文档 §4–§6。共 **31** 条，与 `buffs.json` 同步。
+> **说明**: 逐 ID 对照 `config/data/buffs.json` 与当前运行逻辑，供程序 / 测试速查。策划规则总纲见 [`design/buff_system_design.md`](../design/buff_system_design.md)；按类型分组索引见该文档 §4–§6。共 **30** 条，与 `buffs.json` 同步。
 
 ---
 
@@ -29,22 +29,21 @@
 | 840001 | 战意 | GOOD | 增益/资源 | 永久 | 可叠 5 层 `add` | 无内建效果，供属性与战斗逻辑读取 | 团队/个人成长层数 | `BattleAttribute.GetSpeed()` 等会读取层数 |
 | 840002 | 全军突击 | GOOD | 增益/团队 Buff | 3 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 团队强化状态 | 收益由外部逻辑解释 |
 | 840003 | 战神降临 | GOOD | 增益/光环 | 3 回合 | 不可叠 `refresh` | 无内建效果，供属性与外部逻辑读取 | 强化型团队增益 | `BattleAttribute.GetSpeed()` 会检查 |
-| 850001 | 中毒 | BAD | DoT | 永久 | 可叠 99 层 `add` | 回合开始 `poison_tick` | 每层回合开始 `1d4` 毒伤 | 可被毒爆引爆，可被净化 |
+| 850001 | 中毒 | BAD | DoT | 永久 | 可叠 99 层 `add` | 回合开始 `poison_tick` | 每回合开始体质豁免；成功移除，失败 `Xd4` 毒伤 | 可被毒爆引爆，可被净化；语义 §4.5 |
 | 860001 | 神恩 | GOOD | 增益/持续态 | 永久 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 持续型正面状态 | 配置 `duration=2` 但 `isPermanent=true`，运行时按永久 |
-| 870001 | 燃烧 | BAD | DoT | 2 回合 | 不可叠 `refresh` | 回合开始 `burn_tick` | 每回合开始反射豁免；成功移除，失败 `1d4` 火伤并继续 | 设计语义见 `buff_system_design.md` §4.1；`870002` / `dotDurationDelta` 延长持续 |
+| 870001 | 燃烧 | BAD | DoT | 2 回合 | 不可叠 `refresh` | 回合开始 `burn_tick` | 每回合开始反射豁免；成功移除，失败 `1d4` 火伤并继续 | 术士技能链 §3.1；语义 §4.1；`870002` / `dotDurationDelta` 延长持续 |
 | 870002 | 火焰亲和 | GOOD | 增益/被动态 | 永久 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 火系联动被动态 | 燃烧施加逻辑读取，用于 +1 回合 |
-| 880001 | 减速 | BAD | 减益/软控 | 2 回合 | 不可叠 `refresh` | 添加/移除 `slow_*` | 扣 AC 与 `saveRef`；参与速度百分比计算 | 影响 `GetSpeed()`，不改变行动频率 |
+| 880001 | 减速 | BAD | 减益/铺垫 | 2 回合 | 不可叠 `refresh` | 添加/移除 `slow_*` | 先攻降低（默认 `value=5`）；法师冰系铺垫 | `BattleActionOrder.AddInitiativeModifier`；`vsFrost*` 读 `slowed` |
 | 880002 | 冻结 | CONTROL | 硬控 | 1 回合 | 不可叠 `refresh` | 控制检测读取 | 跳过行动 | `subType=30007`；统一控制判定 |
 | 880003 | 眩晕 | CONTROL | 硬控 | 1 回合 | 不可叠 `refresh` | 控制检测读取 | 跳过行动 | `subType=30001`；满足偷袭等失能判定 |
 | 880004 | 破绽 | BAD | 减益 | 1 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | `AC -1` | `value=1`；外部逻辑解释结算 |
-| 880005 | 霜冻 | BAD | 软控/铺垫态 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 无法移动，仍可远程攻击与施法 | 设计语义见 `buff_system_design.md` §4.2 |
-| 880006 | 盲目 | BAD | 减益 | 1 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 诡诈打击附加负面标记 | `rogue_build_passives.lua` 体豁失败时施加 |
-| 880007 | 流血 | BAD | 减益/标记 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 物理创伤标记 | 盗贼 `偷袭放宽` 的 `BLEED` 来源之一 |
-| 890001 | 静电印记 | BAD | 标记 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 邪术师雷系印记 | 设计语义见 `buff_system_design.md` §4.4；雷暴命中清除 |
+| 880006 | 盲目 | BAD | 减益 | 1 回合 | 不可叠 `refresh` | `ResolveScaledDamage` 读取 | 攻击命中 `-value`（默认 2） | 诡诈·盲目；`rogue_build_passives.lua` |
+| 880007 | 流血 | BAD | DoT | 2 回合 | 不可叠 `refresh` | 回合开始 `bleed_tick` | 每回合开始体质豁免；成功移除，失败 `1d4` 物伤 | 诡诈打击施加；`偷袭放宽` 可读 |
+| 890001 | 静电印记 | BAD | 标记 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 邪术师雷系印记 | 技能链 §3.3；语义 §4.4；雷暴命中清除 |
 | 890002 | 狂暴 | GOOD | 增益/强化态 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 野蛮人狂暴窗口 | 物理减伤 `-2`、伤害 `+2` 在被动侧 |
 | 890003 | 不倦狂暴 | GOOD | 增益/占位 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 高阶野蛮人狂暴扩展占位 | 当前为预留 ID |
 | 890004 | 护卫架势 | GOOD | 增益/姿态 | 1 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 护卫窗口、AC 加成 | 拦截与护卫反击在战士技能侧 |
-| 890005 | 猎人印记 | BAD | 标记/减益 | 2 回合 | 不可叠 `refresh` | `value` 供 AC/豁免读取 | 游侠锁定；AC 与反射各 `-value` | 设计语义见 `buff_system_design.md` §4.3；`GetDefenderAcBonus` / `GetDefenderSaveBonus(ref)` |
+| 890005 | 猎人印记 | BAD | 标记/减益 | 2 回合 | 不可叠 `refresh` | `value` 供 AC/豁免读取 | 游侠锁定；AC 与反射各 `-value` | 技能链 §3.4；语义 §4.3；`IsTargetMarkedBy` + `runtime.rangerMarks` |
 | 890006 | 圣域祷言 | GOOD | 增益/团队防护 | 3 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 团队防护与减伤窗口 | 减伤逻辑在牧师技能 / 被动侧 |
 | 890007 | 守望主教 | GOOD | 增益/前排防护 | 2 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 前排防护窗口 | 牧师路线联动标记 |
 | 890008 | 守护灵光 | GOOD | 增益/光环 | 1 回合 | 不可叠 `refresh` | 无内建效果，供外部逻辑读取 | 范围内友军 AC 加成窗口 | 圣骑灵光覆盖范围逻辑读取 |

@@ -35,7 +35,7 @@ Buff 系统在工程中的职责主要有四块：
 |------|------|------|
 | Buff 核心 | `modules/battle_buff.lua` | Buff 存储、添加、移除、叠层、时机触发、控制判定 |
 | 技能入口 | `modules/battle_skill.lua` | 从技能加载 Buff 配置，并通过统一入口施加 Buff |
-| 状态封装 | `skills/battle_skill_status.lua` | 对中毒、燃烧、冻结、霜冻、静电印记等常见状态做封装 |
+| 状态封装 | `skills/battle_skill_status.lua` | 对中毒、燃烧、流血、减速、冻结、静电印记等常见状态做封装 |
 | 时间线标签 | `skills/skill_effect_registry.lua` | 把 `apply_burn`、`apply_poison`、`apply_freeze` 等标签绑定到实际逻辑 |
 | 回合钩子 | `skills/battle_skill_turn_hooks.lua` | 在回合开始处理 Buff 触发、控制跳过、复活虚弱、吟唱继续 |
 | 战斗主循环 | `modules/battle_main.lua` | 在回合结束调用 Buff 结算与持续时间递减 |
@@ -159,8 +159,8 @@ local BuffConfig = {
 `stackRule` 是当前系统里非常关键的字段：
 
 - `refresh`
-  - 刷新持续时间
-  - 常见于不可叠层的单体状态
+  - 刷新持续时间，并**覆盖**已有实例的 `caster`（同目标同 `buffId` 仅一条实例）
+  - 常见于不可叠层的单体状态；技能链按「目标是否带该状态」联动，见 `buff_system_design.md` §2.3
 - `add`
   - 增加层数
   - 常见于中毒、燃烧、战意、狂怒
@@ -266,11 +266,10 @@ Timeline 技能通常不会直接手写大量 Buff 逻辑，而是通过 `SkillE
 - `ProcessInfectEffect`
 - `ApplyBurn`
 - `ApplyBurnRefreshOnly`
+- `ApplySlow` / `ApplyBleed`（`ApplyFrost` 为兼容别名）
 - `ApplyFreeze`
-- `ApplyFrost`
 - `ApplyStaticMark`
-- `HasSlow`
-- `HasFrost`
+- `HasSlow` / `HasFrost`（后者别名）
 - `HasStaticMark`
 
 它的作用不是替代 `BattleBuff`，而是把业务规则固定下来：
@@ -404,9 +403,8 @@ BattleBuff.Add(caster, target, buffConfig)
 
 注意：
 
-- `霜冻 880005` 不是 `CONTROL`
-- `减速 880001` 不是 `CONTROL`
-- 它们属于负面状态，不会直接触发“跳过行动”
+- `减速 880001` 不是 `CONTROL`；降先攻，不跳过行动
+- `880005` 霜冻已废弃，不再使用
 
 ---
 
@@ -565,7 +563,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 | Buff ID | 名称 | 主类型 | 说明 |
 |---------|------|--------|------|
-| 850001 | 中毒 | BAD | 回合开始按层数结算毒伤 |
+| 850001 | 中毒 | BAD | 回合开始体质豁免；成功移除，失败 `Xd4` 毒伤 |
 
 ### 12.4 860xxx：神恩系
 
@@ -584,19 +582,20 @@ Buff 系统会向表现层发布以下核心事件：
 
 | Buff ID | 名称 | 主类型 | 说明 |
 |---------|------|--------|------|
-| 880001 | 减速 | BAD | 当前同时影响 AC、敏捷豁免与速度计算 |
+| 880001 | 减速 | BAD | `ON_ADD`/`ON_REMOVE` 调先攻；法师冰系铺垫 |
 | 880002 | 冻结 | CONTROL | 硬控 |
 | 880003 | 眩晕 | CONTROL | 硬控 |
 | 880004 | 破绽 | BAD | AC -1 的短时破甲状态 |
-| 880005 | 霜冻 | BAD | 无法移动，但不直接算硬控 |
+| 880006 | 盲目 | BAD | 攻击命中 `-value`（默认 2） |
+| 880007 | 流血 | BAD | 回合开始体质豁免 DoT |
 
 ### 12.7 890xxx：职业被动与标记体系
 
 | Buff ID | 名称 | 主类型 | 说明 |
 |---------|------|--------|------|
 | 890001 | 静电印记 | BAD | 雷系标记；邪能冲击 / 雷链兑现时只追加雷伤，`雷暴` 命中已标记目标时移除 |
-| 890002 | 狂怒 | GOOD | 野蛮人叠层资源 |
-| 890003 | 狂暴 | GOOD | 野蛮人强化状态 |
+| 890002 | 狂暴 | GOOD | 野蛮人强化窗口 |
+| 890003 | 不倦狂暴 | GOOD | 占位 ID；不倦语义走 Feat runtime |
 | 890004 | 护卫架势 | GOOD | 护卫窗口、AC 加成、准备反击 |
 | 890005 | 猎人印记 | BAD | 游侠锁定目标；`value` 层数同时降低 AC 与反射豁免 |
 | 890006 | 圣域祷言 | GOOD | 团队防护状态 |
@@ -619,7 +618,7 @@ Buff 系统会向表现层发布以下核心事件：
 - `BAD`
 - 可叠层
 - `isPermanent = true`
-- `ON_ROUND_BEGIN` 时按层数结算 `Xd4` 毒伤
+- `ON_ROUND_BEGIN` 时体质豁免对抗 `caster.spellDC`；成功移除整条中毒，失败按层数结算 `Xd4` 毒伤
 
 适合作为：
 
@@ -646,15 +645,20 @@ Buff 系统会向表现层发布以下核心事件：
 - 不依赖复杂 `effects`
 - 主要通过统一控制检测阻断行动
 
-### 13.4 霜冻
+### 13.4 减速
 
 实现特点：
 
-- `BAD`
-- 当前语义是“无法移动，但仍可远程攻击和释放技能”
-- 用于冰系链路中的铺垫状态，不直接跳过行动
+- `BAD`；`apply_slow` / `ApplySlow` 施加（`apply_frost` 为兼容别名）
+- `slow_apply_penalty` / `slow_remove_penalty` 调 `BattleActionOrder.AddInitiativeModifier`
+- 供 `GetTargetConditionState(slowed)`、`vsFrost*`、冻结新星 / 暴风雪 settlement 读取
 
-### 13.5 静电印记
+### 13.5 流血 / 盲目
+
+- **流血 `880007`**：`bleed_tick`，体质豁免 vs `caster.spellDC`；诡诈打击体豁失败施加
+- **盲目 `880006`**：无 handler；`ResolveScaledDamage` 对攻击者读取，命中 `-value`
+
+### 13.6 静电印记
 
 实现特点：
 
@@ -662,12 +666,13 @@ Buff 系统会向表现层发布以下核心事件：
 - 不叠层，只刷新
 - 主要用于后续技能检测与引爆，不是 DoT 也不是硬控
 
-### 13.6 猎人印记
+### 13.7 猎人印记
 
 实现特点：
 
 - `BAD`，`buffId = 890005`，`subType = 890005`
-- 不叠层，只刷新；带来源隔离（`DelBuffByBuffIdAndCaster`）
+- 不叠层，只刷新；**按来源判定**为项目扩展：`runtime.rangerMarks[sourceId]` 维护到期表，`IsTargetMarkedBy(施加者, 目标)` 为技能联动入口
+- 移除可走 `DelBuffByBuffIdAndCaster`；与通用 `FindSameBuff` 单实例规则不同，见 `buff_system_design.md` §2.3、§4.3
 - `value` 表示减益层数 `N`：目标 AC `-N`、反射豁免 `-N`
 - 施加：`skills/ranger_build_passives.lua` 的 `ApplyHunterMark`；每回合首次远程基础攻击**命中**后触发（与最终伤害是否 `> 0` 无关）
 - 读取：`skills/build_passive_common.lua` 的 `GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")`
@@ -690,15 +695,9 @@ Buff 系统会向表现层发布以下核心事件：
 - `config/tables/buffs.lua`
 - `skills/buff_effect_registry.lua`
 
-### 14.2 减速的现状较特殊
+### 14.2 减速与先攻
 
-`880001 减速` 目前不是单一语义：
-
-- Buff 本体会直接扣 AC 和 `saveRef`
-- 属性模块里又会把它当速度百分比减益
-- 但当前行动条系统不按 speed 决定出手频率
-
-所以它是“已接属性层、未完全接行动频率层”的状态。
+`880001 减速` 通过 `BattleActionOrder.AddInitiativeModifier` 在战斗内修正先攻总值，影响同进度下的出手.tie-break。重复施加只刷新持续，不叠层。
 
 ### 14.3 控制与负面状态是两套语义
 
@@ -710,7 +709,7 @@ Buff 系统会向表现层发布以下核心事件：
   或
 - `subType` 被纳入控制子类型集合
 
-像 `霜冻`、`减速`、`破绽`、`猎人印记` 都不会自动跳过行动。
+像 `减速`、`破绽`、`猎人印记` 都不会自动跳过行动。
 
 ### 14.4 业务规则大量依赖封装函数
 
@@ -718,7 +717,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 - 燃烧刷新不叠层
 - 毒爆后清中毒
-- 寒霜新星对已霜冻目标转冻结
+- 寒霜新星对已减速目标转冻结
 - 雷暴对已标记者改为引爆并清标记
 
 因此新增状态时要明确：

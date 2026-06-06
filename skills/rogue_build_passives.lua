@@ -249,6 +249,7 @@ function RogueBuildPassives.PerformCunningStrike(hero, target, skill)
     local duration = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_cunning_strike_build, "cunningDurationDelta", 0)))
     if damage > 0 and isAlive(target) then
         applyBuffOnFailedSave(hero, target, POISON_BUFF_ID, "fort", duration, "诡诈打击·涂毒")
+        applyBuffOnFailedSave(hero, target, BLEED_BUFF_ID, "fort", duration, "诡诈打击·流血")
         if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "addBlind") then
             applyBuffOnFailedSave(hero, target, BLIND_BUFF_ID, "fort", duration, "诡诈打击·盲目")
         end

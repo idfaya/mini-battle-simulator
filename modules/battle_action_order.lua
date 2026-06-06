@@ -319,6 +319,24 @@ function BattleActionOrder.GetHeroInitiative(hero)
     return _initiative[hero.instanceId] or { roll = 0, mod = getDexMod(hero), total = getDexMod(hero) }
 end
 
+--- 战斗中修正先攻总值（如减速 ON_ADD / ON_REMOVE）
+---@param hero table
+---@param delta number 正数恢复、负数降低
+function BattleActionOrder.AddInitiativeModifier(hero, delta)
+    if not hero or not hero.instanceId then
+        return
+    end
+    local entry = _initiative[hero.instanceId]
+    if not entry then
+        return
+    end
+    if entry.baseTotal == nil then
+        entry.baseTotal = entry.total
+    end
+    entry.modifier = (tonumber(entry.modifier) or 0) + math.floor(tonumber(delta) or 0)
+    entry.total = clamp((tonumber(entry.baseTotal) or 0) + (entry.modifier or 0), INITIATIVE_MIN, INITIATIVE_MAX)
+end
+
 --- 获取行动条阈值
 ---@return number 行动条阈值
 function BattleActionOrder.GetActionBarThreshold()

@@ -240,7 +240,7 @@ local heal = BattleSkill.CalculateHealDice(healer, target, "2d8+3")
 BattleDmgHeal.ApplyHeal(target, heal, healer)
 
 BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, { duration = 2 })
--- 冻结/霜冻等封装见 skills/battle_skill_status.lua
+-- 冻结/减速等封装见 skills/battle_skill_status.lua
 ```
 
 ---
@@ -336,7 +336,7 @@ Buff 完整 SSOT 见 [buff_system_implementation.md](./buff_system_implementatio
 - Buff 统一通过 `BattleSkill.ApplyBuffFromSkill(caster, target, buffId, skill, override)` 施加
 - Buff 静态配置统一放在 `config/data/buffs.json`，运行时通过 `config/tables/buffs.lua` 加载并按 `buffId` 索引
 - Timeline 技能优先通过 `skills/skill_effect_registry.lua` 中的标签复用已有状态逻辑
-- 中毒、燃烧、冻结、霜冻、静电印记等常见状态封装在 `skills/battle_skill_status.lua`
+- 中毒、燃烧、流血、减速、冻结、静电印记等常见状态封装在 `skills/battle_skill_status.lua`
 - 回合开始由 `BattleSkillTurnHooks.ProcessTurnStartStatus()` 触发 `OnRoundBegin` 与控制判定
 - 回合结束由 `BattleMain.FinalizeHeroTurn()` 触发 `OnRoundEnd`、持续时间递减与过期移除
 
