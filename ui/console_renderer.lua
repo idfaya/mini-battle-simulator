@@ -362,6 +362,8 @@ function ConsoleRenderer.OnDamageDealt(data)
                 attackRoll = data.attackRoll,
                 saveRoll = data.saveRoll,
                 damageRoll = data.damageRoll,
+                saveType = data.saveType,
+                onSaveSuccess = data.onSaveSuccess,
             }, true)
         end
         msg = string.format("%s%s对 %s 造成 %d 点伤害%s%s",

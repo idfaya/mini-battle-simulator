@@ -1564,6 +1564,10 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
             local hitMissed = damageResult and damageResult.hit and damageResult.hit.hit == false
             if not hitMissed then
                 -- 命中或豁免（含被减免到 0）：始终调用 ApplyDamage，由其内部决定是否发送 0 伤事件
+                local BuildPassiveCommonForRoll = require("skills.build_passive_common")
+                local rollParams = BuildPassiveCommonForRoll.BuildDamageEventRollParams(
+                    damageResult,
+                    damageResult and damageResult.meta or nil)
                 BattleDmgHeal.ApplyDamage(actualTarget, damage, hero, {
                     isCrit = damageResult and damageResult.isCrit or false,
                     isDodged = damageResult and damageResult.isDodged or false,
@@ -1571,9 +1575,11 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                     skillId = skill and skill.skillId or nil,
                     skillName = skill and skill.name or nil,
                     damageKind = "direct",
-                    attackRoll = damageResult and damageResult.hit or nil,
-                    saveRoll = damageResult and damageResult.save or nil,
-                    damageRoll = damageResult and damageResult.damageRoll or nil,
+                    attackRoll = rollParams.attackRoll,
+                    saveRoll = rollParams.saveRoll,
+                    damageRoll = rollParams.damageRoll,
+                    saveType = rollParams.saveType,
+                    onSaveSuccess = rollParams.onSaveSuccess,
                 })
                 if damage > 0 then
                     local okBarbarian2, BarbarianBuildPassives2 = pcall(require, "skills.barbarian_build_passives")

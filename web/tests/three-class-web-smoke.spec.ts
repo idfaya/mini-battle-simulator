@@ -127,3 +127,31 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
+
+test("wizard freezing nova log shows reflex save rolls", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900003&enemies=910004,910002&level=5&seed=101001");
+
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  await expect
+    .poll(async () => (await readLogs(page)).join("\n"), { timeout: 30000 })
+    .toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
+
+  const logs = await readLogs(page);
+  const joinedLogs = logs.join("\n");
+  expect(
+    logs.some(
+      (line) =>
+        line.includes("冻结新星") &&
+        (line.includes("反射豁免") || line.includes("豁免检定")) &&
+        line.includes("vs DC") &&
+        line.includes("伤害骰"),
+    ),
+  ).toBeTruthy();
+  expect(joinedLogs).toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});

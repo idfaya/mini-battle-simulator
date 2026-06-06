@@ -398,6 +398,17 @@ function BuildPassiveCommon.FormatDamageRollForLog(damageRoll)
     return string.format("伤害骰 %s=%d", expr, total)
 end
 
+function BuildPassiveCommon.BuildDamageEventRollParams(damageResult, meta)
+    meta = meta or {}
+    return {
+        attackRoll = damageResult and damageResult.hit or nil,
+        saveRoll = damageResult and damageResult.save or nil,
+        damageRoll = damageResult and damageResult.damageRoll or nil,
+        saveType = meta.saveType,
+        onSaveSuccess = meta.onSaveSuccess,
+    }
+end
+
 function BuildPassiveCommon.FormatRollSuffixForLog(rolls, includeDamage)
     if type(rolls) ~= "table" then
         return ""

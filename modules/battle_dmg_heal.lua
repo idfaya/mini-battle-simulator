@@ -159,6 +159,8 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
                     attackRoll = params.attackRoll,
                     saveRoll = params.saveRoll,
                     damageRoll = params.damageRoll,
+                    saveType = params.saveType,
+                    onSaveSuccess = params.onSaveSuccess,
                 }))
         end
         return
@@ -237,6 +239,8 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
             attackRoll = params.attackRoll,
             saveRoll = params.saveRoll,
             damageRoll = params.damageRoll,
+            saveType = params.saveType,
+            onSaveSuccess = params.onSaveSuccess,
         }))
     
     -- 触发目标状态变化事件

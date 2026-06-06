@@ -30,7 +30,32 @@ function readRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
-function formatCheckRoll(value: unknown) {
+const SAVE_TYPE_LABELS: Record<string, string> = {
+  fort: "强韧",
+  ref: "反射",
+  will: "意志",
+};
+
+function formatSaveOutcome(success: boolean, onSaveSuccess: unknown) {
+  if (!success) {
+    return "失败";
+  }
+  if (onSaveSuccess === "half") {
+    return "成功（半伤）";
+  }
+  if (onSaveSuccess === "none") {
+    return "成功（无伤）";
+  }
+  return "成功";
+}
+
+function formatCheckRoll(
+  value: unknown,
+  options?: {
+    saveType?: unknown;
+    onSaveSuccess?: unknown;
+  },
+) {
   const roll = readRecord(value);
   if (!roll) {
     return null;
@@ -43,7 +68,9 @@ function formatCheckRoll(value: unknown) {
     return `攻击检定 d20 ${d20}${formatSigned(bonus)}=${total} vs AC ${readNumber(roll.targetAC)}`;
   }
   if ("dc" in roll) {
-    return `豁免检定 d20 ${d20}${formatSigned(bonus)}=${total} vs DC ${readNumber(roll.dc)}`;
+    const label = SAVE_TYPE_LABELS[String(options?.saveType ?? "")] ?? "豁免";
+    const outcome = formatSaveOutcome(Boolean(roll.success), options?.onSaveSuccess);
+    return `${label}豁免${outcome} d20 ${d20}${formatSigned(bonus)}=${total} vs DC ${readNumber(roll.dc)}`;
   }
   return null;
 }
@@ -73,8 +100,13 @@ function formatDamageRoll(value: unknown) {
 }
 
 function formatRollSuffix(payload: Record<string, unknown>, includeDamage: boolean) {
+  const saveOptions = {
+    saveType: payload.saveType,
+    onSaveSuccess: payload.onSaveSuccess,
+  };
   const parts = [
-    formatCheckRoll(payload.attackRoll) ?? formatCheckRoll(payload.saveRoll),
+    formatCheckRoll(payload.attackRoll) ??
+      formatCheckRoll(payload.saveRoll, saveOptions),
     includeDamage ? formatDamageRoll(payload.damageRoll) : null,
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? `（${parts.join("；")}）` : "";

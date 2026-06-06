@@ -152,6 +152,8 @@ local function ExecuteOp(ctx, frameCopy)
                             isCrit = isCrit,
                             saveRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].save or nil,
                             damageRoll = hitMetaByTarget[targetId] and hitMetaByTarget[targetId].damageRoll or nil,
+                            saveType = saveType,
+                            onSaveSuccess = effectiveMeta and effectiveMeta.onSaveSuccess or nil,
                         })
                         total = total + dmg
                     elseif saveResult and saveResult.success then
@@ -169,6 +171,8 @@ local function ExecuteOp(ctx, frameCopy)
                                 skillId = ctx.skill and ctx.skill.skillId or nil,
                                 skillName = ctx.skill and ctx.skill.name or nil,
                                 saveRoll = saveResult,
+                                saveType = saveType,
+                                onSaveSuccess = effectiveMeta and effectiveMeta.onSaveSuccess or nil,
                             }))
                     end
                     BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = ctx.hero, damage = dmg })

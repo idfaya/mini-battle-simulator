@@ -155,6 +155,8 @@ function BattleVisualEvents.BuildDamageDealt(attacker, target, damage, params)
         attackRoll = params.attackRoll,
         saveRoll = params.saveRoll,
         damageRoll = params.damageRoll,
+        saveType = params.saveType,
+        onSaveSuccess = params.onSaveSuccess,
     }
 end
 
@@ -411,6 +413,8 @@ function BattleVisualEvents.BuildCombatEvent(eventType, attacker, target, params
         skillName = params.skillName,
         attackRoll = params.attackRoll,
         saveRoll = params.saveRoll,
+        saveType = params.saveType,
+        onSaveSuccess = params.onSaveSuccess,
     }
 end
 

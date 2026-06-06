@@ -262,6 +262,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
         if runtime.clericBasicSpellLastConnected then
             damage = damage + applyBasicSpellPostHit(hero, target)
         end
+        local rollParams = BuildPassiveCommon.BuildDamageEventRollParams(damageResult, meta)
         BattleDmgHeal.ApplyDamage(target, damage, hero, {
             isCrit = damageResult and damageResult.isCrit or false,
             isDodged = damageResult and damageResult.isDodged or false,
@@ -269,16 +270,13 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             skillId = skill and skill.skillId or IDS.cleric_basic_spell,
             skillName = skill and skill.name or "神圣火花",
             damageKind = "spell",
-            attackRoll = damageResult and damageResult.hit or nil,
-            saveRoll = damageResult and damageResult.save or nil,
-            damageRoll = damageResult and damageResult.damageRoll or nil,
+            attackRoll = rollParams.attackRoll,
+            saveRoll = rollParams.saveRoll,
+            damageRoll = rollParams.damageRoll,
+            saveType = rollParams.saveType or "will",
+            onSaveSuccess = rollParams.onSaveSuccess or "half",
         })
-        local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog({
-            saveRoll = damageResult and damageResult.save or nil,
-            saveType = meta and meta.saveType or "will",
-            onSaveSuccess = meta and meta.onSaveSuccess or "half",
-            damageRoll = damageResult and damageResult.damageRoll or nil,
-        }, true)
+        local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog(rollParams, true)
         BuildPassiveCommon.PublishCombatLog(string.format("%s 使用神圣火花：对 %s 造成 %d 点伤害%s",
             hero.name or "Unknown",
             target.name or "目标",
@@ -522,12 +520,16 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
                 }))
             end
             if damage > 0 then
+                local turnMeta = { attackMode = "spell_save", saveType = "will", kind = "spell", onSaveSuccess = "half" }
+                local rollParams = BuildPassiveCommon.BuildDamageEventRollParams(damageResult, turnMeta)
                 BattleDmgHeal.ApplyDamage(target, damage, hero, {
                     skillId = skill and skill.skillId or IDS.cleric_turn_undead,
                     skillName = skill and skill.name or "驱散亡灵",
                     damageKind = "spell",
-                    saveRoll = damageResult and damageResult.save or nil,
-                    damageRoll = damageResult and damageResult.damageRoll or nil,
+                    saveRoll = rollParams.saveRoll,
+                    damageRoll = rollParams.damageRoll,
+                    saveType = rollParams.saveType or "will",
+                    onSaveSuccess = rollParams.onSaveSuccess or "half",
                 })
                 total = total + damage
                 affectedTargets[#affectedTargets + 1] = target
