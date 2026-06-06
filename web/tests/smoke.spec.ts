@@ -149,6 +149,7 @@ test("basic attack damage merges with attached skill damage into one yellow numb
         isBasicAttack: true,
         preferSkillColor: false,
         skillName: "",
+        damageRoll: { expr: "1d8+3", parts: [{ rolls: [9], bonus: 3 }], total: 12 },
       },
     },
     {
@@ -164,6 +165,7 @@ test("basic attack damage merges with attached skill damage into one yellow numb
         isBasicAttack: false,
         preferSkillColor: true,
         skillName: "偷袭",
+        damageRoll: { expr: "1d6+2", parts: [{ rolls: [6], bonus: 2 }], total: 8 },
       },
     },
   ]);
@@ -184,6 +186,13 @@ test("basic attack damage merges with attached skill damage into one yellow numb
   const merged = createFloatingText(store["state"].animations[0] as AnimationEvent, mockUnit, 1000);
   expect(merged?.color).toBe("#ffd166");
   expect(merged?.text).toBe("20");
+
+  expect(store.getState().damageBrief).toContain("1d8");
+  expect(store.getState().damageBrief).toContain("1d6");
+  expect(store.getState().damageBrief).toContain("=20");
+  expect(store["state"].log[0]).toContain("造成 20 伤害");
+  expect(store["state"].log[0]).toContain("1d8");
+  expect(store["state"].log[0]).toContain("1d6");
 });
 
 test("normalizeTopBarCheckText detects nat20 crit from combat log", () => {
@@ -498,7 +507,7 @@ test("critical basic attack damage merges with attached skill damage into one re
   expect(merged?.kind).toBe("critical");
   expect(merged?.color).toBe("#ff5a5f");
   expect(merged?.text).toBe("25");
-  expect(store["state"].log).toContain("Hero 对 Target 造成 暴击，18 伤害");
+  expect(store["state"].log).toContain("Hero 的 惩戒火花 对 Target 造成 暴击，25 伤害");
 });
 
 test("active skill cast shows caster pulse label while basic attack does not", () => {

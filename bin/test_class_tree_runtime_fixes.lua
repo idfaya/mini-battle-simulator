@@ -293,6 +293,95 @@ do
 end
 
 do
+    local function runSneakFinish(passive, target, damageDealt)
+        local calls = 0
+        local oldApply = BuildPassiveCommon.ApplyDirectBonusDamage
+        BuildPassiveCommon.ApplyDirectBonusDamage = function()
+            calls = calls + 1
+            return 4
+        end
+        passive:OnNormalAtkFinish({
+            data = {
+                extraParam = {
+                    skillId = IDS.rogue_basic_attack,
+                    target = target,
+                    damageDealt = damageDealt or 5,
+                },
+            },
+        })
+        BuildPassiveCommon.ApplyDirectBonusDamage = oldApply
+        return calls
+    end
+
+    local function initRogueSneakHero(wpType, classMods)
+        local hero = new_unit(301, "FlankRogue", true, wpType or 2)
+        hero.class = 1
+        hero.classId = 1
+        hero.buildState.skillMods[IDS.rogue_sneak_attack] = classMods or {}
+        return hero
+    end
+
+    BattleFormation.OnFinal()
+    local rogue = initRogueSneakHero()
+    local farAlly = new_unit(302, "FarAlly", true, 1)
+    local farEnemy = new_unit(304, "FarEnemy", false, 3)
+    BattleFormation.Init({
+        teamLeft = { rogue, farAlly },
+        teamRight = { farEnemy },
+    })
+    rogue = BattleFormation.FindHeroByCampAndPos(true, 2)
+    farEnemy = BattleFormation.FindHeroByCampAndPos(false, 3)
+
+    local passive = RogueBuildPassives.CreateSneakAttackPassive({ src = rogue })
+    local oldGetCurRound = BattleLogic.GetCurRound
+    BattleLogic.GetCurRound = function() return 2 end
+
+    assert_true(
+        runSneakFinish(passive, farEnemy) == 0,
+        "rogue sneak flank requires an adjacent ally, not just two front-row allies")
+
+    BattleFormation.OnFinal()
+    rogue = initRogueSneakHero(3)
+    local nearAlly = new_unit(303, "NearAlly", true, 1)
+    local centerEnemy = new_unit(305, "CenterEnemy", false, 2)
+    BattleFormation.Init({
+        teamLeft = { rogue, nearAlly },
+        teamRight = { centerEnemy },
+    })
+    rogue = BattleFormation.FindHeroByCampAndPos(true, 3)
+    centerEnemy = BattleFormation.FindHeroByCampAndPos(false, 2)
+    passive = RogueBuildPassives.CreateSneakAttackPassive({ src = rogue })
+    assert_true(
+        runSneakFinish(passive, centerEnemy) == 1,
+        "rogue sneak flank triggers when another ally is adjacent to the target")
+
+    BattleFormation.OnFinal()
+    rogue = initRogueSneakHero()
+    local distractVictim = new_unit(307, "DistractVictim", true, 4)
+    local distractedEnemy = new_unit(306, "DistractedEnemy", false, 2)
+    BattleFormation.Init({
+        teamLeft = { rogue, distractVictim },
+        teamRight = { distractedEnemy },
+    })
+    rogue = BattleFormation.FindHeroByCampAndPos(true, 2)
+    distractedEnemy = BattleFormation.FindHeroByCampAndPos(false, 2)
+    passive = RogueBuildPassives.CreateSneakAttackPassive({ src = rogue })
+    distractedEnemy.passiveRuntime = distractedEnemy.passiveRuntime or {}
+    distractedEnemy.passiveRuntime.lastAttackVictimId = distractVictim.instanceId
+    distractedEnemy.passiveRuntime.lastAttackRound = 1
+    assert_true(
+        runSneakFinish(passive, distractedEnemy) == 0,
+        "rogue sneak distracted only counts attacks from the current round")
+
+    distractedEnemy.passiveRuntime.lastAttackRound = 2
+    assert_true(
+        runSneakFinish(passive, distractedEnemy) == 1,
+        "rogue sneak distracted triggers when target attacked another unit this round")
+
+    BattleLogic.GetCurRound = oldGetCurRound
+end
+
+do
     BattleFormation.OnFinal()
     local ranger = new_unit(201, "RuntimeRanger", true, 2)
     local enemyA = new_unit(202, "MarkedA", false, 1)
@@ -307,26 +396,43 @@ do
         teamLeft = { ranger },
         teamRight = { enemyA, enemyB },
     })
+    RangerBuildPassives.ApplyHunterMark(ranger, enemyA)
+    local markBuff = BattleBuff.GetBuff(enemyA, 890005)
+    assert_true(markBuff ~= nil, "hunter mark buff should exist on marked target")
+    assert_true((tonumber(markBuff.value) or 0) == 3,
+        "hunter mark penalty stacks markBonusDice and markPayoutPerRound")
+    assert_true(BuildPassiveCommon.GetDefenderAcBonus(enemyA, ranger) == -3,
+        "hunter mark reduces target AC via defender bonus")
+    assert_true(BuildPassiveCommon.GetDefenderSaveBonus(enemyA, "ref") == -3,
+        "hunter mark reduces target reflex save bonus")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local ranger = new_unit(205, "HitMarkRanger", true, 2)
+    local enemy = new_unit(206, "HitMarkEnemy", false, 1)
+    ranger.class = 5
+    ranger.classId = 5
+    BattleFormation.Init({
+        teamLeft = { ranger },
+        teamRight = { enemy },
+    })
     local passive = RangerBuildPassives.CreateHunterMarkPassive({ src = ranger })
-    local oldApply = BuildPassiveCommon.ApplyDirectBonusDamage
-    local applyCalls = {}
-    BuildPassiveCommon.ApplyDirectBonusDamage = function(_, _, diceExpr)
-        applyCalls[#applyCalls + 1] = diceExpr
-        return 3
-    end
+    BuildPassiveCommon.AfterBasicAttackResolved(ranger, enemy, 0, { hit = { hit = true } })
     passive:OnNormalAtkFinish({
-        data = { extraParam = { skillId = IDS.ranger_basic_attack, target = enemyA, damageDealt = 5 } },
+        data = { extraParam = { skillId = IDS.ranger_basic_attack, target = enemy, damageDealt = 0 } },
     })
+    assert_true(BattleBuff.GetBuff(enemy, 890005) ~= nil,
+        "hunter mark applies on hit even when final damage is 0")
+
+    BattleBuff.DelBuffByBuffIdAndCaster(enemy, 890005, ranger)
+    BuildPassiveCommon.AfterBasicAttackResolved(ranger, enemy, 0, { hit = { hit = false } })
     passive:OnNormalAtkFinish({
-        data = { extraParam = { skillId = IDS.ranger_basic_attack, target = enemyA, damageDealt = 5 } },
+        data = { extraParam = { skillId = IDS.ranger_basic_attack, target = enemy, damageDealt = 0 } },
     })
-    RangerBuildPassives.ApplyHunterMark(ranger, enemyB)
-    passive:OnNormalAtkFinish({
-        data = { extraParam = { skillId = IDS.ranger_basic_attack, target = enemyB, damageDealt = 5 } },
-    })
-    BuildPassiveCommon.ApplyDirectBonusDamage = oldApply
-    assert_true(#applyCalls == 2, "ranger mark payout can trigger twice per round but not on same target")
-    assert_true(applyCalls[1] == "1d4;1d4", "ranger mark bonus dice merges extra feat dice")
+    assert_true(BattleBuff.GetBuff(enemy, 890005) == nil,
+        "hunter mark does not apply on miss")
 end
 
 do

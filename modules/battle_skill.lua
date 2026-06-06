@@ -518,7 +518,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     local targetAC = opts.targetAC
     local BuildPassiveCommon = require("skills.build_passive_common")
     local defenderAcBonus = tonumber(BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)) or 0
-    if defenderAcBonus > 0 then
+    if defenderAcBonus ~= 0 then
         local baseTargetAC = tonumber(targetAC)
         if baseTargetAC == nil then
             baseTargetAC = tonumber(defender and defender.ac) or 0
@@ -1120,6 +1120,7 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
                 skillId = primaryEntry and primaryEntry.skillId or nil,
                 skillName = primaryEntry and primaryEntry.skillName or "附加伤害",
                 preferSkillColor = true,
+                damageRoll = BuildPassiveCommon.MergeBucketDamageRolls(entries),
             })
         end
         if hero then
@@ -1536,7 +1537,15 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
             })
             damage = math.max(0, math.floor(damageContext.damage or damage))
             if damage > 0 then
-                damage = damage + BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, actualTarget)
+                local bonusDamage, bonusDamageRoll = BuildPassiveCommon.RollBasicAttackBonusDamage(hero, actualTarget)
+                if bonusDamage > 0 then
+                    damage = damage + bonusDamage
+                    if damageResult and bonusDamageRoll then
+                        damageResult.damageRoll = BuildPassiveCommon.MergeDamageRolls(
+                            damageResult.damageRoll,
+                            bonusDamageRoll)
+                    end
+                end
                 local okBarbarian, BarbarianBuildPassives = pcall(require, "skills.barbarian_build_passives")
                 if okBarbarian and BarbarianBuildPassives and BarbarianBuildPassives.ApplyBerserkDamageBonus then
                     damage = BarbarianBuildPassives.ApplyBerserkDamageBonus(hero, damage)

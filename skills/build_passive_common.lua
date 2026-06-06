@@ -389,6 +389,51 @@ function BuildPassiveCommon.FormatSaveRollForLog(saveRoll, saveType, opts)
         dc)
 end
 
+local function mergeDamageRollParts(partsA, partsB)
+    local merged = {}
+    if type(partsA) == "table" then
+        for _, part in ipairs(partsA) do
+            merged[#merged + 1] = part
+        end
+    end
+    if type(partsB) == "table" then
+        for _, part in ipairs(partsB) do
+            merged[#merged + 1] = part
+        end
+    end
+    return merged
+end
+
+function BuildPassiveCommon.MergeDamageRolls(primary, secondary)
+    if type(secondary) ~= "table" then
+        return primary
+    end
+    if type(primary) ~= "table" then
+        return secondary
+    end
+    return {
+        expr = joinDiceParts(tostring(primary.expr or ""), tostring(secondary.expr or "")),
+        total = (tonumber(primary.total) or 0) + (tonumber(secondary.total) or 0),
+        scaledTotal = (tonumber(primary.scaledTotal) or tonumber(primary.total) or 0)
+            + (tonumber(secondary.scaledTotal) or tonumber(secondary.total) or 0),
+        parts = mergeDamageRollParts(primary.parts, secondary.parts),
+        crit = primary.crit == true or secondary.crit == true,
+    }
+end
+
+function BuildPassiveCommon.MergeBucketDamageRolls(entries)
+    if type(entries) ~= "table" then
+        return nil
+    end
+    local merged = nil
+    for _, entry in ipairs(entries) do
+        if type(entry) == "table" and type(entry.damageRoll) == "table" then
+            merged = BuildPassiveCommon.MergeDamageRolls(merged, entry.damageRoll)
+        end
+    end
+    return merged
+end
+
 function BuildPassiveCommon.FormatDamageRollForLog(damageRoll)
     if type(damageRoll) ~= "table" then
         return nil
@@ -638,17 +683,17 @@ function BuildPassiveCommon.ResolveProtectedDefender(defender, extraParam)
     return actualDefender, protectionMeta
 end
 
-function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
+function BuildPassiveCommon.RollBasicAttackBonusDamage(hero, target)
     local runtime = ensureRuntime(hero)
     local bonusDice = tostring(runtime.basicAttackBonusDice or "")
     if runtime.pendingBasicAttackBonusDice then
         bonusDice = joinDiceParts(bonusDice, runtime.pendingBasicAttackBonusDice)
     end
     if bonusDice == "" then
-        return 0
+        return 0, nil
     end
     if not isAlive(hero) or not isAlive(target) then
-        return 0
+        return 0, nil
     end
     -- 5e 风格：基础攻击附加伤害（咆哮加伤、燃焰之拳等）只 roll dice 返回 raw，由 ExecuteDefaultAttackWithPassive
     -- 把 raw 并入主 damage 一次 ApplyDamage 完成减伤+扣血+飘字，避免独立减伤导致的双计与多飘字。
@@ -661,12 +706,18 @@ function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
         noWeapon = true,
         noAbilityMod = true,
     })
-    return math.max(0, math.floor(tonumber(result and result.damage) or 0))
+    return math.max(0, math.floor(tonumber(result and result.damage) or 0)), result and result.damageRoll or nil
+end
+
+function BuildPassiveCommon.ApplyBasicAttackBonusDamage(hero, target)
+    local bonusDamage = BuildPassiveCommon.RollBasicAttackBonusDamage(hero, target)
+    return bonusDamage
 end
 
 function BuildPassiveCommon.AfterBasicAttackResolved(hero, target, damage, damageResult)
     local runtime = ensureRuntime(hero)
     runtime.lastBasicAttackHit = (tonumber(damage) or 0) > 0
+    runtime.lastBasicAttackRollHit = damageResult and damageResult.hit and damageResult.hit.hit == true or false
     runtime.lastBasicAttackCrit = damageResult and damageResult.isCrit == true or false
     runtime.lastBasicAttackTargetId = target and (target.instanceId or target.id) or nil
     runtime.pendingBasicAttackBonusDice = nil
@@ -708,6 +759,7 @@ function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     local okBattleBuff, BattleBuff = pcall(require, "modules.battle_buff")
     if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
         total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 880004)) or 0)
+        total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 890005)) or 0)
     end
     return total
 end
@@ -717,6 +769,12 @@ function BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)
     local okPaladin, PaladinBuildPassives = pcall(require, "skills.paladin_build_passives")
     if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraSaveBonus then
         total = total + (tonumber(PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)) or 0)
+    end
+    if saveType == "ref" then
+        local okBattleBuff, BattleBuff = pcall(require, "modules.battle_buff")
+        if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
+            total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 890005)) or 0)
+        end
     end
     return total
 end

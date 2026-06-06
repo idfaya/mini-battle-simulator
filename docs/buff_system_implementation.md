@@ -598,7 +598,7 @@ Buff 系统会向表现层发布以下核心事件：
 | 890002 | 狂怒 | GOOD | 野蛮人叠层资源 |
 | 890003 | 狂暴 | GOOD | 野蛮人强化状态 |
 | 890004 | 护卫架势 | GOOD | 护卫窗口、AC 加成、准备反击 |
-| 890005 | 猎人印记 | BAD | 游侠锁定目标 |
+| 890005 | 猎人印记 | BAD | 游侠锁定目标；`value` 层数同时降低 AC 与反射豁免 |
 | 890006 | 圣域祷言 | GOOD | 团队防护状态 |
 | 890007 | 守望主教 | GOOD | 前排强化窗口 |
 | 890008 | 守护灵光 | GOOD | 圣骑守护灵光窗口；范围内友军获得 AC 加成 |
@@ -660,6 +660,18 @@ Buff 系统会向表现层发布以下核心事件：
 - `BAD`
 - 不叠层，只刷新
 - 主要用于后续技能检测与引爆，不是 DoT 也不是硬控
+
+### 13.6 猎人印记
+
+实现特点：
+
+- `BAD`，`buffId = 890005`，`subType = 890005`
+- 不叠层，只刷新；带来源隔离（`DelBuffByBuffIdAndCaster`）
+- `value` 表示减益层数 `N`：目标 AC `-N`、反射豁免 `-N`
+- 施加：`skills/ranger_build_passives.lua` 的 `ApplyHunterMark`；每回合首次远程基础攻击**命中**后触发（与最终伤害是否 `> 0` 无关）
+- 读取：`skills/build_passive_common.lua` 的 `GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")`
+- 命中检定：`modules/battle_skill.lua` 的 `ResolveScaledDamage` 对非零 `defenderAcBonus` 生效
+- 不再通过印记触发追猎附伤；`狩猎指引` / 印记大师等仍检测 `IsTargetMarkedBy`
 
 ---
 

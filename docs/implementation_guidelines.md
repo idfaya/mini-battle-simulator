@@ -104,6 +104,12 @@
 
 ## 4. 职业实现边界
 
+### 4.0 技能改动先更文档
+
+- 改技能行为、数值、触发时机或 Feat 落点前，**必须先**更新活跃策划稿（通常 `design/roguelike_feat_skill_fill_sheet.md` 或对应职业/战斗设计稿）。
+- 同步更新程序侧说明（`docs/` 中 Buff / 技能实现文档）与配置 SSOT（`config/data/skills.json`、`config/data/buffs.json` 等）。
+- 文档定稿后再改 `skills/`、`modules/`、`config/tables/` 与 Web 镜像；禁止只改运行时、文档仍写旧语义。
+
 ### 4.1 先定母技能
 
 - 每个职业必须先定义一个清晰的母技能。

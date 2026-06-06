@@ -1,5 +1,12 @@
 import type { AnimationEvent, BattleEvent, BattleSnapshot } from "../types/battle";
-import { formatRollSuffix, formatSigned, readNumber } from "./rollFormat";
+import {
+  formatRollSuffix,
+  formatSigned,
+  isSkillColoredDamagePayload,
+  mergeDamageEventPayload,
+  readNumber,
+  shouldMergeDamagePayload,
+} from "./rollFormat";
 import {
   buildTopBarBriefsFromPayload,
   extractTopBarBriefsFromCombatLog,
@@ -37,10 +44,6 @@ function isDamageAnimation(event: AnimationEvent | undefined): event is Extract<
   return event?.type === "damage";
 }
 
-function isSkillColoredDamage(event: Extract<AnimationEvent, { type: "damage" }>) {
-  return event.preferSkillColor === true || event.basicAttack !== true;
-}
-
 function shouldMergeBasicAttackSkillDamage(
   previous: AnimationEvent | undefined,
   current: Extract<AnimationEvent, { type: "damage" }>,
@@ -48,15 +51,20 @@ function shouldMergeBasicAttackSkillDamage(
   if (!isDamageAnimation(previous)) {
     return false;
   }
-  if (previous.heroId !== current.heroId || previous.attackerId !== current.attackerId) {
-    return false;
-  }
-  const previousBasic = previous.basicAttack === true;
-  const currentBasic = current.basicAttack === true;
-  if (!previousBasic && !currentBasic) {
-    return false;
-  }
-  return (previousBasic && isSkillColoredDamage(current)) || (currentBasic && isSkillColoredDamage(previous));
+  return shouldMergeDamagePayload(
+    {
+      targetId: previous.heroId,
+      attackerId: previous.attackerId,
+      isBasicAttack: previous.basicAttack === true,
+      preferSkillColor: previous.preferSkillColor === true,
+    },
+    {
+      targetId: current.heroId,
+      attackerId: current.attackerId,
+      isBasicAttack: current.basicAttack === true,
+      preferSkillColor: current.preferSkillColor === true,
+    },
+  );
 }
 
 function pushAnimationEvent(animations: AnimationEvent[], event: AnimationEvent) {
@@ -152,6 +160,7 @@ export class BattleStore {
     let skillBrief = this.state.skillBrief;
     let damageBrief = this.state.damageBrief;
     let topBarResolveIndex = 0;
+    let pendingMergedDamagePayload: Record<string, unknown> | null = null;
 
     const resetTopBarResolveIndex = () => {
       topBarResolveIndex = 0;
@@ -229,6 +238,7 @@ export class BattleStore {
           skillBrief = null;
           damageBrief = null;
           resetTopBarResolveIndex();
+          pendingMergedDamagePayload = null;
           appendLog("战斗开始");
           break;
         case "combat_log":
@@ -258,25 +268,54 @@ export class BattleStore {
             `回合 ${String(event.payload.round ?? "")} - ${String(event.payload.heroName ?? "")} 行动（先攻骰 d20 ${readNumber(event.payload.initiativeRoll)}${formatSigned(readNumber(event.payload.initiativeMod))}=${readNumber(event.payload.initiativeTotal)}）`,
           );
           break;
-        case "damage_dealt":
-          this.markCastResult(event.payload.attackerId);
-          touchTopBarBriefs(buildResolveTopBarBriefs(event.payload, { includeDamage: true }));
-          const critMark = event.payload.isCrit ? "暴击，" : "";
-          replaceCastOrAppend(
-            event.payload.attackerId,
-            `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 造成 ${critMark}${String(event.payload.damage ?? 0)} 伤害${formatRollSuffix(event.payload, true)}`,
-          );
+        case "damage_dealt": {
+          const incomingPayload = { ...event.payload } as Record<string, unknown>;
+          let resolvedPayload = incomingPayload;
+          const mergedWithPending =
+            pendingMergedDamagePayload !== null &&
+            shouldMergeDamagePayload(pendingMergedDamagePayload, incomingPayload);
+          if (mergedWithPending) {
+            resolvedPayload = mergeDamageEventPayload(pendingMergedDamagePayload, incomingPayload);
+          }
+          this.markCastResult(resolvedPayload.attackerId);
+          const topBarBriefs = mergedWithPending
+            ? buildTopBarBriefsFromPayload(resolvedPayload, { includeDamage: true })
+            : buildResolveTopBarBriefs(resolvedPayload, { includeDamage: true });
+          touchTopBarBriefs(topBarBriefs);
+          const critMark = resolvedPayload.isCrit ? "暴击，" : "";
+          const damageLogMessage = `${String(resolvedPayload.attackerName ?? "")}${resolvedPayload.skillName ? ` 的 ${String(resolvedPayload.skillName)}` : ""} 对 ${String(resolvedPayload.targetName ?? "")} 造成 ${critMark}${String(resolvedPayload.damage ?? 0)} 伤害${formatRollSuffix(resolvedPayload, true)}`;
+          if (mergedWithPending && log.length > 0) {
+            log[log.length - 1] = damageLogMessage;
+          } else {
+            replaceCastOrAppend(resolvedPayload.attackerId, damageLogMessage);
+          }
+          const animationCountBefore = animations.length;
           pushAnimationEvent(animations, {
             type: "damage",
-            heroId: String(event.payload.targetId ?? ""),
-            attackerId: String(event.payload.attackerId ?? ""),
-            skillName: String(event.payload.skillName ?? ""),
-            value: Number(event.payload.damage ?? 0),
-            critical: Boolean(event.payload.isCrit),
-            basicAttack: Boolean(event.payload.isBasicAttack),
-            preferSkillColor: Boolean(event.payload.preferSkillColor),
+            heroId: String(incomingPayload.targetId ?? ""),
+            attackerId: String(incomingPayload.attackerId ?? ""),
+            skillName: String(
+              mergedWithPending ? resolvedPayload.skillName ?? "" : incomingPayload.skillName ?? "",
+            ),
+            value: Number(incomingPayload.damage ?? 0),
+            critical: Boolean(incomingPayload.isCrit),
+            basicAttack: Boolean(incomingPayload.isBasicAttack),
+            preferSkillColor: Boolean(incomingPayload.preferSkillColor),
           });
+          const mergedIntoPreviousAnimation =
+            animations.length === animationCountBefore && animationCountBefore > 0;
+          if (mergedIntoPreviousAnimation) {
+            pendingMergedDamagePayload = null;
+          } else if (
+            resolvedPayload.isBasicAttack === true ||
+            isSkillColoredDamagePayload(resolvedPayload)
+          ) {
+            pendingMergedDamagePayload = resolvedPayload;
+          } else {
+            pendingMergedDamagePayload = null;
+          }
           break;
+        }
         case "heal_received": {
           this.markCastResult(event.payload.healerId);
           const healSkillName = String(event.payload.skillName ?? "").trim();

@@ -74,6 +74,74 @@ export function formatCheckRoll(
   return null;
 }
 
+export function mergeDamageRolls(primary: unknown, secondary: unknown): Record<string, unknown> | null {
+  const left = readRecord(primary);
+  const right = readRecord(secondary);
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+  const leftParts = Array.isArray(left.parts) ? left.parts : [];
+  const rightParts = Array.isArray(right.parts) ? right.parts : [];
+  const leftExpr = String(left.expr ?? "").trim();
+  const rightExpr = String(right.expr ?? "").trim();
+  const expr = [leftExpr, rightExpr].filter(Boolean).join(leftExpr && rightExpr ? ";" : "");
+  return {
+    ...left,
+    ...right,
+    expr: expr || left.expr || right.expr || "dice",
+    parts: [...leftParts, ...rightParts],
+    total: readNumber(left.total) + readNumber(right.total),
+    scaledTotal: readNumber(left.scaledTotal ?? left.total) + readNumber(right.scaledTotal ?? right.total),
+    crit: left.crit === true || right.crit === true,
+  };
+}
+
+export function isSkillColoredDamagePayload(payload: Record<string, unknown>) {
+  return payload.preferSkillColor === true || payload.isBasicAttack !== true;
+}
+
+export function shouldMergeDamagePayload(previous: Record<string, unknown>, current: Record<string, unknown>) {
+  if (String(previous.targetId ?? "") !== String(current.targetId ?? "")) {
+    return false;
+  }
+  if (String(previous.attackerId ?? "") !== String(current.attackerId ?? "")) {
+    return false;
+  }
+  const previousBasic = previous.isBasicAttack === true;
+  const currentBasic = current.isBasicAttack === true;
+  if (!previousBasic && !currentBasic) {
+    return false;
+  }
+  return (
+    (previousBasic && isSkillColoredDamagePayload(current)) ||
+    (currentBasic && isSkillColoredDamagePayload(previous))
+  );
+}
+
+export function mergeDamageEventPayload(
+  previous: Record<string, unknown>,
+  current: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...previous,
+    ...current,
+    damage: readNumber(previous.damage) + readNumber(current.damage),
+    damageRoll: mergeDamageRolls(previous.damageRoll, current.damageRoll),
+    isCrit: Boolean(previous.isCrit) || Boolean(current.isCrit),
+    isBasicAttack: Boolean(previous.isBasicAttack) || Boolean(current.isBasicAttack),
+    preferSkillColor: Boolean(previous.preferSkillColor) || Boolean(current.preferSkillColor),
+    skillName: String(current.skillName || previous.skillName || ""),
+    skillId: current.skillId ?? previous.skillId,
+    attackRoll: previous.attackRoll ?? current.attackRoll,
+    saveRoll: previous.saveRoll ?? current.saveRoll,
+    saveType: previous.saveType ?? current.saveType,
+    onSaveSuccess: previous.onSaveSuccess ?? current.onSaveSuccess,
+  };
+}
+
 export function formatDamageRoll(value: unknown) {
   const roll = readRecord(value);
   if (!roll) {

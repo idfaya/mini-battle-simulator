@@ -34,20 +34,34 @@ local function buildContextState(context)
     }
 end
 
-local function isFrontRow(unit)
-    local wpType = tonumber(unit and unit.wpType) or 0
-    return wpType > 0 and wpType <= 3
+local function getGridDistance(a, b)
+    local BattleFormation = require("modules.battle_formation")
+    local aWpType = tonumber(a and a.wpType) or 0
+    local bWpType = tonumber(b and b.wpType) or 0
+    if aWpType <= 0 or bWpType <= 0 then
+        return nil
+    end
+    local aRow = BattleFormation.GetHeroRow(aWpType)
+    local bRow = BattleFormation.GetHeroRow(bWpType)
+    local aColumn = BattleFormation.GetHeroColumn(aWpType)
+    local bColumn = BattleFormation.GetHeroColumn(bWpType)
+    if not aRow or not bRow or not aColumn or not bColumn then
+        return nil
+    end
+    return math.abs(aRow - bRow) + math.abs(aColumn - bColumn)
 end
 
-local function countAliveFrontAllies(hero)
+local function hasAdjacentAllyToTarget(hero, target)
     local BattleFormation = require("modules.battle_formation")
-    local count = 0
     for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
-        if isAlive(ally) and isFrontRow(ally) then
-            count = count + 1
+        if isAlive(ally) and not BuildPassiveCommon.SameUnit(ally, hero) then
+            local distance = getGridDistance(ally, target)
+            if distance ~= nil and distance <= 1 then
+                return true
+            end
         end
     end
-    return count
+    return false
 end
 
 local function evaluateSneakCondition(hero, target)
@@ -73,7 +87,11 @@ local function evaluateSneakCondition(hero, target)
     end
     local heroId = tonumber(hero and (hero.instanceId or hero.id)) or 0
     local targetFocusId = tonumber(targetRuntime.lastAttackVictimId) or 0
-    if targetFocusId > 0 and targetFocusId ~= heroId then
+    local targetAttackRound = tonumber(targetRuntime.lastAttackRound) or 0
+    if targetFocusId > 0
+        and targetFocusId ~= heroId
+        and targetAttackRound > 0
+        and targetAttackRound == getRound() then
         return {
             qualified = true,
             viaDistracted = true,
@@ -106,7 +124,7 @@ local function evaluateSneakCondition(hero, target)
             label = "致命偷袭",
         }
     end
-    if isFrontRow(target) and countAliveFrontAllies(hero) >= 2 then
+    if hasAdjacentAllyToTarget(hero, target) then
         return {
             qualified = true,
             viaFlank = true,

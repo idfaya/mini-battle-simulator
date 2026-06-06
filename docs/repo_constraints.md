@@ -32,6 +32,7 @@
 
 ## 配置与技能元数据
 
+- **技能先文档后代码**：行为 / 数值 / Feat 落点变更须先写 `design/` 活跃稿，再改运行时；见 `AGENTS.md` 与 `docs/implementation_guidelines.md` §4.0。
 - 大表 EmmyLua 误报：用 `---@alias` / `---@class` / `---@type` 注解，不改运行时行为。
 - 技能行为变更：同步 `config/data/skills.json` 与 `config/tables/skill_meta.lua`；schema 变更须改 `skills.json`。
 

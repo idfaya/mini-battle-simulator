@@ -160,7 +160,7 @@ test("ranger smoke shows hunter mark loop, subclass shot and extra attack", asyn
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("猎人印记"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("施加猎人印记") || line.includes("触发猎人印记"))).toBeTruthy();
+  expect(logs.some((line) => line.includes("施加猎人印记"))).toBeTruthy();
   expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
   expect(animationSummary.observedProjectileKinds).toContain("arrow");
   expect(pageErrors).toEqual([]);

@@ -67,55 +67,22 @@ local function buildContextState(context)
     }
 end
 
-local function applyMarkedBonusDamage(hero, target)
-    if not isAlive(hero) or not isAlive(target) then
-        return 0
+local function resolveMarkPenalty(hero)
+    local penalty = 1
+    local extraDice = FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markBonusDice", nil)
+    if type(extraDice) == "string" and extraDice ~= "" then
+        for _ in extraDice:gmatch("[^;]+") do
+            penalty = penalty + 1
+        end
     end
-    local runtime = ensureRuntime(hero)
-    local round = getRound()
-    -- §6 markPayoutPerRound：默认每回合 1 次；显式配置时表示总次数，而非增量。
-    local maxPerRound = 1
+    -- §6 markPayoutPerRound：旧版为每回合兑现次数；现映射为额外减益层数（配置值 - 1）。
     local configuredSkillLimit = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markPayoutPerRound", 0)))
     local configuredClassLimit = math.max(0, math.floor(tonumber(hero.buildState and hero.buildState.classMods and hero.buildState.classMods.markPayoutPerRound) or 0))
     local configuredLimit = math.max(configuredSkillLimit, configuredClassLimit)
-    if configuredLimit > 0 then
-        maxPerRound = configuredLimit
+    if configuredLimit > 1 then
+        penalty = penalty + (configuredLimit - 1)
     end
-    if runtime.rangerMarkedDamageRoundKey ~= round then
-        runtime.rangerMarkedDamageRoundKey = round
-        runtime.rangerMarkedDamageCount = 0
-        runtime.rangerMarkedDamageTargets = {}
-    end
-    if (tonumber(runtime.rangerMarkedDamageCount) or 0) >= maxPerRound then
-        return 0
-    end
-    local targetId = tonumber(target.instanceId or target.id) or 0
-    if maxPerRound > 1 and targetId ~= 0 and runtime.rangerMarkedDamageTargets[targetId] == true then
-        return 0
-    end
-    runtime.rangerMarkedDamageCount = (tonumber(runtime.rangerMarkedDamageCount) or 0) + 1
-    runtime.rangerMarkedDamageRound = round
-    if targetId ~= 0 then
-        runtime.rangerMarkedDamageTargets[targetId] = true
-    end
-    local diceExpr = "1d4"
-    local extraDice = FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_mark, "markBonusDice", nil)
-    if type(extraDice) == "string" and extraDice ~= "" then
-        diceExpr = joinDiceParts(diceExpr, extraDice)
-    end
-    local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, diceExpr, {
-        kind = "physical",
-        damageKind = "direct",
-        skillId = IDS.ranger_hunter_mark,
-        skillName = "猎人印记",
-    })
-    if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发猎人印记：对 %s 追加 %d 点追猎伤害",
-            hero.name or "Unknown",
-            target.name or "目标",
-            bonus))
-    end
-    return bonus
+    return penalty
 end
 
 function RangerBuildPassives.IsTargetMarkedBy(hero, target)
@@ -199,10 +166,16 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
         expireRound = getRound() + 1 + durationDelta,
         appliedSeq = heroRuntime.rangerMarkApplySeq,
     }
-    BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, { duration = 2 + durationDelta })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记",
+    local markPenalty = resolveMarkPenalty(hero)
+    BattleSkill.ApplyBuffFromSkill(hero, target, HUNTER_MARK_BUFF_ID, nil, {
+        duration = 2 + durationDelta,
+        value = markPenalty,
+    })
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记（AC -%d，反射 -%d）",
         hero.name or "Unknown",
-        target.name or "目标"))
+        target.name or "目标",
+        markPenalty,
+        markPenalty))
 end
 
 local function tryApplySnare(hero, target, label)
@@ -212,7 +185,8 @@ local function tryApplySnare(hero, target, label)
     local BattleFormula = require("core.battle_formula")
     local BattleSkill = require("modules.battle_skill")
     local dc = tonumber(hero.spellDC) or 10
-    local saveBonus = tonumber(target.saveRef) or 0
+    local saveBonus = (tonumber(target.saveRef) or 0)
+        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(target, "ref")) or 0)
     local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {})
     if saveResult.success then
         BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 反射豁免成功 (%d vs DC %d)",
@@ -389,17 +363,19 @@ function RangerBuildPassives.CreateHunterMarkPassive(context)
         if tonumber(extraParam.skillId) ~= IDS.ranger_basic_attack then
             return
         end
-        if (tonumber(extraParam.damageDealt) or 0) <= 0 then
+        local runtime = ensureRuntime(hero)
+        if runtime.lastBasicAttackRollHit ~= true then
             return
         end
-        local runtime = ensureRuntime(hero)
+        local targetId = tonumber(target.instanceId or target.id) or 0
+        local resolvedTargetId = tonumber(runtime.lastBasicAttackTargetId) or 0
+        if targetId ~= 0 and resolvedTargetId ~= 0 and targetId ~= resolvedTargetId then
+            return
+        end
         local round = getRound()
         if runtime.rangerMarkApplyRound ~= round then
             runtime.rangerMarkApplyRound = round
             RangerBuildPassives.ApplyHunterMark(hero, target)
-        end
-        if RangerBuildPassives.IsTargetMarkedBy(hero, target) then
-            applyMarkedBonusDamage(hero, target)
         end
     end
 

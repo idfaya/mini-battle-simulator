@@ -524,7 +524,7 @@ local FEATS = {
         classId = 5,
         level = 1,
         name = "印记基础",
-        description = "每回合 1 次，基础武器攻击命中后施加短时印记；本回合第一次对印记目标造成伤害时额外造成 1d4 伤害。",
+        description = "每回合 1 次，基础武器攻击命中后施加短时印记；印记目标 AC 与反射豁免 -1。",
         treeSlot = "R",
         isRoot = true,
         effects = {
@@ -674,7 +674,7 @@ local rogueTree = {
 
 -- Ranger 游侠 (classId=5)
 local rangerTree = {
-    {key="b_ranger_mark_plus", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记熟练", desc="印记额外伤害 +1d4。",
+    {key="b_ranger_mark_plus", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记熟练", desc="印记减益再 -1（AC 与反射各 -1）。",
         effects={{type="modify_skill", skill=80005101, add={markBonusDice="1d4"}}}},
     {key="b_ranger_mark_extend", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记延续", desc="印记持续时间 +1 回合。",
         effects={{type="modify_skill", skill=80005101, add={dotDurationDelta=1}}}},
@@ -684,7 +684,7 @@ local rangerTree = {
         effects={{type="modify_skill", skill=80005013, add={onHitApplySlowDuration=1}}}},
     {key="j_ranger_mark_master", classId=5, level=4, slot="J", prereqs={F.ranger_R}, name="印记精通", desc="同时维持 2 个印记。",
         effects={{type="modify_skill", skill=80005101, add={markSlotMax=2}}}},
-    {key="j_ranger_mark_burst", classId=5, level=6, slot="J", prereqs={F.ranger_R}, name="印记爆发", desc="每回合可兑现 2 次印记，但必须作用于不同已标记目标。",
+    {key="j_ranger_mark_burst", classId=5, level=6, slot="J", prereqs={F.ranger_R}, name="印记爆发", desc="印记减益再 -1（AC 与反射各 -1）。",
         effects={{type="modify_skill", skill=80005101, add={markPayoutPerRound=2}}}},
     {key="b_ranger_arrow_plus", classId=5, level=7, slot="B", prereqs={F.ranger_T2}, name="箭雨精通", desc="箭雨射击次数从 4 提升到 5；第一次重复命中同一目标时造成 75% 伤害。",
         effects={{type="modify_skill", skill=80005109, add={chainCountDelta=1, firstRepeatDamageMultiplier=0.75}}}},

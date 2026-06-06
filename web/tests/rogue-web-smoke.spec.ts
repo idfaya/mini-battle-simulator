@@ -38,11 +38,11 @@ test("rogue smoke shows sneak attack loop and subclass action", async ({ page })
     .toContain("诡诈打击");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("触发偷袭：");
+    .toContain("的 偷袭");
 
   const logs = await readLogs(page);
   expect(logs.some((line) => line.includes("诡诈打击"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("触发偷袭："))).toBeTruthy();
+  expect(logs.some((line) => line.includes("的 偷袭"))).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
