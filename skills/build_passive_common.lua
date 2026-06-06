@@ -331,6 +331,97 @@ function BuildPassiveCommon.PublishPassiveTriggered(hero, skillName, triggerType
     publishPassiveTriggered(hero, skillName, triggerType, extraInfo)
 end
 
+local SAVE_TYPE_LABELS = {
+    fort = "强韧",
+    ref = "反射",
+    will = "意志",
+}
+
+local function formatSigned(value)
+    local numberValue = tonumber(value) or 0
+    if numberValue >= 0 then
+        return "+" .. tostring(numberValue)
+    end
+    return tostring(numberValue)
+end
+
+function BuildPassiveCommon.FormatAttackRollForLog(attackRoll)
+    if type(attackRoll) ~= "table" then
+        return nil
+    end
+    if attackRoll.targetAC == nil then
+        return nil
+    end
+    local roll = tonumber(attackRoll.roll) or 0
+    local bonus = tonumber(attackRoll.bonus) or 0
+    local total = tonumber(attackRoll.total) or 0
+    return string.format(
+        "攻击检定 d20 %d%s=%d vs AC %d",
+        roll,
+        formatSigned(bonus),
+        total,
+        tonumber(attackRoll.targetAC) or 0)
+end
+
+function BuildPassiveCommon.FormatSaveRollForLog(saveRoll, saveType, opts)
+    if type(saveRoll) ~= "table" then
+        return nil
+    end
+    opts = opts or {}
+    local label = SAVE_TYPE_LABELS[saveType] or "豁免"
+    local roll = tonumber(saveRoll.roll) or 0
+    local bonus = tonumber(saveRoll.bonus) or 0
+    local total = tonumber(saveRoll.total) or 0
+    local dc = tonumber(saveRoll.dc) or 0
+    local outcome = saveRoll.success and "成功" or "失败"
+    if saveRoll.success and opts.onSaveSuccess == "half" then
+        outcome = "成功（半伤）"
+    elseif saveRoll.success and opts.onSaveSuccess == "none" then
+        outcome = "成功（无伤）"
+    end
+    return string.format(
+        "%s豁免%s d20 %d%s=%d vs DC %d",
+        label,
+        outcome,
+        roll,
+        formatSigned(bonus),
+        total,
+        dc)
+end
+
+function BuildPassiveCommon.FormatDamageRollForLog(damageRoll)
+    if type(damageRoll) ~= "table" then
+        return nil
+    end
+    local expr = tostring(damageRoll.expr or "dice")
+    local total = tonumber(damageRoll.total) or 0
+    return string.format("伤害骰 %s=%d", expr, total)
+end
+
+function BuildPassiveCommon.FormatRollSuffixForLog(rolls, includeDamage)
+    if type(rolls) ~= "table" then
+        return ""
+    end
+    local parts = {}
+    local checkText = BuildPassiveCommon.FormatAttackRollForLog(rolls.attackRoll)
+        or BuildPassiveCommon.FormatSaveRollForLog(rolls.saveRoll, rolls.saveType, {
+            onSaveSuccess = rolls.onSaveSuccess,
+        })
+    if checkText then
+        parts[#parts + 1] = checkText
+    end
+    if includeDamage ~= false then
+        local damageText = BuildPassiveCommon.FormatDamageRollForLog(rolls.damageRoll)
+        if damageText then
+            parts[#parts + 1] = damageText
+        end
+    end
+    if #parts == 0 then
+        return ""
+    end
+    return "（" .. table.concat(parts, "；") .. "）"
+end
+
 function BuildPassiveCommon.PublishCombatLog(message, extraPayload)
     publishCombatLog(message, extraPayload)
 end

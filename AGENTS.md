@@ -40,6 +40,7 @@ cd web && npm run export:lua && npm run test:playwright
 ```
 
 - 首次环境：`cd web && npx playwright install chromium`
+- `npm run test:playwright` 会通过 `web/scripts/run-playwright.mjs` 自动选择可用的浏览器目录（优先本机 `ms-playwright` 缓存，避免 Cursor 沙箱注入无效 `PLAYWRIGHT_BROWSERS_PATH`）
 - Playwright 默认**不复用**已有 dev 服（`playwright.config.ts`）；本地调试可 `PW_REUSE_SERVER=1 npm run test:playwright`
 - 若 5173 被旧进程占用导致 `.lua` 返回 HTML，先结束该进程再跑测试
 

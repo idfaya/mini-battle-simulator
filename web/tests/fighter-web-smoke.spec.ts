@@ -511,6 +511,108 @@ async function waitForUnitsReturnToBase(
   );
 }
 
+async function waitForCounterParticipants(page: import("playwright/test").Page) {
+  return page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState: () => {
+          meleeClashes?: Array<{
+            attackerId: string;
+            reactionBindings?: Array<{
+              reactorId: string;
+              sourceAttackerId: string;
+              cueKind: "counter" | "guard";
+              holdUntil: number;
+            }>;
+            holdUntil?: number;
+          }>;
+        };
+      };
+    };
+    const renderer = runtime.__miniBattleRenderer;
+    if (!renderer) {
+      return null;
+    }
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await sleep(40);
+      const now = performance.now();
+      for (const clash of renderer.getBattleDebugState().meleeClashes ?? []) {
+        const counterBinding = (clash.reactionBindings ?? []).find(
+          (binding) => binding.cueKind === "counter" && binding.holdUntil > now,
+        );
+        if (!counterBinding) {
+          continue;
+        }
+        return {
+          attackerId: counterBinding.sourceAttackerId,
+          reactorId: counterBinding.reactorId,
+        };
+      }
+    }
+    return null;
+  });
+}
+
+async function waitForCounterHoldRelease(
+  page: import("playwright/test").Page,
+  attackerId: string,
+  reactorId: string,
+  timeoutMs = 400,
+) {
+  return page.evaluate(
+    async ({
+      trackedAttackerId,
+      trackedReactorId,
+      trackedTimeoutMs,
+    }: {
+      trackedAttackerId: string;
+      trackedReactorId: string;
+      trackedTimeoutMs: number;
+    }) => {
+      const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const runtime = window as typeof window & {
+        __miniBattleRenderer?: {
+          getBattleDebugState: () => {
+            meleeClashes?: Array<{
+              attackerId: string;
+              reactionBindings?: Array<{ reactorId: string; cueKind: "counter" | "guard"; holdUntil: number }>;
+              holdUntil?: number;
+            }>;
+          };
+        };
+      };
+      const renderer = runtime.__miniBattleRenderer;
+      if (!renderer) {
+        return false;
+      }
+      const attempts = Math.max(1, Math.ceil(trackedTimeoutMs / 40));
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        await sleep(40);
+        const now = performance.now();
+        const clashes = renderer.getBattleDebugState().meleeClashes ?? [];
+        const activeCounterHold = clashes.some((clash) => {
+          if (clash.attackerId !== trackedAttackerId) {
+            return false;
+          }
+          const counterBinding = (clash.reactionBindings ?? []).find(
+            (binding) => binding.reactorId === trackedReactorId && binding.cueKind === "counter",
+          );
+          if (!counterBinding) {
+            return false;
+          }
+          return (clash.holdUntil ?? counterBinding.holdUntil) > now;
+        });
+        if (!activeCounterHold) {
+          return true;
+        }
+      }
+      return false;
+    },
+    { trackedAttackerId: attackerId, trackedReactorId: reactorId, trackedTimeoutMs: timeoutMs },
+  );
+}
+
 async function waitForGuardHoldRelease(
   page: import("playwright/test").Page,
   attackerId: string,
@@ -753,6 +855,32 @@ test("fighter guard counter starts before the enemy returns to base position", a
   expect(queueIndex).toBeGreaterThanOrEqual(0);
   expect(redirectedHitIndex).toBeGreaterThan(stanceIndex);
   expect(counterIndex).toBeGreaterThan(queueIndex);
+  expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("dead counter-attacker releases attacker hold immediately", async ({ page }) => {
+  const { pageErrors, consoleErrors } = await collectClientErrors(page);
+
+  await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=4&fighterFeats=2100402&seed=101001");
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(1);
+
+  const participantsPromise = waitForCounterParticipants(page);
+
+  await expect
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 12000 })
+    .toContain("战士 触发被动 反击：登记反击");
+
+  const participants = await participantsPromise;
+  expect(participants).not.toBeNull();
+
+  const fighterId = await getAliveUnitIdByName(page, "战士");
+  expect(fighterId).not.toBe("");
+  expect(await forceKillRuntimeUnit(page, fighterId)).toBe(true);
+
+  expect(await waitForCounterHoldRelease(page, participants!.attackerId, participants!.reactorId, 400)).toBe(true);
+  await expect.poll(async () => getAliveUnitIdByName(page, "战士"), { timeout: 1200 }).toBe("");
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

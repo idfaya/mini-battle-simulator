@@ -9,7 +9,7 @@
     "dev:full": "npm run export:lua && vite",
     "build": "npm run export:lua && vite build",
     "preview": "vite preview",
-    "test:playwright": "playwright test"
+    "test:playwright": "node scripts/run-playwright.mjs"
   },
   "dependencies": {
     "fengari": "^0.1.4"

@@ -273,10 +273,17 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             saveRoll = damageResult and damageResult.save or nil,
             damageRoll = damageResult and damageResult.damageRoll or nil,
         })
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用神圣火花：对 %s 造成 %d 点伤害",
+        local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog({
+            saveRoll = damageResult and damageResult.save or nil,
+            saveType = meta and meta.saveType or "will",
+            onSaveSuccess = meta and meta.onSaveSuccess or "half",
+            damageRoll = damageResult and damageResult.damageRoll or nil,
+        }, true)
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用神圣火花：对 %s 造成 %d 点伤害%s",
             hero.name or "Unknown",
             target.name or "目标",
-            damage))
+            damage,
+            rollSuffix))
         BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = hero, damage = damage })
         BattleSkill.TriggerDamageBuffs(hero, target, damage)
         if target.isDead or (tonumber(target.hp) or 0) <= 0 then
@@ -309,7 +316,7 @@ function ClericBuildPassives.PerformHealingWord(hero, skill, lockedTargets)
     local targets = {}
     if type(lockedTargets) == "table" then
         for _, ally in ipairs(lockedTargets) do
-            local resolvedAlly = resolveAliveTarget(ally)
+            local resolvedAlly = resolveAliveUnit(ally)
             if resolvedAlly then
                 targets[#targets + 1] = resolvedAlly
             end
@@ -352,7 +359,7 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill, lockedTargets)
     local ally = nil
     if type(lockedTargets) == "table" then
         for _, lockedTarget in ipairs(lockedTargets) do
-            local resolvedTarget = resolveAliveTarget(lockedTarget)
+            local resolvedTarget = resolveAliveUnit(lockedTarget)
             if resolvedTarget and not sameUnit(resolvedTarget, hero) then
                 ally = resolvedTarget
                 break
@@ -495,7 +502,7 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
         targetPool = BattleFormation.GetEnemyTeam(hero) or {}
     end
     for _, target in ipairs(targetPool) do
-        target = resolveAliveTarget(target)
+        target = resolveAliveUnit(target)
         if isAlive(target) then
             local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
                 skill = skill,

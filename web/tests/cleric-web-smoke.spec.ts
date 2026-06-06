@@ -71,8 +71,19 @@ test("cleric base route keeps holy spark ranged and shelter active", async ({ pa
     .toContain("神恩庇护");
 
   const logs = await readLogs(page);
+  const joinedLogs = logs.join("\n");
   expect(logs.some((line) => line.includes("神圣火花"))).toBeTruthy();
   expect(logs.some((line) => line.includes("神恩庇护"))).toBeTruthy();
+  expect(
+    logs.some(
+      (line) =>
+        line.includes("神圣火花") &&
+        (line.includes("意志豁免") || line.includes("豁免检定")) &&
+        line.includes("vs DC") &&
+        line.includes("伤害骰"),
+    ),
+  ).toBeTruthy();
+  expect(joinedLogs).toMatch(/神圣火花.*(意志豁免|豁免检定).*vs DC.*伤害骰/s);
   expect(animationSummary.maxMeleeClashes).toBe(0);
   expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);

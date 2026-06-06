@@ -68,6 +68,19 @@ local function runHolySpark(cleric, target, skill)
     return result
 end
 
+local function captureHolySparkCombatLogs(cleric, enemy, skill)
+    local BattleEvent = require("core.battle_event")
+    local logs = {}
+    BattleEvent.AddListener("CombatLog", function(payload)
+        if payload and payload.message then
+            logs[#logs + 1] = payload.message
+        end
+    end, "test_cleric_holy_spark_targeting")
+    runHolySpark(cleric, enemy, skill)
+    BattleEvent.RemoveListener("CombatLog", "test_cleric_holy_spark_targeting")
+    return logs
+end
+
 --- 误治疗敌人的判定：结算走治疗或敌人 HP 上升。
 local function assert_enemy_not_healed(enemy, enemyHpBefore, result, message)
     assert_true((result and result.totalHeal or 0) == 0, message .. " (totalHeal)")
@@ -155,7 +168,24 @@ do
     BattleSkill.OnFinal()
 end
 
--- 6) 实战施法路径：StartSkillCastInSeq + 显式敌目标，施法者 isLeft 漂移
+-- 6) 战斗日志应包含意志豁免与伤害骰信息
+do
+    local cleric, enemy, skill = setupClericVsScout({
+        hp = 1000,
+        maxHp = 1000,
+        saveWill = -20,
+    })
+    local logs = captureHolySparkCombatLogs(cleric, enemy, skill)
+    assert_true(#logs > 0, "holy spark should publish combat log")
+    local joined = table.concat(logs, "\n")
+    assert_true(joined:find("意志豁免") ~= nil, "holy spark combat log should mention will save")
+    assert_true(joined:find("vs DC") ~= nil, "holy spark combat log should include save DC")
+    assert_true(joined:find("伤害骰") ~= nil, "holy spark combat log should include damage dice")
+    BattleFormation.OnFinal()
+    BattleSkill.OnFinal()
+end
+
+-- 7) 实战施法路径：StartSkillCastInSeq + 显式敌目标，施法者 isLeft 漂移
 do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,

@@ -355,8 +355,17 @@ function ConsoleRenderer.OnDamageDealt(data)
         msg = string.format("%s 闪避了 %s 的攻击", data.targetName, data.attackerName)
         color = COLORS.BRIGHT_YELLOW
     elseif data.damage > 0 then
-        msg = string.format("%s%s对 %s 造成 %d 点伤害%s", 
-            data.attackerName or "未知", critMark, data.targetName, data.damage, blockMark)
+        local rollSuffix = ""
+        local ok, BuildPassiveCommon = pcall(require, "skills.build_passive_common")
+        if ok and BuildPassiveCommon and BuildPassiveCommon.FormatRollSuffixForLog then
+            rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog({
+                attackRoll = data.attackRoll,
+                saveRoll = data.saveRoll,
+                damageRoll = data.damageRoll,
+            }, true)
+        end
+        msg = string.format("%s%s对 %s 造成 %d 点伤害%s%s",
+            data.attackerName or "未知", critMark, data.targetName, data.damage, blockMark, rollSuffix)
             
         -- 记录伤害数字到目标（直接覆盖最新伤害）
         local heroId = data.targetId
