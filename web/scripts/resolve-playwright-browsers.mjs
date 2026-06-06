@@ -53,7 +53,7 @@ function hasChromiumHeadlessShell(browsersPath) {
 
 export function resolvePlaywrightBrowsersPath(options = {}) {
   const candidates = [];
-  const configured = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  const configured = options.envBrowsersPath ?? process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (configured && configured !== "0") {
     candidates.push(configured);
   }

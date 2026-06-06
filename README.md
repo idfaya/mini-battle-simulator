@@ -43,7 +43,8 @@ docs/                      程序实现文档
 | --- | --- |
 | [design/README.md](design/README.md) | **策划设计**（玩法、数值、关卡、职业） |
 | [docs/README.md](docs/README.md) | **程序开发**（实现、工程约束、回归命令） |
-| [AGENTS.md](AGENTS.md) | 编码 Agent 行为准则与执行约束 |
+| [AGENTS.md](AGENTS.md) | 编码 Agent 行为准则 |
+| [docs/repo_constraints.md](docs/repo_constraints.md) | 仓库工程约束（5e、镜像、平衡、文档） |
 
 改代码前优先看 `design/` 和 `docs/` 的活跃文档；`design/legacy/` 为过时归档，不参与当前实现。
 
@@ -94,7 +95,15 @@ cd web && npm run export:lua && npm run test:playwright
 首次环境可执行：
 
 ```bash
-cd web && npx playwright install chromium
+cd web && npm run install:playwright
+```
+
+`npm run test:playwright` 经 `web/scripts/run-playwright.mjs` 启动，会自动选用本机 `ms-playwright` 缓存（macOS：`~/Library/Caches/ms-playwright`），无需手动设置 `PLAYWRIGHT_BROWSERS_PATH`。本地调试可复用已有 dev 服：`PW_REUSE_SERVER=1 npm run test:playwright`。
+
+反应技 hold 死亡释放专项回归：
+
+```bash
+cd web && npm run test:playwright -- tests/reaction-hold-death.spec.ts
 ```
 
 若 `5173` 被旧进程占用导致 `.lua` 返回 HTML，先结束旧进程再跑测试。
@@ -118,8 +127,14 @@ cd web && npx playwright install chromium
 ## 测试
 
 ```bash
-# Web E2E
+# Web E2E（含浏览器路径自动解析）
 cd web && npm run test:playwright
+
+# Playwright 启动脚本单测
+cd web && npm run test:playwright:scripts
+
+# 反应技 reactor 死亡后立即解除 hold
+cd web && npm run test:playwright -- tests/reaction-hold-death.spec.ts
 
 # 示例 Lua 回归
 lua bin/test_fighter_build_pipeline.lua

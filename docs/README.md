@@ -5,12 +5,13 @@
 - 活跃文档**只描述当前实现与设计**，不写旧版对照、迁移说明或已删除系统的长期留痕。
 - 与策划稿冲突时：先以源码与 `docs/implementation_guidelines.md` 为准，再回写 `design/` 活跃稿件。
 - 策划设计见 [`design/README.md`](../design/README.md)；`design/legacy/` 禁止阅读维护。
-- Agent 规范见 [`AGENTS.md`](../AGENTS.md)（含「不做旧设计兼容」、文档原则与平衡真战回归）。
+- Agent 行为准则见 [`AGENTS.md`](../AGENTS.md)；仓库工程约束见 [`repo_constraints.md`](./repo_constraints.md)。
 
 ## 必读
 
 | 文档 | 内容 |
 | --- | --- |
+| [repo_constraints.md](./repo_constraints.md) | 5e、目录、Web 镜像、平衡规则、文档与元数据（改代码必读） |
 | [implementation_guidelines.md](./implementation_guidelines.md) | Feat/skill、BuildState、Run 模块与 EXP/地牢 SSOT、Web 表现、测试口径（写代码必读） |
 | [skill_system_implementation.md](./skill_system_implementation.md) | Timeline 技能、三层配置、释放流程 |
 | [buff_system_implementation.md](./buff_system_implementation.md) | Buff 生命周期与注册表 |
@@ -41,7 +42,9 @@
 | 单技能逻辑 | `config/skill/skill_*.lua` |
 | Web 镜像 | `web/public/lua/project/`（`npm run export:lua` 生成） |
 | Lua 回归 | `bin/test_*.lua` |
-| Web E2E | `web/tests/*.spec.ts` |
+| Web E2E | `web/tests/*.spec.ts`；共享 helper 见 `web/tests/helpers/` |
+| 反应技 hold 死亡释放 E2E | `web/tests/reaction-hold-death.spec.ts` |
+| Playwright 浏览器路径解析 | `web/scripts/run-playwright.mjs`、`resolve-playwright-browsers.mjs` |
 
 ## 常用命令
 
@@ -61,7 +64,7 @@ lua bin/test_roguelike_act1_floor_cr.lua   # Act1 F1–F5 遭遇池 CR 梯度
 lua bin/test_enemy_cr_alignment.lua
 lua bin/test_roguelike_ch101_reach.lua   # 101 章 Boss 触达（autoWin，只验路由，不验数值）
 
-# 平衡验收（改怪物/池/budget 后必跑真战；详见 AGENTS.md §Balance Regression）
+# 平衡验收（改怪物/池/budget 后必跑真战；详见 repo_constraints.md、implementation_guidelines.md §8.4）
 lua bin/test_roguelike_balance.lua --runs=4
 lua bin/test_roguelike_real_combat_balance.lua
 lua bin/test_real_combat_winrate.lua
@@ -90,5 +93,8 @@ lua bin/test_positioning.lua
 lua bin/test_feat_mod_helper.lua
 lua bin/test_browser_battle_runtime.lua
 
+cd web && npm run install:playwright   # 首次
 cd web && npm run test:playwright
+cd web && npm run test:playwright:scripts
+cd web && npm run test:playwright -- tests/reaction-hold-death.spec.ts
 ```

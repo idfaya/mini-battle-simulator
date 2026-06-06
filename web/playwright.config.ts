@@ -1,5 +1,6 @@
 import { defineConfig } from "playwright/test";
 
+// 请通过 `npm run test:playwright` 启动；`web/scripts/run-playwright.mjs` 会解析浏览器目录。
 export default defineConfig({
   testDir: "./tests",
   timeout: 30000,

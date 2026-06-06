@@ -5,7 +5,7 @@
 - 活跃稿件**只描述当前设计**（现在时）；不写旧版对照或长期「已删除/已迁移」清单。
 - **程序实现**见 [`docs/README.md`](../docs/README.md)。
 - **`legacy/`**：过时策划归档，**禁止阅读、禁止维护、禁止在活跃文档中引用对照**。
-- Agent 规范（含不做旧设计兼容）见 [`AGENTS.md`](../AGENTS.md)。
+- Agent 行为准则见 [`AGENTS.md`](../AGENTS.md)；工程约束（含不做旧设计兼容）见 [`docs/repo_constraints.md`](../docs/repo_constraints.md)。
 
 ## 文档关系
 

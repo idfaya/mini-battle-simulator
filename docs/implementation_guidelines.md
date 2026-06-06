@@ -250,6 +250,11 @@
   - 表现为短促特效或日志，不应伪装成完整位移
 - 反应技：
   - 登记日志先出现，真正出手在敌方动作后出现
+- 反应技 hold（反击 / 护卫）：
+  - source 攻击者在 reactor 出手前可短暂停在接触位
+  - reactor 死亡时必须立即释放 hold；死亡单位不参与 clash 位移
+  - 实现：`web/app/render/BattleScene.ts` → `releaseDeadReactionHolds`
+  - E2E：`web/tests/reaction-hold-death.spec.ts`（共享 helper：`web/tests/helpers/reaction-holds.ts`）
 
 ### 6.2 当前 Web 事件链路
 
@@ -300,6 +305,7 @@
 - 优先提供可直接复现的单战 URL 或脚本入口。
 - 若一个职业支持按槽位注入不同 Build，必须同时提供公共配置与按英雄槽位配置两种验证方式。
 - 对涉及反应技的用例，必须写清日志期望顺序。
+- 对涉及反应技 hold 的用例，reactor 死亡场景须验证 hold 立即解除（见 `reaction-hold-death.spec.ts`）。
 - 对涉及额外攻击、横扫、副目标、命中修正的用例，必须写清表现期望而不是只写日志期望。
 
 ### 8.3 回归命令要求
