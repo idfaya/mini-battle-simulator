@@ -33,33 +33,6 @@ const TYPE_MAP: Record<string, string> = {
 };
 
 export function normalizeEvent(event: BattleEvent): BattleEvent {
-  // #region debug-point B:event-bridge
-  if (event.type === "DamageDealt" || event.type === "PassiveSkillTriggered" || event.type === "CombatLog") {
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "cleric-shelter-damage",
-        runId: "pre-fix",
-        hypothesisId: "B",
-        location: "web/app/lua/eventBridge.ts:normalizeEvent",
-        msg: "[DEBUG] normalizeEvent received battle event",
-        data: {
-          rawType: event.type,
-          mappedType: TYPE_MAP[event.type] ?? event.type,
-          skillId: (event.payload as { skillId?: unknown } | undefined)?.skillId ?? null,
-          skillName: (event.payload as { skillName?: unknown } | undefined)?.skillName ?? null,
-          heroName: (event.payload as { heroName?: unknown } | undefined)?.heroName ?? null,
-          attackerName: (event.payload as { attackerName?: unknown } | undefined)?.attackerName ?? null,
-          targetName: (event.payload as { targetName?: unknown } | undefined)?.targetName ?? null,
-          damage: (event.payload as { damage?: unknown } | undefined)?.damage ?? null,
-          message: (event.payload as { message?: unknown } | undefined)?.message ?? null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
   return {
     ...event,
     type: TYPE_MAP[event.type] ?? event.type,

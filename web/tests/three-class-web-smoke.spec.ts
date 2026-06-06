@@ -24,6 +24,45 @@ async function readLogs(page: import("playwright/test").Page) {
   return page.locator(".battle-log li").allTextContents();
 }
 
+async function captureTopBarSummary(page: import("playwright/test").Page, durationMs = 8000) {
+  return page.evaluate(async ({ durationMs: sampleMs }) => {
+    const win = window as typeof window & {
+      __miniBattleRenderer?: {
+        getBattleDebugState?: () => {
+          topBar?: {
+            skillCasting?: boolean;
+            skillBrief?: string | null;
+            damageBrief?: string | null;
+          };
+        };
+      };
+    };
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    let sawCasting = false;
+    let sawSaveRoll = false;
+    let sawDamageRoll = false;
+    const deadline = performance.now() + sampleMs;
+
+    while (performance.now() < deadline) {
+      const topBar = win.__miniBattleRenderer?.getBattleDebugState?.().topBar ?? {};
+      const skillBrief = typeof topBar.skillBrief === "string" ? topBar.skillBrief : "";
+      const damageBrief = typeof topBar.damageBrief === "string" ? topBar.damageBrief : "";
+      if (topBar.skillCasting === true || skillBrief.includes("释放中")) {
+        sawCasting = true;
+      }
+      if (skillBrief.includes("反射豁免") || skillBrief.includes("强韧豁免") || skillBrief.includes("意志豁免")) {
+        sawSaveRoll = true;
+      }
+      if (damageBrief.includes("伤害骰")) {
+        sawDamageRoll = true;
+      }
+      await sleep(50);
+    }
+
+    return { sawCasting, sawSaveRoll, sawDamageRoll };
+  }, { durationMs });
+}
+
 async function captureAnimationSummary(page: import("playwright/test").Page, durationMs = 4000) {
   return page.evaluate(async ({ durationMs: sampleMs }) => {
     const win = window as typeof window & {
@@ -136,6 +175,8 @@ test("wizard freezing nova log shows reflex save rolls", async ({ page }) => {
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
 
+  const topBarSummary = await captureTopBarSummary(page);
+
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 30000 })
     .toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
@@ -152,6 +193,9 @@ test("wizard freezing nova log shows reflex save rolls", async ({ page }) => {
     ),
   ).toBeTruthy();
   expect(joinedLogs).toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
+  expect(topBarSummary.sawCasting).toBeTruthy();
+  expect(topBarSummary.sawSaveRoll).toBeTruthy();
+  expect(topBarSummary.sawDamageRoll).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

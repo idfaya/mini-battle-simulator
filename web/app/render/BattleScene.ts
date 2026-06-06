@@ -1,5 +1,6 @@
 import { createFloatingText, drawFloatingText, type FloatingText } from "./animations";
 import type { BattleStoreState } from "../state/battleStore";
+import { splitRollBriefDisplay } from "../state/rollFormat";
 import type { AnimationEvent, UnitState } from "../types/battle";
 import {
   applyPendingReactionHoldsToClash,
@@ -223,6 +224,11 @@ export class BattleScene {
     baseY: number;
     isAlive: boolean;
   }> = [];
+  private lastTopBarState: Pick<BattleStoreState, "skillCasting" | "skillBrief" | "damageBrief"> = {
+    skillCasting: false,
+    skillBrief: null,
+    damageBrief: null,
+  };
 
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, state: BattleStoreState, now: number) {
     ctx.clearRect(0, 0, width, height);
@@ -268,6 +274,11 @@ export class BattleScene {
     this.drawHealHeadGlows(ctx, allLayouts, now);
     this.drawImpactBursts(ctx, allLayouts, now);
     this.drawUnitPulses(ctx, allLayouts, now);
+    this.lastTopBarState = {
+      skillCasting: state.skillCasting,
+      skillBrief: state.skillBrief,
+      damageBrief: state.damageBrief,
+    };
     this.drawTopBar(ctx, width, state);
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
@@ -1111,6 +1122,104 @@ export class BattleScene {
     return { label: String(name || "?").slice(0, 1), fill: "#263238", stroke: "rgba(255,255,255,0.45)" };
   }
 
+  private drawDiceIcon(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) {
+    const x = centerX - size / 2;
+    const y = centerY - size / 2;
+    const pipRadius = Math.max(1.1, size * 0.09);
+
+    ctx.save();
+    ctx.fillStyle = "#f0f4f8";
+    ctx.strokeStyle = "#829ab1";
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, size, size, Math.max(2, size * 0.22));
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#334e68";
+    for (const [px, py] of [
+      [0.28, 0.28],
+      [0.72, 0.72],
+      [0.5, 0.5],
+      [0.28, 0.72],
+      [0.72, 0.28],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(x + size * px, y + size * py, pipRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  private drawBriefLineWithDice(
+    ctx: CanvasRenderingContext2D,
+    options: {
+      text: string;
+      anchorX: number;
+      baselineY: number;
+      maxWidth: number;
+      compact: boolean;
+      font: string;
+      fillStyle: string;
+      iconSize: number;
+      iconGap: number;
+      textBaselineAdjust: number;
+      splitDisplay: (text: string) => { prefix: string; rollText: string };
+    },
+  ) {
+    const { prefix, rollText } = options.splitDisplay(options.text);
+    const hasRoll = rollText.length > 0;
+    const prefixGap = prefix.length > 0 && hasRoll ? 6 : 0;
+
+    ctx.save();
+    ctx.font = options.font;
+    ctx.fillStyle = options.fillStyle;
+
+    const prefixWidth = prefix.length > 0 ? ctx.measureText(prefix).width : 0;
+    const rollTextWidth = hasRoll ? ctx.measureText(rollText).width : 0;
+    const groupWidth = prefixWidth + prefixGap + (hasRoll ? options.iconSize + options.iconGap + rollTextWidth : 0);
+
+    if (options.compact) {
+      ctx.textAlign = "left";
+      let cursorX = options.anchorX - rollTextWidth;
+      if (hasRoll) {
+        ctx.fillText(rollText, cursorX, options.baselineY, options.maxWidth);
+        cursorX -= options.iconGap + options.iconSize;
+        this.drawDiceIcon(
+          ctx,
+          cursorX + options.iconSize / 2,
+          options.baselineY - options.textBaselineAdjust,
+          options.iconSize,
+        );
+        cursorX -= prefixGap;
+      }
+      if (prefix.length > 0) {
+        ctx.fillText(prefix, cursorX - prefixWidth, options.baselineY, options.maxWidth);
+      }
+      ctx.restore();
+      return;
+    }
+
+    const groupStartX = options.anchorX - groupWidth / 2;
+    let cursorX = groupStartX;
+    ctx.textAlign = "left";
+    if (prefix.length > 0) {
+      ctx.fillText(prefix, cursorX, options.baselineY, options.maxWidth);
+      cursorX += prefixWidth + prefixGap;
+    }
+    if (hasRoll) {
+      this.drawDiceIcon(
+        ctx,
+        cursorX + options.iconSize / 2,
+        options.baselineY - options.textBaselineAdjust,
+        options.iconSize,
+      );
+      cursorX += options.iconSize + options.iconGap;
+      ctx.fillText(rollText, cursorX, options.baselineY, options.maxWidth);
+    }
+    ctx.restore();
+  }
+
   private drawTopBar(ctx: CanvasRenderingContext2D, width: number, state: BattleStoreState) {
     if (!state.snapshot) {
       return;
@@ -1122,17 +1231,47 @@ export class BattleScene {
     ctx.font = compact ? "bold 20px sans-serif" : "bold 24px sans-serif";
     ctx.fillText(`Round ${state.snapshot.round}`, compact ? 20 : 48, compact ? 24 : topBarTextY);
 
-    const resultText = state.snapshot.result
-      ? `Result ${state.snapshot.result.winner} · ${state.snapshot.result.reason}`
-      : "Result running";
+    const topLineY = compact ? 20 : topBarTextY - 6;
+    const bottomLineY = compact ? 34 : topBarTextY + 12;
+    const centerX = compact ? width - 16 : width / 2;
+    const maxTextWidth = compact ? Math.max(140, width - 108) : Math.min(width - 96, 720);
     ctx.textAlign = compact ? "right" : "center";
-    ctx.font = compact ? "bold 12px sans-serif" : "bold 14px sans-serif";
-    ctx.fillText(resultText, compact ? width - 16 : width / 2, compact ? 20 : topBarTextY - 6, compact ? Math.max(140, width - 108) : undefined);
 
-    if (state.banner) {
-      ctx.font = compact ? "11px sans-serif" : "12px sans-serif";
-      ctx.fillStyle = "#d9e2ec";
-      ctx.fillText(state.banner, compact ? width - 16 : width / 2, compact ? 34 : topBarTextY + 12, compact ? Math.max(140, width - 108) : undefined);
+    const briefLineOptions = {
+      anchorX: centerX,
+      maxWidth: maxTextWidth,
+      compact,
+      iconSize: compact ? 12 : 14,
+      iconGap: 4,
+      textBaselineAdjust: compact ? 3.5 : 4,
+    };
+
+    if (state.skillBrief) {
+      if (state.skillCasting) {
+        ctx.font = compact ? "bold 11px sans-serif" : "bold 13px sans-serif";
+        ctx.fillStyle = "#d9e2ec";
+        ctx.fillText(state.skillBrief, centerX, topLineY, maxTextWidth);
+      } else {
+        this.drawBriefLineWithDice(ctx, {
+          ...briefLineOptions,
+          text: state.skillBrief,
+          baselineY: topLineY,
+          font: compact ? "bold 11px sans-serif" : "bold 13px sans-serif",
+          fillStyle: "#f8f9fa",
+          splitDisplay: splitRollBriefDisplay,
+        });
+      }
+    }
+
+    if (state.damageBrief) {
+      this.drawBriefLineWithDice(ctx, {
+        ...briefLineOptions,
+        text: state.damageBrief,
+        baselineY: bottomLineY,
+        font: compact ? "11px sans-serif" : "12px sans-serif",
+        fillStyle: "#d9e2ec",
+        splitDisplay: splitRollBriefDisplay,
+      });
     }
     ctx.textAlign = "left";
 
@@ -2554,6 +2693,7 @@ export class BattleScene {
 
   getDebugState() {
     return {
+      topBar: { ...this.lastTopBarState },
       entranceStartedCount: this.entranceStartedCount,
       entranceActiveCount: this.entranceAnimations.size,
       deathStartedCount: this.deathStartedCount,

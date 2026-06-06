@@ -1,11 +1,19 @@
 import type { AnimationEvent, BattleEvent, BattleSnapshot } from "../types/battle";
+import { formatRollSuffix, formatSigned, readNumber } from "./rollFormat";
+import {
+  buildTopBarBriefsFromPayload,
+  extractTopBarBriefsFromCombatLog,
+  withMultiTargetAnnotation,
+} from "./skillBrief";
 
 export type BattleStoreState = {
   snapshot: BattleSnapshot | null;
   log: string[];
   animations: AnimationEvent[];
   flashUntil: number;
-  banner: string | null;
+  skillCasting: boolean;
+  skillBrief: string | null;
+  damageBrief: string | null;
   runContext: {
     chapterLabel: string;
     nodeTitle: string;
@@ -17,99 +25,12 @@ export type BattleStoreState = {
 
 type Listener = (state: BattleStoreState) => void;
 
-function formatSigned(value: number) {
-  return value >= 0 ? `+${value}` : String(value);
-}
+const SKILL_BRIEF_HOLD_MS = 3200;
+const SKILL_CASTING_HOLD_MS = 6000;
 
-function readNumber(value: unknown, fallback = 0) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : fallback;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-const SAVE_TYPE_LABELS: Record<string, string> = {
-  fort: "强韧",
-  ref: "反射",
-  will: "意志",
-};
-
-function formatSaveOutcome(success: boolean, onSaveSuccess: unknown) {
-  if (!success) {
-    return "失败";
-  }
-  if (onSaveSuccess === "half") {
-    return "成功（半伤）";
-  }
-  if (onSaveSuccess === "none") {
-    return "成功（无伤）";
-  }
-  return "成功";
-}
-
-function formatCheckRoll(
-  value: unknown,
-  options?: {
-    saveType?: unknown;
-    onSaveSuccess?: unknown;
-  },
-) {
-  const roll = readRecord(value);
-  if (!roll) {
-    return null;
-  }
-
-  const d20 = readNumber(roll.roll);
-  const bonus = readNumber(roll.bonus);
-  const total = readNumber(roll.total);
-  if ("targetAC" in roll) {
-    return `攻击检定 d20 ${d20}${formatSigned(bonus)}=${total} vs AC ${readNumber(roll.targetAC)}`;
-  }
-  if ("dc" in roll) {
-    const label = SAVE_TYPE_LABELS[String(options?.saveType ?? "")] ?? "豁免";
-    const outcome = formatSaveOutcome(Boolean(roll.success), options?.onSaveSuccess);
-    return `${label}豁免${outcome} d20 ${d20}${formatSigned(bonus)}=${total} vs DC ${readNumber(roll.dc)}`;
-  }
-  return null;
-}
-
-function formatDamageRoll(value: unknown) {
-  const roll = readRecord(value);
-  if (!roll) {
-    return null;
-  }
-
-  const parts = Array.isArray(roll.parts) ? roll.parts : [];
-  const partText = parts
-    .map((part) => {
-      const partRecord = readRecord(part);
-      if (!partRecord) {
-        return "";
-      }
-      const rolls = Array.isArray(partRecord.rolls) ? partRecord.rolls.map((item) => String(item)).join(",") : "";
-      const bonus = readNumber(partRecord.bonus);
-      return `[${rolls}]${bonus !== 0 ? formatSigned(bonus) : ""}`;
-    })
-    .filter(Boolean)
-    .join(";");
-  const expr = String(roll.expr ?? "dice");
-  const total = readNumber(roll.total);
-  return `伤害骰 ${expr}${partText ? ` ${partText}` : ""}=${total}`;
-}
-
-function formatRollSuffix(payload: Record<string, unknown>, includeDamage: boolean) {
-  const saveOptions = {
-    saveType: payload.saveType,
-    onSaveSuccess: payload.onSaveSuccess,
-  };
-  const parts = [
-    formatCheckRoll(payload.attackRoll) ??
-      formatCheckRoll(payload.saveRoll, saveOptions),
-    includeDamage ? formatDamageRoll(payload.damageRoll) : null,
-  ].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? `（${parts.join("；")}）` : "";
+function buildCastingBrief(skillName: unknown) {
+  const name = String(skillName ?? "").trim();
+  return name ? `${name} 释放中` : "释放中";
 }
 
 function isDamageAnimation(event: AnimationEvent | undefined): event is Extract<AnimationEvent, { type: "damage" }> {
@@ -158,7 +79,9 @@ export class BattleStore {
     log: [],
     animations: [],
     flashUntil: 0,
-    banner: null,
+    skillCasting: false,
+    skillBrief: null,
+    damageBrief: null,
     runContext: null,
   };
 
@@ -184,7 +107,9 @@ export class BattleStore {
       log: [],
       animations: [],
       flashUntil: 0,
-      banner: null,
+      skillCasting: false,
+      skillBrief: null,
+      damageBrief: null,
     };
     this.emit();
   }
@@ -223,7 +148,48 @@ export class BattleStore {
     };
     const animations: AnimationEvent[] = [];
     let flashUntil = this.state.flashUntil;
-    let banner = this.state.banner;
+    let skillCasting = this.state.skillCasting;
+    let skillBrief = this.state.skillBrief;
+    let damageBrief = this.state.damageBrief;
+    let topBarResolveIndex = 0;
+
+    const resetTopBarResolveIndex = () => {
+      topBarResolveIndex = 0;
+    };
+
+    const buildResolveTopBarBriefs = (
+      payload: Record<string, unknown>,
+      options?: { includeDamage?: boolean },
+    ) => {
+      topBarResolveIndex += 1;
+      return withMultiTargetAnnotation(buildTopBarBriefsFromPayload(payload, options), topBarResolveIndex);
+    };
+
+    const beginSkillCast = (skillName: unknown, holdMs = SKILL_CASTING_HOLD_MS) => {
+      skillCasting = true;
+      skillBrief = buildCastingBrief(skillName);
+      damageBrief = null;
+      resetTopBarResolveIndex();
+      flashUntil = Math.max(flashUntil, performance.now() + holdMs);
+    };
+
+    const touchTopBarBriefs = (
+      nextBriefs: { skillBrief?: string | null; damageBrief?: string | null },
+      holdMs = SKILL_BRIEF_HOLD_MS,
+    ) => {
+      skillCasting = false;
+      if (nextBriefs.skillBrief !== undefined) {
+        skillBrief = nextBriefs.skillBrief;
+      } else if (nextBriefs.damageBrief && skillBrief?.endsWith(" 释放中")) {
+        skillBrief = null;
+      }
+      if (nextBriefs.damageBrief !== undefined) {
+        damageBrief = nextBriefs.damageBrief;
+      }
+      if (nextBriefs.skillBrief || nextBriefs.damageBrief) {
+        flashUntil = Math.max(flashUntil, performance.now() + holdMs);
+      }
+    };
 
     for (const event of events) {
       if (event.type === "DebugCounterTiming") {
@@ -259,36 +225,19 @@ export class BattleStore {
           log.length = 0;
           animations.length = 0;
           flashUntil = 0;
-          banner = null;
+          skillCasting = false;
+          skillBrief = null;
+          damageBrief = null;
+          resetTopBarResolveIndex();
           appendLog("战斗开始");
           break;
         case "combat_log":
-          // #region debug-point D:store-combat-log
-          if (
-            typeof event.payload.message === "string" &&
-            (event.payload.message.includes("庇护") ||
-              event.payload.message.includes("神恩") ||
-              event.payload.message.includes("伤害"))
-          ) {
-            fetch("http://127.0.0.1:7777/event", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sessionId: "cleric-shelter-damage",
-                runId: "pre-fix",
-                hypothesisId: "D",
-                location: "web/app/state/battleStore.ts:combat_log",
-                msg: "[DEBUG] battleStore received combat_log",
-                data: {
-                  message: event.payload.message,
-                },
-                ts: Date.now(),
-              }),
-            }).catch(() => {});
-          }
-          // #endregion
           if (typeof event.payload.message === "string" && event.payload.message !== "") {
             appendLog(event.payload.message);
+            const parsedBriefs = extractTopBarBriefsFromCombatLog(event.payload.message);
+            if (parsedBriefs) {
+              touchTopBarBriefs(parsedBriefs);
+            }
           }
           if (
             typeof event.payload.message === "string" &&
@@ -310,32 +259,8 @@ export class BattleStore {
           );
           break;
         case "damage_dealt":
-          // #region debug-point A:store-damage
-          fetch("http://127.0.0.1:7777/event", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "cleric-shelter-damage",
-              runId: "pre-fix",
-              hypothesisId: "A",
-              location: "web/app/state/battleStore.ts:damage_dealt",
-              msg: "[DEBUG] battleStore received damage_dealt",
-              data: {
-                attackerId: event.payload.attackerId ?? null,
-                attackerName: event.payload.attackerName ?? null,
-                targetId: event.payload.targetId ?? null,
-                targetName: event.payload.targetName ?? null,
-                skillId: event.payload.skillId ?? null,
-                skillName: event.payload.skillName ?? null,
-                damage: event.payload.damage ?? null,
-                isCrit: event.payload.isCrit ?? null,
-                isBasicAttack: event.payload.isBasicAttack ?? null,
-              },
-              ts: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           this.markCastResult(event.payload.attackerId);
+          touchTopBarBriefs(buildResolveTopBarBriefs(event.payload, { includeDamage: true }));
           const critMark = event.payload.isCrit ? "暴击，" : "";
           replaceCastOrAppend(
             event.payload.attackerId,
@@ -352,8 +277,15 @@ export class BattleStore {
             preferSkillColor: Boolean(event.payload.preferSkillColor),
           });
           break;
-        case "heal_received":
+        case "heal_received": {
           this.markCastResult(event.payload.healerId);
+          const healSkillName = String(event.payload.skillName ?? "").trim();
+          const healAmount = Number(event.payload.healAmount ?? 0);
+          const healCritMark = event.payload.isCrit ? " 暴击" : "";
+          touchTopBarBriefs({
+            skillBrief: healSkillName ? `${healSkillName} 治疗 +${healAmount}${healCritMark}` : null,
+            damageBrief: null,
+          });
           replaceCastOrAppend(
             event.payload.healerId,
             `${String(event.payload.healerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 治疗 ${String(event.payload.targetName ?? "")} ${String(event.payload.healAmount ?? 0)}`,
@@ -364,8 +296,10 @@ export class BattleStore {
             value: Number(event.payload.healAmount ?? 0),
           });
           break;
+        }
         case "miss":
           this.markCastResult(event.payload.attackerId);
+          touchTopBarBriefs(buildResolveTopBarBriefs(event.payload, { includeDamage: false }));
           replaceCastOrAppend(
             event.payload.attackerId,
             `${String(event.payload.attackerName ?? "")}${event.payload.skillName ? ` 的 ${String(event.payload.skillName)}` : ""} 对 ${String(event.payload.targetName ?? "")} 未命中${formatRollSuffix(event.payload, false)}`,
@@ -378,6 +312,7 @@ export class BattleStore {
           break;
         case "dodge":
           this.markCastResult(event.payload.attackerId);
+          touchTopBarBriefs(buildResolveTopBarBriefs(event.payload, { includeDamage: false }));
           replaceCastOrAppend(
             event.payload.attackerId,
             `${String(event.payload.targetName ?? "")} 闪避了 ${String(event.payload.attackerName ?? "")} 的攻击${formatRollSuffix(event.payload, false)}`,
@@ -392,8 +327,7 @@ export class BattleStore {
           this.pendingCastResults.set(String(event.payload.heroId ?? ""), false);
           this.pendingCastLogIndex.set(String(event.payload.heroId ?? ""), log.length);
           appendLog(`${String(event.payload.heroName ?? "")} 使用 ${String(event.payload.skillName ?? "")}`);
-          banner = `${String(event.payload.heroName ?? "")} · ${String(event.payload.skillName ?? "")}`;
-          flashUntil = performance.now() + 200;
+          beginSkillCast(event.payload.skillName);
           animations.push({
             type: "skill_cast_started",
             heroId: String(event.payload.heroId ?? ""),
@@ -403,6 +337,9 @@ export class BattleStore {
           });
           break;
         case "skill_timeline_started":
+          if (!skillCasting) {
+            beginSkillCast(event.payload.skillName);
+          }
           animations.push({
             type: "timeline_started",
             heroId: String(event.payload.heroId ?? ""),
@@ -454,6 +391,11 @@ export class BattleStore {
           });
           this.pendingCastResults.delete(String(event.payload.heroId ?? ""));
           this.pendingCastLogIndex.delete(String(event.payload.heroId ?? ""));
+          if (skillCasting) {
+            skillCasting = false;
+            skillBrief = null;
+            damageBrief = null;
+          }
           break;
         case "ultimate_ready":
           appendLog(`${String(event.payload.heroName ?? "")} 大招已就绪`);
@@ -467,35 +409,14 @@ export class BattleStore {
           break;
         }
         case "passive_skill_triggered": {
-          // #region debug-point C:store-passive
-          fetch("http://127.0.0.1:7777/event", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "cleric-shelter-damage",
-              runId: "pre-fix",
-              hypothesisId: "C",
-              location: "web/app/state/battleStore.ts:passive_skill_triggered",
-              msg: "[DEBUG] battleStore received passive_skill_triggered",
-              data: {
-                heroId: event.payload.heroId ?? null,
-                heroName: event.payload.heroName ?? null,
-                skillName: event.payload.skillName ?? null,
-                triggerType: event.payload.triggerType ?? null,
-                extraInfo: event.payload.extraInfo ?? null,
-              },
-              ts: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           const heroName = String(event.payload.heroName ?? "");
           const skillName = String(event.payload.skillName ?? "");
           const triggerType = String(event.payload.triggerType ?? "");
           const extraInfo = String(event.payload.extraInfo ?? "");
           const detail = [triggerType, extraInfo].filter((item) => item !== "").join(" ");
           appendLog(`${heroName} 触发被动 ${skillName}${detail ? `：${detail}` : ""}`);
-          banner = `${heroName} · ${skillName}触发`;
-          flashUntil = performance.now() + 900;
+          touchTopBarBriefs({ skillBrief: skillName, damageBrief: null }, 1800);
+          flashUntil = Math.max(flashUntil, performance.now() + 1800);
           animations.push({
             type: "passive_triggered",
             heroId: String(event.payload.heroId ?? ""),
@@ -522,16 +443,20 @@ export class BattleStore {
       log,
       animations,
       flashUntil,
-      banner,
+      skillCasting,
+      skillBrief,
+      damageBrief,
     };
     this.emit();
   }
 
   clearTransient(now: number) {
-    const banner = this.state.flashUntil > now ? this.state.banner : null;
+    const keepTopBar = this.state.flashUntil > now;
     this.state = {
       ...this.state,
-      banner,
+      skillCasting: keepTopBar ? this.state.skillCasting : false,
+      skillBrief: keepTopBar ? this.state.skillBrief : null,
+      damageBrief: keepTopBar ? this.state.damageBrief : null,
       animations: [],
     };
   }
