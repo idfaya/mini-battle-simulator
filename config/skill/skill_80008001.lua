@@ -4,9 +4,10 @@ local Skill5eMeta = require("config.tables.skill_meta")
 local skill_80008001 = {}
 
 function skill_80008001.BuildTimeline(hero, targets, skill)
+    local primaryTarget = targets and targets[1] or nil
     local damageDice = Skill5eMeta.ResolveStageDamageDice(80008001, skill and skill.level)
     local frames = {}
-    for _, t in ipairs(targets or {}) do
+    for _, t in ipairs(primaryTarget and { primaryTarget } or {}) do
         if t and not t.isDead then
             table.insert(frames, { frame = 0, op = "cast", effect = "ice_arrow_cast", target = t })
             table.insert(frames, { frame = 12, op = "projectile", effect = "ice_arrow_projectile", target = t })

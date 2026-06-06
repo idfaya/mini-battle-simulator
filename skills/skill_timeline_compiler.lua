@@ -50,6 +50,10 @@ local function ShallowClone(t)
     return copy
 end
 
+local function ResolveUnitId(unit)
+    return unit and (unit.instanceId or unit.id) or nil
+end
+
 local function ResolveTargets(ctx, frameCopy)
     if frameCopy.target then
         return { frameCopy.target }
@@ -61,8 +65,16 @@ local function ResolveTargets(ctx, frameCopy)
     if ref == "lastHit" then
         return ctx.lastHitTargets or {}
     end
-    -- default: selected
-    return ctx.targets or {}
+    -- default: selected（单体技能只取主目标，避免整份 ctx.targets 泄漏到 post 上 buff）
+    local targets = ctx.targets or {}
+    if #targets <= 1 then
+        return targets
+    end
+    local BattleSkill = require("modules.battle_skill")
+    if BattleSkill.IsMultiTargetSkill and BattleSkill.IsMultiTargetSkill(ctx.skill) then
+        return targets
+    end
+    return { targets[1] }
 end
 
 local function ExecuteOp(ctx, frameCopy)
@@ -89,6 +101,8 @@ local function ExecuteOp(ctx, frameCopy)
         local targets = frameCopy.targets or {}
         local savedTargets = {}
         local hitMetaByTarget = {}
+        local affectedTargets = {}
+        local affectedSeen = {}
         local skillId = tonumber(ctx.skill and ctx.skill.skillId) or 0
         local meta = Skill5eMeta.Get(skillId)
         local attackMode = Skill5eMeta.ResolveAttackMode(meta)
@@ -122,7 +136,7 @@ local function ExecuteOp(ctx, frameCopy)
                             effectiveMeta.onSaveSuccess = frameCopy.onSaveSuccess
                         end
                     end
-                    local targetId = target.instanceId or target.id
+                    local targetId = ResolveUnitId(target)
                     local saveType = (effectiveMeta and effectiveMeta.saveType) or "ref"
                     local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
                     local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
@@ -180,6 +194,10 @@ local function ExecuteOp(ctx, frameCopy)
                     if target.isDead or (target.hp or 0) <= 0 then
                         BattlePassiveSkill.RunSkillOnDmgMakeKill(ctx.hero, { target = target })
                     end
+                    if targetId and not savedTargets[targetId] and not affectedSeen[targetId] then
+                        affectedSeen[targetId] = true
+                        affectedTargets[#affectedTargets + 1] = target
+                    end
                     ctx.lastHitTargets = { target }
                 else
                     local BuildPassiveCommon = require("skills.build_passive_common")
@@ -202,7 +220,8 @@ local function ExecuteOp(ctx, frameCopy)
                         attackBonus = attackBonus,
                     })
                     local hitResult = damageResult and damageResult.hit or nil
-                    hitMetaByTarget[actualTarget.instanceId] = {
+                    local actualTargetId = ResolveUnitId(actualTarget)
+                    hitMetaByTarget[actualTargetId] = {
                         hit = hitResult,
                         damageRoll = damageResult and damageResult.damageRoll or nil,
                     }
@@ -223,8 +242,12 @@ local function ExecuteOp(ctx, frameCopy)
                             }))
                         dmg = 0
                     end
-                    if hitMetaByTarget[actualTarget.instanceId] then
-                        hitMetaByTarget[actualTarget.instanceId].damage = dmg
+                    if hitMetaByTarget[actualTargetId] then
+                        hitMetaByTarget[actualTargetId].damage = dmg
+                    end
+                    if actualTargetId and hitResult and hitResult.hit and not affectedSeen[actualTargetId] then
+                        affectedSeen[actualTargetId] = true
+                        affectedTargets[#affectedTargets + 1] = actualTarget
                     end
                     target = actualTarget
 
@@ -236,6 +259,8 @@ local function ExecuteOp(ctx, frameCopy)
                         damage = dmg,
                         damageKind = ctx.skill and ctx.skill.rules and ctx.skill.rules.kind or nil,
                         skillId = ctx.skill and (ctx.skill.skillId or ctx.skill.id) or nil,
+                        attackRoll = hitResult,
+                        attackHit = hitResult and hitResult.hit == true or false,
                     }
                     BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
                     local ok, FighterBuildPassives = pcall(require, "skills.fighter_build_passives")
@@ -257,8 +282,8 @@ local function ExecuteOp(ctx, frameCopy)
                             damageKind = resolvedKind,
                             preferSkillColor = true,
                             isCrit = isCrit,
-                            attackRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].hit or nil,
-                            damageRoll = hitMetaByTarget[actualTarget.instanceId] and hitMetaByTarget[actualTarget.instanceId].damageRoll or nil,
+                            attackRoll = hitMetaByTarget[actualTargetId] and hitMetaByTarget[actualTargetId].hit or nil,
+                            damageRoll = hitMetaByTarget[actualTargetId] and hitMetaByTarget[actualTargetId].damageRoll or nil,
                         })
                         total = total + dmg
                     end
@@ -281,7 +306,8 @@ local function ExecuteOp(ctx, frameCopy)
         if ctx and ctx.hero then
             ctx.hero.__timelineCritRateBonus = nil
         end
-        return { damage = total, targets = targets }
+        local resolvedTargets = #affectedTargets > 0 and affectedTargets or targets
+        return { damage = total, targets = resolvedTargets }
     end
 
     if op == "heal" then

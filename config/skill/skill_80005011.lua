@@ -11,10 +11,11 @@ function skill_80005011.BuildTimeline(hero, targets, skill)
             op = "attack",
             target = primaryTarget,
             execute = function()
-                local damage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill) or 0
+                local attackTargets = primaryTarget and { primaryTarget } or {}
+                local damage = BattleSkill.ExecuteDefaultAttackWithPassive(hero, attackTargets, skill) or 0
                 return {
                     damage = damage,
-                    targets = targets,
+                    targets = attackTargets,
                 }
             end,
         },

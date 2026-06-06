@@ -386,26 +386,69 @@ do
     BattleFormation.OnFinal()
     local ranger = new_unit(201, "RuntimeRanger", true, 2)
     local enemyA = new_unit(202, "MarkedA", false, 1)
-    local enemyB = new_unit(203, "MarkedB", false, 2)
     ranger.class = 5
     ranger.classId = 5
-    ranger.buildState.skillMods[IDS.ranger_hunter_mark] = {
-        markPayoutPerRound = 2,
-        markBonusDice = "1d4",
-    }
     BattleFormation.Init({
         teamLeft = { ranger },
-        teamRight = { enemyA, enemyB },
+        teamRight = { enemyA },
     })
     RangerBuildPassives.ApplyHunterMark(ranger, enemyA)
     local markBuff = BattleBuff.GetBuff(enemyA, 890005)
     assert_true(markBuff ~= nil, "hunter mark buff should exist on marked target")
-    assert_true((tonumber(markBuff.value) or 0) == 3,
-        "hunter mark penalty stacks markBonusDice and markPayoutPerRound")
-    assert_true(BuildPassiveCommon.GetDefenderAcBonus(enemyA, ranger) == -3,
+    assert_true((tonumber(markBuff.value) or 0) == 1,
+        "hunter mark baseline penalty is -1 AC and reflex")
+    assert_true(BuildPassiveCommon.GetDefenderAcBonus(enemyA, ranger) == -1,
         "hunter mark reduces target AC via defender bonus")
-    assert_true(BuildPassiveCommon.GetDefenderSaveBonus(enemyA, "ref") == -3,
+    assert_true(BuildPassiveCommon.GetDefenderSaveBonus(enemyA, "ref") == -1,
         "hunter mark reduces target reflex save bonus")
+end
+
+do
+    local markPlusId = FeatBuildConfig.Ids.b_ranger_mark_plus
+    local markMasterId = FeatBuildConfig.Ids.j_ranger_mark_master
+    local build = HeroBuild.CompileBuild(5, 6, { markPlusId, markMasterId })
+    local diceExpr = tostring((build.classMods or {}).vsMarkBonusDice or "")
+    assert_true(string.find(diceExpr, "1d6", 1, true) ~= nil,
+        "ranger mark plus grants classMods vsMarkBonusDice 1d6")
+    assert_true(string.find(diceExpr, "1d10", 1, true) ~= nil,
+        "ranger mark master stacks classMods vsMarkBonusDice 1d10")
+end
+
+do
+    local defenseBasicId = FeatBuildConfig.Ids.b_ranger_defense_basic
+    local defensePlusId = FeatBuildConfig.Ids.b_ranger_defense_plus
+    local defenseMasterId = FeatBuildConfig.Ids.j_ranger_defense_master
+    local build = HeroBuild.CompileBuild(5, 6, { defenseBasicId, defensePlusId, defenseMasterId })
+    assert_true(build.grantedSkillIds[80005102] == true, "ranger defense basic grants defense stance passive")
+    local defenseMods = build.skillMods[80005102] or {}
+    assert_true((tonumber(defenseMods.baseAcBonus) or 0) == 1, "ranger defense basic sets baseAcBonus 1")
+    assert_true((tonumber(defenseMods.onHitAcBonus) or 0) == 1, "ranger defense plus sets onHitAcBonus 1")
+    assert_true((tonumber(defenseMods.onDamageReductionFlat) or 0) == 2, "ranger defense master sets onDamageReductionFlat 2")
+
+    local ranger = new_unit(207, "DefenseRanger", true, 2)
+    ranger.class = 5
+    ranger.classId = 5
+    ranger.buildState = build
+    ranger.skills = {
+        { skillId = 80005102, skillType = E_SKILL_TYPE_PASSIVE, name = "防守姿态" },
+    }
+    assert_true(RangerBuildPassives.GetDefenseAcBonus(ranger) == 1, "ranger defense basic grants +1 AC")
+
+    local passive = RangerBuildPassives.CreateDefenseStancePassive({ src = ranger })
+    local oldGetCurRound = BattleLogic.GetCurRound
+    BattleLogic.GetCurRound = function() return 3 end
+    passive:OnDefBeforeDmg({
+        data = { extraParam = { attackHit = true, damage = 4 } },
+    })
+    assert_true(RangerBuildPassives.GetDefenseAcBonus(ranger) == 2,
+        "ranger defense plus adds +1 AC after being hit this round")
+    passive:OnDefAfterDmg({
+        data = { extraParam = { damage = 5 } },
+    })
+    local drPayload = { damage = 7 }
+    passive:OnDefBeforeDmg({ data = { extraParam = drPayload } })
+    assert_true(drPayload.damage == 5, "ranger defense master reduces incoming damage by 2 this round")
+    BattleLogic.GetCurRound = oldGetCurRound
 end
 
 do
@@ -911,7 +954,7 @@ do
     warlock.class = 9
     warlock.classId = 9
     warlock.buildState.skillMods[80009002] = {
-        markBonusDice = "1d4",
+        markBonusDice = "1d6",
         markPayoutPerRound = 2,
     }
     local payoutHandler = SkillEffectRegistry.handlers["warlock_static_mark_payout"]
@@ -978,7 +1021,7 @@ do
     BattleSkill.ResolveScaledDamage = oldResolve
     BattleDmgHeal.ApplyDamage = oldApplyDamage
     assert_true(#payoutCalls == 2, "warlock static mark payout uses configured total count and same-target cap")
-    assert_true(payoutCalls[1].diceExpr == "1d6;1d4", "warlock static mark payout merges mark bonus dice")
+    assert_true(payoutCalls[1].diceExpr == "1d6;1d6", "warlock static mark payout merges mark bonus dice")
     assert_true(payoutCalls[2].targetId == targetB.instanceId, "warlock static mark payout spends second charge on another marked target")
 end
 

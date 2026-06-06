@@ -221,6 +221,73 @@ do
         "Spell multi-hit adds poison only once per cast")
 end
 
+-- Test 1b9: Single-target spell should not spread status when resolvedTargets carries extras
+do
+    local BattleSkillStatus = require("skills.battle_skill_status")
+    local hero = new_unit(1009, "Tester_SpellPrimary", 10000, 200, 0)
+    local primaryTarget = new_unit(2009, "SpellPrimary", 10000, 0, 0)
+    local extraTarget = new_unit(2010, "SpellExtra", 10000, 0, 0)
+    local SkillTimeline = require("core.skill_timeline")
+    local skill = { skillId = 80009001, name = "邪能冲击" }
+    local skillLua = require("config.skill.skill_80009001")
+    local timeline = skillLua.BuildTimeline(hero, { primaryTarget, extraTarget }, skill)
+    local executed, _ = SkillTimeline.Execute(hero, { primaryTarget, extraTarget }, skill, timeline)
+    assert_true(executed, "Single-target eldritch blast executes with polluted target list")
+    assert_true(BattleBuff.GetBuff(primaryTarget, 890001) ~= nil, "Single-target spell applies mark to primary target")
+    assert_true(BattleBuff.GetBuff(extraTarget, 890001) == nil, "Single-target spell does not spread mark to extra resolved target")
+end
+
+-- Test 1ba: Front protection should not buff the originally selected backline target
+do
+    local BuildPassiveCommon = require("skills.build_passive_common")
+    local BattleSkillStatus = require("skills.battle_skill_status")
+    local hero = new_unit(1005, "Tester_SpellProtect", 10000, 200, 0)
+    local selectedTarget = new_unit(2005, "SelectedBackline", 10000, 0, 0)
+    local guardTarget = new_unit(2006, "GuardFrontline", 10000, 0, 0)
+    local originalResolveProtectedDefender = BuildPassiveCommon.ResolveProtectedDefender
+    BuildPassiveCommon.ResolveProtectedDefender = function(defender)
+        if defender == selectedTarget then
+            return guardTarget, { guard = guardTarget }
+        end
+        return defender, nil
+    end
+    local ok, err = pcall(function()
+        local SkillTimeline = require("core.skill_timeline")
+        local skill = { skillId = 80008001, name = "寒霜射线" }
+        local skillLua = require("config.skill.skill_80008001")
+        local timeline = skillLua.BuildTimeline(hero, { selectedTarget }, skill)
+        local executed, _ = SkillTimeline.Execute(hero, { selectedTarget }, skill, timeline)
+        assert_true(executed, "Ice spell timeline executes with protection redirect")
+        assert_true(BattleSkillStatus.HasSlow(guardTarget), "Protection redirect applies slow to actual defender")
+        assert_true(not BattleSkillStatus.HasSlow(selectedTarget), "Protection redirect does not slow selected backline")
+    end)
+    BuildPassiveCommon.ResolveProtectedDefender = originalResolveProtectedDefender
+    if not ok then
+        error(err)
+    end
+end
+
+-- Test 1bb: Multi-target spell frame should only apply status to actually hit enemies
+do
+    local SkillEffectRegistry = require("skills.skill_effect_registry")
+    local BattleSkillStatus = require("skills.battle_skill_status")
+    local hero = new_unit(1006, "Tester_SpellMulti", 10000, 200, 0)
+    local hitTarget = new_unit(2007, "SpellHitTarget", 10000, 0, 0)
+    local missTarget = new_unit(2008, "SpellMissTarget", 10000, 0, 0)
+    local burnHandler = SkillEffectRegistry.handlers["apply_burn_refresh_only"]
+    local ctx = { hero = hero, skill = { skillId = 80007001, name = "火焰弹" } }
+    burnHandler(ctx, {
+        targets = { hitTarget, missTarget },
+        damage = 8,
+        __hitMetaByTarget = {
+            [hitTarget.instanceId] = { hit = { hit = true }, damage = 8 },
+            [missTarget.instanceId] = { hit = { hit = false }, damage = 0 },
+        },
+    }, "post", { param = { turns = 2 } })
+    assert_true(BattleBuff.GetBuff(hitTarget, 870001) ~= nil, "Multi-target spell applies burn only to hit enemy")
+    assert_true(BattleBuff.GetBuff(missTarget, 870001) == nil, "Multi-target spell skips missed enemy even when frame damage > 0")
+end
+
 -- Test 1c: Save-success spell with zero damage still publishes MISS + save metadata
 do
     local hero = new_unit(1004, "Tester_SpellSave", 10000, 200, 0)

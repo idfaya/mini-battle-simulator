@@ -148,8 +148,7 @@ assert_eq(#rangerBasicTargets, 1, "ranger basic attack should resolve one target
 assert_eq(rangerBasicTargets[1].wpType, 3, "ranger basic attack should prioritize the marked target")
 
 local rangerHunterShotTargets = BattleSkill.SelectTarget(ranger, BattleSkill.CreateSkillInstance(SkillRuntimeConfig.Ids.ranger_hunter_shot, {}))
-assert_eq(#rangerHunterShotTargets, 1, "hunter shot should resolve one target")
-assert_eq(rangerHunterShotTargets[1].wpType, 3, "hunter shot should prioritize the marked target")
+assert_eq(#rangerHunterShotTargets, 2, "double shot should resolve up to two targets")
 
 BattleFormation.OnFinal()
 

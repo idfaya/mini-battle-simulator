@@ -210,33 +210,11 @@ function RangerBuildPassives.PerformHunterShot(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
-    local ok, result = BattleSkill.CastSmallSkillWithResult(hero, target)
-    local damage = ok and math.max(0, math.floor(tonumber(result and result.totalDamage) or 0)) or 0
-    if damage > 0 and RangerBuildPassives.IsTargetMarkedBy(hero, target) then
-        local bonusDice = "2d6"
-        local extraDice = FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_shot, "bonusDamageDice", nil)
-        if type(extraDice) == "string" and extraDice ~= "" then
-            bonusDice = joinDiceParts(bonusDice, extraDice)
-        end
-        local bonus = BuildPassiveCommon.ApplyDirectBonusDamage(hero, target, bonusDice, {
-            kind = "physical",
-            damageKind = "direct",
-            skillId = skill and skill.skillId or IDS.ranger_hunter_shot,
-            skillName = skill and skill.name or "狩猎指引",
-        })
-        damage = damage + bonus
-        if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动狩猎指引：对印记目标 %s 追加 %d 点伤害",
-                hero.name or "Unknown",
-                target.name or "目标",
-                bonus))
-        end
+    local resolvedSkill = skill
+    if not resolvedSkill or not resolvedSkill.skillId then
+        resolvedSkill = { skillId = IDS.ranger_hunter_shot, name = "二连射" }
     end
-    local slowDuration = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.ranger_hunter_shot, "onHitApplySlowDuration", 0)) or 0))
-    if damage > 0 and slowDuration > 0 then
-        BattleSkill.ApplyBuffFromSkill(hero, target, 880001, skill, { duration = slowDuration })
-    end
-    return damage
+    return BattleSkill.ExecuteDefaultAttackWithPassive(hero, { target }, resolvedSkill) or 0
 end
 
 function RangerBuildPassives.PerformShadowShot(hero, target, skill)
@@ -286,7 +264,7 @@ function RangerBuildPassives.PerformArrowRain(hero, skill)
     local totalDamage = 0
     local hitCounts = {}
 
-    -- §6 chainCountDelta：箭雨基础 4 箭，feat 可叠加更多。
+    -- 箭雨固定 4 箭；chainCountDelta 等 mod 仍可供其它技能链复用。
     local skillIdForMods = (skill and (skill.skillId or skill.id)) or IDS.ranger_hunter_mastery
     local extraShots = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillIdForMods, "chainCountDelta", 0)))
     local classExtra = (hero.buildState and hero.buildState.classMods and tonumber(hero.buildState.classMods.chainCountDelta)) or 0
@@ -377,6 +355,99 @@ function RangerBuildPassives.CreateHunterMarkPassive(context)
             runtime.rangerMarkApplyRound = round
             RangerBuildPassives.ApplyHunterMark(hero, target)
         end
+    end
+
+    return self
+end
+
+local DEFENSE_STANCE_SKILL_ID = 80005102
+
+local function getDefenseSkillId()
+    return IDS.ranger_defense_stance or DEFENSE_STANCE_SKILL_ID
+end
+
+local function isDefenseExpireActive(runtime, expireKey)
+    local round = getRound()
+    return (tonumber(runtime[expireKey]) or -1) >= round
+end
+
+function RangerBuildPassives.GetDefenseAcBonus(defender)
+    if not isAlive(defender) or not hasSkill(defender, getDefenseSkillId()) then
+        return 0
+    end
+    local skillId = getDefenseSkillId()
+    local total = math.max(0, math.floor(FeatModHelper.GetSkillMod(defender, skillId, "baseAcBonus", 0)))
+    local runtime = ensureRuntime(defender)
+    if isDefenseExpireActive(runtime, "rangerDefenseHitAcExpireRound") then
+        total = total + math.max(0, math.floor(tonumber(runtime.rangerDefenseHitAcBonus) or 0))
+    end
+    return total
+end
+
+local function applyDefenseDamageReduction(hero, extraParam)
+    local runtime = ensureRuntime(hero)
+    if not isDefenseExpireActive(runtime, "rangerDefenseDrExpireRound") then
+        return
+    end
+    local reduction = math.max(0, math.floor(tonumber(runtime.rangerDefenseDrFlat) or 0))
+    if reduction <= 0 then
+        return
+    end
+    local damage = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
+    if damage <= 0 then
+        return
+    end
+    local reduced = math.min(damage, reduction)
+    extraParam.damage = damage - reduced
+    if reduced > 0 then
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发防守精通：伤害 -%d",
+            hero.name or "Unknown", reduced))
+    end
+end
+
+function RangerBuildPassives.CreateDefenseStancePassive(context)
+    local self = buildContextState(context)
+
+    function self:OnDefBeforeDmg(ctx)
+        local hero = self.context and self.context.src or nil
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        if not isAlive(hero) or not hasSkill(hero, getDefenseSkillId()) then
+            return
+        end
+        local skillId = getDefenseSkillId()
+        if extraParam.attackHit == true then
+            local onHitAcBonus = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillId, "onHitAcBonus", 0)))
+            if onHitAcBonus > 0 then
+                local runtime = ensureRuntime(hero)
+                runtime.rangerDefenseHitAcExpireRound = getRound()
+                runtime.rangerDefenseHitAcBonus = onHitAcBonus
+                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发防守熟练：AC +%d（本回合有效）",
+                    hero.name or "Unknown", onHitAcBonus))
+            end
+        end
+        applyDefenseDamageReduction(hero, extraParam)
+    end
+
+    function self:OnDefAfterDmg(ctx)
+        local hero = self.context and self.context.src or nil
+        local extraParam = ctx and ctx.data and ctx.data.extraParam or {}
+        if not isAlive(hero) or not hasSkill(hero, getDefenseSkillId()) then
+            return
+        end
+        local damage = math.max(0, math.floor(tonumber(extraParam.damage) or 0))
+        if damage <= 0 then
+            return
+        end
+        local skillId = getDefenseSkillId()
+        local drBonus = math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, skillId, "onDamageReductionFlat", 0)))
+        if drBonus <= 0 then
+            return
+        end
+        local runtime = ensureRuntime(hero)
+        runtime.rangerDefenseDrExpireRound = getRound()
+        runtime.rangerDefenseDrFlat = drBonus
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发防守精通：伤害减免 +%d（本回合有效）",
+            hero.name or "Unknown", drBonus))
     end
 
     return self

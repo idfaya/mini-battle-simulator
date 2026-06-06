@@ -756,6 +756,10 @@ function BuildPassiveCommon.GetDefenderAcBonus(defender, attacker)
     if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraAcBonus then
         total = total + (tonumber(PaladinBuildPassives.GetAuraAcBonus(defender, attacker)) or 0)
     end
+    local okRanger, RangerBuildPassives = pcall(require, "skills.ranger_build_passives")
+    if okRanger and RangerBuildPassives and RangerBuildPassives.GetDefenseAcBonus then
+        total = total + (tonumber(RangerBuildPassives.GetDefenseAcBonus(defender)) or 0)
+    end
     local okBattleBuff, BattleBuff = pcall(require, "modules.battle_buff")
     if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
         total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 880004)) or 0)

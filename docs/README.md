@@ -44,6 +44,7 @@
 | Web 镜像 | `web/public/lua/project/`（`npm run export:lua` 生成） |
 | Lua 回归 | `bin/test_*.lua` |
 | Web E2E | `web/tests/*.spec.ts`；共享 helper 见 `web/tests/helpers/` |
+| Web E2E（按职业） | 见下表 §Web E2E 按职业；**改哪个职业只测哪个** |
 | 反应技 hold 死亡释放 E2E | `web/tests/reaction-hold-death.spec.ts` |
 | Playwright 浏览器路径解析 | `web/scripts/run-playwright.mjs`、`resolve-playwright-browsers.mjs` |
 
@@ -105,7 +106,26 @@ lua bin/test_feat_mod_helper.lua
 lua bin/test_browser_battle_runtime.lua
 
 cd web && npm run install:playwright   # 首次
-cd web && npm run test:playwright
+cd web && npm run test:playwright      # 全量（跨职业 / 核心改动再用）
 cd web && npm run test:playwright:scripts
-cd web && npm run test:playwright -- tests/reaction-hold-death.spec.ts
+cd web && npm run test:playwright -- tests/ranger-web-smoke.spec.ts   # 示例：只测游侠
 ```
+
+### Web E2E 按职业
+
+Lua 改动后先 `npm run export:lua`，再跑**对应用例**（不要默认全量）。
+
+| 职业 | Playwright | 常见 Lua 回归（可选） |
+| --- | --- | --- |
+| 战士 | `tests/fighter-web-smoke.spec.ts` | `bin/test_fighter_build_*.lua` |
+| 武僧 | `tests/monk-web-smoke.spec.ts` | `bin/test_class_tree_runtime_fixes.lua`（武僧段） |
+| 盗贼 | `tests/rogue-web-smoke.spec.ts` | 同上（盗贼段） |
+| 游侠 | `tests/ranger-web-smoke.spec.ts` | `bin/test_ranger_build_pipeline.lua`、`bin/test_class_tree_runtime_fixes.lua` |
+| 圣武士 | `tests/paladin-web-smoke.spec.ts` | `bin/test_paladin_build_pipeline.lua` |
+| 牧师 | `tests/cleric-web-smoke.spec.ts` | — |
+| 野蛮人 | `tests/barbarian-web-smoke.spec.ts` | `bin/test_barbarian_build_pipeline.lua` |
+| 术士 / 法师 / 邪术师 | `tests/caster-web-smoke.spec.ts` | — |
+| Roguelike 流程 | `tests/roguelike-act1.spec.ts`、`tests/roguelike-dungeon.spec.ts` | `bin/test_roguelike_*.lua` |
+| 反应技 / 战斗核心 | `tests/reaction-hold-death.spec.ts`、`tests/smoke.spec.ts` | `bin/test_timeline_passive.lua` 等 |
+
+跨模块（`modules/battle_skill.lua`、`hero_build`、`config/tables/feats.lua` 全职业）或用户明确要求时，再扩面或 `npm run test:playwright` 全量。

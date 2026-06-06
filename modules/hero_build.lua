@@ -50,6 +50,22 @@ local function mergeInto(target, patch)
     end
 end
 
+local DICE_MERGE_KEYS = {
+    vsMarkBonusDice = true,
+}
+
+local function joinDiceModExpr(existing, incoming)
+    existing = type(existing) == "string" and existing or ""
+    incoming = type(incoming) == "string" and incoming or ""
+    if existing == "" then
+        return incoming
+    end
+    if incoming == "" then
+        return existing
+    end
+    return existing .. ";" .. incoming
+end
+
 local function addSourceRecord(buildState, skillId, field, featId)
     local source = buildState.sourceMap[skillId]
     if not source then
@@ -148,12 +164,28 @@ local function applyModifySkill(buildState, featId, skillId, patch)
         return
     end
     buildState.skillMods[id] = buildState.skillMods[id] or {}
-    mergeInto(buildState.skillMods[id], patch or {})
+    local target = buildState.skillMods[id]
+    local rest = {}
+    for k, v in pairs(patch or {}) do
+        if DICE_MERGE_KEYS[k] and type(v) == "string" then
+            target[k] = joinDiceModExpr(target[k], v)
+        else
+            rest[k] = v
+        end
+    end
+    mergeInto(target, rest)
     if patch and patch.statMods then
         mergeInto(buildState.statMods, patch.statMods)
     end
     if patch and patch.classMods then
-        mergeInto(buildState.classMods, patch.classMods)
+        buildState.classMods = buildState.classMods or {}
+        for k, v in pairs(patch.classMods) do
+            if DICE_MERGE_KEYS[k] and type(v) == "string" then
+                buildState.classMods[k] = joinDiceModExpr(buildState.classMods[k], v)
+            else
+                buildState.classMods[k] = deepCopy(v)
+            end
+        end
     end
     addSourceRecord(buildState, id, "modifiedBy", featId)
 end

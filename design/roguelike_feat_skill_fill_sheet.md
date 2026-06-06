@@ -156,18 +156,15 @@
 | 节点 | 父节点 | 类型 | 效果 | 落点 |
 | --- | --- | --- | --- | --- |
 | `R 印记基础` | — | `R` | 远程基础攻击命中后施加自己的印记（默认同游侠 1 槽）；印记目标 AC 与反射豁免各 `-1` | `grant low 核心被动` |
-| `B 印记熟练` | `印记基础` | `B` | 印记减益再 `-1`（AC 与反射各 `-1`） | `modify 猎人印记（markBonusDice）` |
+| `B 印记熟练` | `印记基础` | `B` | 对带自己印记的目标，远程攻击附加 `+1d6` 伤害 | `classMods（vsMarkBonusDice）` |
 | `B 印记延续` | `印记基础` | `B` | 印记持续时间 `+1` 回合 | `modify 猎人印记（dotDurationDelta）` |
-| `T1 狩猎基础` | `印记基础` | `T1` | Lv3 主干：mid 核心主动；对目标远程一击，若已被你标记，额外 `+2d6` | `grant mid_slot` |
-| `B 狩猎熟练` | `狩猎基础` | `B` | 狩猎指引伤害 `+1d6` | `modify T1` |
-| `J 狩猎精通` | `狩猎基础 + 狩猎熟练` | `J` | 狩猎指引命中后目标 `SLOW 1` 回合；若目标已带你的印记，你本回合下次远程基础攻击额外 `+1d6` | `passive onHit` |
-| `J 印记精通` | `印记基础 + 印记熟练 + 印记延续` | `J` | 同时维持 `2` 个印记 | `modify 猎人印记（markSlotMax）` |
-| `J 印记爆发` | `印记基础 + 印记精通` | `J` | 印记减益再 `-1`（AC 与反射各 `-1`） | `modify 猎人印记（markPayoutPerRound）` |
-| `T2 箭雨基础` | `印记基础` | `T2` | Lv5 主干：high 核心主动；连续发动 `4` 次远程基础攻击随机分配，重复目标减半 | `grant high_slot` |
-| `B 箭雨精通` | `箭雨基础` | `B` | 箭雨射击次数从 `4` 提升到 `5`；第一次重复命中同一目标时造成 `75%` 伤害，后续重复仍为 `50%` | `modify T2` |
-| `J 箭雨回响` | `箭雨基础 + 箭雨精通` | `J` | 箭雨 `CD -1` | `modify T2（cooldownDelta）` |
-| `C 印记大师` | `印记爆发 + 狩猎精通` | `C` | 仅对你自己的印记目标生效；命中 `+1`，首次命中伤害 `+1d8` | `modify 远程基础攻击` |
-| `C 箭雨大师` | `箭雨回响 + 箭雨精通` | `C` | 箭雨射击次数 `+1`，优先射向已标记目标；首次命中已标记目标时额外 `+1d4` | `modify T2` |
+| `T1 狩猎基础` | `印记基础` | `T1` | Lv3 主干：mid 核心主动；`CD3` 二连射，对最多 `2` 名敌人各射 `1` 箭（标准远程武器攻击） | `grant mid_slot` |
+| `B 狩猎熟练` | `狩猎基础` | `B` | 二连射 `CD -1` | `modify T1（cooldownDelta）` |
+| `J 印记精通` | `印记基础 + 印记熟练 + 印记延续` | `J` | 对带自己印记的目标，远程攻击附加 `+1d10` 伤害 | `classMods（vsMarkBonusDice）` |
+| `T2 箭雨` | `印记基础` | `T2` | Lv5 主干：high 核心主动；**每场限 `1` 次**；连续发动 `4` 次远程基础攻击随机分配，重复目标减半 | `grant high_slot（skillType=3 限次）` |
+| `B 防守基础` | `印记基础` | `B` | 获得防守姿态被动；**AC `+1`** | `grant 防守姿态（baseAcBonus）` |
+| `B 防守熟练` | `防守基础` | `B` | 受到攻击**命中**后，**AC `+1`** 持续到当前回合结束 | `modify 防守姿态（onHitAcBonus）` |
+| `J 防守精通` | `防守基础 + 防守熟练` | `J` | 受到**伤害**后，**伤害减免 `+2`** 持续到当前回合结束 | `modify 防守姿态（onDamageReductionFlat）` |
 
 #### 猎人印记（`ranger_hunter_mark` / `890005`）规则
 
@@ -175,12 +172,18 @@
 
 - **触发**：每回合 `1` 次；远程基础攻击**命中**后即对目标施加**自己的**印记（与最终伤害是否 `> 0` 无关；未命中不触发）。槽位满时按 passive 规则替换最早印记。
 - **持续**：默认 `2` 回合（当前回合 + 下回合）；`印记延续` 通过 `dotDurationDelta` 延长。
-- **槽位**：默认同游侠同时维持 `1` 个自己的印记；`印记精通` 通过 `markSlotMax` 扩至 `2` 个。
-- **减益**：印记存在期间，目标 **AC `-N`、反射豁免 `-N`**；`N` 基础为 `1`，由 buff `value` 承载。
-  - `印记熟练（markBonusDice）`：每段骰表达式使 `N + 1`。
-  - `印记爆发（markPayoutPerRound=2）`：使 `N + 1`（即配置值 `- 1`）。
-- **结算**：经 `BuildPassiveCommon.GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")` 读取 `890005.value`；不再追加追猎附伤。
-- **联动**：`狩猎指引`、`箭雨`、印记大师（`vsMarkBonusHit` / `vsMarkBonusDice`）仍只服务**已被你标记**的目标。
+- **槽位**：默认同游侠同时维持 `1` 个自己的印记。
+- **减益**：印记存在期间，目标 **AC `-1`、反射豁免 `-1`**，由 buff `value` 承载。
+  - `印记熟练（classMods.vsMarkBonusDice=1d6）`：远程攻击命中**自己的**印记目标时附加 `+1d6`（基础攻击、二连射、箭雨等均生效）。
+  - `印记精通（classMods.vsMarkBonusDice=1d10）`：远程攻击命中**自己的**印记目标时附加 `+1d10`（与印记熟练叠加）。
+- **结算**：经 `BuildPassiveCommon.GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")` 读取 `890005.value`。
+- **联动**：`二连射`、`箭雨`、远程基础攻击等经 `vsMarkBonusDice` 读取印记加成，仅对**已被你标记**的目标生效。
+
+#### 防守姿态（`ranger_defense_stance` / `80005102`）规则
+
+- **基础**：`防守基础` 授予被动；`baseAcBonus` 经 `GetDefenderAcBonus` 常驻生效。
+- **熟练**：攻击检定**命中**后（`DefBeforeDmg` 且 `attackHit=true`）激活 `onHitAcBonus`，持续至当前回合编号结束（`expireRound = 当前回合`）。
+- **精通**：实际受到伤害后（`DefAfterDmg` 且 `damage>0`）激活 `onDamageReductionFlat`，在后续 `DefBeforeDmg` 中 flat 减伤，持续至当前回合结束。
 
 ### 8.5 圣武士 Paladin
 
@@ -283,7 +286,7 @@
 | 节点 | 父节点 | 类型 | 效果 | 落点 |
 | --- | --- | --- | --- | --- |
 | `R 印记基础` | — | `R` | 邪能冲击命中后附印记；每回合按印记兑现次数限制，对带印记目标的雷系命中追加 `+1d6` | `grant low 核心被动` |
-| `B 印记熟练` | `印记基础` | `B` | 印记额外伤害 `+1d4` | `modify 静电印记` |
+| `B 印记熟练` | `印记基础` | `B` | 印记额外伤害 `+1d6` | `modify 静电印记（markBonusDice）` |
 | `B 印记加深` | `印记基础` | `B` | 每回合可对 `2` 个目标分别上印记 | `modify 静电印记（markRecastPerRound）` |
 | `T1 雷链基础` | `印记基础` | `T1` | Lv3 主干：mid 核心主动；对目标雷电伤害并弹射 `1` 名敌人；拿到 `雷链大师` 后，链路优先弹向带印记目标 | `grant mid_slot` |
 | `B 雷链熟练` | `雷链基础` | `B` | 雷链额外弹射 `1` 次 | `modify T1（chainCountDelta）` |
@@ -301,14 +304,13 @@
 
 | 字段 | 用途 | 使用节点 | 读取位置 |
 | --- | --- | --- | --- |
-| `cooldownDelta` | CD ±N | 盗 J 诡诈精通、游 J 箭雨回响、法 J 冻结咒术、术 B 风暴回响、术 C 爆燃大师、牧 B 治愈熟练、邪 B 雷暴回响 | `modules/skill_runtime.lua`（CD 解析） |
-| `bonusHit` | 命中加值 +1 | 战 B 反击熟练、游 J 狩猎精通、游 C 印记大师 | `modules/skill_runtime.lua`（attack roll 装配） |
+| `cooldownDelta` | CD ±N | 盗 J 诡诈精通、游 B 狩猎熟练、法 J 冻结咒术、术 B 风暴回响、术 C 爆燃大师、牧 B 治愈熟练、邪 B 雷暴回响 | `modules/skill_runtime.lua`（CD 解析） |
+| `bonusHit` | 命中加值 +1 | 战 B 反击熟练 | `modules/skill_runtime.lua`（attack roll 装配） |
 | `critThresholdDelta` | 暴击阈值 -1 | 野 C 重击大师 | `modules/skill_runtime.lua`（crit 判定） |
 | `dotDurationDelta` | 印记 / 减速 / 燃烧持续 +N 回合 | 游 B 印记延续、法 B 减速熟练、术 B 点燃熟练 | 各职业 passive 文件（onApply 时计算） |
 | `aoeRadiusDelta` | AOE 半径扩张 | 法 B 冻结扩张 | `skills/` 中各 AOE skill 的 target picker |
-| `chainCountDelta` | 弹射 / 箭雨次数 +N | 游 B 箭雨精通、游 C 箭雨大师、邪 B 雷链熟练、邪 C 雷链大师 | `skills/` 中弹射 / multishot skill |
-| `markPayoutPerRound` | 游侠：印记减益层数 `+1`（配置值 `- 1`）；邪术师：印记每回合可兑现次数 | 游 J 印记爆发、邪 J 印记精通 | 游侠 / 邪术师 passive 文件 |
-| `markSlotMax` | 印记同时维持上限 | 游 J 印记精通 | 游侠 passive 文件 |
+| `chainCountDelta` | 弹射 / 多段次数 +N | 邪 B 雷链熟练、邪 C 雷链大师 | `skills/` 中弹射 / multishot skill |
+| `markPayoutPerRound` | 邪术师：印记每回合可兑现次数 | 邪 J 印记精通 | 邪术师 passive 文件 |
 | `markRecastPerRound` | 印记每回合可施加次数 | 邪 B 印记加深 | 邪术师 passive 文件 |
 | `guardExtendsToRanged` | 护卫架势承担远程攻击 | 战 B 护卫熟练 | 战士 passive / 护卫架势 skill |
 | `firstHitGuaranteedCombo` | 每回合首次徒手打击后必触发连击，不要求命中 | 武 R 疾风连击 | 武僧 passive 文件 |
@@ -328,7 +330,11 @@
 | `cleanseDebuffs` | 圣疗附带清控 | 圣 J 圣疗精通 | 圣骑 passive 文件 |
 | `paladinAuraRangeDelta` | 神圣灵光范围扩张 | 圣 B 灵光扩张 | 圣骑 passive 文件 |
 | `paladinAuraSaveBonus` | 神圣灵光豁免加值 | 圣 B 灵光熟练 | 圣骑 passive 文件 |
-| `markBonusDice` | 游侠：印记减益层数 `+1`（每段骰表达式 `+1`）；邪术师：印记兑现额外伤害骰 | 游 B 印记熟练、邪 B 印记熟练 | 游侠 / 邪术师 passive 文件 |
+| `vsMarkBonusDice` | 游侠：远程攻击对**自己的**印记目标附加伤害骰（`classMods`，多节点以 `;` 拼接叠加） | 游 B 印记熟练、游 J 印记精通 | `modules/battle_skill.lua`（条件伤害骰） |
+| `baseAcBonus` | 防守姿态常驻 AC 加值 | 游 B 防守基础 | `skills/ranger_build_passives.lua` + `GetDefenderAcBonus` |
+| `onHitAcBonus` | 被攻击命中后至回合结束的 AC 加值 | 游 B 防守熟练 | `skills/ranger_build_passives.lua`（`DefBeforeDmg`） |
+| `onDamageReductionFlat` | 受到伤害后至回合结束的 flat 减伤 | 游 J 防守精通 | `skills/ranger_build_passives.lua`（`DefAfterDmg` 激活 / `DefBeforeDmg` 结算） |
+| `markBonusDice` | 邪术师：印记兑现额外伤害骰（叠在基础 `1d6` 后） | 邪 B 印记熟练 | `skills/skill_effect_registry.lua`（`warlock_static_mark_payout`） |
 | `healLowestCount` | 治愈之言额外覆盖最低血目标数 | 牧 C 治愈大师 | 牧师 passive 文件 |
 | `dispelOnlyPrimary` | 治愈之言只对主目标驱散负面 | 牧 C 治愈大师 | 牧师 passive 文件 |
 | `onRageEnterHealDice` | 进入狂暴时回复生命骰 | 野 B 狂暴恢复 | 野蛮人 passive 文件 |

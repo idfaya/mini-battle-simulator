@@ -15,7 +15,7 @@
 - **做完再停**：除非方向性歧义或不可逆决策，否则一次闭环完成再汇报。
 - **少要权限**：能 Read/Edit/Grep 完成的不要 Shell；可合并的命令合并跑。
 - **危险操作后置**：删除、`git reset`、大面积覆盖等放最后，并先说明影响。
-- **大改动要 Web E2E**：跨模块 / SSOT / 新系统完成后须 Web 端到端回归；**仅 `bin/` 不算验收完成**。
+- **Web E2E 按职业收口**：只改某职业技能 / Feat / 被动时，只跑该职业对应用例（见 [`docs/README.md`](docs/README.md) §Web E2E）；**不要默认跑全量 Playwright**。跨职业 / 战斗核心 / SSOT / Roguelike 流程改动再扩面或全量回归；**仅 `bin/` 不算 Web 验收完成**。
 - **提交节奏**：完成后不自动 commit；用户确认后再 commit，commit 后自动 push。
 
 ## 改代码前读什么

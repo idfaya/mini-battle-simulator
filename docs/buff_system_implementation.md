@@ -677,7 +677,7 @@ Buff 系统会向表现层发布以下核心事件：
 - 施加：`skills/ranger_build_passives.lua` 的 `ApplyHunterMark`；每回合首次远程基础攻击**命中**后触发（与最终伤害是否 `> 0` 无关）
 - 读取：`skills/build_passive_common.lua` 的 `GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")`
 - 命中检定：`modules/battle_skill.lua` 的 `ResolveScaledDamage` 对非零 `defenderAcBonus` 生效
-- 不再通过印记触发追猎附伤；`狩猎指引` / 印记大师等仍检测 `IsTargetMarkedBy`
+- 印记附加伤害经 `classMods.vsMarkBonusDice` 在远程攻击结算时生效；`二连射` / 箭雨等仍检测 `IsTargetMarkedBy`
 
 ---
 

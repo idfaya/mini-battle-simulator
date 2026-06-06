@@ -241,6 +241,28 @@ local function GetTargetConditionState(attacker, defender)
     }
 end
 
+local function GetVsMarkBonusDice(attacker, skillId)
+    local buildState = attacker and attacker.buildState
+    local classMods = buildState and buildState.classMods
+    local fromClass = classMods and classMods.vsMarkBonusDice
+    if type(fromClass) == "string" and fromClass ~= "" then
+        return fromClass
+    end
+    local fromSkill = FeatModHelper.GetSkillMod(attacker, skillId, "vsMarkBonusDice", nil)
+    if type(fromSkill) == "string" and fromSkill ~= "" then
+        return fromSkill
+    end
+    local SkillRuntimeConfig = require("config.tables.skill_runtime")
+    local basicId = SkillRuntimeConfig.Ids and SkillRuntimeConfig.Ids.ranger_basic_attack
+    if basicId and tonumber(skillId) ~= tonumber(basicId) then
+        local fromBasic = FeatModHelper.GetSkillMod(attacker, basicId, "vsMarkBonusDice", nil)
+        if type(fromBasic) == "string" and fromBasic ~= "" then
+            return fromBasic
+        end
+    end
+    return nil
+end
+
 local function GetConditionalHitBonusForTarget(attacker, defender, skillId)
     local state = GetTargetConditionState(attacker, defender)
     local bonus = 0
@@ -275,7 +297,7 @@ local function AppendConditionalDamageDiceForTarget(attacker, defender, skillId,
         end
     end
     if state.hunterMarked then
-        local bonus = FeatModHelper.GetSkillMod(attacker, skillId, "vsMarkBonusDice", nil)
+        local bonus = GetVsMarkBonusDice(attacker, skillId)
         if type(bonus) == "string" and bonus ~= "" then
             extra = JoinDiceParts(extra, bonus)
         end
@@ -1181,6 +1203,16 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
     end
 end
 
+local function NormalizeCastTargets(skill, targets)
+    if not targets or #targets <= 1 then
+        return targets
+    end
+    if BattleSkill.IsMultiTargetSkill(skill) then
+        return targets
+    end
+    return { targets[1] }
+end
+
 local function PrepareSkillCast(hero, target, skillId, opts)
     opts = opts or {}
     if not hero then
@@ -1224,6 +1256,7 @@ local function PrepareSkillCast(hero, target, skillId, opts)
         Logger.LogWarning("[BattleSkill.CastSkillInSeq] No valid targets for skill: " .. tostring(skillId))
         return nil
     end
+    targets = NormalizeCastTargets(skill, targets)
 
     hero.__energyCastStats = {
         successfulHits = 0,
@@ -1533,6 +1566,8 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 damage = damage,
                 damageKind = "physical",
                 skillId = skill and skill.skillId or nil,
+                attackRoll = damageResult and damageResult.hit or nil,
+                attackHit = damageResult and damageResult.hit and damageResult.hit.hit == true or false,
             }
 
             BattlePassiveSkill.RunSkillOnDefBeforeDmg(actualTarget, damageContext)
@@ -1953,11 +1988,54 @@ local function ReadTargetCount(targetsSelections)
     return math.max(1, math.floor(value))
 end
 
+local function NormalizeMeasureType(value)
+    if type(value) == "number" then
+        return value
+    end
+    if type(value) ~= "string" then
+        return E_MEASURE_TYPE.NA
+    end
+    local normalized = string.lower(value)
+    if normalized == "muti" or normalized == "multi" then
+        return E_MEASURE_TYPE.Muti
+    end
+    if normalized == "aoe" then
+        return E_MEASURE_TYPE.AOE
+    end
+    if normalized == "row" then
+        return E_MEASURE_TYPE.Row
+    end
+    return E_MEASURE_TYPE.NA
+end
+
 local function ReadMeasureType(targetsSelections)
     local tSConditions = targetsSelections and targetsSelections.tSConditions or nil
-    return (targetsSelections and targetsSelections.measureType)
+    local raw = (targetsSelections and targetsSelections.measureType)
         or (tSConditions and tSConditions.measureType)
-        or E_MEASURE_TYPE.NA
+    return NormalizeMeasureType(raw)
+end
+
+function BattleSkill.IsMultiTargetSkill(skill)
+    if not skill then
+        return false
+    end
+    local targetsSelections = skill.targetsSelections
+        or skill.config and skill.config.targetsSelections
+        or skill.config and skill.config.runtimeData and skill.config.runtimeData.targetsSelections
+    local rules = skill.rules
+        or skill.config and skill.config.rules
+        or skill.skillConfig and skill.skillConfig.rules
+    if rules and rules.isAOE == true then
+        return true
+    end
+    if not targetsSelections then
+        return false
+    end
+    local measureType = ReadMeasureType(targetsSelections)
+    if measureType == E_MEASURE_TYPE.AOE or measureType == E_MEASURE_TYPE.Muti then
+        return true
+    end
+    return ReadTargetCount(targetsSelections) > 1
 end
 
 local function ReadWpTypeFilter(targetsSelections)
@@ -2101,11 +2179,20 @@ local function NormalizeCastTargetValue(value)
     return value
 end
 
+local function NormalizeTargetsSelection(selection)
+    local copy = DeepCopyTable(selection or {})
+    copy.castTarget = NormalizeCastTargetValue(copy.castTarget)
+    copy.measureType = NormalizeMeasureType(copy.measureType)
+    return copy
+end
+
 InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
     if mergedConfig and mergedConfig.targetsSelections then
-        local selection = DeepCopyTable(mergedConfig.targetsSelections)
-        selection.castTarget = NormalizeCastTargetValue(selection.castTarget)
-        return selection
+        return NormalizeTargetsSelection(mergedConfig.targetsSelections)
+    end
+    local runtimeSelections = skillCfg and skillCfg.runtimeData and skillCfg.runtimeData.targetsSelections
+    if runtimeSelections then
+        return NormalizeTargetsSelection(runtimeSelections)
     end
 
     local name = (skillCfg and skillCfg.name) or (mergedConfig and mergedConfig.name) or ""
@@ -2124,6 +2211,14 @@ InferTargetsSelections = function(skillCfg, mergedConfig, finalSkillType)
             castTarget = E_CAST_TARGET.Enemy,
             measureType = E_MEASURE_TYPE.Muti,
             count = skillParam[2] or 2,
+        })
+    end
+    if name == "二连射" or name == "狩猎指引" then
+        return BuildTargetSelection({
+            castTarget = E_CAST_TARGET.Enemy,
+            measureType = E_MEASURE_TYPE.Muti,
+            count = 2,
+            ignoreFrontProtection = true,
         })
     end
     if name == "收割"

@@ -236,16 +236,35 @@ local function DidFrameAffectTarget(frameCopy, target)
     end
 
     local targetId = target.instanceId or target.id
-    local hitMeta = frameCopy and frameCopy.__hitMetaByTarget and frameCopy.__hitMetaByTarget[targetId] or nil
+    if not targetId then
+        return false
+    end
+
+    local hitMetaByTarget = frameCopy and frameCopy.__hitMetaByTarget
+    local hitMeta = hitMetaByTarget and hitMetaByTarget[targetId] or nil
     if hitMeta then
+        if hitMeta.hit then
+            return hitMeta.hit.hit == true
+        end
+        if hitMeta.save then
+            if frameCopy.__savedTargets and frameCopy.__savedTargets[targetId] then
+                return false
+            end
+            return true
+        end
         return (tonumber(hitMeta.damage) or 0) > 0
+    end
+
+    -- 伤害帧已结算但该目标没有命中元数据（例如前排保护拦截后仍留在 targets 里）。
+    if hitMetaByTarget then
+        return false
     end
 
     if frameCopy and type(frameCopy.damage) == "number" then
         return frameCopy.damage > 0
     end
 
-    return true
+    return false
 end
 
 local SPELL_LIKE_STATUS_DEDUPE_SKILLS = {

@@ -15,6 +15,7 @@
 - `web/public/lua/project/` 由 `npm run export:lua` 生成，**禁止手改**。
 - 新增 Lua 源目录须写入 `tools/export_web_lua.mjs` 的 `sourceDirs`。
 - Lua 改动后：改源码 → 导出镜像 → Web E2E 自测；**不能只用 `bin/` 脚本代替 Web 验收**。命令见 [`README.md`](../README.md)、[`docs/README.md`](./README.md)。
+- **按职业收口**：只改某职业技能时，只跑该职业 Playwright（如游侠 `tests/ranger-web-smoke.spec.ts`）；全量 `test:playwright` 留给跨职业或核心改动。
 
 ## 平衡回归（规则）
 

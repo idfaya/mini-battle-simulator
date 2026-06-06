@@ -536,7 +536,7 @@ local FEATS = {
         classId = 5,
         level = 3,
         name = "狩猎基础",
-        description = "获得狩猎指引，CD3，始终作用于当前标记目标；对标记目标发动远程攻击并造成追猎收益。",
+        description = "获得二连射，CD3；对最多 2 名敌人各射 1 箭（标准远程武器攻击）。",
         trunk = "T1",
         treeSlot = "T1",
         effects = {
@@ -547,8 +547,8 @@ local FEATS = {
         id = FeatBuildConfig.Ids.ranger_hunter_mastery,
         classId = 5,
         level = 5,
-        name = "箭雨基础",
-        description = "获得箭雨，CD4。作为独立主动技能连续发动 4 次标准远程武器攻击；每次随机选择 1 名敌人，若同一次箭雨内再次命中同一目标，则该次伤害依次减半。",
+        name = "箭雨",
+        description = "获得箭雨，每场限 1 次。连续发动 4 次标准远程武器攻击；每次随机选择 1 名敌人，若同一次箭雨内再次命中同一目标，则该次伤害依次减半。",
         trunk = "T2",
         treeSlot = "T2",
         effects = {
@@ -674,26 +674,20 @@ local rogueTree = {
 
 -- Ranger 游侠 (classId=5)
 local rangerTree = {
-    {key="b_ranger_mark_plus", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记熟练", desc="印记减益再 -1（AC 与反射各 -1）。",
-        effects={{type="modify_skill", skill=80005101, add={markBonusDice="1d4"}}}},
+    {key="b_ranger_mark_plus", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记熟练", desc="对带自己印记的目标，远程攻击附加 +1d6 伤害。",
+        effects={{type="modify_skill", skill=80005101, add={classMods={vsMarkBonusDice="1d6"}}}}},
     {key="b_ranger_mark_extend", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="印记延续", desc="印记持续时间 +1 回合。",
         effects={{type="modify_skill", skill=80005101, add={dotDurationDelta=1}}}},
-    {key="b_ranger_hunt_plus", classId=5, level=6, slot="B", prereqs={F.ranger_T1}, name="狩猎熟练", desc="狩猎指引伤害 +1d6。",
-        effects={{type="modify_skill", skill=80005013, add={bonusDamageDice="1d6"}}}},
-    {key="j_ranger_hunt_master", classId=5, level=7, slot="J", prereqs={F.ranger_T1}, name="狩猎精通", desc="狩猎指引命中后目标 SLOW 1 回合。",
-        effects={{type="modify_skill", skill=80005013, add={onHitApplySlowDuration=1}}}},
-    {key="j_ranger_mark_master", classId=5, level=4, slot="J", prereqs={F.ranger_R}, name="印记精通", desc="同时维持 2 个印记。",
-        effects={{type="modify_skill", skill=80005101, add={markSlotMax=2}}}},
-    {key="j_ranger_mark_burst", classId=5, level=6, slot="J", prereqs={F.ranger_R}, name="印记爆发", desc="印记减益再 -1（AC 与反射各 -1）。",
-        effects={{type="modify_skill", skill=80005101, add={markPayoutPerRound=2}}}},
-    {key="b_ranger_arrow_plus", classId=5, level=7, slot="B", prereqs={F.ranger_T2}, name="箭雨精通", desc="箭雨射击次数从 4 提升到 5；第一次重复命中同一目标时造成 75% 伤害。",
-        effects={{type="modify_skill", skill=80005109, add={chainCountDelta=1, firstRepeatDamageMultiplier=0.75}}}},
-    {key="j_ranger_arrow_echo", classId=5, level=8, slot="J", prereqs={F.ranger_T2}, name="箭雨回响", desc="箭雨 CD -1。",
-        effects={{type="modify_skill", skill=80005109, add={cooldownDelta=-1}}}},
-    {key="c_ranger_mark_master", classId=5, level=10, slot="C", prereqs={F.ranger_R}, requireAllPrerequisites=true, isCapstone=true, name="印记大师", desc="对带印记目标命中 +1，伤害 +1d8（仅对你的印记目标生效）。",
-        effects={{type="modify_skill", skill=80005011, add={vsMarkBonusHit=1, vsMarkBonusDice="1d8"}}}},
-    {key="c_ranger_arrow_master", classId=5, level=10, slot="C", prereqs={F.ranger_T2}, isCapstone=true, name="箭雨大师", desc="箭雨射击次数 +1，优先射向已标记目标；首次命中已标记目标时额外 +1d4。",
-        effects={{type="modify_skill", skill=80005109, add={chainCountDelta=1, prioritizeMarkedTargets=true, firstHitMarkedBonusDice="1d4"}}}},
+    {key="b_ranger_hunt_plus", classId=5, level=6, slot="B", prereqs={F.ranger_T1}, name="狩猎熟练", desc="二连射 CD -1。",
+        effects={{type="modify_skill", skill=80005013, add={cooldownDelta=-1}}}},
+    {key="j_ranger_mark_master", classId=5, level=4, slot="J", prereqs={F.ranger_R}, name="印记精通", desc="对带自己印记的目标，远程攻击附加 +1d10 伤害。",
+        effects={{type="modify_skill", skill=80005101, add={classMods={vsMarkBonusDice="1d10"}}}}},
+    {key="b_ranger_defense_basic", classId=5, level=2, slot="B", prereqs={F.ranger_R}, name="防守基础", desc="AC +1。",
+        effects={{type="grant_skill", skill=80005102}, {type="modify_skill", skill=80005102, add={baseAcBonus=1}}}},
+    {key="b_ranger_defense_plus", classId=5, level=4, slot="B", prereqs={F.ranger_R}, name="防守熟练", desc="受到攻击命中后，AC +1 持续到当前回合结束。",
+        effects={{type="modify_skill", skill=80005102, add={onHitAcBonus=1}}}},
+    {key="j_ranger_defense_master", classId=5, level=6, slot="J", prereqs={F.ranger_R}, requireAllPrerequisites=true, name="防守精通", desc="受到伤害后，伤害减免 +2 持续到当前回合结束。",
+        effects={{type="modify_skill", skill=80005102, add={onDamageReductionFlat=2}}}},
 }
 
 -- Paladin 圣武士 (classId=4)
@@ -782,8 +776,8 @@ local wizardTree = {
 
 -- Warlock 邪术师(雷) (classId=9)
 local warlockTree = {
-    {key="b_warlock_mark_plus", classId=9, level=2, slot="B", prereqs={F.warlock_R}, name="印记熟练", desc="印记额外伤害 +1d4。",
-        effects={{type="modify_skill", skill=80009002, add={markBonusDice="1d4"}}}},
+    {key="b_warlock_mark_plus", classId=9, level=2, slot="B", prereqs={F.warlock_R}, name="印记熟练", desc="印记额外伤害 +1d6。",
+        effects={{type="modify_skill", skill=80009002, add={markBonusDice="1d6"}}}},
     {key="b_warlock_mark_deepen", classId=9, level=2, slot="B", prereqs={F.warlock_R}, name="印记加深", desc="每回合可对 2 个目标分别上印记。",
         effects={{type="modify_skill", skill=80009002, add={markRecastPerRound=2}}}},
     {key="b_warlock_chain_plus", classId=9, level=6, slot="B", prereqs={F.warlock_T1}, name="雷链熟练", desc="雷链额外弹射 1 次。",
@@ -862,13 +856,10 @@ do
         { "c_rogue_cunning_master",         "b_rogue_cunning_blind" },
         { "c_rogue_cunning_master",         "j_rogue_cunning_stun" },
         -- 游侠 §8.4
-        { "j_ranger_hunt_master",           "b_ranger_hunt_plus" },
         { "j_ranger_mark_master",           "b_ranger_mark_plus" },
-        { "j_ranger_mark_burst",            "j_ranger_mark_master" },
-        { "j_ranger_arrow_echo",            "b_ranger_arrow_plus" },
-        { "c_ranger_mark_master",           "j_ranger_mark_burst" },
-        { "c_ranger_mark_master",           "j_ranger_hunt_master" },
-        { "c_ranger_arrow_master",          "j_ranger_arrow_echo" },
+        { "b_ranger_defense_plus",          "b_ranger_defense_basic" },
+        { "j_ranger_defense_master",        "b_ranger_defense_basic" },
+        { "j_ranger_defense_master",        "b_ranger_defense_plus" },
         -- 圣武士 §8.5
         { "c_paladin_smite_master",         "b_paladin_holy_mark" },
         -- 牧师 §8.9
