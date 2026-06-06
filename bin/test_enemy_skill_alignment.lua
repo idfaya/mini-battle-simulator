@@ -72,36 +72,55 @@ for _, enemyId in ipairs(explicitMetaEnemyIds) do
     assert_true((tonumber(meta.xp) or 0) > 0, "Enemy has explicit challenge xp: " .. tostring(enemyId))
 end
 
+local HP_BASELINE = {
+    [910001] = 9,
+    [910002] = 7,
+    [910003] = 13,
+    [910004] = 14,
+    [910005] = 24,
+    [910006] = 30,
+    [910007] = 38,
+    [910008] = 11,
+    [910009] = 8,
+    [910010] = 14,
+    [910011] = 24,
+    [910012] = 7,
+    [910013] = 10,
+    [910014] = 16,
+    [910015] = 22,
+    [910016] = 18,
+}
+
+for enemyId, expectedHp in pairs(HP_BASELINE) do
+    local hero = EnemyData.ConvertToHeroData(enemyId)
+    assert_true(hero ~= nil, "Enemy hero data exists: " .. tostring(enemyId))
+    assert_true(hero.hp == expectedHp, string.format("Enemy %d HP matches baseline (%d)", enemyId, expectedHp))
+    assert_true(EnemyData.ConvertToHeroData(enemyId, 5).hp == expectedHp, string.format("Enemy %d HP no longer scales with battle level", enemyId))
+end
+
 local goblin = EnemyData.ConvertToHeroData(910002, 2)
-assert_true(goblin.hp == 6, "Goblin HP matches current monster baseline")
 assert_true(goblin.ac == 13, "Goblin AC matches current monster baseline")
 assert_true(goblin.hit == 3, "Goblin hit matches current monster baseline")
-assert_true(EnemyData.ConvertToHeroData(910002, 5).hp == goblin.hp, "Goblin HP no longer scales with battle level")
 assert_array_equals(skillIdsFromHeroData(910002), { 80001011, 80001101 }, "Goblin uses static skills")
 
 local skeleton = EnemyData.ConvertToHeroData(910004, 4)
-assert_true(skeleton.hp == 10, "Skeleton HP matches current monster baseline")
 assert_true(skeleton.ac == 12, "Skeleton AC matches current monster baseline")
 assert_true(skeleton.hit == 3, "Skeleton elite hit stays in CR lane")
 assert_array_equals(skillIdsFromHeroData(910004), { 80002001, 80002005, 80002006, 80002104, 80002105 }, "Skeleton uses static skills")
 
 local darkMage = EnemyData.ConvertToHeroData(910005, 4)
-assert_true(darkMage.hp == 24, "DarkMage HP uses current monster baseline")
 assert_true(darkMage.ac == 12, "DarkMage AC uses current monster baseline")
 assert_true(darkMage.hit == 4, "DarkMage hit no longer uses player-level scaling")
 assert_true(darkMage.spellDC == 12, "DarkMage spell DC uses CR proficiency")
-assert_true(EnemyData.ConvertToHeroData(910005, 1).hp == darkMage.hp, "DarkMage HP no longer scales with battle level")
 assert_array_equals(skillIdsFromHeroData(910005), { 80007001, 80007002, 80007003, 80007004 }, "DarkMage uses static skills")
 
 local iceDemon = EnemyData.ConvertToHeroData(910006, 4)
-assert_true(iceDemon.hp == 28, "IceDemon HP uses current monster baseline")
 assert_true(iceDemon.ac == 11, "IceDemon AC matches monster baseline")
 assert_true(iceDemon.hit == 3, "IceDemon hit stays in Act1 boss lane")
 assert_true(iceDemon.spellDC == 11, "IceDemon spell DC stays in CR lane")
 assert_array_equals(skillIdsFromHeroData(910006), { 80008001, 80008002 }, "IceDemon uses trimmed static skills")
 
 local thunderLord = EnemyData.ConvertToHeroData(910007, 7)
-assert_true(thunderLord.hp == 36, "ThunderLord HP uses current monster baseline")
 assert_true(thunderLord.ac == 12, "ThunderLord AC matches current monster baseline")
 assert_true(thunderLord.hit == 4, "ThunderLord hit stays in current CR lane")
 assert_true(thunderLord.spellDC == 12, "ThunderLord spell DC stays in current CR lane")

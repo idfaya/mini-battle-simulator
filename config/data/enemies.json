@@ -27,7 +27,7 @@
     "CR": "1/4",
     "XP": 50,
     "Role": "skirmisher",
-    "BaseHp": 6,
+    "BaseHp": 7,
     "AcBonus": 2,
     "AbilityScores": { "str": 8, "dex": 13, "con": 10, "int": 8, "wis": 8, "cha": 8 },
     "SkillIDs": [
@@ -46,7 +46,7 @@
     "CR": "1/4",
     "XP": 50,
     "Role": "brute",
-    "BaseHp": 10,
+    "BaseHp": 13,
     "AcBonus": 0,
     "AbilityScores": { "str": 13, "dex": 12, "con": 13, "int": 8, "wis": 8, "cha": 8 },
     "SkillIDs": [
@@ -66,7 +66,7 @@
     "CR": "1/4",
     "XP": 50,
     "Role": "frontliner",
-    "BaseHp": 10,
+    "BaseHp": 14,
     "AcBonus": 1,
     "AbilityScores": { "str": 12, "dex": 12, "con": 12, "int": 6, "wis": 8, "cha": 5 },
     "SkillIDs": [
@@ -109,7 +109,7 @@
     "CR": "1",
     "XP": 200,
     "Role": "elite_caster",
-    "BaseHp": 28,
+    "BaseHp": 30,
     "AcBonus": 0,
     "AbilityScores": { "str": 10, "dex": 12, "con": 10, "int": 12, "wis": 10, "cha": 10 },
     "SkillIDs": [
@@ -128,7 +128,7 @@
     "CR": "2",
     "XP": 450,
     "Role": "elite_caster",
-    "BaseHp": 36,
+    "BaseHp": 38,
     "AcBonus": 1,
     "AbilityScores": { "str": 10, "dex": 12, "con": 12, "int": 14, "wis": 10, "cha": 10 },
     "SkillIDs": [
@@ -149,7 +149,7 @@
     "CR": "1/4",
     "XP": 50,
     "Role": "skirmisher",
-    "BaseHp": 13,
+    "BaseHp": 11,
     "AcBonus": 0,
     "AbilityScores": { "str": 10, "dex": 13, "con": 11, "int": 8, "wis": 12, "cha": 8 },
     "SkillIDs": [
@@ -187,7 +187,7 @@
     "CR": "1/2",
     "XP": 100,
     "Role": "frontliner",
-    "BaseHp": 11,
+    "BaseHp": 14,
     "AcBonus": 5,
     "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 12 },
     "SkillIDs": [
@@ -207,7 +207,7 @@
     "CR": "1",
     "XP": 200,
     "Role": "brute",
-    "BaseHp": 22,
+    "BaseHp": 24,
     "AcBonus": 2,
     "AbilityScores": { "str": 16, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 8 },
     "SkillIDs": [
@@ -265,7 +265,7 @@
     "CR": "1/2",
     "XP": 100,
     "Role": "brute",
-    "BaseHp": 14,
+    "BaseHp": 16,
     "AcBonus": 1,
     "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 8, "cha": 8 },
     "SkillIDs": [
@@ -285,7 +285,7 @@
     "CR": "1",
     "XP": 200,
     "Role": "frontliner",
-    "BaseHp": 20,
+    "BaseHp": 22,
     "AcBonus": 2,
     "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 6, "wis": 8, "cha": 5 },
     "SkillIDs": [
@@ -307,7 +307,7 @@
     "CR": "1/2",
     "XP": 100,
     "Role": "support",
-    "BaseHp": 22,
+    "BaseHp": 18,
     "AcBonus": 1,
     "AbilityScores": { "str": 10, "dex": 10, "con": 12, "int": 8, "wis": 14, "cha": 10 },
     "SkillIDs": [

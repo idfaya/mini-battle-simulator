@@ -189,6 +189,35 @@ Roguelike 怪物编组层
   - 固定 HP 基线
   - 固定豁免基线
 
+#### 5.1.1 `BaseHp` 基线（SSOT：`enemies.json`）
+
+- 运行时 HP **只读** `BaseHp`；`Level` / 楼层 **不**缩放单怪 HP。
+- 缺省 fallback 为 `Calculate5eHp(1, 生命骰, 体质调整)`，但 Act1 模板一律显式填表，并在职责 / 类型上微调。
+- 微调顺序（在 CR 档位锚点之上叠加，不发明新公式）：
+  1. **CR 锚点**：`1/8` 7–9 · `1/4` 7–14 · `1/2` 12–18 · `1` 18–26 · Boss `1→28–32` · Boss `2→34–40`
+  2. **职责**：`fodder` −1 · `skirmisher`/`ranged` 0 · `caster` −1（不低于 CR 下限） · `support`/`frontliner` +1 · `brute` +2
+  3. **MonsterType**：`Elite` +2 · `Boss` 走 Boss 锚点，不单靠 Elite 叠层
+- 同职责内：`brute`/`frontliner` 应高于 `skirmisher`/`ranged`；战士系 brute 不低于 `d10 + 体质调整`。
+
+| ID | 名称 | CR | role | Type | BaseHp |
+| --- | --- | --- | --- | --- | ---: |
+| 910001 | 史莱姆 | 1/8 | fodder | Normal | 9 |
+| 910012 | 哥布林投矛手 | 1/8 | skirmisher | Normal | 7 |
+| 910009 | 侍僧 | 1/8 | caster | Normal | 8 |
+| 910002 | 哥布林 | 1/4 | skirmisher | Normal | 7 |
+| 910013 | 骸骨弓手 | 1/4 | ranged | Normal | 10 |
+| 910008 | 斥候弓手 | 1/4 | skirmisher | Normal | 11 |
+| 910003 | 兽人 | 1/4 | brute | Normal | 13 |
+| 910004 | 骷髅兵 | 1/4 | frontliner | Elite | 14 |
+| 910010 | 誓卫 | 1/2 | frontliner | Normal | 14 |
+| 910014 | 兽人斗士 | 1/2 | brute | Normal | 16 |
+| 910016 | 暗影祭司 | 1/2 | support | Elite | 18 |
+| 910015 | 骸骨队长 | 1 | frontliner | Elite | 22 |
+| 910011 | 狂战士 | 1 | brute | Normal | 24 |
+| 910005 | 暗法师 | 1 | caster | Elite | 24 |
+| 910006 | 冰魔 | 1 | elite_caster | Boss | 30 |
+| 910007 | 雷霆领主 | 2 | elite_caster | Boss | 38 |
+
 ### 5.2 技能成长能力
 
 - 敌人复用现有玩家技能资源。
