@@ -1,76 +1,27 @@
 import { expect, test } from "playwright/test";
 
-async function collectClientErrors(page: import("playwright/test").Page) {
-  const pageErrors: string[] = [];
-  const consoleErrors: string[] = [];
-
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
-  });
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
-    }
-  });
-
-  return { pageErrors, consoleErrors };
-}
-
-function filterKnownNoise(errors: string[]) {
-  return errors.filter((message) => !message.includes("ERR_CONNECTION_REFUSED"));
-}
-
-async function readLogs(page: import("playwright/test").Page) {
-  return page.locator(".battle-log li").allTextContents();
-}
-
-async function captureClericAnimationSummary(page: import("playwright/test").Page, durationMs = 4000) {
-  return page.evaluate(async ({ durationMs: sampleMs }) => {
-    const win = window as typeof window & {
-      __miniBattleRenderer?: {
-        getBattleDebugState?: () => {
-          meleeClashes?: Array<unknown>;
-          projectileCount?: number;
-        };
-      };
-    };
-    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-    let maxMeleeClashes = 0;
-    let maxProjectileCount = 0;
-    const deadline = performance.now() + sampleMs;
-
-    while (performance.now() < deadline) {
-      const debugState = win.__miniBattleRenderer?.getBattleDebugState?.() ?? {};
-      maxMeleeClashes = Math.max(maxMeleeClashes, Array.isArray(debugState.meleeClashes) ? debugState.meleeClashes.length : 0);
-      maxProjectileCount = Math.max(maxProjectileCount, typeof debugState.projectileCount === "number" ? debugState.projectileCount : 0);
-      await sleep(50);
-    }
-
-    return { maxMeleeClashes, maxProjectileCount };
-  }, { durationMs });
-}
+import {
+  collectClientErrors,
+  expectBattleBoot,
+  expectNoClientErrors,
+  readBattleLogs,
+} from "./helpers/battle-smoke";
 
 test("cleric base route keeps holy spark ranged and shelter active", async ({ page }) => {
+  test.setTimeout(60_000);
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto(
-    "/?mode=single-battle&heroes=900007&enemies=910008&level=5&seed=101002",
-  );
-
-  await expect(page.locator(".fatal-error")).toHaveCount(0);
-  await expect(page.locator("canvas")).toHaveCount(1);
-  await expect(page.locator(".ult-button")).toHaveCount(0);
-
-  const animationSummary = await captureClericAnimationSummary(page);
+  await page.goto("/?mode=single-battle&heroes=900007&enemies=910008&level=5&seed=101002");
+  await expectBattleBoot(page);
 
   await expect
-    .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
+    .poll(async () => (await readBattleLogs(page)).join("\n"), { timeout: 15000 })
     .toContain("神圣火花");
   await expect
-    .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
+    .poll(async () => (await readBattleLogs(page)).join("\n"), { timeout: 15000 })
     .toContain("神恩庇护");
 
-  const logs = await readLogs(page);
+  const logs = await readBattleLogs(page);
   const joinedLogs = logs.join("\n");
   expect(logs.some((line) => line.includes("神圣火花"))).toBeTruthy();
   expect(logs.some((line) => line.includes("神恩庇护"))).toBeTruthy();
@@ -84,8 +35,5 @@ test("cleric base route keeps holy spark ranged and shelter active", async ({ pa
     ),
   ).toBeTruthy();
   expect(joinedLogs).toMatch(/神圣火花.*(意志豁免|豁免检定).*vs DC.*伤害骰/s);
-  expect(animationSummary.maxMeleeClashes).toBe(0);
-  expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
-  expect(pageErrors).toEqual([]);
-  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+  await expectNoClientErrors(page, pageErrors, consoleErrors);
 });

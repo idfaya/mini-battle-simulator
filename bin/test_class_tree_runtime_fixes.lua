@@ -25,6 +25,7 @@ local MonkBuildPassives = require("skills.monk_build_passives")
 local RogueBuildPassives = require("skills.rogue_build_passives")
 local RangerBuildPassives = require("skills.ranger_build_passives")
 local PaladinBuildPassives = require("skills.paladin_build_passives")
+local BarbarianBuildPassives = require("skills.barbarian_build_passives")
 local SkillEffectRegistry = require("skills.skill_effect_registry")
 local BattleSkillStatus = require("skills.battle_skill_status")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
@@ -476,9 +477,9 @@ do
         teamRight = {},
     })
     BattleBuff.Add(paladin, ally, {
-        buffId = 880005,
+        buffId = 880002,
         name = "冻结",
-        mainType = E_BUFF_MAIN_TYPE.BAD,
+        mainType = E_BUFF_MAIN_TYPE.CONTROL,
         subType = E_BUFF_SPEC_SUBTYPE.Frozen,
         duration = 2,
         canStack = false,
@@ -772,10 +773,10 @@ do
         duration = 1,
         canStack = false,
     })
-    BattleSkillStatus.ApplyFrost(frozenTarget, 2, wizard)
-    local frostBuff = BattleBuff.GetBuff(frozenTarget, 880005)
-    assert_true((tonumber(frostBuff and frostBuff.duration) or 0) == 3, "wizard frost duration delta extends frost duration")
-    local frostHandler = SkillEffectRegistry.handlers["apply_frost"]
+    BattleSkillStatus.ApplySlow(frozenTarget, 2, wizard)
+    local slowBuff = BattleBuff.GetBuff(frozenTarget, 880001)
+    assert_true((tonumber(slowBuff and slowBuff.duration) or 0) == 3, "wizard slow duration delta extends slow duration")
+    local frostHandler = SkillEffectRegistry.handlers["apply_slow"]
     local frostCtx = { hero = wizard, skill = { skillId = 80008001, name = "寒霜射线" } }
     local frostFrame = {
         targets = { frozenTarget },
@@ -785,13 +786,13 @@ do
     }
     frostHandler(frostCtx, frostFrame, "post", { param = { turns = 2 } })
     assert_true((tonumber(wizard.tempHp) or 0) == 4, "wizard frost armor grants temp hp on cast")
-    frostBuff = BattleBuff.GetBuff(frozenTarget, 880005)
-    if frostBuff then
-        frostBuff.duration = 1
+    slowBuff = BattleBuff.GetBuff(frozenTarget, 880001)
+    if slowBuff then
+        slowBuff.duration = 1
     end
     frostHandler(frostCtx, frostFrame, "post", { param = { turns = 2 } })
-    frostBuff = BattleBuff.GetBuff(frozenTarget, 880005)
-    assert_true((tonumber(frostBuff and frostBuff.duration) or 0) == 3, "wizard frost ray refreshes frost on frozen hit")
+    slowBuff = BattleBuff.GetBuff(frozenTarget, 880001)
+    assert_true((tonumber(slowBuff and slowBuff.duration) or 0) == 3, "wizard frost ray refreshes slow on frozen hit")
     local blizzardHandler = SkillEffectRegistry.handlers["wizard_blizzard_settlement"]
     local blizzardFrame = {
         targets = { frozenTarget },
@@ -1021,6 +1022,81 @@ do
     assert_true(lastFrame and lastFrame.op == "chain_damage", "warlock thunder chain last hop frame exists")
     assert_true(type(lastFrame.bonusDamageDice) == "string" and string.find(lastFrame.bonusDamageDice, "1d6", 1, true) ~= nil,
         "warlock thunder chain last hop gains marked bonus dice")
+end
+
+do
+    local baseHero = new_unit(441, "BaseBarbarian", true, 1)
+    baseHero.class = 10
+    baseHero.classId = 10
+    baseHero.skills = { { skillId = IDS.barbarian_rage } }
+    baseHero.skillData.skillInstances[IDS.barbarian_rage] = true
+    assert_true(BarbarianBuildPassives.TryActivateBerserk(baseHero), "barbarian base rage triggers once per battle")
+    baseHero.passiveRuntime.barbarianBerserkUntilRound = -1
+    assert_true(not BarbarianBuildPassives.TryActivateBerserk(baseHero), "barbarian base rage cannot re-enter without mastery")
+
+    local masteryHero = new_unit(442, "MasteryBarbarian", true, 1)
+    masteryHero.class = 10
+    masteryHero.classId = 10
+    masteryHero.skills = {
+        { skillId = IDS.barbarian_rage },
+        { skillId = IDS.barbarian_berserk },
+    }
+    masteryHero.skillData.skillInstances[IDS.barbarian_rage] = true
+    masteryHero.skillData.skillInstances[IDS.barbarian_berserk] = true
+    assert_true(BarbarianBuildPassives.TryActivateBerserk(masteryHero), "barbarian berserk mastery allows first rage")
+    masteryHero.passiveRuntime.barbarianBerserkUntilRound = -1
+    assert_true(BarbarianBuildPassives.TryActivateBerserk(masteryHero), "barbarian berserk mastery allows repeated rage entries")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
+    local barbarian = new_unit(451, "CleaveBarbarian", true, 1)
+    local primary = new_unit(452, "CleavePrimary", false, 1)
+    local split = new_unit(453, "CleaveSplit", false, 2)
+    barbarian.class = 10
+    barbarian.classId = 10
+    barbarian.strMod = 3
+    barbarian.hit = 20
+    barbarian.buildState.skillMods[IDS.barbarian_heavy_strike] = {
+        frontRowSplitTargets = 2,
+        acPenaltyDelta = -1,
+    }
+    BattleFormation.Init({
+        teamLeft = { barbarian },
+        teamRight = { primary, split },
+    })
+    local enemyTeam = BattleFormation.GetEnemyTeam(barbarian) or {}
+    primary = enemyTeam[1] or primary
+    split = enemyTeam[2] or split
+    local oldResolve = BattleSkill.ResolveScaledDamage
+    local oldApplyDamage = BattleDmgHeal.ApplyDamage
+    local damagedIds = {}
+    BattleSkill.ResolveScaledDamage = function()
+        return {
+            hit = { hit = true },
+            damage = 6,
+            isCrit = false,
+            damageRoll = { expr = "2d6" },
+        }
+    end
+    BattleDmgHeal.ApplyDamage = function(target, amount)
+        damagedIds[#damagedIds + 1] = target and target.instanceId or 0
+        if target then
+            target.hp = math.max(0, (tonumber(target.hp) or 0) - (tonumber(amount) or 0))
+        end
+        return amount
+    end
+    BarbarianBuildPassives.PerformHeavyStrike(barbarian, primary, {
+        skillId = IDS.barbarian_heavy_strike,
+        name = "重击",
+    })
+    BattleSkill.ResolveScaledDamage = oldResolve
+    BattleDmgHeal.ApplyDamage = oldApplyDamage
+    assert_true(#damagedIds == 2, "barbarian cleave damages primary and one extra front-row target")
+    assert_true(damagedIds[1] == primary.instanceId, "barbarian cleave keeps primary target first")
+    assert_true(damagedIds[2] == split.instanceId, "barbarian cleave picks another front-row enemy")
 end
 
 BattleFormation.OnFinal()

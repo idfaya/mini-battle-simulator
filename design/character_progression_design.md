@@ -143,7 +143,7 @@
 
 - 新增 `equipments.json` / `blesses.json` 与对应 Lua 加载层。
 - 精英战必掉装备 + 概率 bless；普通战完全不掉装备。
-- 回归：`bin/test_three_class_build_pipeline.lua` + `bin/test_class_tree_runtime_fixes.lua` + `bin/test_fighter_build_pipeline.lua`。
+- 回归：`bin/test_three_class_build_pipeline.lua`（聚合）或各职业 `bin/test_*_build_pipeline.lua` + `bin/test_class_build_shared.lua` + `bin/test_class_tree_runtime_fixes.lua` + `bin/test_fighter_build_pipeline.lua`。
 
 ### 7.3 阶段 3：Feat 进阶通道收口
 

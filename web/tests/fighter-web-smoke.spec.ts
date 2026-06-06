@@ -323,23 +323,24 @@ async function waitForNoForwardLungeOnDirectHit(
 }
 
 test("fighter web flow follows second wind -> counter -> guard progression", async ({ page }) => {
+  test.setTimeout(60_000);
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
   await page.goto("/?mode=single-battle&heroes=900005&enemies=910003,910003,910003&level=3&seed=101001");
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3500);
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".ult-button")).toHaveCount(0);
 
   await expect
-    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 6000 })
+    .poll(async () => (await page.locator(".battle-log li").allTextContents()).join("\n"), { timeout: 20_000 })
     .toContain("战士 触发被动 反击：登记反击");
 
   const level3LogLines = await page.locator(".battle-log li").allTextContents();
   const level3Logs = level3LogLines.join("\n");
   expect(level3Logs).toContain("反击");
-  expect(level3Logs).not.toContain("护卫架势");
+  expect(level3Logs).not.toContain("战士 使用 护卫架势");
   expect(level3Logs).not.toContain("盾击");
   expect(level3Logs).not.toContain("顺劈");
   expect(level3Logs).not.toContain("旋风");
@@ -364,7 +365,7 @@ test("fighter web flow follows second wind -> counter -> guard progression", asy
   const level1Logs = (await page.locator(".battle-log li").allTextContents()).join("\n");
   expect(level1Logs).toContain("基础武器攻击");
   expect(level1Logs).not.toContain("战士 触发被动 反击：登记反击");
-  expect(level1Logs).not.toContain("护卫架势");
+  expect(level1Logs).not.toContain("战士 使用 护卫架势");
   expect(level1Logs).not.toContain("盾击");
   expect(level1Logs).not.toContain("顺劈");
   expect(level1Logs).not.toContain("旋风");

@@ -81,8 +81,17 @@ lua bin/test_roguelike_hidden_floor.lua
 lua bin/test_single_battle.lua
 lua bin/test_fighter_build_pipeline.lua
 lua bin/test_fighter_build_runtime.lua
-lua bin/test_three_class_build_pipeline.lua
+lua bin/test_three_class_build_pipeline.lua   # 聚合入口；亦可单独跑下列分文件
+lua bin/test_monk_build_pipeline.lua
+lua bin/test_paladin_build_pipeline.lua
+lua bin/test_barbarian_build_pipeline.lua
+lua bin/test_ranger_build_pipeline.lua
+lua bin/test_rogue_build_pipeline.lua
+lua bin/test_cleric_build_pipeline.lua
+lua bin/test_class_build_shared.lua
 lua bin/test_class_tree_runtime_fixes.lua
+lua bin/test_cleric_holy_spark_targeting.lua
+lua bin/test_physical_class_budget.lua
 lua bin/test_enemy_skill_alignment.lua
 lua bin/test_roguelike_enemy_generation.lua
 lua bin/test_roguelike_act23_battle_pools.lua
@@ -90,6 +99,7 @@ lua bin/test_roguelike_event_revive.lua
 lua bin/test_skill_targeting.lua
 lua bin/test_skill_tier_scaling.lua
 lua bin/test_timeline_passive.lua
+lua bin/test_buff_ticks.lua
 lua bin/test_positioning.lua
 lua bin/test_feat_mod_helper.lua
 lua bin/test_browser_battle_runtime.lua
