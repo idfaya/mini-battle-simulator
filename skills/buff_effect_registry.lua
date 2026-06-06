@@ -52,11 +52,6 @@ local function handleBurnTick(buff, hero)
         return
     end
 
-    if buff.__burnPendingTick == true then
-        buff.__burnPendingTick = false
-        return
-    end
-
     local caster = buff.caster or hero
     local saveType = buff.__burnSaveType or "ref"
     local dc = tonumber(caster and caster.spellDC) or 10
@@ -64,13 +59,15 @@ local function handleBurnTick(buff, hero)
         + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
     local saveResult = BattleFormula.RollSave(hero, dc, saveBonus, {})
     local saveLabel = getSaveLabel(saveType)
+    local BattleBuff = require("modules.battle_buff")
 
     if saveResult.success then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧未引爆：%s豁免成功 (%d vs DC %d)",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧熄灭：%s豁免成功 (%d vs DC %d)",
             hero.name or "目标",
             saveLabel,
             saveResult.total or 0,
             saveResult.dc or dc))
+        BattleBuff.RemoveBuffById(hero, buff.id)
         return
     end
 
@@ -87,13 +84,10 @@ local function handleBurnTick(buff, hero)
     BattleDmgHeal.ApplyDamage(hero, damage, caster, {
         damageKind = "fire",
     })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧引爆：%s豁免失败，受到 %d 点火焰伤害并结束",
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 的燃烧持续：%s豁免失败，受到 %d 点火焰伤害",
         hero.name or "目标",
         saveLabel,
         damage))
-
-    local BattleBuff = require("modules.battle_buff")
-    BattleBuff.RemoveBuffById(hero, buff.id)
 end
 
 local function getFrozenAcPenalty(hero)

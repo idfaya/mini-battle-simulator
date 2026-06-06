@@ -9,6 +9,7 @@
 下级文档清单：
 
 - `single_battle_design.md` / `single_battle_parameter_table.md`
+- `buff_system_design.md`
 - `dungeon_design.md` / `character_progression_design.md`
 - `class_system_design.md`
 - `roguelike_feat_skill_fill_sheet.md` / `auto_battle_targeting.md`
@@ -167,7 +168,8 @@
 | `high_slot` | 高阶终局能力槽，`high` 启用 |
 | `反击` | 受到攻击事件后的回手动作 |
 | `连击` | 命中后概率触发的额外攻击 |
-| `偷袭 / 标记 / 点燃 / 印记` | 条件附加伤害或状态，由各职业核心技定义 |
+| `偷袭 / 标记 / 印记` | 条件附加伤害或状态，由各职业核心技定义 |
+| `点燃` | 术士负面 DoT（`870001`）；细则见 [`buff_system_design.md`](./buff_system_design.md) §4.1 |
 
 ### 4.6 地牢术语
 

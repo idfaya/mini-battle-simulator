@@ -15,13 +15,14 @@
 | [implementation_guidelines.md](./implementation_guidelines.md) | Feat/skill、BuildState、Run 模块与 EXP/地牢 SSOT、Web 表现、测试口径（写代码必读） |
 | [skill_system_implementation.md](./skill_system_implementation.md) | Timeline 技能、三层配置、释放流程 |
 | [buff_system_implementation.md](./buff_system_implementation.md) | Buff 生命周期与注册表 |
-| [buff_shared_table.md](./buff_shared_table.md) | Buff 静态表字段 |
+| [buff_shared_table.md](./buff_shared_table.md) | Buff 逐 ID 实现对照表（与 `buffs.json` 同步） |
 
 ## 策划规则来源（改代码时对照）
 
 | 主题 | 策划文档 |
 | --- | --- |
 | 战场 / 术语 | `design/combat_system_design.md` |
+| Buff / 状态规则 | `design/buff_system_design.md` |
 | Class / 5e | `design/class_system_design.md` |
 | Run 养成 / partyExp | `design/character_progression_design.md` §2 |
 | 地牢 / 房间 / cleared 通路 | `design/dungeon_design.md` §4.2 |

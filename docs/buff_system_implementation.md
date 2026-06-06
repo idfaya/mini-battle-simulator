@@ -2,7 +2,7 @@
 
 > **项目**: Mini Battle Simulator
 > **更新时间**: 2026-05-18
-> **说明**: 本文档描述当前工程中 Buff 系统的实际实现方式、调用链路、生命周期、配置格式与现有状态表，内容以源码现状为准。
+> **说明**: 本文档描述当前工程中 Buff 系统的实际实现方式、调用链路、生命周期、配置格式与现有状态表，内容以源码现状为准。策划规则总纲见 [`design/buff_system_design.md`](../design/buff_system_design.md)。
 
 ---
 
@@ -41,7 +41,7 @@ Buff 系统在工程中的职责主要有四块：
 | 战斗主循环 | `modules/battle_main.lua` | 在回合结束调用 Buff 结算与持续时间递减 |
 | 枚举定义 | `core/battle_enum.lua` | 定义 Buff 主类型、控制子类型等枚举 |
 | 视觉事件 | `ui/battle_visual_events.lua` | 构建 BUFF_ADDED、BUFF_REMOVED、HERO_STATE_CHANGED 等事件数据 |
-| Buff 配置源 | `config/data/buffs.json` | Buff 静态总表配置，按数组维护当前 28 个状态 |
+| Buff 配置源 | `config/data/buffs.json` | Buff 静态总表配置，按数组维护当前 31 个状态 |
 | Buff 运行时适配 | `config/tables/buffs.lua` | 读取 `data/buffs.json`，按 `buffId` 建索引并回绑 Lua handler |
 | Buff 效果注册 | `skills/buff_effect_registry.lua` | 为 DoT、减速等少数带自定义逻辑的 Buff 提供 handler |
 
@@ -543,7 +543,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 ## 12. 当前 Buff 配置总表
 
-截至当前版本，`config/data/buffs.json` 中共维护 28 个 Buff 条目；运行时通过 `config/tables/buffs.lua` 适配加载。
+截至当前版本，`config/data/buffs.json` 中共维护 31 个 Buff 条目；运行时通过 `config/tables/buffs.lua` 适配加载。逐 ID 对照见 [`buff_shared_table.md`](./buff_shared_table.md)。
 
 ### 12.1 820xxx：旧战斗通用姿态/仇恨状态
 
@@ -577,7 +577,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 | Buff ID | 名称 | 主类型 | 说明 |
 |---------|------|--------|------|
-| 870001 | 燃烧 | BAD | 首个回合开始仅延迟；下一次回合开始进行反射豁免，失败则受到火焰伤害并结束 |
+| 870001 | 燃烧 | BAD | 每回合开始进行反射豁免；成功则移除，失败则受到火焰伤害并继续 |
 | 870002 | 火焰亲和 | GOOD | 常驻正面状态，用于延长燃烧等联动 |
 
 ### 12.6 880xxx：冰系与弱点
@@ -633,8 +633,9 @@ Buff 系统会向表现层发布以下核心事件：
 
 - `BAD`
 - 不叠层，重复施加只刷新持续时间
-- 首个 `ON_ROUND_BEGIN` 仅消耗延迟标记，不立即造成伤害
-- 下一次 `ON_ROUND_BEGIN` 进行一次 `反射` 豁免，失败时受到 `1d4` 火焰伤害并立刻结束
+- 每个 `ON_ROUND_BEGIN` 进行一次 `反射` 豁免
+- 豁免成功：移除燃烧
+- 豁免失败：受到 `1d4` 火焰伤害，燃烧继续（直至成功豁免或持续时间耗尽）
 - 若施法者有 `火焰亲和 870002`，可延长持续时间
 
 ### 13.3 冻结 / 眩晕
