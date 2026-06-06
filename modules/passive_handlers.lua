@@ -387,6 +387,7 @@ PassiveHandlers.factories = {
     [80002109] = FighterBuildPassives.CreateExtraAttackPassive,
     [80003101] = MonkBuildPassives.CreateMartialArtsPassive,
     [80004102] = PaladinBuildPassives.CreateShelterPrayerPassive,
+    [80004103] = PaladinBuildPassives.CreateExtraAttackPassive,
     [80006103] = ClericBuildPassives.CreateShelterPrayerPassive,
     [80005101] = RangerBuildPassives.CreateHunterMarkPassive,
     [80010101] = BarbarianBuildPassives.CreateRagePassive,

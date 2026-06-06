@@ -634,6 +634,55 @@ do
 end
 
 do
+    local paladin = new_unit(331, "ComboPaladin", true, 2)
+    local target = new_unit(332, "ComboTarget", false, 1)
+    paladin.class = 4
+    paladin.classId = 4
+    local passive = PaladinBuildPassives.CreateExtraAttackPassive({ src = paladin })
+    local oldCastSmallSkill = BattleSkill.CastSmallSkill
+    local castCalls = 0
+    BattleSkill.CastSmallSkill = function()
+        castCalls = castCalls + 1
+        return true
+    end
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = target,
+                skillId = IDS.paladin_basic_attack,
+                damageDealt = 8,
+                basicAttackActionToken = 201,
+                basicAttackActionSource = "normal_action",
+            },
+        },
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = target,
+                skillId = IDS.paladin_basic_attack,
+                damageDealt = 8,
+                basicAttackActionToken = 201,
+                basicAttackActionSource = "normal_action",
+            },
+        },
+    })
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = target,
+                skillId = IDS.paladin_basic_attack,
+                damageDealt = 8,
+                basicAttackActionToken = 202,
+                basicAttackIsFollowUp = true,
+            },
+        },
+    })
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    assert_true(castCalls == 1, "paladin combo basic triggers one follow-up per basic attack action")
+end
+
+do
     BattleFormation.OnFinal()
     BattleBuff.Init()
     local skill_80007001 = require("config.skill.skill_80007001")

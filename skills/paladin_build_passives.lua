@@ -384,6 +384,14 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
     return damage
 end
 
+function PaladinBuildPassives.CreateExtraAttackPassive(context)
+    return BuildPassiveCommon.CreateExtraAttackPassive(context, {
+        basicAttackSkillId = IDS.paladin_basic_attack,
+        tokenKey = "paladinExtraAttackActionToken",
+        inProgressKey = "__inPaladinExtraAttack",
+    })
+end
+
 function PaladinBuildPassives.CreateShelterPrayerPassive(context)
     local self = buildContextState(context)
 

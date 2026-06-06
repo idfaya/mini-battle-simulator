@@ -120,10 +120,11 @@ test("monk smoke shows martial arts chain, subclass action and extra attack", as
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
 
-test("paladin smoke shows judgement prayer, divine smite and oath action", async ({ page }) => {
+test("paladin smoke shows smite rotation and limited lay on hands kit", async ({ page }) => {
   const { pageErrors, consoleErrors } = await collectClientErrors(page);
 
-  await page.goto("/?mode=single-battle&heroes=900009&enemies=910006&level=5&seed=101001");
+  // Lv5 主干：破邪斩 + 圣武打击；圣疗为限次救场，不在速战里强行要求施放。
+  await page.goto("/?mode=single-battle&heroes=900009&enemies=910003,910003&level=5&seed=101001");
 
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
@@ -134,11 +135,17 @@ test("paladin smoke shows judgement prayer, divine smite and oath action", async
     .toContain("破邪斩");
   await expect
     .poll(async () => (await readLogs(page)).join("\n"), { timeout: 15000 })
-    .toContain("圣疗");
+    .toContain("圣武打击");
 
-  const logs = await readLogs(page);
-  expect(logs.some((line) => line.includes("破邪斩"))).toBeTruthy();
-  expect(logs.some((line) => line.includes("圣疗"))).toBeTruthy();
+  const rotationLogs = await readLogs(page);
+  const rotationText = rotationLogs.join("\n");
+  expect(rotationText).toContain("破邪斩");
+  expect(rotationText).toContain("圣武打击");
+  // R 圣疗：限次救场大招；健康速战中只验证就绪，不强行要求施放。
+  expect(rotationText).toContain("大招已就绪");
+  expect(rotationText).not.toContain("发动圣疗");
+  // Lv5 T2 为灵光基础被动，不再自动施放守护灵光主动。
+  expect(rotationText).not.toContain("展开守护灵光");
   expect(pageErrors).toEqual([]);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

@@ -356,7 +356,7 @@ local FEATS = {
         classId = 10,
         level = 5,
         name = "狂暴精通",
-        description = "取消狂暴每场 1 次限制，且每次进入狂暴时获得 1d6 点临时生命。",
+        description = "取消狂暴每场 1 次限制。",
         trunk = "T2",
         treeSlot = "T2",
         effects = {
@@ -698,8 +698,8 @@ local rangerTree = {
 
 -- Paladin 圣武士 (classId=4)
 local paladinTree = {
-    {key="j_paladin_lay_on_master", classId=4, level=2, slot="J", prereqs={F.paladin_R}, name="圣疗精通", desc="圣疗 CD -1，并清除关键负面状态。",
-        effects={{type="modify_skill", skill=80004013, add={cooldownDelta=-1, cleanseDebuffs=true}}}},
+    {key="j_paladin_lay_on_master", classId=4, level=2, slot="J", prereqs={F.paladin_R}, name="圣疗精通", desc="圣疗清除关键负面状态。",
+        effects={{type="modify_skill", skill=80004013, add={cleanseDebuffs=true}}}},
     {key="b_paladin_smite_plus", classId=4, level=4, slot="B", prereqs={F.paladin_T1}, name="惩戒熟练", desc="破邪斩伤害 +1d8。",
         effects={{type="modify_skill", skill=80004014, add={bonusDamageDice="1d8"}}}},
     {key="b_paladin_holy_mark", classId=4, level=4, slot="B", prereqs={F.paladin_T1}, name="惩戒印记", desc="破邪斩命中后目标受到所有伤害 +1 持续 1 回合。",
@@ -710,6 +710,8 @@ local paladinTree = {
         effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraRangeDelta=1}}}}},
     {key="c_paladin_smite_master", classId=4, level=10, slot="C", prereqs={F.paladin_T1}, isCapstone=true, name="惩戒大师", desc="破邪斩对主目标与其相邻目标各造成一次武器伤害 +1d8 光耀；若主目标带神圣印记，额外驱散 1 个增益。",
         effects={{type="modify_skill", skill=80004014, add={splitAdjacentTargets=2, splitBonusDice="1d8", vsHolyMarkDispelBonus=1}}}},
+    {key="b_paladin_combo_basic", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="连击基础", desc="主动使用圣武打击命中时，立即对同一目标追加 1 次连击；连击不再触发连击。",
+        effects={{type="grant_skill", skill=80004103}}},
 }
 
 -- Cleric 牧师 (classId=6)
@@ -802,24 +804,20 @@ local warlockTree = {
 
 -- Barbarian 野蛮人 (classId=10)
 local barbarianTree = {
-    {key="b_barbarian_rage_plus", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="狂暴熟练", desc="狂暴期间伤害再 +1，且额外 -1 物理伤害。",
-        effects={{type="modify_skill", skill=80010101, add={rageBonusDamageDelta=1, ragePhysicalReduceDelta=1}}}},
-    {key="b_barbarian_desperate", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="嗜血拼命", desc="受击进入狂暴时立即获得 1d6 临时生命。",
-        effects={{type="modify_skill", skill=80010101, add={onRageEnterTempHpDice="1d6"}}}},
-    {key="b_barbarian_heavy_plus", classId=10, level=6, slot="B", prereqs={F.barbarian_T1}, name="重击熟练", desc="重击伤害 +1d6。",
-        effects={{type="modify_skill", skill=80010013, add={bonusDamageDice="1d6"}}}},
+    {key="b_barbarian_rage_extend", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="狂暴延续", desc="狂暴持续时间 +1 回合。",
+        effects={{type="modify_skill", skill=80010101, add={rageDurationDelta=1}}}},
+    {key="b_barbarian_rage_recovery", classId=10, level=2, slot="B", prereqs={F.barbarian_R}, name="狂暴恢复", desc="每次进入狂暴时回复 1d6 生命。",
+        effects={{type="modify_skill", skill=80010101, add={onRageEnterHealDice="1d6"}}}},
+    {key="b_barbarian_heavy_plus", classId=10, level=6, slot="B", prereqs={F.barbarian_T1}, name="重击熟练", desc="重击自损破绽由 AC -2 降为 AC -1。",
+        effects={{type="modify_skill", skill=80010013, add={acPenaltyDelta=-1}}}},
     {key="b_barbarian_heavy_echo", classId=10, level=6, slot="B", prereqs={F.barbarian_T1}, name="重击回转", desc="重击 CD -1。",
         effects={{type="modify_skill", skill=80010013, add={cooldownDelta=-1}}}},
-    {key="j_barbarian_heavy_master", classId=10, level=7, slot="J", prereqs={F.barbarian_T1}, name="重击精通", desc="重击命中后对相邻目标造成 1d6 溅射。",
-        effects={{type="modify_skill", skill=80010013, add={splashAdjacentDice="1d6"}}}},
-    {key="b_barbarian_rage_extend", classId=10, level=7, slot="B", prereqs={F.barbarian_T2}, name="狂暴延续", desc="狂暴持续时间 +1 回合。",
-        effects={{type="modify_skill", skill=80010101, add={rageDurationDelta=1}}}},
+    {key="j_barbarian_heavy_master", classId=10, level=7, slot="J", prereqs={F.barbarian_T1}, name="顺劈斩", desc="重击额外对 1 名前排目标造成完整重击。",
+        effects={{type="modify_skill", skill=80010013, add={frontRowSplitTargets=2}}}},
     {key="j_barbarian_blood_master", classId=10, level=8, slot="J", prereqs={F.barbarian_T2}, name="嗜血精通", desc="狂暴期间击杀回复 1d8 生命。",
         effects={{type="modify_skill", skill=80010101, add={onKillHealDice="1d8"}}}},
-    {key="c_barbarian_rage_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T2}, requireAllPrerequisites=true, isCapstone=true, name="狂暴大师", desc="狂暴期间造成伤害时，回复本次实际伤害的 25% 生命。",
-        effects={{type="modify_skill", skill=80010101, add={rageLifestealPct=25}}}},
-    {key="c_barbarian_strike_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T1}, requireAllPrerequisites=true, isCapstone=true, name="重击大师", desc="重击改为对前排 2 个目标；若当前处于狂暴，本次重击暴击阈值 -1。",
-        effects={{type="modify_skill", skill=80010013, add={frontRowSplitTargets=2, rageCritThresholdDelta=-1}}}},
+    {key="c_barbarian_strike_master", classId=10, level=10, slot="C", prereqs={F.barbarian_T1}, requireAllPrerequisites=true, isCapstone=true, name="顺劈斩目标+1", desc="顺劈斩额外目标 +1。",
+        effects={{type="modify_skill", skill=80010013, add={frontRowSplitDelta=1}}}},
 }
 
 local TreeFeatGroups = { fighterTree, monkTree, rogueTree, rangerTree, paladinTree, clericTree, sorcererTree, wizardTree, warlockTree, barbarianTree }
@@ -898,9 +896,7 @@ do
         { "c_warlock_storm_grandmaster",    "b_warlock_storm_echo" },
         -- 野蛮人 §8.6
         { "j_barbarian_heavy_master",       "b_barbarian_heavy_plus" },
-        { "j_barbarian_blood_master",       "b_barbarian_desperate" },
-        { "c_barbarian_rage_master",        "b_barbarian_rage_extend" },
-        { "c_barbarian_rage_master",        "j_barbarian_blood_master" },
+        { "j_barbarian_blood_master",       "b_barbarian_rage_recovery" },
         { "c_barbarian_strike_master",      "b_barbarian_heavy_echo" },
         { "c_barbarian_strike_master",      "j_barbarian_heavy_master" },
     }

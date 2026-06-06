@@ -61,6 +61,14 @@ local function getHeavyStrikeStringMod(hero, key)
     return type(value) == "string" and value or nil
 end
 
+local function getHeavyStrikeSplitTargetCount(hero)
+    return math.max(
+        1,
+        getHeavyStrikeNumberMod(hero, "frontRowSplitTargets", 1)
+            + getHeavyStrikeNumberMod(hero, "frontRowSplitDelta", 0)
+    )
+end
+
 local function getBerserkDuration(hero)
     return math.max(1, BERSERK_DURATION_ROUNDS + getRageNumberMod(hero, "rageDurationDelta", 0))
 end
@@ -209,7 +217,17 @@ function BarbarianBuildPassives.TryActivateBerserk(hero)
     runtime.barbarianBerserkUsed = true
     runtime.barbarianBerserkUntilRound = getRound() + duration - 1
     syncBerserkBuff(hero)
-    grantTempHp(hero, BuildPassiveCommon.RollDice(getRageStringMod(hero, "onRageEnterTempHpDice")))
+    local healDice = getRageStringMod(hero, "onRageEnterHealDice")
+    if type(healDice) == "string" and healDice ~= "" then
+        local healAmount = math.max(0, BuildPassiveCommon.RollDice(healDice))
+        if healAmount > 0 then
+            BuildPassiveCommon.ApplyHeal(hero, healAmount)
+            BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "狂暴恢复",
+                string.format("回复 %d 生命", healAmount))
+        end
+    else
+        grantTempHp(hero, BuildPassiveCommon.RollDice(getRageStringMod(hero, "onRageEnterTempHpDice")))
+    end
     BuildPassiveCommon.PublishPassiveTriggered(hero, "狂暴", "怒气爆发", string.format("持续 %d 回合", duration))
     return true
 end
@@ -267,14 +285,12 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill, opts)
     local meta = Skill5eMeta.Get(skill and skill.skillId or IDS.barbarian_heavy_strike)
     local hitPenalty = tonumber(meta and meta.hitPenalty) or 0
     local critMin = tonumber(meta and meta.critMin) or 19
-    if BarbarianBuildPassives.IsBerserkActive(hero) then
-        critMin = math.max(2, critMin + math.floor(getHeavyStrikeNumberMod(hero, "rageCritThresholdDelta", 0)))
-    end
     local damageDice = BuildPassiveCommon.JoinDiceParts(tostring(meta and meta.damageDice or ""), getHeavyStrikeStringMod(hero, "bonusDamageDice"))
     local strengthBonus = math.max(0, tonumber(hero.strMod) or 0)
+    local acPenalty = math.max(1, 2 + math.floor(getHeavyStrikeNumberMod(hero, "acPenaltyDelta", 0)))
     BattleSkill.ApplyBuffFromSkill(hero, hero, HEAVY_STRIKE_AC_DOWN_BUFF_ID, skill, {
         duration = 1,
-        value = 2,
+        value = acPenalty,
     })
     local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
         skill = skill,
@@ -319,7 +335,7 @@ function BarbarianBuildPassives.PerformHeavyStrike(hero, target, skill, opts)
             BattlePassiveSkill.RunSkillOnDmgMakeKill(hero, { target = target })
         end
         if opts.suppressSplit ~= true then
-            for _, extraTarget in ipairs(collectHeavyStrikeSplitTargets(hero, target, getHeavyStrikeNumberMod(hero, "frontRowSplitTargets", 1))) do
+            for _, extraTarget in ipairs(collectHeavyStrikeSplitTargets(hero, target, getHeavyStrikeSplitTargetCount(hero))) do
                 BarbarianBuildPassives.PerformHeavyStrike(hero, extraTarget, skill, { suppressSplit = true, suppressSplash = true })
             end
         end

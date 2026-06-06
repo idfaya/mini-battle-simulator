@@ -40,6 +40,7 @@ local BattleSkill = require("modules.battle_skill")
 local BattleMain = require("modules.battle_main")
 local MonkBuildPassives = require("skills.monk_build_passives")
 local PaladinBuildPassives = require("skills.paladin_build_passives")
+local BarbarianBuildPassives = require("skills.barbarian_build_passives")
 local RangerBuildPassives = require("skills.ranger_build_passives")
 local BuildPassiveCommon = require("skills.build_passive_common")
 
@@ -103,6 +104,12 @@ do
     local lv2Build = HeroBuild.CompileBuild(4, 2, canonicalSelections(4, 2))
     assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).cleanseDebuffs) == true,
         "Paladin Lv2 first child enables lay on hands cleanse")
+    assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).cooldownDelta) == nil,
+        "Paladin Lv2 lay on hands mastery does not reduce cooldown on a per-battle limited skill")
+
+    local comboBuild = HeroBuild.CompileBuild(4, 2, { FeatBuildConfig.Ids.b_paladin_combo_basic })
+    assert_true(hasSkill(comboBuild.passiveSkills, SkillRuntimeConfig.Ids.paladin_extra_attack),
+        "Paladin combo basic grants extra attack passive")
     assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).bonusHealDice) == nil,
         "Paladin Lv2 first child no longer adds extra heal dice")
     assert_true(((lv2Build.skillMods[SkillRuntimeConfig.Ids.paladin_lay_on_hands] or {}).postHealShield) == nil,
@@ -143,6 +150,51 @@ do
     assert_true(PaladinBuildPassives.GetAuraAcBonus(ally, nil) >= 1, "paladin aura grants AC bonus to ally")
     assert_true(PaladinBuildPassives.GetAuraSaveBonus(ally, "will") >= 1, "paladin aura grants saving throw bonus after aura mastery mods")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
+end
+
+do
+    local recoveryBuild = HeroBuild.CompileBuild(10, 2, { FeatBuildConfig.Ids.b_barbarian_rage_recovery })
+    assert_true(((recoveryBuild.skillMods[SkillRuntimeConfig.Ids.barbarian_rage] or {}).onRageEnterHealDice) == "1d6",
+        "Barbarian rage recovery heals on berserk entry")
+    assert_true(((recoveryBuild.skillMods[SkillRuntimeConfig.Ids.barbarian_rage] or {}).onRageEnterTempHpDice) == nil,
+        "Barbarian rage recovery no longer grants temp hp")
+
+    local cleaveSel = canonicalSelections(10, 6)
+    cleaveSel[#cleaveSel + 1] = FeatBuildConfig.Ids.j_barbarian_heavy_master
+    local cleaveBuild = HeroBuild.CompileBuild(10, 7, cleaveSel)
+    assert_true(((cleaveBuild.skillMods[SkillRuntimeConfig.Ids.barbarian_heavy_strike] or {}).acPenaltyDelta) == -1,
+        "Barbarian heavy mastery reduces self ac penalty")
+    assert_true(((cleaveBuild.skillMods[SkillRuntimeConfig.Ids.barbarian_heavy_strike] or {}).frontRowSplitTargets) == 2,
+        "Barbarian cleave enables front-row split")
+
+    local capstoneSel = canonicalSelections(10, 6)
+    capstoneSel[#capstoneSel + 1] = FeatBuildConfig.Ids.b_barbarian_heavy_echo
+    capstoneSel[#capstoneSel + 1] = FeatBuildConfig.Ids.j_barbarian_heavy_master
+    capstoneSel[#capstoneSel + 1] = FeatBuildConfig.Ids.c_barbarian_strike_master
+    local capstoneBuild = HeroBuild.CompileBuild(10, 10, capstoneSel)
+    assert_true(((capstoneBuild.skillMods[SkillRuntimeConfig.Ids.barbarian_heavy_strike] or {}).frontRowSplitDelta) == 1,
+        "Barbarian cleave capstone adds one more split target")
+    assert_true(not FeatBuildConfig.GetFeat(FeatBuildConfig.Ids.c_barbarian_rage_master),
+        "Barbarian rage capstone removed from feat table")
+
+    local hero = { id = 9401, instanceId = 9401, name = "RageRecoveryHero", hp = 20, maxHp = 40, isDead = false, isAlive = true,
+        buildState = recoveryBuild, passiveRuntime = {}, skills = { { skillId = SkillRuntimeConfig.Ids.barbarian_rage } },
+        skillData = { skillInstances = { [SkillRuntimeConfig.Ids.barbarian_rage] = true } } }
+    local oldRollDice = BuildPassiveCommon.RollDice
+    local healed = 0
+    BuildPassiveCommon.RollDice = function(expr)
+        if expr == "1d6" then
+            return 4
+        end
+        return oldRollDice(expr)
+    end
+    BuildPassiveCommon.ApplyHeal = function(unit, amount)
+        unit.hp = math.min(unit.maxHp, (tonumber(unit.hp) or 0) + amount)
+        healed = amount
+    end
+    assert_true(BarbarianBuildPassives.TryActivateBerserk(hero), "Barbarian rage recovery triggers berserk")
+    assert_true(healed == 4, "Barbarian rage recovery heals on berserk entry")
+    BuildPassiveCommon.RollDice = oldRollDice
 end
 
 do

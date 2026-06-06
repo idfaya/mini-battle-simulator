@@ -10,6 +10,7 @@
   {"id":80003101,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"},{"luaFuncName":"OnDefBeforeDmg","triggerTime":"DefBeforeDmg"}]},
   {"id":80004002,"triggers":[{"luaFuncName":"OnDmgMakeKill","triggerTime":"DmgMakeKill"}]},
   {"id":80004102,"triggers":[{"luaFuncName":"OnBattleBegin","triggerTime":"BattleBegin"},{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"}]},
+  {"id":80004103,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
   {"id":80005002,"triggers":[{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"}]},
   {"id":80005101,"triggers":[{"luaFuncName":"OnNormalAtkFinish","triggerTime":"NormalAtkFinish"}]},
   {"id":80007002,"triggers":[{"luaFuncName":"OnSelfTurnBegin","triggerTime":"SelfTurnBegin"}]},
