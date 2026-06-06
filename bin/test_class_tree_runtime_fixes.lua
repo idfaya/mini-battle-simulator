@@ -724,6 +724,54 @@ do
     })
     BattleSkill.CastSmallSkill = oldCastSmallSkill
     assert_true(castCalls == 1, "paladin combo basic triggers one follow-up per basic attack action")
+
+    castCalls = 0
+    BattleSkill.CastSmallSkill = function()
+        castCalls = castCalls + 1
+        return true
+    end
+    passive:OnNormalAtkFinish({
+        data = {
+            extraParam = {
+                target = target,
+                skillId = IDS.paladin_basic_attack,
+                damageDealt = 0,
+                basicAttackActionToken = 301,
+                basicAttackActionSource = "normal_action",
+            },
+        },
+    })
+    BattleSkill.CastSmallSkill = oldCastSmallSkill
+    assert_true(castCalls == 1, "paladin combo basic triggers follow-up even when basic attack misses")
+end
+
+do
+    BattleFormation.OnFinal()
+    BattleBuff.Init()
+    local paladin = new_unit(335, "DispelPaladin", true, 2)
+    local target = new_unit(336, "DispelTarget", false, 1)
+    paladin.class = 4
+    paladin.classId = 4
+    BattleBuff.Add(paladin, target, {
+        buffId = 840001,
+        name = "战意",
+        mainType = E_BUFF_MAIN_TYPE.GOOD,
+        subType = 840001,
+        duration = 2,
+        canStack = false,
+    })
+    local oldCast = BattleSkill.CastSmallSkillWithResult
+    local oldApply = BuildPassiveCommon.ApplyDirectBonusDamage
+    BattleSkill.CastSmallSkillWithResult = function()
+        return true, { totalDamage = 6 }
+    end
+    BuildPassiveCommon.ApplyDirectBonusDamage = function()
+        return 4
+    end
+    PaladinBuildPassives.PerformVengeanceSmite(paladin, target, { skillId = IDS.paladin_vengeance_smite, name = "破邪斩" })
+    assert_true(BattleBuff.GetBuff(target, 840001) ~= nil, "paladin base smite no longer dispels good buffs")
+    BattleSkill.CastSmallSkillWithResult = oldCast
+    BuildPassiveCommon.ApplyDirectBonusDamage = oldApply
 end
 
 do

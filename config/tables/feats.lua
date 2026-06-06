@@ -489,7 +489,7 @@ local FEATS = {
         classId = 4,
         level = 1,
         name = "圣疗基础",
-        description = "获得圣疗，CD3，为生命最低友军回复生命，作为圣武士的初始救场能力。",
+        description = "获得圣疗：每场 1 次，为生命最低友军回复生命，作为圣武士的初始救场能力。",
         treeSlot = "R",
         isRoot = true,
         effects = {
@@ -501,7 +501,7 @@ local FEATS = {
         classId = 4,
         level = 3,
         name = "惩戒基础",
-        description = "获得破邪斩，CD3，对当前目标发动 1 次神圣斩击；若命中，追加神圣伤害并驱散目标 1 个正面增益。",
+        description = "获得破邪斩主动技能 CD3：先执行 1 次基础武器攻击；若命中，追加 2d8 光耀伤害。",
         trunk = "T1",
         treeSlot = "T1",
         effects = {
@@ -702,9 +702,9 @@ local paladinTree = {
         effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraSaveBonus=1}}}}},
     {key="b_paladin_war_cry", classId=4, level=6, slot="B", prereqs={F.paladin_T2}, name="灵光扩张", desc="神圣灵光范围扩大。",
         effects={{type="modify_skill", skill=80004102, add={classMods={paladinAuraRangeDelta=1}}}}},
-    {key="c_paladin_smite_master", classId=4, level=10, slot="C", prereqs={F.paladin_T1}, isCapstone=true, name="惩戒大师", desc="破邪斩对主目标与其相邻目标各造成一次武器伤害 +1d8 光耀；若主目标带神圣印记，额外驱散 1 个增益。",
-        effects={{type="modify_skill", skill=80004014, add={splitAdjacentTargets=2, splitBonusDice="1d8", vsHolyMarkDispelBonus=1}}}},
-    {key="b_paladin_combo_basic", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="连击基础", desc="主动使用圣武打击命中时，立即对同一目标追加 1 次连击；连击不再触发连击。",
+    {key="c_paladin_smite_master", classId=4, level=10, slot="C", prereqs={F.paladin_T1}, isCapstone=true, name="惩戒大师", desc="破邪斩额外对相邻目标造成一次武器伤害 +1d8 光耀。",
+        effects={{type="modify_skill", skill=80004014, add={splitAdjacentTargets=2, splitBonusDice="1d8"}}}},
+    {key="b_paladin_combo_basic", classId=4, level=2, slot="B", prereqs={F.paladin_R}, name="连击基础", desc="主动使用圣武打击时，立即对同一目标追加 1 次连击；连击不再触发连击。",
         effects={{type="grant_skill", skill=80004103}}},
 }
 

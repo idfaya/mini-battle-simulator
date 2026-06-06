@@ -338,24 +338,6 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
             skillName = skill and skill.name or "破邪斩",
         })
         damage = damage + bonus
-        local buffs = BattleBuff.GetAllBuffs(target) or {}
-        local dispelCount = 1
-        if getHolyMarkAmount(hero, target) > 0 then
-            dispelCount = dispelCount + math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "vsHolyMarkDispelBonus", 0)) or 0))
-        end
-        local dispelled = 0
-        for i = #buffs, 1, -1 do
-            if tonumber(buffs[i].mainType) == E_BUFF_MAIN_TYPE.GOOD and dispelled < dispelCount then
-                table.remove(buffs, i)
-                dispelled = dispelled + 1
-            end
-        end
-        if dispelled > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：驱散 %s 的 %d 个正面状态",
-                hero.name or "Unknown",
-                target.name or "目标",
-                dispelled))
-        end
         local holyMarkDelta = math.max(0, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "onHitVulnerableDelta", 0)) or 0))
         local holyMarkDuration = math.max(1, math.floor(tonumber(FeatModHelper.GetSkillMod(hero, IDS.paladin_vengeance_smite, "onHitVulnerableDuration", 1)) or 1))
         if holyMarkDelta > 0 then
