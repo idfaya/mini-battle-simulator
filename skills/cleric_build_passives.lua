@@ -134,12 +134,12 @@ local function getLowestHpAllies(hero, includeSelf, count)
     return picked
 end
 
-local function resolveAliveTarget(target)
-    if not target then
+local function resolveAliveUnit(unit)
+    if not unit then
         return nil
     end
     local BattleFormation = require("modules.battle_formation")
-    local resolved = BattleFormation.FindHeroByInstanceId(target.instanceId or target.id) or target
+    local resolved = BattleFormation.FindHeroByInstanceId(unit.instanceId or unit.id) or unit
     if not isAlive(resolved) then
         return nil
     end
@@ -215,7 +215,8 @@ local function applyBasicSpellPostHit(hero, target)
 end
 
 function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
-    target = resolveAliveTarget(target)
+    hero = resolveAliveUnit(hero)
+    target = resolveAliveUnit(target)
     if not isAlive(hero) or not isAlive(target) then
         return 0
     end

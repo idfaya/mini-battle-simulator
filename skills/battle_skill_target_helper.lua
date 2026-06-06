@@ -30,7 +30,7 @@ local function Shuffle(targets)
     return shuffled
 end
 
---- 判断两个单位是否属于同一阵营（以阵型队伍为准，避免 target.isLeft 字段漂移）。
+--- 判断两个单位是否属于同一阵营（以 teamLeft/teamRight 为准，避免 isLeft 字段漂移）。
 ---@param hero table
 ---@param target table
 ---@return boolean
@@ -39,22 +39,8 @@ function BattleSkillTargetHelper.IsAlly(hero, target)
         return false
     end
 
-    local targetId = tonumber(target.instanceId or target.id)
-    if targetId then
-        local BattleFormation = require("modules.battle_formation")
-        for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
-            if tonumber(ally.instanceId or ally.id) == targetId then
-                return true
-            end
-        end
-        for _, enemy in ipairs(BattleFormation.GetEnemyTeam(hero) or {}) do
-            if tonumber(enemy.instanceId or enemy.id) == targetId then
-                return false
-            end
-        end
-    end
-
-    return hero.isLeft == target.isLeft
+    local BattleFormation = require("modules.battle_formation")
+    return BattleFormation.AreSameTeam(hero, target)
 end
 
 --- 选 HP 比例最低的敌人（优先走 GetSelectableEnemyHeroes 过滤，兜底 GetEnemyTeam）。

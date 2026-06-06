@@ -221,6 +221,12 @@ local _, mismatchedResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }
 assert_true((mismatchedResult and mismatchedResult.totalHeal or 0) == 0, "cleric basic spell should not heal enemy when target.isLeft drifts")
 assert_true(poisonEnemy.hp < poisonEnemyHp, "cleric basic spell should still damage enemy when target.isLeft drifts")
 
+supportCaster.isLeft = false
+local casterDriftEnemyHp = poisonEnemy.hp
+local _, casterDriftResult = SkillTimeline.Execute(supportCaster, { poisonEnemy }, holySpecial, holyTimeline)
+assert_true((casterDriftResult and casterDriftResult.totalHeal or 0) == 0, "cleric basic spell should not heal enemy when caster.isLeft drifts")
+assert_true(poisonEnemy.hp < casterDriftEnemyHp, "cleric basic spell should still damage enemy when caster.isLeft drifts")
+
 BattleFormation.OnFinal()
 
 BattleFormation.Init({

@@ -300,6 +300,55 @@ function BattleFormation.FindHeroByInstanceId(instanceId)
     return BattleFormation.heroInstanceMap[instanceId]
 end
 
+local function GetHeroInstanceId(hero)
+    return tonumber(hero and (hero.instanceId or hero.id))
+end
+
+--- 以阵型队伍为准判断单位是否在左侧（不依赖 hero.isLeft 字段是否漂移）。
+---@param hero table
+---@return boolean|nil true=左侧，false=右侧，nil=无法判定
+function BattleFormation.IsHeroOnLeftTeam(hero)
+    if not hero then
+        return nil
+    end
+
+    local heroId = GetHeroInstanceId(hero)
+    if heroId then
+        for _, unit in ipairs(BattleFormation.teamLeft or {}) do
+            if GetHeroInstanceId(unit) == heroId then
+                return true
+            end
+        end
+        for _, unit in ipairs(BattleFormation.teamRight or {}) do
+            if GetHeroInstanceId(unit) == heroId then
+                return false
+            end
+        end
+    end
+
+    if hero.isLeft == nil then
+        return nil
+    end
+    return hero.isLeft == true
+end
+
+--- 判断两个单位是否同队（以 teamLeft/teamRight 为准）。
+---@param unitA table
+---@param unitB table
+---@return boolean
+function BattleFormation.AreSameTeam(unitA, unitB)
+    if not unitA or not unitB then
+        return false
+    end
+
+    local sideA = BattleFormation.IsHeroOnLeftTeam(unitA)
+    local sideB = BattleFormation.IsHeroOnLeftTeam(unitB)
+    if sideA == nil or sideB == nil then
+        return unitA.isLeft == unitB.isLeft
+    end
+    return sideA == sideB
+end
+
 --- 根据阵营和位置查找英雄
 ---@param isLeft boolean 是否在左侧队伍
 ---@param wpType number 位置类型
