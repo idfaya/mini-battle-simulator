@@ -6,6 +6,7 @@ local LuaBootstrap = dofile(script_dir .. "../core/lua_bootstrap.lua")
 LuaBootstrap.SetupFromSource(script_source, { includeParent = true })
 
 local EnemyData = require("config.enemy_data")
+local Exp5e = require("config.roguelike.exp_5e")
 
 local function log(msg)
     print(msg)
@@ -38,6 +39,16 @@ local function skillIdsFromHeroData(enemyId)
     return ids
 end
 
+local function skillTiersFromHeroData(enemyId)
+    local hero = EnemyData.ConvertToHeroData(enemyId)
+    local tiers = {}
+    for _, entry in ipairs((hero and hero.skills) or {}) do
+        tiers[#tiers + 1] = tonumber(entry.level) or 1
+    end
+    table.sort(tiers)
+    return tiers
+end
+
 local enemies = {
     { id = 910001, classId = 3, monsterType = 0 },
     { id = 910002, classId = 1, monsterType = 0 },
@@ -63,6 +74,12 @@ for _, spec in ipairs(enemies) do
     assert_true(tonumber(enemy.Class) == spec.classId, "Enemy class: " .. tostring(spec.id))
     assert_true(type(enemy.SkillIDs) == "table" and #enemy.SkillIDs > 0, "Enemy has static SkillIDs: " .. tostring(spec.id))
     assert_true(type(enemy.CR) == "string" and enemy.CR ~= "", "Enemy has static CR: " .. tostring(spec.id))
+    local expectedTier = Exp5e.GetSkillTierByCr(enemy.CR)
+    for _, entry in ipairs(enemy.SkillIDs) do
+        assert_true((tonumber(entry.level) or 1) == expectedTier,
+            string.format("Enemy %d skill %d tier matches CR %s (expected %d)",
+                spec.id, tonumber(entry.skillId) or 0, tostring(enemy.CR), expectedTier))
+    end
 end
 
 local explicitMetaEnemyIds = { 910008, 910009, 910010, 910011, 910012, 910013, 910014, 910015, 910016 }
@@ -106,30 +123,36 @@ assert_array_equals(skillIdsFromHeroData(910002), { 80001011, 80001101 }, "Gobli
 local skeleton = EnemyData.ConvertToHeroData(910004, 4)
 assert_true(skeleton.ac == 12, "Skeleton AC matches current monster baseline")
 assert_true(skeleton.hit == 3, "Skeleton elite hit stays in CR lane")
-assert_array_equals(skillIdsFromHeroData(910004), { 80002001, 80002005, 80002006, 80002104, 80002105 }, "Skeleton uses static skills")
+assert_array_equals(skillIdsFromHeroData(910004), { 80002001, 80002006, 80002104 }, "Skeleton elite uses trimmed frontliner skills")
 
 local darkMage = EnemyData.ConvertToHeroData(910005, 4)
 assert_true(darkMage.ac == 12, "DarkMage AC uses current monster baseline")
 assert_true(darkMage.hit == 4, "DarkMage hit no longer uses player-level scaling")
 assert_true(darkMage.spellDC == 12, "DarkMage spell DC uses CR proficiency")
 assert_array_equals(skillIdsFromHeroData(910005), { 80007001, 80007002, 80007003, 80007004 }, "DarkMage uses static skills")
+assert_array_equals(skillTiersFromHeroData(910005), { 2, 2, 2, 2 }, "DarkMage skills are CR-1 tier")
 
 local iceDemon = EnemyData.ConvertToHeroData(910006, 4)
 assert_true(iceDemon.ac == 11, "IceDemon AC matches monster baseline")
 assert_true(iceDemon.hit == 3, "IceDemon hit stays in Act1 boss lane")
 assert_true(iceDemon.spellDC == 11, "IceDemon spell DC stays in CR lane")
-assert_array_equals(skillIdsFromHeroData(910006), { 80008001, 80008002 }, "IceDemon uses trimmed static skills")
+assert_array_equals(skillIdsFromHeroData(910006), { 80008001, 80008002, 80008003 }, "IceDemon boss uses frost ray + nova kit")
+assert_array_equals(skillTiersFromHeroData(910006), { 2, 2, 2 }, "IceDemon skills are CR-1 tier")
 
 local thunderLord = EnemyData.ConvertToHeroData(910007, 7)
 assert_true(thunderLord.ac == 12, "ThunderLord AC matches current monster baseline")
 assert_true(thunderLord.hit == 4, "ThunderLord hit stays in current CR lane")
 assert_true(thunderLord.spellDC == 12, "ThunderLord spell DC stays in current CR lane")
 assert_array_equals(skillIdsFromHeroData(910007), { 80009001, 80009002, 80009003, 80009004 }, "ThunderLord uses static skills")
+assert_array_equals(skillTiersFromHeroData(910007), { 3, 3, 3, 3 }, "ThunderLord skills are CR-2 tier")
 
 assert_array_equals(skillIdsFromHeroData(910012), { 80005011, 80005014 }, "GoblinThrower uses static skills")
 assert_array_equals(skillIdsFromHeroData(910013), { 80005011, 80005013 }, "SkeletonArcher uses static skills")
-assert_array_equals(skillIdsFromHeroData(910014), { 80002001, 80002006, 80002104 }, "OrcFighter uses static skills")
+assert_array_equals(skillIdsFromHeroData(910011), { 80010011, 80010013, 80010101 }, "Berserker uses static skills")
+assert_array_equals(skillTiersFromHeroData(910011), { 2, 2, 2 }, "Berserker skills are CR-1 tier")
+assert_array_equals(skillIdsFromHeroData(910014), { 80002001, 80002005, 80002006, 80002104 }, "OrcFighter adds guard stance over orc kit")
 assert_array_equals(skillIdsFromHeroData(910015), { 80002001, 80002005, 80002006, 80002104, 80002105 }, "SkeletonCaptain uses static skills")
+assert_array_equals(skillTiersFromHeroData(910015), { 2, 2, 2, 2, 2 }, "SkeletonCaptain skills are CR-1 tier")
 assert_array_equals(skillIdsFromHeroData(910016), { 80006011, 80006012, 80006015, 80006103 }, "ShadowPriest uses static skills")
 
 log("Enemy skill alignment tests passed.")

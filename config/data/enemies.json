@@ -71,10 +71,8 @@
     "AbilityScores": { "str": 12, "dex": 12, "con": 12, "int": 6, "wis": 8, "cha": 5 },
     "SkillIDs": [
       { "skillId": 80002001, "level": 1 },
-      { "skillId": 80002005, "level": 1 },
       { "skillId": 80002006, "level": 1 },
-      { "skillId": 80002104, "level": 1 },
-      { "skillId": 80002105, "level": 1 }
+      { "skillId": 80002104, "level": 1 }
     ],
     "Star": 3,
     "Quality": 3
@@ -92,10 +90,10 @@
     "AcBonus": 1,
     "AbilityScores": { "str": 8, "dex": 12, "con": 10, "int": 14, "wis": 12, "cha": 10 },
     "SkillIDs": [
-      { "skillId": 80007001, "level": 1 },
-      { "skillId": 80007003, "level": 1 },
-      { "skillId": 80007004, "level": 1 },
-      { "skillId": 80007002, "level": 1 }
+      { "skillId": 80007001, "level": 2 },
+      { "skillId": 80007003, "level": 2 },
+      { "skillId": 80007004, "level": 2 },
+      { "skillId": 80007002, "level": 2 }
     ],
     "Star": 4,
     "Quality": 4
@@ -113,8 +111,9 @@
     "AcBonus": 0,
     "AbilityScores": { "str": 10, "dex": 12, "con": 10, "int": 12, "wis": 10, "cha": 10 },
     "SkillIDs": [
-      { "skillId": 80008001, "level": 1 },
-      { "skillId": 80008002, "level": 1 }
+      { "skillId": 80008001, "level": 2 },
+      { "skillId": 80008002, "level": 2 },
+      { "skillId": 80008003, "level": 2 }
     ],
     "Star": 5,
     "Quality": 5
@@ -132,10 +131,10 @@
     "AcBonus": 1,
     "AbilityScores": { "str": 10, "dex": 12, "con": 12, "int": 14, "wis": 10, "cha": 10 },
     "SkillIDs": [
-      { "skillId": 80009001, "level": 1 },
-      { "skillId": 80009003, "level": 1 },
-      { "skillId": 80009004, "level": 1 },
-      { "skillId": 80009002, "level": 1 }
+      { "skillId": 80009001, "level": 3 },
+      { "skillId": 80009003, "level": 3 },
+      { "skillId": 80009004, "level": 3 },
+      { "skillId": 80009002, "level": 3 }
     ],
     "Star": 6,
     "Quality": 6
@@ -211,9 +210,9 @@
     "AcBonus": 2,
     "AbilityScores": { "str": 16, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 8 },
     "SkillIDs": [
-      { "skillId": 80010011, "level": 1 },
-      { "skillId": 80010013, "level": 1 },
-      { "skillId": 80010101, "level": 1 }
+      { "skillId": 80010011, "level": 2 },
+      { "skillId": 80010013, "level": 2 },
+      { "skillId": 80010101, "level": 2 }
     ],
     "Star": 3,
     "Quality": 3
@@ -270,6 +269,7 @@
     "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 8, "wis": 8, "cha": 8 },
     "SkillIDs": [
       { "skillId": 80002001, "level": 1 },
+      { "skillId": 80002005, "level": 1 },
       { "skillId": 80002006, "level": 1 },
       { "skillId": 80002104, "level": 1 }
     ],
@@ -289,11 +289,11 @@
     "AcBonus": 2,
     "AbilityScores": { "str": 14, "dex": 12, "con": 14, "int": 6, "wis": 8, "cha": 5 },
     "SkillIDs": [
-      { "skillId": 80002001, "level": 1 },
-      { "skillId": 80002005, "level": 1 },
-      { "skillId": 80002006, "level": 1 },
-      { "skillId": 80002104, "level": 1 },
-      { "skillId": 80002105, "level": 1 }
+      { "skillId": 80002001, "level": 2 },
+      { "skillId": 80002005, "level": 2 },
+      { "skillId": 80002006, "level": 2 },
+      { "skillId": 80002104, "level": 2 },
+      { "skillId": 80002105, "level": 2 }
     ],
     "Star": 4,
     "Quality": 4

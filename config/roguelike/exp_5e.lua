@@ -17,6 +17,7 @@
 ---@field GetLevelForExp fun(totalExp: integer, cap?: integer): integer
 ---@field GetMonsterXpByCr fun(cr: string|number): integer
 ---@field GetDisplayLevelByCr fun(cr: string|number): integer
+---@field GetSkillTierByCr fun(cr: string|number): integer
 ---@field NormalizeCrKey fun(cr: string|number|nil): string
 
 local M = {}
@@ -164,6 +165,19 @@ end
 
 function M.GetDisplayLevelByCr(cr)
     return M.MONSTER_DISPLAY_LEVEL_BY_CR[normalizeCrKey(cr)] or 1
+end
+
+--- 敌人 SkillIDs[].level（技能阶）；与 CR 档位对齐，上限 3（stageDamageDice 档位数）。
+function M.GetSkillTierByCr(cr)
+    local key = normalizeCrKey(cr)
+    if key == "1" then
+        return 2
+    end
+    local numeric = tonumber(key)
+    if numeric and numeric >= 2 then
+        return 3
+    end
+    return 1
 end
 
 function M.GetCharacterExpThreshold(level)
