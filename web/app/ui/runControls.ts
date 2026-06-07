@@ -727,6 +727,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       host.append(grid);
     } else if (snapshot.rewardState.kind === "chest") {
       const option = (snapshot.rewardState.options as RewardOption[])[0];
+      const rewardSource = snapshot.rewardState.source ?? "chest";
       if (option) {
         const rarityLabel =
           option.rarity === "boss" ? "传说" : option.rarity === "rare" ? "稀有" : "普通";
@@ -744,7 +745,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 
         const icon = document.createElement("div");
         icon.className = "chest-reveal__icon";
-        icon.textContent = "箱";
+        icon.textContent = rewardSource === "elite_victory" ? "战" : "箱";
 
         const copy = document.createElement("div");
         copy.className = "chest-reveal__copy";
@@ -752,19 +753,37 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         const headline = document.createElement("div");
         headline.className = "chest-reveal__headline";
         headline.textContent =
-          option.rewardType === "gold"
-            ? "锁扣弹开，箱底滚出一把金币。"
-            : option.rewardType === "blessing"
-              ? "光芒从箱缝溢出，一道祝福浮现。"
-              : "宝箱开启，一件战利品显露出来。";
+          rewardSource === "elite_victory"
+            ? "精英战利品已就绪，确认收下装备。"
+            : option.rewardType === "gold"
+              ? "锁扣弹开，箱底滚出一把金币。"
+              : option.rewardType === "blessing"
+                ? "光芒从箱缝溢出，一道祝福浮现。"
+                : "宝箱开启，一件战利品显露出来。";
 
         const desc = document.createElement("div");
         desc.className = "chest-reveal__desc";
-        desc.textContent = `本次开箱结果：${rarityLabel}${typeLabel}`;
+        desc.textContent =
+          rewardSource === "elite_victory"
+            ? `本次掉落：${rarityLabel}${typeLabel}`
+            : `本次开箱结果：${rarityLabel}${typeLabel}`;
 
         copy.append(headline, desc);
         reveal.append(icon, copy);
         host.append(reveal);
+
+        if (option.rewardType === "equipment") {
+          const equipment =
+            option.equipmentPreview ??
+            ({
+              equipmentId: option.refId ?? 0,
+              name: option.label,
+              rarity: option.rarity ?? "common",
+              code: option.description,
+              effectDescription: option.description,
+            } satisfies EquipmentState);
+          host.append(createEquipmentCard(equipment));
+        }
 
         const btn = document.createElement("button");
         btn.type = "button";

@@ -13,8 +13,8 @@ local RunEnemyGroup = require("config.roguelike.run_enemy_group")
 
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
     [101] = 2.00,
-    [102] = 0.50,
-    [103] = 0.35,
+    [102] = 2.00,
+    [103] = 2.00,
 }
 
 local function assertEq(actual, expected, message)

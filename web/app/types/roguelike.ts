@@ -125,6 +125,7 @@ export type RewardOption = {
   label: string;
   description: string;
   rarity?: string;
+  equipmentPreview?: EquipmentState;
   resultType?: "new_class_unit" | "class_promotion";
   teamState?: "active" | "bench" | "dead";
   summaryKey?: string;
@@ -155,6 +156,7 @@ export type RewardState =
   | {
       groupId: number;
       kind: string;
+      source?: string;
       options: RewardOption[];
     };
 

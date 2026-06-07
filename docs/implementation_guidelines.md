@@ -186,7 +186,7 @@
 | Boss 触达回归 | `bin/test_roguelike_ch101_reach.lua` | `RoguelikeRunDriver` + `progressionMode=ch101_reach`；门禁测触达，战斗用 `TestForceCurrentBattleVictory` |
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 只按当场敌人 `CR` 组合结算；**不读**模板 `expReward` |
 
-- 第一章 `chapterMultiplier = 2.00`，让章末队伍节奏回到 Lv9-Lv10，避免平均角色等级过低。
+- 三章统一 `chapterMultiplier = 2.00`；数量倍率见 `run_encounter_budget.GetCountMultiplier`（3–4 怪 ×2，5–6 ×2.5，7–8 ×3，9–10 ×3.5）。
 - 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`run_battle_profile.lua` 与怪物池/波次组合，勿在 `run_battle_template.expReward` 手填。
 
 ### 5.2 房间一次性（dungeon §4.2）

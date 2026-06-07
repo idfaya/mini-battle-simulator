@@ -102,7 +102,7 @@ local function grantBattleEquipmentDrop(node, battleProfile)
     return equipmentId
 end
 
--- 战斗祝福掉落：唯一入库 + 去重。规则由 RollBattleBlessingDrop 决定（精英 50% / boss 必掉）。
+-- 战斗祝福掉落：唯一入库 + 去重。规则由 RollBattleBlessingDrop 决定（Boss 必掉；精英不掉）。
 local function grantBattleBlessingDrop(node, battleProfile)
     local blessingId = RoguelikeReward.RollBattleBlessingDrop(node and node.nodeType or nil, battleProfile)
     if not blessingId then
@@ -115,13 +115,15 @@ local function grantBattleBlessingDrop(node, battleProfile)
     return blessingId
 end
 
--- 战斗节点掉落入口：装备 + 祝福各最多 1 件。
--- 规则映射（设计文档：character_progression_design.md 阶段 2）：
+-- 战斗节点掉落入口：Boss 仍静默入库；精英装备改走 reward 展示（见 deferredPostBattleReward）。
 --   battle_normal : 装备 0 / 祝福 0
---   battle_elite  : 装备 1 / 祝福 50%
+--   battle_elite  : 装备 1（reward UI）/ 祝福 0
 --   boss          : 装备 1（boss tier）/ 祝福 1（boss tier）
 local function grantBattleLoot(node, battleProfile)
     if not node then
+        return { equipmentDropCount = 0, blessingDropCount = 0 }
+    end
+    if tostring(node.nodeType or "") ~= "boss" then
         return { equipmentDropCount = 0, blessingDropCount = 0 }
     end
     local equipmentDropCount = 0
@@ -138,11 +140,22 @@ local function grantBattleLoot(node, battleProfile)
     }
 end
 
--- 章节战斗经验倍率：Act1 提到 2.00，让章末 partyLevel 回到 9-10 区间。
+local function finishDeferredPostBattleReward()
+    local deferred = state.deferredPostBattleReward
+    if not deferred then
+        return false
+    end
+    state.rewardState = deferred
+    state.deferredPostBattleReward = nil
+    state.phase = "reward"
+    return true
+end
+
+-- 章节战斗经验倍率：三章统一 2.00，配合 5e CR XP + 数量倍率控制全 Run 节奏。
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
     [101] = 2.00,
-    [102] = 0.50,
-    [103] = 0.35,
+    [102] = 2.00,
+    [103] = 2.00,
 }
 
 local function countAliveTeamSize()
@@ -306,6 +319,7 @@ local function resetRunState()
         blessingIds = {},
         trinketIds = {},
         rewardState = nil,
+        deferredPostBattleReward = nil,
         eventState = nil,
         shopState = nil,
         campState = nil,
@@ -893,9 +907,17 @@ function RoguelikeRun.Tick(deltaMs)
             local node = getNode(state.currentNodeId)
             local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId))
             local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
+            state.deferredPostBattleReward = RoguelikeReward.PrepareEliteEquipmentReward(
+                state,
+                node and node.nodeType or nil,
+                battleProfile
+            )
             -- 战斗胜利显式管道：节点金币（已由 ResolveBattle 写入）→ 节点掉落 → partyExp →
             -- FeatPicker 升级三选一 → 战斗后休整 → 进入下一房间。
             local lootSummary = grantBattleLoot(node, battleProfile)
+            if state.deferredPostBattleReward then
+                lootSummary.equipmentDropCount = 1
+            end
             local expReward = grantBattleExp(battle)
             -- BeginSession 内部根据 partyExp 写回 state.partyLevel；recalcPartyLevel 同步进度条字段。
             local session = FeatPicker.BeginSession(state)
@@ -922,7 +944,7 @@ function RoguelikeRun.Tick(deltaMs)
                 return events or {}
             end
 
-            -- 无升级会话：直接做战斗后休整，再前进/进入章节结算。
+            -- 无升级会话：休整后展示精英装备或前进。
             RoguelikeBattleBridge.ApplyPostBattleRest(state)
             if node and node.nodeType == "boss" then
                 grantBossTrinketIfNeeded(node)
@@ -933,8 +955,9 @@ function RoguelikeRun.Tick(deltaMs)
                     enterChapterResult()
                     return events or {}
                 end
+            end
+            if finishDeferredPostBattleReward() then
                 state.rewardReturnMode = "map"
-                leaveNodeBackToMap()
                 return events or {}
             end
 
@@ -986,6 +1009,9 @@ function RoguelikeRun.ChooseReward(index)
         end
         if state.rewardReturnMode == "chapter_result" then
             enterChapterResult()
+            return true
+        end
+        if finishDeferredPostBattleReward() then
             return true
         end
         leaveNodeBackToMap()

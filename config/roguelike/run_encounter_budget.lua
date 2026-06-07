@@ -57,32 +57,39 @@ function RunEncounterBudget.GetCrXp(cr)
     return Exp5e.GetMonsterXpByCr(cr)
 end
 
+local COUNT_MULT_LADDER = { 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5 }
+
+local function baseCountMultiplier(count)
+    if count <= 1 then return 1
+    elseif count == 2 then return 1.5
+    elseif count <= 4 then return 2
+    elseif count <= 6 then return 2.5
+    elseif count <= 8 then return 3
+    elseif count <= 10 then return 3.5
+    elseif count <= 12 then return 4
+    elseif count <= 14 then return 4.5
+    else return 5 end
+end
+
 function RunEncounterBudget.GetCountMultiplier(monsterCount, partySize)
     local count = math.max(1, tonumber(monsterCount) or 1)
     local party = math.max(1, tonumber(partySize) or 3)
-    local mult = 1
-    if count == 1 then mult = 1
-    elseif count == 2 then mult = 1.5
-    elseif count <= 6 then mult = 2
-    elseif count <= 10 then mult = 2.5
-    elseif count <= 14 then mult = 3
-    else mult = 4 end
+    local mult = baseCountMultiplier(count)
 
     -- 5e DMG style adjustment for unusually small/large parties.
-    if party < 3 then
-        if mult == 1 then mult = 1.5
-        elseif mult == 1.5 then mult = 2
-        elseif mult == 2 then mult = 2.5
-        elseif mult == 2.5 then mult = 3
-        else mult = 4 end
-    elseif party >= 6 then
-        if mult == 4 then mult = 3
-        elseif mult == 3 then mult = 2.5
-        elseif mult == 2.5 then mult = 2
-        elseif mult == 2 then mult = 1.5
-        else mult = 1 end
+    local idx = 1
+    for i, value in ipairs(COUNT_MULT_LADDER) do
+        if value == mult then
+            idx = i
+            break
+        end
     end
-    return mult
+    if party < 3 then
+        idx = math.min(#COUNT_MULT_LADDER, idx + 1)
+    elseif party >= 6 then
+        idx = math.max(1, idx - 1)
+    end
+    return COUNT_MULT_LADDER[idx]
 end
 
 function RunEncounterBudget.GetPartyThreshold(level, partySize, difficulty)

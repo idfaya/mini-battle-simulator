@@ -4,6 +4,27 @@ local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local BuildConstraints = require("roguelike.build_constraints")
 
 local RoguelikeReward = {}
+
+local SLOT_LABELS = {
+    weapon = "武器",
+    armor = "护甲",
+    shield = "盾牌",
+    focus = "法器",
+    accessory = "饰品",
+}
+
+local CLASS_LABELS = {
+    [1] = "法师",
+    [2] = "战士",
+    [3] = "盗贼",
+    [4] = "圣武士",
+    [5] = "游侠",
+    [6] = "牧师",
+    [7] = "野蛮人",
+    [8] = "术士",
+    [9] = "魔契师",
+    [10] = "武僧",
+}
 local EQUIPMENT_RARITY_TIER = {
     common = 1,
     rare = 2,
@@ -128,22 +149,9 @@ local function chooseAvailableBlessingIdByTier(runState, targetTier)
     return pool[math.random(1, #pool)]
 end
 
--- 设计 §2.2 新规则：
---   battle_normal: 不掉祝福。
---   battle_elite : 50% 概率掉祝福（rare 或 common）。
---   boss         : 必掉 1 个 boss tier 祝福（fallback rare）。
+-- 设计 §2.2：精英房不再掉祝福；Boss 仍必掉 boss tier 祝福。
 local function rollBattleBlessingId(nodeType, battleProfile)
     local resolvedNodeType = tostring(nodeType or "")
-    if resolvedNodeType == "battle_elite" then
-        if math.random() > 0.5 then
-            return nil
-        end
-        local rareChance = 0.40
-        if math.random() <= rareChance then
-            return chooseBlessingIdByTier(2) or chooseBlessingIdByTier(1)
-        end
-        return chooseBlessingIdByTier(1)
-    end
     if resolvedNodeType == "boss" then
         return chooseBlessingIdByTier(3) or chooseBlessingIdByTier(2) or chooseBlessingIdByTier(1)
     end
@@ -190,8 +198,78 @@ local function buildLabel(entry)
     return tostring(entry.rewardType or "reward")
 end
 
+local function describeEquipmentEffect(equipment)
+    local effect = equipment and equipment.effectType
+    local params = equipment and equipment.params or {}
+    local parts = {}
+    local function push(text)
+        if text and text ~= "" then
+            parts[#parts + 1] = text
+        end
+    end
+    if effect == "martial_weapon" or effect == "ranged_weapon" then
+        if params.hitDelta then
+            push(string.format("命中 +%d", tonumber(params.hitDelta) or 0))
+        end
+        if params.weaponDamageBonus then
+            push(string.format("武器伤害 +%d", tonumber(params.weaponDamageBonus) or 0))
+        end
+    elseif effect == "armor_ac" or effect == "shield_ac" then
+        if params.acDelta then
+            push(string.format("AC +%d", tonumber(params.acDelta) or 0))
+        end
+    elseif effect == "spell_focus" or effect == "holy_symbol" then
+        if params.spellDCDelta then
+            push(string.format("法术 DC +%d", tonumber(params.spellDCDelta) or 0))
+        end
+    elseif effect == "saving_throw_charm" then
+        if params.acDelta then
+            push(string.format("AC +%d", tonumber(params.acDelta) or 0))
+        end
+        if params.saveDelta then
+            push(string.format("豁免 +%d", tonumber(params.saveDelta) or 0))
+        end
+    end
+    return table.concat(parts, " · ")
+end
+
+local function describeEquipmentClasses(equipment)
+    local params = equipment and equipment.params or {}
+    local classIds = params.classIds or {}
+    if #classIds == 0 then
+        return ""
+    end
+    local names = {}
+    for _, classId in ipairs(classIds) do
+        names[#names + 1] = CLASS_LABELS[tonumber(classId) or 0] or ("职业" .. tostring(classId))
+    end
+    return table.concat(names, "/")
+end
+
+local function buildEquipmentPreview(equipmentId)
+    local equipment = RunEquipmentConfig.GetEquipment(tonumber(equipmentId))
+    if not equipment then
+        return nil
+    end
+    return {
+        equipmentId = tonumber(equipmentId),
+        name = equipment.name or ("装备 " .. tostring(equipmentId)),
+        rarity = equipment.rarity or "common",
+        code = equipment.code or "",
+        slot = equipment.slot,
+        slotLabel = equipment.slot and SLOT_LABELS[equipment.slot] or nil,
+        effectType = equipment.effectType,
+        effectDescription = describeEquipmentEffect(equipment),
+        classScope = describeEquipmentClasses(equipment),
+    }
+end
+
 local function buildDescription(entry)
     if entry.rewardType == "equipment" then
+        local preview = buildEquipmentPreview(entry.refId)
+        if preview and preview.effectDescription ~= "" then
+            return preview.effectDescription
+        end
         local equipment = RunEquipmentConfig.GetEquipment(entry.refId)
         return equipment and equipment.code or ""
     end
@@ -215,7 +293,7 @@ local function buildRarity(entry)
 end
 
 local function buildRewardOption(entry)
-    return {
+    local option = {
         rewardType = entry.rewardType,
         refId = entry.refId,
         value = entry.value,
@@ -223,6 +301,10 @@ local function buildRewardOption(entry)
         description = buildDescription(entry),
         rarity = buildRarity(entry),
     }
+    if entry.rewardType == "equipment" then
+        option.equipmentPreview = buildEquipmentPreview(entry.refId)
+    end
+    return option
 end
 
 local function buildChestGoldValue(floorDepth)
@@ -273,9 +355,44 @@ function RoguelikeReward.RollBattleEquipmentDrop(nodeType, battleProfile)
     return rollBattleEquipmentId(nodeType, battleProfile)
 end
 
--- 战斗祝福掉落 API（精英战 50% 概率，boss 必掉 boss tier）
+-- 战斗祝福掉落 API（Boss 必掉 boss tier；精英房不掉祝福）
 function RoguelikeReward.RollBattleBlessingDrop(nodeType, battleProfile)
     return rollBattleBlessingId(nodeType, battleProfile)
+end
+
+--- 精英战 / 宝箱共用：单件装备 rewardState（kind=chest，Web 走开箱 UI）。
+---@param equipmentId integer
+---@param opts table|nil { source: string|nil }
+function RoguelikeReward.GenerateEquipmentRewardState(equipmentId, opts)
+    opts = opts or {}
+    local id = tonumber(equipmentId)
+    if not id then
+        return nil
+    end
+    return {
+        groupId = 0,
+        kind = "chest",
+        source = tostring(opts.source or "chest"),
+        options = { buildRewardOption({ rewardType = "equipment", refId = id }) },
+    }
+end
+
+--- 精英战胜利后延迟展示：roll 装备并生成 rewardState（不入库，等 ChooseReward）。
+---@param runState table|nil
+---@param nodeType string|nil
+---@param battleProfile table|nil
+function RoguelikeReward.PrepareEliteEquipmentReward(runState, nodeType, battleProfile)
+    if tostring(nodeType or "") ~= "battle_elite" then
+        return nil
+    end
+    local equipmentId = rollBattleEquipmentId(nodeType, battleProfile)
+    if not equipmentId then
+        return nil
+    end
+    if runState and not BuildConstraints.CanAddEquipment(runState, equipmentId) then
+        return nil
+    end
+    return RoguelikeReward.GenerateEquipmentRewardState(equipmentId, { source = "elite_victory" })
 end
 
 function RoguelikeReward.GenerateRewardState(groupId)
@@ -335,7 +452,14 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
         return false, "invalid_reward"
     end
 
-    local prefix = rewardState and rewardState.kind == "chest" and "开启宝箱：" or ""
+    local prefix = ""
+    if rewardState and rewardState.kind == "chest" then
+        if rewardState.source == "elite_victory" then
+            prefix = "精英战利品："
+        else
+            prefix = "开启宝箱："
+        end
+    end
 
     if option.rewardType == "gold" then
         runState.gold = (runState.gold or 0) + (option.value or 0)
