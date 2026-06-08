@@ -894,23 +894,12 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     title.textContent = snapshot.phase === "stair" ? "楼梯房：选择行动" : "选择下一个节点";
     host.append(title);
 
-    // 楼梯房：把上/下楼按钮直接作为「方位」选项与房间选择按钮并列。
-    if (snapshot.phase === "stair" && snapshot.stairState) {
-      const dir = snapshot.stairState.direction;
-      const dirLabel = snapshot.stairState.isHiddenEntrance
-        ? "进入隐藏层"
-        : dir === "up"
-          ? "上楼"
-          : "下楼";
-      host.append(
-        makeButton(`${dirLabel} · 进入下一层`, false, () => controls.handlers.onStairUse()),
-      );
-    }
-
     const currentNode = snapshot.currentNodeId
       ? snapshot.map.nodes.find((item) => item.id === snapshot.currentNodeId) ?? null
       : null;
     const selectable = snapshot.map.nodes.filter((item) => item.selectable);
+    const directionPad = document.createElement("div");
+    directionPad.className = "run-direction-pad";
 
     const directionOf = (target: typeof selectable[number]) => {
       if (!currentNode || currentNode.gridX == null || currentNode.gridY == null
@@ -926,26 +915,92 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
       return "";
     };
 
-    // 同方向去重：跨层楼梯等极端情况下若多个邻居在同一方位，加序号区分。
-    const usedDirs = new Map<string, number>();
+    const slotItems = new Map<string, Array<{ knownTitle: string; node: typeof selectable[number] }>>();
+    const ensureSlotItems = (slot: string) => {
+      let list = slotItems.get(slot);
+      if (!list) {
+        list = [];
+        slotItems.set(slot, list);
+      }
+      return list;
+    };
+    const appendPadSlot = (slot: string, title: string, ...children: HTMLElement[]) => {
+      const section = document.createElement("section");
+      section.className = `run-direction-slot run-direction-slot--${slot}`;
+      section.dataset.slot = slot;
+
+      const label = document.createElement("div");
+      label.className = "run-direction-slot__label";
+      label.textContent = title;
+      section.append(label);
+
+      const content = document.createElement("div");
+      content.className = "run-direction-slot__content";
+      if (children.length > 0) {
+        content.append(...children);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "run-direction-slot__empty";
+        empty.textContent = "无";
+        content.append(empty);
+      }
+      section.append(content);
+      directionPad.append(section);
+    };
+
     for (const node of selectable) {
       const dir = directionOf(node);
-      let dirLabel = dir;
-      if (dir) {
-        const count = (usedDirs.get(dir) ?? 0) + 1;
-        usedDirs.set(dir, count);
-        dirLabel = count > 1 ? `${dir}${count}` : dir;
-      }
       // 未踏足的房间不暴露类型/标题；已访问过的（迂回回头路）才显示原标题。
       const knownTitle = node.revealed && node.titleVisible && node.title ? node.title : "未知房间";
-      const label = dirLabel ? `${dirLabel} · ${knownTitle}` : knownTitle;
-      host.append(
-        makeButton(label, false, async () => {
-          // 选择即进入，避免手机端多一步操作
+      const slotKey =
+        dir === "上" ? "up" :
+        dir === "下" ? "down" :
+        dir === "左" ? "left" :
+        dir === "右" ? "right" :
+        "free";
+      ensureSlotItems(slotKey).push({ knownTitle, node });
+    }
+
+    const buildNodeButtons = (slot: string) =>
+      (slotItems.get(slot) ?? []).map(({ knownTitle, node }) => {
+        const button = makeButton(knownTitle, false, async () => {
           await controls.handlers.onChooseNode(node.id);
           await controls.handlers.onEnterNode();
-        }),
-      );
+        });
+        button.classList.add("run-direction-button");
+        return button;
+      });
+
+    appendPadSlot("up", "上", ...buildNodeButtons("up"));
+    appendPadSlot("left", "左", ...buildNodeButtons("left"));
+
+    const centerChildren: HTMLElement[] = [];
+    if (snapshot.phase === "stair" && snapshot.stairState) {
+      const dir = snapshot.stairState.direction;
+      const dirLabel = snapshot.stairState.isHiddenEntrance
+        ? "进入隐藏层"
+        : dir === "up"
+          ? "上楼"
+          : "下楼";
+      const stairButton = makeButton(`${dirLabel} · 进入下一层`, false, () => controls.handlers.onStairUse());
+      stairButton.classList.add("run-direction-button", "run-direction-button--stair");
+      centerChildren.push(stairButton);
+    }
+    appendPadSlot("center", "上下楼", ...centerChildren);
+
+    appendPadSlot("right", "右", ...buildNodeButtons("right"));
+    appendPadSlot("down", "下", ...buildNodeButtons("down"));
+    host.append(directionPad);
+
+    const freeButtons = buildNodeButtons("free");
+    if (freeButtons.length > 0) {
+      const fallbackTitle = document.createElement("div");
+      fallbackTitle.className = "panel-title";
+      fallbackTitle.textContent = "其他可选节点";
+      const fallback = document.createElement("div");
+      fallback.className = "run-direction-fallback";
+      fallback.append(...freeButtons);
+      host.append(fallbackTitle, fallback);
     }
   } else {
     // 非 map 阶段：显示当前所在场景提示，提示切回「信息」页

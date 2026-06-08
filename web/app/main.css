@@ -220,6 +220,84 @@ body {
   align-content: start;
 }
 
+.run-direction-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    ". up ."
+    "left center right"
+    ". down .";
+  gap: 10px;
+  align-items: stretch;
+}
+
+.run-direction-slot {
+  display: grid;
+  gap: 6px;
+  min-height: 108px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.run-direction-slot--up {
+  grid-area: up;
+}
+
+.run-direction-slot--left {
+  grid-area: left;
+}
+
+.run-direction-slot--center {
+  grid-area: center;
+}
+
+.run-direction-slot--right {
+  grid-area: right;
+}
+
+.run-direction-slot--down {
+  grid-area: down;
+}
+
+.run-direction-slot__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d9e2ec;
+  text-align: center;
+}
+
+.run-direction-slot__content,
+.run-direction-fallback {
+  display: grid;
+  gap: 8px;
+}
+
+.run-direction-slot__content {
+  align-content: start;
+  min-height: 0;
+}
+
+.run-direction-slot__empty {
+  display: grid;
+  place-items: center;
+  min-height: 56px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #8aa1bc;
+  font-size: 12px;
+}
+
+.run-direction-button {
+  min-height: 56px;
+}
+
+.run-direction-button--stair {
+  background: #245f4b;
+  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.35) inset;
+}
+
 .ult-panel,
 .global-actions {
   display: grid;
@@ -1077,6 +1155,19 @@ body {
   .run-compact-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .run-direction-pad {
+    gap: 8px;
+  }
+
+  .run-direction-slot {
+    min-height: 96px;
+    padding: 8px;
+  }
+
+  .run-direction-button {
+    min-height: 48px;
   }
 
   .run-compact-field {
