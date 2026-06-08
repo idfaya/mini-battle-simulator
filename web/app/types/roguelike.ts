@@ -92,9 +92,9 @@ export type RunTeamMember = {
   hit?: number;
   spellAttack?: number;
   spellDC?: number;
-  saveFort?: number;
-  saveRef?: number;
-  saveWill?: number;
+  saveCon?: number;
+  saveDex?: number;
+  saveWis?: number;
   weaponDice?: string;
 };
 

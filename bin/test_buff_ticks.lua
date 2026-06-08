@@ -35,9 +35,9 @@ local function new_unit(id, name, hp)
         spellAttack = 10,
         ac = 10,
         spellDC = 10,
-        saveFort = 0,
-        saveRef = 0,
-        saveWill = 0,
+        saveCon = 0,
+        saveDex = 0,
+        saveWis = 0,
         __ignoreNatRules = true,
         isDead = false,
         isAlive = true,
@@ -55,7 +55,7 @@ local function with_mocked_save(resultBuilder, fn)
     end
 end
 
--- Burn: ref save success removes
+-- Burn: dex save success removes
 do
     local caster = new_unit(5001, "BurnCaster")
     caster.spellDC = 10
@@ -68,10 +68,10 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(BattleBuff.GetBuff(target, 870001) == nil, "burn removed on ref save success")
+    assert_true(BattleBuff.GetBuff(target, 870001) == nil, "burn removed on dex save success")
 end
 
--- Burn: ref save fail deals fire damage
+-- Burn: dex save fail deals fire damage
 do
     local caster = new_unit(5003, "BurnCaster2")
     caster.spellDC = 30
@@ -84,11 +84,11 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(target.hp < hpBefore, "burn tick deals damage on ref save fail")
-    assert_true(BattleBuff.GetBuff(target, 870001) ~= nil, "burn remains after failed ref save")
+    assert_true(target.hp < hpBefore, "burn tick deals damage on dex save fail")
+    assert_true(BattleBuff.GetBuff(target, 870001) ~= nil, "burn remains after failed dex save")
 end
 
--- Poison: fort save success removes all stacks
+-- Poison: con save success removes all stacks
 do
     local caster = new_unit(5005, "PoisonCaster")
     caster.spellDC = 10
@@ -101,10 +101,10 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(BattleBuff.GetBuff(target, 850001) == nil, "poison removed on fort save success")
+    assert_true(BattleBuff.GetBuff(target, 850001) == nil, "poison removed on con save success")
 end
 
--- Poison: fort save fail deals stack-scaled damage
+-- Poison: con save fail deals stack-scaled damage
 do
     local caster = new_unit(5007, "PoisonCaster2")
     caster.spellDC = 30
@@ -117,11 +117,11 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(target.hp < hpBefore, "poison tick deals damage on fort save fail")
+    assert_true(target.hp < hpBefore, "poison tick deals damage on con save fail")
     assert_true(BattleBuff.GetBuffStackNumBySubType(target, 850001) == 2, "poison stacks remain after failed save")
 end
 
--- Bleed: fort save success removes
+-- Bleed: con save success removes
 do
     local caster = new_unit(5009, "BleedCaster")
     caster.spellDC = 10
@@ -134,10 +134,10 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(BattleBuff.GetBuff(target, 880007) == nil, "bleed removed on fort save success")
+    assert_true(BattleBuff.GetBuff(target, 880007) == nil, "bleed removed on con save success")
 end
 
--- Bleed: fort save fail deals slashing damage
+-- Bleed: con save fail deals slashing damage
 do
     local caster = new_unit(5011, "BleedCaster2")
     caster.spellDC = 30
@@ -150,7 +150,7 @@ do
     end, function()
         BattleBuff.OnRoundBegin(target)
     end)
-    assert_true(target.hp < hpBefore, "bleed tick deals damage on fort save fail")
+    assert_true(target.hp < hpBefore, "bleed tick deals damage on con save fail")
     assert_true(BattleBuff.GetBuff(target, 880007) ~= nil, "bleed remains after failed save")
 end
 

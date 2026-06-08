@@ -36,9 +36,9 @@ local function buildSnapshot(level)
             str = attrs.str,
             dex = attrs.dex,
             con = attrs.con,
-            saveFort = attrs.saveFort,
-            saveRef = attrs.saveRef,
-            saveWill = attrs.saveWill,
+            saveCon = attrs.saveCon,
+            saveDex = attrs.saveDex,
+            saveWis = attrs.saveWis,
         }
     end
     return rows

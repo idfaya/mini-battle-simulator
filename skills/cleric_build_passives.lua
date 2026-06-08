@@ -79,12 +79,20 @@ local function didSpellConnect(damageResult)
         return false
     end
     if damageResult.save then
-        return damageResult.save.success ~= true
+        return (tonumber(damageResult.damage) or 0) > 0
     end
     if damageResult.hit then
         return damageResult.hit.hit == true
     end
     return (tonumber(damageResult.damage) or 0) > 0
+end
+
+local function getBasicSpellStageDice(skill)
+    return Skill5eMeta.ResolveStageDamageDice(IDS.cleric_basic_spell, skill and skill.level)
+end
+
+local function getClericSpellAbilityMod(hero)
+    return math.max(0, math.floor(tonumber(hero and hero.wisMod) or 0))
 end
 
 local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, sourceSkillName)
@@ -221,12 +229,14 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
         return 0
     end
     local BattleSkill = require("modules.battle_skill")
+    local sparkDice = getBasicSpellStageDice(skill)
+    local spellAbilityMod = getClericSpellAbilityMod(hero)
     if BattleSkill.IsAlly(hero, target) then
         return applyHealAmount(
             hero,
             target,
-            "1d8",
-            0,
+            sparkDice,
+            spellAbilityMod,
             skill and skill.skillId or IDS.cleric_basic_spell,
             skill and skill.name or "神圣火花")
     end
@@ -236,16 +246,22 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     local BattleEvent = require("core.battle_event")
     local runtime = ensureRuntime(hero)
     local meta = Skill5eMeta.Get(IDS.cleric_basic_spell)
-    local damageDice = Skill5eMeta.ResolveStageDamageDice(IDS.cleric_basic_spell, skill and skill.level)
     local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
         meta = meta,
         damageKind = "spell",
-        damageDice = damageDice,
+        damageDice = sparkDice,
         noWeapon = true,
         noAbilityMod = true,
     })
     runtime.clericBasicSpellLastConnected = didSpellConnect(damageResult)
-    local damage = tonumber(damageResult and damageResult.damage) or 0
+    local damage = math.max(0, math.floor(tonumber(damageResult and damageResult.damage) or 0))
+    if damage > 0 and spellAbilityMod > 0 then
+        if damageResult and damageResult.save and damageResult.save.success == true then
+            damage = damage + math.floor(spellAbilityMod / 2)
+        else
+            damage = damage + spellAbilityMod
+        end
+    end
     local damageContext = {
         attacker = hero,
         target = target,
@@ -273,7 +289,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             attackRoll = rollParams.attackRoll,
             saveRoll = rollParams.saveRoll,
             damageRoll = rollParams.damageRoll,
-            saveType = rollParams.saveType or "will",
+            saveType = rollParams.saveType or "con",
             onSaveSuccess = rollParams.onSaveSuccess or "half",
         })
         local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog(rollParams, true)
@@ -504,7 +520,7 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
         if isAlive(target) then
             local damageResult = BattleSkill.ResolveScaledDamage(hero, target, {
                 skill = skill,
-                meta = { attackMode = "spell_save", saveType = "will", kind = "spell", damageDice = "1d8" },
+                meta = { attackMode = "spell_save", saveType = "wis", kind = "spell", damageDice = "1d8" },
                 damageKind = "spell",
                 damageDice = "1d8",
             })
@@ -520,7 +536,7 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
                 }))
             end
             if damage > 0 then
-                local turnMeta = { attackMode = "spell_save", saveType = "will", kind = "spell", onSaveSuccess = "half" }
+                local turnMeta = { attackMode = "spell_save", saveType = "wis", kind = "spell", onSaveSuccess = "half" }
                 local rollParams = BuildPassiveCommon.BuildDamageEventRollParams(damageResult, turnMeta)
                 BattleDmgHeal.ApplyDamage(target, damage, hero, {
                     skillId = skill and skill.skillId or IDS.cleric_turn_undead,
@@ -528,7 +544,7 @@ function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
                     damageKind = "spell",
                     saveRoll = rollParams.saveRoll,
                     damageRoll = rollParams.damageRoll,
-                    saveType = rollParams.saveType or "will",
+                    saveType = rollParams.saveType or "wis",
                     onSaveSuccess = rollParams.onSaveSuccess or "half",
                 })
                 total = total + damage

@@ -171,7 +171,7 @@ function RangerBuildPassives.ApplyHunterMark(hero, target)
         duration = 2 + durationDelta,
         value = markPenalty,
     })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记（AC -%d，反射 -%d）",
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 对 %s 施加猎人印记（AC -%d，敏捷豁免 -%d）",
         hero.name or "Unknown",
         target.name or "目标",
         markPenalty,
@@ -185,11 +185,11 @@ local function tryApplySnare(hero, target, label)
     local BattleFormula = require("core.battle_formula")
     local BattleSkill = require("modules.battle_skill")
     local dc = tonumber(hero.spellDC) or 10
-    local saveBonus = (tonumber(target.saveRef) or 0)
-        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(target, "ref")) or 0)
+    local saveBonus = (tonumber(target.saveDex) or 0)
+        + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(target, "dex")) or 0)
     local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {})
     if saveResult.success then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 反射豁免成功 (%d vs DC %d)",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 敏捷豁免成功 (%d vs DC %d)",
             hero.name or "Unknown",
             label or "缠绕",
             target.name or "目标",
@@ -198,7 +198,7 @@ local function tryApplySnare(hero, target, label)
         return false
     end
     BattleSkill.ApplyBuffFromSkill(hero, target, RESTRAINED_PROXY_BUFF_ID, nil, { duration = 1 })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 反射豁免失败，冻结 1 回合（近似 Restrained）",
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 敏捷豁免失败，冻结 1 回合（近似 Restrained）",
         hero.name or "Unknown",
         label or "缠绕",
         target.name or "目标"))

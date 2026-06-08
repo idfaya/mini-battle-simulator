@@ -6,9 +6,9 @@ local SkillConfig = require("config.tables.skills")
 ---| "auto"
 
 ---@alias Skill5eSaveType
----| "fort"
----| "ref"
----| "will"
+---| "con"
+---| "dex"
+---| "wis"
 
 ---@alias Skill5eOnSaveSuccess
 ---| "half"
@@ -65,7 +65,7 @@ local function resolveDefault(skillId)
     local classId = math.floor((tonumber(skillId) or 0) / 100) * 100
     if classId >= 80006000 and classId <= 80009000 then
         -- Spell classes by ID range: 80006xxx..80009xxx
-        return { kind = "spell", saveType = "ref", isAOE = false, onSaveSuccess = "half" }
+        return { kind = "spell", saveType = "dex", isAOE = false, onSaveSuccess = "half" }
     end
     return { kind = "physical" }
 end
@@ -131,7 +131,7 @@ function Skill5eMeta.Get(skillId)
             end
         end
         if meta.saveType == nil then
-            meta.saveType = "ref"
+            meta.saveType = "dex"
         end
     end
     return meta

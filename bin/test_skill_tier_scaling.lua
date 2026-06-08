@@ -31,7 +31,7 @@ local function new_unit(id, name)
         hit = 999, ac = 1,
         spellAttack = 999,
         spellDC = 999,
-        saveFort = 0, saveRef = 0, saveWill = 0,
+        saveCon = 0, saveDex = 0, saveWis = 0,
         __ignoreNatRules = true,
         isDead = false, isAlive = true,
         attributes = { final = {} },
@@ -206,11 +206,12 @@ do
     end
 end
 
--- Test 5g: Cleric basic spell damage scales by tier while ally heal stays flat
+-- Test 5g: Cleric basic spell follows Divine Spark dice tiers and spell mod
 do
     local ClericBuildPassives = require("skills.cleric_build_passives")
     local oldResolveScaledDamage = BattleSkill.ResolveScaledDamage
     local capturedDice = nil
+    local sparkSpellMod = 4
     BattleSkill.ResolveScaledDamage = function(attacker, defender, opts)
         capturedDice = opts and opts.damageDice or nil
         return oldResolveScaledDamage(attacker, defender, opts)
@@ -220,23 +221,25 @@ do
         local hero = new_unit(3710 + tier, "Cleric_" .. tier)
         local enemy = new_unit(3720 + tier, "Enemy_" .. tier)
         hero.isLeft = true
+        hero.wisMod = sparkSpellMod
         enemy.isLeft = false
         hero.spellDC = 999
-        enemy.saveWill = 0
+        enemy.saveCon = -20
         capturedDice = nil
         local dealt = ClericBuildPassives.PerformBasicSpellAttack(hero, enemy, {
             skillId = 80006011,
             name = "神圣火花",
             level = tier,
         })
-        local expectedDice = ({ "1d8", "1d8+1", "1d8+2" })[tier]
-        assert_true(dealt > 0, "Cleric basic spell deals damage (tier " .. tier .. ")")
+        local expectedDice = ({ "1d8", "2d8", "3d8" })[tier]
+        assert_true(dealt >= tier + sparkSpellMod, "Cleric basic spell deals Divine Spark damage (tier " .. tier .. ")")
         assert_true(capturedDice == expectedDice, "Cleric basic spell damage dice scales (" .. tier .. ")")
     end
 
     local healer = new_unit(3731, "ClericHeal")
     local ally = new_unit(3732, "Ally")
     healer.isLeft = true
+    healer.wisMod = sparkSpellMod
     ally.isLeft = true
     ally.hp = 50
     ally.maxHp = 100
@@ -245,8 +248,8 @@ do
         name = "神圣火花",
         level = 3,
     })
-    assert_true(healed > 0, "Cleric ally basic spell heals successfully")
-    assert_true(ally.hp > 50 and ally.hp <= ally.maxHp, "Cleric ally heal remains valid")
+    assert_true(healed >= 3 + sparkSpellMod, "Cleric ally basic spell heals with Divine Spark scalar")
+    assert_true(ally.hp >= 50 + 3 + sparkSpellMod and ally.hp <= ally.maxHp, "Cleric ally heal remains valid")
 
     BattleSkill.ResolveScaledDamage = oldResolveScaledDamage
 end
@@ -296,4 +299,3 @@ do
 end
 
 log("All tier scaling assertions passed.")
-

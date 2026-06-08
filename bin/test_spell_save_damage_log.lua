@@ -35,7 +35,7 @@ local wizardData = HeroData.ConvertToHeroData(900003, 5, 5, nil)
 wizardData.wpType = 2
 local enemyData = EnemyData.ConvertToHeroData(910004, 5)
 enemyData.wpType = 1
-enemyData.saveRef = -10
+enemyData.saveDex = -10
 
 BattleFormation.Init({
     teamLeft = { wizardData },
@@ -56,7 +56,7 @@ SkillTimeline.Execute(wizard, { enemy }, skill, timeline)
 assert_true(#captured > 0, "freezing nova should publish damage events")
 local event = captured[1]
 assert_true(event.saveRoll ~= nil, "damage event should include saveRoll")
-assert_true(event.saveType == "ref", "freezing nova should expose ref save type")
+assert_true(event.saveType == "dex", "freezing nova should expose dex save type")
 assert_true(event.onSaveSuccess == "half", "aoe spell save should expose half damage on success")
 assert_true(event.damageRoll ~= nil, "damage event should include damageRoll")
 

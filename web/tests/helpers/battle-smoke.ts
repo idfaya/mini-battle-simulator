@@ -78,7 +78,7 @@ export async function captureTopBarSummary(page: Page, durationMs = 8000) {
       if (topBar.skillCasting === true || skillBrief.includes("释放中")) {
         sawCasting = true;
       }
-      if (skillBrief.includes("反射豁免") || skillBrief.includes("强韧豁免") || skillBrief.includes("意志豁免")) {
+      if (skillBrief.includes("敏捷豁免") || skillBrief.includes("体质豁免") || skillBrief.includes("感知豁免")) {
         sawSaveRoll = true;
       }
       if (damageBrief.includes("伤害骰")) {

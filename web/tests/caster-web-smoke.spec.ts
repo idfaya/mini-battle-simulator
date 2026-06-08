@@ -60,7 +60,7 @@ test("wizard freezing nova log shows reflex save rolls", async ({ page }) => {
 
   await expect
     .poll(async () => (await readBattleLogs(page)).join("\n"), { timeout: 30000 })
-    .toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
+    .toMatch(/冻结新星.*(敏捷豁免|豁免检定).*vs DC.*伤害骰/s);
 
   const logs = await readBattleLogs(page);
   const joinedLogs = logs.join("\n");
@@ -68,12 +68,12 @@ test("wizard freezing nova log shows reflex save rolls", async ({ page }) => {
     logs.some(
       (line) =>
         line.includes("冻结新星") &&
-        (line.includes("反射豁免") || line.includes("豁免检定")) &&
+        (line.includes("敏捷豁免") || line.includes("豁免检定")) &&
         line.includes("vs DC") &&
         line.includes("伤害骰"),
     ),
   ).toBeTruthy();
-  expect(joinedLogs).toMatch(/冻结新星.*(反射豁免|豁免检定).*vs DC.*伤害骰/s);
+  expect(joinedLogs).toMatch(/冻结新星.*(敏捷豁免|豁免检定).*vs DC.*伤害骰/s);
   expect(topBarSummary.sawSaveRoll || topBarSummary.sawDamageRoll).toBeTruthy();
   await expectNoClientErrors(page, pageErrors, consoleErrors);
 });

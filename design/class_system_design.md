@@ -120,7 +120,7 @@ Modifier 统一采用 5e 公式 `floor((score - 10) / 2)`，并以 `strMod / dex
 - `ac`
 - `hit_bonus`
 - `spell_dc`
-- `save_fort` / `save_ref` / `save_will`
+- `save_con` / `save_dex` / `save_wis`
 - `speed`
 - `energy`
 
@@ -156,7 +156,7 @@ Class 基础模板
 | `primary_ability` | 主属性，用于攻击命中与物理伤害加值 |
 | `spell_ability` | 施法属性，用于法术 DC；`none` 表示无施法 |
 | `armor_formula` | AC 计算公式类型 |
-| `save_proficiency` | 精通豁免集合，`fort` / `ref` / `will` 的子集 |
+| `save_proficiency` | 精通豁免集合，`con` / `dex` / `wis` 的子集 |
 
 `armor_formula` 枚举值：
 
@@ -174,15 +174,15 @@ Class 基础模板
 
 | classId | 职业 | `primary_ability` | `spell_ability` | `armor_formula` | `save_proficiency` |
 | --- | --- | --- | --- | --- | --- |
-| `1` | Rogue | `dex` | `none` | `light_11_dex` | `ref` |
-| `2` | Fighter | `str` | `none` | `heavy_fixed` | `fort` / `will` |
-| `3` | Monk | `dex` | `wis` | `unarmored_dex_wis` | `fort` / `ref` |
-| `4` | Paladin | `str` | `cha` | `medium_capped` | `fort` |
-| `5` | Ranger | `dex` | `wis` | `light_12_dex` | `ref` / `will` |
-| `6` | Cleric | `str` | `wis` | `medium_capped` | `will` |
-| `7` | Sorcerer | `int` | `int` | `robe_dex` | `will` |
-| `8` | Wizard | `int` | `int` | `robe_dex` | `fort` / `will` |
-| `9` | Warlock | `int` | `int` | `robe_dex` | `ref` / `will` |
+| `1` | Rogue | `dex` | `none` | `light_11_dex` | `dex` |
+| `2` | Fighter | `str` | `none` | `heavy_fixed` | `con` / `wis` |
+| `3` | Monk | `dex` | `wis` | `unarmored_dex_wis` | `con` / `dex` |
+| `4` | Paladin | `str` | `cha` | `medium_capped` | `con` |
+| `5` | Ranger | `dex` | `wis` | `light_12_dex` | `dex` / `wis` |
+| `6` | Cleric | `str` | `wis` | `medium_capped` | `wis` |
+| `7` | Sorcerer | `int` | `int` | `robe_dex` | `wis` |
+| `8` | Wizard | `int` | `int` | `robe_dex` | `con` / `wis` |
+| `9` | Warlock | `int` | `int` | `robe_dex` | `dex` / `wis` |
 
 约束：
 

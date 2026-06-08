@@ -66,7 +66,7 @@ local function initBurnSaveType(buff)
     if not buff then
         return
     end
-    buff.__burnSaveType = "ref"
+    buff.__burnSaveType = "dex"
 end
 
 --- 处理中毒效果（T1 毒爆流）

@@ -443,7 +443,7 @@ BattleBuff.Add(caster, target, buffConfig)
 
 1. 在 Buff 的 `ON_ADD/ON_REMOVE` 中直接影响：
    - `hero.ac`
-   - `hero.saveRef`
+   - `hero.saveDex`
 2. 在 `BattleAttribute.GetSpeed(hero)` 中通过 `value = 3000` 参与速度百分比扣减
 
 需要特别注意：
@@ -575,7 +575,7 @@ Buff 系统会向表现层发布以下核心事件：
 
 | Buff ID | 名称 | 主类型 | 说明 |
 |---------|------|--------|------|
-| 870001 | 燃烧 | BAD | 每回合开始进行反射豁免；成功则移除，失败则受到火焰伤害并继续 |
+| 870001 | 燃烧 | BAD | 每回合开始进行敏捷豁免；成功则移除，失败则受到火焰伤害并继续 |
 | 870002 | 火焰亲和 | GOOD | 常驻正面状态，用于延长燃烧等联动 |
 
 ### 12.6 880xxx：冰系与弱点
@@ -597,7 +597,7 @@ Buff 系统会向表现层发布以下核心事件：
 | 890002 | 狂暴 | GOOD | 野蛮人强化窗口 |
 | 890003 | 不倦狂暴 | GOOD | 占位 ID；不倦语义走 Feat runtime |
 | 890004 | 护卫架势 | GOOD | 护卫窗口、AC 加成、准备反击 |
-| 890005 | 猎人印记 | BAD | 游侠锁定目标；`value` 层数同时降低 AC 与反射豁免 |
+| 890005 | 猎人印记 | BAD | 游侠锁定目标；`value` 层数同时降低 AC 与敏捷豁免 |
 | 890006 | 圣域祷言 | GOOD | 团队防护状态 |
 | 890007 | 守望主教 | GOOD | 前排强化窗口 |
 | 890008 | 守护灵光 | GOOD | 圣骑守护灵光窗口；范围内友军获得 AC 加成 |
@@ -673,9 +673,9 @@ Buff 系统会向表现层发布以下核心事件：
 - `BAD`，`buffId = 890005`，`subType = 890005`
 - 不叠层，只刷新；**按来源判定**为项目扩展：`runtime.rangerMarks[sourceId]` 维护到期表，`IsTargetMarkedBy(施加者, 目标)` 为技能联动入口
 - 移除可走 `DelBuffByBuffIdAndCaster`；与通用 `FindSameBuff` 单实例规则不同，见 `buff_system_design.md` §2.3、§4.3
-- `value` 表示减益层数 `N`：目标 AC `-N`、反射豁免 `-N`
+- `value` 表示减益层数 `N`：目标 AC `-N`、敏捷豁免 `-N`
 - 施加：`skills/ranger_build_passives.lua` 的 `ApplyHunterMark`；每回合首次远程基础攻击**命中**后触发（与最终伤害是否 `> 0` 无关）
-- 读取：`skills/build_passive_common.lua` 的 `GetDefenderAcBonus` / `GetDefenderSaveBonus("ref")`
+- 读取：`skills/build_passive_common.lua` 的 `GetDefenderAcBonus` / `GetDefenderSaveBonus("dex")`
 - 命中检定：`modules/battle_skill.lua` 的 `ResolveScaledDamage` 对非零 `defenderAcBonus` 生效
 - 印记附加伤害经 `classMods.vsMarkBonusDice` 在远程攻击结算时生效；`二连射` / 箭雨等仍检测 `IsTargetMarkedBy`
 

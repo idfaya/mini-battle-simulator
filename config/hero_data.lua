@@ -405,9 +405,9 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
     local finalHit = math.max(0, prof + getAttackAbilityMod(hero.Class, strMod, dexMod, intMod, wisMod))
     local finalSpellAttack = math.max(0, prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
     local finalSpellDC = math.max(8, 8 + prof + getSpellAbilityMod(hero.Class, intMod, wisMod, chaMod))
-    local finalSaveFort = conMod + (isSaveProficient(hero.Class, "fort") and prof or 0)
-    local finalSaveRef = dexMod + (isSaveProficient(hero.Class, "ref") and prof or 0)
-    local finalSaveWill = wisMod + (isSaveProficient(hero.Class, "will") and prof or 0)
+    local finalSaveCon = conMod + (isSaveProficient(hero.Class, "con") and prof or 0)
+    local finalSaveDex = dexMod + (isSaveProficient(hero.Class, "dex") and prof or 0)
+    local finalSaveWis = wisMod + (isSaveProficient(hero.Class, "wis") and prof or 0)
 
     return {
         hp = finalHp,
@@ -431,9 +431,9 @@ function HeroData.CalculateHeroAttributes(heroId, level, star, override)
         hit = finalHit,
         spellAttack = finalSpellAttack,
         spellDC = finalSpellDC,
-        saveFort = finalSaveFort,
-        saveRef = finalSaveRef,
-        saveWill = finalSaveWill,
+        saveCon = finalSaveCon,
+        saveDex = finalSaveDex,
+        saveWis = finalSaveWis,
         level = level,
         star = 1,
         quality = quality,
@@ -603,9 +603,9 @@ function HeroData.ConvertToHeroData(heroId, level, star, override)
         hit = attrs.hit,
         spellAttack = attrs.spellAttack,
         spellDC = attrs.spellDC,
-        saveFort = attrs.saveFort,
-        saveRef = attrs.saveRef,
-        saveWill = attrs.saveWill,
+        saveCon = attrs.saveCon,
+        saveDex = attrs.saveDex,
+        saveWis = attrs.saveWis,
         str = attrs.str,
         dex = attrs.dex,
         con = attrs.con,
@@ -936,9 +936,9 @@ function HeroData.CreateClassUnit(classId, options)
         hit = heroData.hit,
         spellAttack = heroData.spellAttack,
         spellDC = heroData.spellDC,
-        saveFort = heroData.saveFort,
-        saveRef = heroData.saveRef,
-        saveWill = heroData.saveWill,
+        saveCon = heroData.saveCon,
+        saveDex = heroData.saveDex,
+        saveWis = heroData.saveWis,
         str = heroData.str,
         dex = heroData.dex,
         con = heroData.con,
@@ -1020,4 +1020,3 @@ function HeroData.ConvertClassUnitToHeroData(classUnit)
 end
 
 return HeroData
-

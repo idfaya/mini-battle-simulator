@@ -332,9 +332,9 @@ function BuildPassiveCommon.PublishPassiveTriggered(hero, skillName, triggerType
 end
 
 local SAVE_TYPE_LABELS = {
-    fort = "强韧",
-    ref = "反射",
-    will = "意志",
+    con = "体质",
+    dex = "敏捷",
+    wis = "感知",
 }
 
 local function formatSigned(value)
@@ -774,7 +774,7 @@ function BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)
     if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraSaveBonus then
         total = total + (tonumber(PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)) or 0)
     end
-    if saveType == "ref" then
+    if saveType == "dex" then
         local okBattleBuff, BattleBuff = pcall(require, "modules.battle_buff")
         if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
             total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 890005)) or 0)

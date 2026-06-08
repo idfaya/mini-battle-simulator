@@ -26,9 +26,9 @@ const mockUnit: UnitState = {
   ac: 15,
   hit: 5,
   spellDC: 12,
-  saveFort: 2,
-  saveRef: 1,
-  saveWill: 0,
+  saveCon: 2,
+  saveDex: 1,
+  saveWis: 0,
   energy: 0,
   maxEnergy: 100,
   ultimateCharges: 0,
@@ -209,8 +209,8 @@ test("splitRollBriefDisplay keeps dice icon before rolled values", () => {
     prefix: "伤害骰 1d6+2",
     rollText: "[4]+2=6",
   });
-  expect(splitRollBriefDisplay("冻结新星 反射豁免 d20-2 vs DC13 [3]-2 =1 失败")).toEqual({
-    prefix: "冻结新星 反射豁免 d20-2 vs DC13",
+  expect(splitRollBriefDisplay("冻结新星 敏捷豁免 d20-2 vs DC13 [3]-2 =1 失败")).toEqual({
+    prefix: "冻结新星 敏捷豁免 d20-2 vs DC13",
     rollText: "[3]-2 =1 失败",
   });
 });
@@ -326,7 +326,7 @@ test("aoe damage_dealt annotates multi-target hit index on skill brief", () => {
         targetName: "骷髅兵",
         damage: 4,
         skillName: "冻结新星",
-        saveType: "ref",
+        saveType: "dex",
         onSaveSuccess: "half",
         saveRoll,
         damageRoll,
@@ -342,7 +342,7 @@ test("aoe damage_dealt annotates multi-target hit index on skill brief", () => {
         targetName: "哥布林",
         damage: 3,
         skillName: "冻结新星",
-        saveType: "ref",
+        saveType: "dex",
         onSaveSuccess: "half",
         saveRoll: { roll: 8, bonus: -2, total: 6, dc: 13, success: true },
         damageRoll: { expr: "1d6+2", parts: [{ rolls: [2], bonus: 2 }], total: 4 },
@@ -350,7 +350,7 @@ test("aoe damage_dealt annotates multi-target hit index on skill brief", () => {
     },
   ]);
 
-  expect(store.getState().skillBrief).toBe("冻结新星 ·2 反射豁免 d20-2 vs DC13 [8]-2 =6 成功（半伤）");
+  expect(store.getState().skillBrief).toBe("冻结新星 ·2 敏捷豁免 d20-2 vs DC13 [8]-2 =6 成功（半伤）");
   expect(store.getState().damageBrief).toContain("伤害骰");
 });
 
@@ -377,7 +377,7 @@ test("damage_dealt updates battlefield skill brief without attacker or target na
         targetName: "骷髅兵",
         damage: 4,
         skillName: "冻结新星",
-        saveType: "ref",
+        saveType: "dex",
         onSaveSuccess: "half",
         saveRoll: { roll: 3, bonus: -2, total: 1, dc: 13, success: false },
         damageRoll: { expr: "1d6+2", parts: [{ rolls: [4], bonus: 2 }], total: 6 },
@@ -386,7 +386,7 @@ test("damage_dealt updates battlefield skill brief without attacker or target na
   ]);
 
   expect(store.getState().skillCasting).toBe(false);
-  expect(store.getState().skillBrief).toBe("冻结新星 反射豁免 d20-2 vs DC13 [3]-2 =1 失败");
+  expect(store.getState().skillBrief).toBe("冻结新星 敏捷豁免 d20-2 vs DC13 [3]-2 =1 失败");
   expect(store.getState().skillBrief).not.toMatch(/[（）]/);
   expect(store.getState().skillBrief).not.toContain("释放中");
   expect(store.getState().skillBrief).not.toContain("伤害骰");

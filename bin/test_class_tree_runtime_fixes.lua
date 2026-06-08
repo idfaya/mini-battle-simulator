@@ -399,7 +399,7 @@ do
         "hunter mark baseline penalty is -1 AC and reflex")
     assert_true(BuildPassiveCommon.GetDefenderAcBonus(enemyA, ranger) == -1,
         "hunter mark reduces target AC via defender bonus")
-    assert_true(BuildPassiveCommon.GetDefenderSaveBonus(enemyA, "ref") == -1,
+    assert_true(BuildPassiveCommon.GetDefenderSaveBonus(enemyA, "dex") == -1,
         "hunter mark reduces target reflex save bonus")
 end
 
@@ -672,7 +672,7 @@ do
     paladin.buildState.classMods.paladinAuraAcBonus = 1
     paladin.buildState.classMods.paladinAuraSaveBonus = 1
     assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 2, "paladin aura global applies passive AC bonuses to full team")
-    assert_true(PaladinBuildPassives.GetAuraSaveBonus(farAlly, "will") == 1, "paladin aura global applies passive save bonuses to full team")
+    assert_true(PaladinBuildPassives.GetAuraSaveBonus(farAlly, "wis") == 1, "paladin aura global applies passive save bonuses to full team")
     PaladinBuildPassives.ActivateGuardianAura(paladin)
     assert_true(PaladinBuildPassives.GetAuraAcBonus(farAlly, nil) == 3, "paladin guardian aura respects global aura coverage")
 end

@@ -175,20 +175,20 @@ local function applySneakAttack(hero, target, condition)
 end
 
 local function getSaveBonus(target, saveType)
-    if saveType == "fort" then
-        return tonumber(target and target.saveFort) or 0
+    if saveType == "con" then
+        return tonumber(target and target.saveCon) or 0
     end
-    if saveType == "will" then
-        return tonumber(target and target.saveWill) or 0
+    if saveType == "wis" then
+        return tonumber(target and target.saveWis) or 0
     end
-    return tonumber(target and target.saveRef) or 0
+    return tonumber(target and target.saveDex) or 0
 end
 
 local function getSaveLabel(saveType)
-    if saveType == "fort" then
+    if saveType == "con" then
         return "体质"
     end
-    if saveType == "will" then
+    if saveType == "wis" then
         return "感知"
     end
     return "敏捷"
@@ -248,13 +248,13 @@ function RogueBuildPassives.PerformCunningStrike(hero, target, skill)
     end
     local duration = 1 + math.max(0, math.floor(FeatModHelper.GetSkillMod(hero, IDS.rogue_cunning_strike_build, "cunningDurationDelta", 0)))
     if damage > 0 and isAlive(target) then
-        applyBuffOnFailedSave(hero, target, POISON_BUFF_ID, "fort", duration, "诡诈打击·涂毒")
-        applyBuffOnFailedSave(hero, target, BLEED_BUFF_ID, "fort", duration, "诡诈打击·流血")
+        applyBuffOnFailedSave(hero, target, POISON_BUFF_ID, "con", duration, "诡诈打击·涂毒")
+        applyBuffOnFailedSave(hero, target, BLEED_BUFF_ID, "con", duration, "诡诈打击·流血")
         if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "addBlind") then
-            applyBuffOnFailedSave(hero, target, BLIND_BUFF_ID, "fort", duration, "诡诈打击·盲目")
+            applyBuffOnFailedSave(hero, target, BLIND_BUFF_ID, "con", duration, "诡诈打击·盲目")
         end
         if FeatModHelper.HasFlag(hero, IDS.rogue_cunning_strike_build, "addDaze") then
-            applyBuffOnFailedSave(hero, target, STUN_BUFF_ID, "will", duration, "诡诈打击·眩晕")
+            applyBuffOnFailedSave(hero, target, STUN_BUFF_ID, "wis", duration, "诡诈打击·眩晕")
         end
     end
     return damage
@@ -305,7 +305,7 @@ function RogueBuildPassives.CreateUncannyDodgePassive(context)
         local round = getRound()
         local isReflexOrAoe = extraParam.isAoe == true
             or extraParam.damageKind == "aoe"
-            or extraParam.saveType == "ref"
+            or extraParam.saveType == "dex"
         if isReflexOrAoe and FeatModHelper.HasFlag(hero, IDS.rogue_uncanny_dodge, "evasion") then
             local saveSuccess = extraParam.saveSuccess
             if saveSuccess == nil and type(extraParam.save) == "table" then

@@ -198,9 +198,9 @@ local function buildHeroForBattle(rosterHero, modifiers)
     heroData.spellDC = math.max(0, math.floor((heroData.spellDC or 0) + (modifiers.spellDCDeltaByClass[rosterHero.classId] or 0)))
     local saveDelta = modifiers.saveDeltaByClass[rosterHero.classId] or 0
     if saveDelta ~= 0 then
-        heroData.saveFort = math.max(0, math.floor((heroData.saveFort or 0) + saveDelta))
-        heroData.saveRef = math.max(0, math.floor((heroData.saveRef or 0) + saveDelta))
-        heroData.saveWill = math.max(0, math.floor((heroData.saveWill or 0) + saveDelta))
+        heroData.saveCon = math.max(0, math.floor((heroData.saveCon or 0) + saveDelta))
+        heroData.saveDex = math.max(0, math.floor((heroData.saveDex or 0) + saveDelta))
+        heroData.saveWis = math.max(0, math.floor((heroData.saveWis or 0) + saveDelta))
     end
     heroData.healingFlatBonus = math.max(0, math.floor((heroData.healingFlatBonus or 0) + (modifiers.healingFlatBonusByClass[rosterHero.classId] or 0)))
     heroData.damageReduce = math.max(0, math.floor((heroData.damageReduce or 0) + (modifiers.damageReduceByClass[rosterHero.classId] or 0)))
@@ -279,9 +279,9 @@ local function buildEnemyForBattle(enemyId, wpType, budgetAdjust)
     enemyData.spellDC = math.max(0, math.floor((enemyData.spellDC or 0) + (tonumber(budgetAdjust and budgetAdjust.spellDCDelta) or 0)))
     local sd = tonumber(budgetAdjust and budgetAdjust.saveDelta) or 0
     if sd ~= 0 then
-        enemyData.saveFort = math.max(0, math.floor((enemyData.saveFort or 0) + sd))
-        enemyData.saveRef = math.max(0, math.floor((enemyData.saveRef or 0) + sd))
-        enemyData.saveWill = math.max(0, math.floor((enemyData.saveWill or 0) + sd))
+        enemyData.saveCon = math.max(0, math.floor((enemyData.saveCon or 0) + sd))
+        enemyData.saveDex = math.max(0, math.floor((enemyData.saveDex or 0) + sd))
+        enemyData.saveWis = math.max(0, math.floor((enemyData.saveWis or 0) + sd))
     end
     enemyData.wpType = wpType
     return enemyData

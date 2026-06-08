@@ -320,9 +320,9 @@ local function applyBlessRoundDelta(hero, sign)
         hero.atk = hero.hit
     end
     if saveDelta ~= 0 then
-        hero.saveFort = math.max(0, math.floor((hero.saveFort or 0) + saveDelta))
-        hero.saveRef = math.max(0, math.floor((hero.saveRef or 0) + saveDelta))
-        hero.saveWill = math.max(0, math.floor((hero.saveWill or 0) + saveDelta))
+        hero.saveCon = math.max(0, math.floor((hero.saveCon or 0) + saveDelta))
+        hero.saveDex = math.max(0, math.floor((hero.saveDex or 0) + saveDelta))
+        hero.saveWis = math.max(0, math.floor((hero.saveWis or 0) + saveDelta))
     end
 end
 

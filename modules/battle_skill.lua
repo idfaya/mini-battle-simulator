@@ -370,7 +370,7 @@ local function NormalizeDamageMeta(attacker, opts)
     if opts.kind == "spell" then
         return {
             kind = "spell",
-            saveType = opts.saveType or "ref",
+            saveType = opts.saveType or "dex",
             isAOE = opts.isAOE == true,
             hardControl = opts.hardControl == true,
             onSaveSuccess = opts.onSaveSuccess or "half",
@@ -380,7 +380,7 @@ local function NormalizeDamageMeta(attacker, opts)
     if IsSpellClass(attacker) then
         return {
             kind = "spell",
-            saveType = opts.saveType or "ref",
+            saveType = opts.saveType or "dex",
             isAOE = opts.isAOE == true,
             hardControl = opts.hardControl == true,
             onSaveSuccess = opts.onSaveSuccess or "half",
@@ -481,14 +481,14 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     if attackMode == "spell_save" then
         local BuildPassiveCommon = require("skills.build_passive_common")
         local dc = tonumber(attacker and attacker.spellDC) or 10
-        local saveType = meta.saveType or "ref"
+        local saveType = meta.saveType or "dex"
         local saveBonus = 0
-        if saveType == "fort" then
-            saveBonus = tonumber(defender and defender.saveFort) or 0
-        elseif saveType == "will" then
-            saveBonus = tonumber(defender and defender.saveWill) or 0
+        if saveType == "con" then
+            saveBonus = tonumber(defender and defender.saveCon) or 0
+        elseif saveType == "wis" then
+            saveBonus = tonumber(defender and defender.saveWis) or 0
         else
-            saveBonus = tonumber(defender and defender.saveRef) or 0
+            saveBonus = tonumber(defender and defender.saveDex) or 0
         end
         saveBonus = saveBonus + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)) or 0)
 
@@ -1405,7 +1405,7 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
                 tonumber(hero.ultimateCharges) or 0,
                 tonumber(hero.ultimateChargesMax) or 0))
         end
-        -- Do not start timeline now. The battle loop will count down and release later.
+        -- Do not start timeline now. The battle loop wis count down and release later.
         local targetIds = {}
         for _, resolvedTarget in ipairs(targets or {}) do
             local resolvedId = resolvedTarget and (resolvedTarget.instanceId or resolvedTarget.id) or nil

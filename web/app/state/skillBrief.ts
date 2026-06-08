@@ -37,9 +37,9 @@ export function buildTopBarBriefsFromPayload(
 
 const MULTI_TARGET_SKILL_MARKERS = [
   " 攻击检定",
-  " 强韧豁免",
-  " 反射豁免",
-  " 意志豁免",
+  " 体质豁免",
+  " 敏捷豁免",
+  " 感知豁免",
   " 豁免豁免",
   " 治疗 ",
 ] as const;
@@ -100,4 +100,3 @@ export function extractTopBarBriefsFromCombatLog(message: string): TopBarBriefs 
     damageBrief: damageText,
   };
 }
-

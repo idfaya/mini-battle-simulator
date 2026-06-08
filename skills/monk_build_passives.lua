@@ -45,10 +45,10 @@ local function tryApplyStun(hero, target, label, duration)
     local BattleFormula = require("core.battle_formula")
     local BattleSkill = require("modules.battle_skill")
     local dc = tonumber(hero.spellDC) or 10
-    local saveBonus = tonumber(target.saveFort) or 0
+    local saveBonus = tonumber(target.saveCon) or 0
     local saveResult = BattleFormula.RollSave(target, dc, saveBonus, {})
     if saveResult.success then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 强韧豁免成功 (%d vs DC %d)",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 体质豁免成功 (%d vs DC %d)",
             hero.name or "Unknown",
             label or "震慑拳",
             target.name or "目标",
@@ -58,7 +58,7 @@ local function tryApplyStun(hero, target, label, duration)
     end
     local actualDuration = math.max(1, math.floor(tonumber(duration) or 1))
     BattleSkill.ApplyBuffFromSkill(hero, target, STUN_BUFF_ID, nil, { duration = actualDuration })
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 强韧豁免失败，STUN %d 回合",
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：%s 体质豁免失败，STUN %d 回合",
         hero.name or "Unknown",
         label or "震慑拳",
         target.name or "目标",

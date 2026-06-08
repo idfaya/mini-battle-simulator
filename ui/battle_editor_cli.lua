@@ -198,7 +198,7 @@ function BattleEditorCLI.GetHeroAttrTable(camp, wpType)
     table.insert(attrTable.rows, {"命中", hero.hit or 0, "攻击判定加值"})
     table.insert(attrTable.rows, {"护甲 AC", hero.ac or 10, "护甲等级"})
     table.insert(attrTable.rows, {"法术 DC", hero.spellDC or 10, "法术豁免 DC"})
-    table.insert(attrTable.rows, {"强韧/反射/意志", string.format("%d/%d/%d", hero.saveFort or 0, hero.saveRef or 0, hero.saveWill or 0), "豁免加值"})
+    table.insert(attrTable.rows, {"体质/敏捷/感知", string.format("%d/%d/%d", hero.saveCon or 0, hero.saveDex or 0, hero.saveWis or 0), "豁免加值"})
 
     -- 高级属性
     table.insert(attrTable.rows, {"---", "---", "---"})

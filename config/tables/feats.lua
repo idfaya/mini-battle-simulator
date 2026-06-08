@@ -134,7 +134,7 @@ local FEATS = {
         classId = 6,
         level = 1,
         name = "牧师祷训",
-        description = "获得神圣火花：对敌方造成 1 次远程神术伤害；若目标为友军，则改为回复生命。",
+        description = "获得神圣火花：按 Divine Spark 口径对友军治疗，或对敌军施加体质豁免神术伤害。",
         effects = {
             { type = "grant_skill", skill = 80006011 },
         },
@@ -439,7 +439,7 @@ local FEATS = {
         classId = 3,
         level = 3,
         name = "震慑拳",
-        description = "获得震慑拳，CD3，对当前目标发动 1 次徒手打击；若命中，强韧豁免失败则 STUN 1 回合。",
+        description = "获得震慑拳，CD3，对当前目标发动 1 次徒手打击；若命中，体质豁免失败则 STUN 1 回合。",
         trunk = "T1",
         treeSlot = "T1",
         effects = {
@@ -524,7 +524,7 @@ local FEATS = {
         classId = 5,
         level = 1,
         name = "印记基础",
-        description = "每回合 1 次，基础武器攻击命中后施加短时印记；印记目标 AC 与反射豁免 -1。",
+        description = "每回合 1 次，基础武器攻击命中后施加短时印记；印记目标 AC 与敏捷豁免 -1。",
         treeSlot = "R",
         isRoot = true,
         effects = {

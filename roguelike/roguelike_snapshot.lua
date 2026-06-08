@@ -81,9 +81,9 @@ local function serializeTeam(roster, modifiers)
         local baseAc = tonumber(hero.ac)
         local baseSpellAttack = tonumber(hero.spellAttack)
         local baseSpellDC = tonumber(hero.spellDC)
-        local baseSaveFort = tonumber(hero.saveFort)
-        local baseSaveRef = tonumber(hero.saveRef)
-        local baseSaveWill = tonumber(hero.saveWill)
+        local baseSaveFort = tonumber(hero.saveCon)
+        local baseSaveRef = tonumber(hero.saveDex)
+        local baseSaveWill = tonumber(hero.saveWis)
 
         local function addDelta(base, delta)
             if base == nil then
@@ -129,24 +129,24 @@ local function serializeTeam(roster, modifiers)
             hit = addDelta(baseHit, hitDelta),
             spellAttack = addDelta(baseSpellAttack, hitDelta),
             spellDC = addDelta(baseSpellDC, spellDCDelta),
-            saveFort = addDelta(baseSaveFort, saveDelta),
-            saveRef = addDelta(baseSaveRef, saveDelta),
-            saveWill = addDelta(baseSaveWill, saveDelta),
+            saveCon = addDelta(baseSaveFort, saveDelta),
+            saveDex = addDelta(baseSaveRef, saveDelta),
+            saveWis = addDelta(baseSaveWill, saveDelta),
             -- 拆分原始值与加成，前端可显示「14 (+1)」之类的明细。
             acBase = baseAc,
             hitBase = baseHit,
             spellAttackBase = baseSpellAttack,
             spellDCBase = baseSpellDC,
-            saveFortBase = baseSaveFort,
-            saveRefBase = baseSaveRef,
-            saveWillBase = baseSaveWill,
+            saveConBase = baseSaveFort,
+            saveDexBase = baseSaveRef,
+            saveWisBase = baseSaveWill,
             acBonus = acDelta,
             hitBonus = hitDelta,
             spellAttackBonus = hitDelta,
             spellDCBonus = spellDCDelta,
-            saveFortBonus = saveDelta,
-            saveRefBonus = saveDelta,
-            saveWillBonus = saveDelta,
+            saveConBonus = saveDelta,
+            saveDexBonus = saveDelta,
+            saveWisBonus = saveDelta,
             weaponDice = weaponDice,
         }
     end

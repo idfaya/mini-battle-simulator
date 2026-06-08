@@ -58,11 +58,11 @@ local function ResolveTargets(ctx, frameCopy)
     if frameCopy.target then
         return { frameCopy.target }
     end
-    local ref = frameCopy.targetRef
-    if ref == "self" then
+    local dex = frameCopy.targetRef
+    if dex == "self" then
         return { ctx.hero }
     end
-    if ref == "lastHit" then
+    if dex == "lastHit" then
         return ctx.lastHitTargets or {}
     end
     -- default: selected（单体技能只取主目标，避免整份 ctx.targets 泄漏到 post 上 buff）
@@ -137,7 +137,7 @@ local function ExecuteOp(ctx, frameCopy)
                         end
                     end
                     local targetId = ResolveUnitId(target)
-                    local saveType = (effectiveMeta and effectiveMeta.saveType) or "ref"
+                    local saveType = (effectiveMeta and effectiveMeta.saveType) or "dex"
                     local dc = tonumber(ctx.hero and ctx.hero.spellDC) or 10
                     local damageResult = BattleSkill.ResolveScaledDamage(ctx.hero, target, {
                         skill = ctx.skill,

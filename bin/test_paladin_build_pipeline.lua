@@ -74,7 +74,7 @@ do
         return { paladin, ally }
     end
     assert_true(PaladinBuildPassives.GetAuraAcBonus(ally, nil) >= 1, "paladin aura grants AC bonus to ally")
-    assert_true(PaladinBuildPassives.GetAuraSaveBonus(ally, "will") >= 1, "paladin aura grants saving throw bonus after aura mastery mods")
+    assert_true(PaladinBuildPassives.GetAuraSaveBonus(ally, "wis") >= 1, "paladin aura grants saving throw bonus after aura mastery mods")
     BattleFormation.GetFriendTeam = oldGetFriendTeam
 end
 

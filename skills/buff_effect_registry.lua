@@ -6,23 +6,23 @@ local BuildPassiveCommon = require("skills.build_passive_common")
 local BuffEffectRegistry = {}
 
 local function getSaveBonus(hero, saveType)
-    if saveType == "fort" then
-        return tonumber(hero and hero.saveFort) or 0
+    if saveType == "con" then
+        return tonumber(hero and hero.saveCon) or 0
     end
-    if saveType == "will" then
-        return tonumber(hero and hero.saveWill) or 0
+    if saveType == "wis" then
+        return tonumber(hero and hero.saveWis) or 0
     end
-    return tonumber(hero and hero.saveRef) or 0
+    return tonumber(hero and hero.saveDex) or 0
 end
 
 local function getSaveLabel(saveType)
-    if saveType == "fort" then
-        return "强韧"
+    if saveType == "con" then
+        return "体质"
     end
-    if saveType == "will" then
-        return "意志"
+    if saveType == "wis" then
+        return "感知"
     end
-    return "反射"
+    return "敏捷"
 end
 
 local function handleBurnTick(buff, hero)
@@ -31,7 +31,7 @@ local function handleBurnTick(buff, hero)
     end
 
     local caster = buff.caster or hero
-    local saveType = buff.__burnSaveType or "ref"
+    local saveType = buff.__burnSaveType or "dex"
     local dc = tonumber(caster and caster.spellDC) or 10
     local saveBonus = getSaveBonus(hero, saveType)
         + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
@@ -100,7 +100,7 @@ local function handleBleedTick(buff, hero)
     end
 
     local caster = buff.caster or hero
-    local saveType = "fort"
+    local saveType = "con"
     local dc = tonumber(caster and caster.spellDC) or 10
     local saveBonus = getSaveBonus(hero, saveType)
         + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)
@@ -141,7 +141,7 @@ local function handlePoisonTick(buff, hero)
     end
 
     local caster = buff.caster or hero
-    local saveType = "fort"
+    local saveType = "con"
     local dc = tonumber(caster and caster.spellDC) or 10
     local saveBonus = getSaveBonus(hero, saveType)
         + (tonumber(BuildPassiveCommon.GetDefenderSaveBonus(hero, saveType)) or 0)

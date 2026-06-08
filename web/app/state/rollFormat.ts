@@ -12,9 +12,9 @@ function readRecord(value: unknown): Record<string, unknown> | null {
 }
 
 const SAVE_TYPE_LABELS: Record<string, string> = {
-  fort: "强韧",
-  ref: "反射",
-  will: "意志",
+  con: "体质",
+  dex: "敏捷",
+  wis: "感知",
 };
 
 function formatSaveOutcome(success: boolean, onSaveSuccess: unknown) {
@@ -208,7 +208,7 @@ export function formatTopBarCheckSuffix(payload: Record<string, unknown>) {
 
 export function normalizeTopBarCheckText(text: string) {
   const saveMatch = text.match(
-    /^(强韧|反射|意志|豁免)豁免(失败|成功（半伤）|成功（无伤）|成功)?\s*d20\s+(\d+)([-+]\d+)=(\d+)\s+vs\s+DC\s*(\d+)/,
+    /^(体质|敏捷|感知|豁免)豁免(失败|成功（半伤）|成功（无伤）|成功)?\s*d20\s+(\d+)([-+]\d+)=(\d+)\s+vs\s+DC\s*(\d+)/,
   );
   if (saveMatch) {
     const [, label, outcome = "失败", roll, bonusText, total, dc] = saveMatch;

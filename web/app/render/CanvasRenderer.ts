@@ -58,7 +58,7 @@ export class CanvasRenderer {
   renderMap(snapshot: RunSnapshot | null) {
     const preferredHeight = this.runMapScene.getPreferredCanvasHeight(this.displayWidth, snapshot);
     if (preferredHeight != null) {
-      // Let the canvas become taller than the viewport; the stage container will provide native scrolling.
+      // Let the canvas become taller than the viewport; the stage container wis provide native scrolling.
       this.canvas.style.height = `${Math.max(1, Math.round(preferredHeight))}px`;
     } else {
       // Reset to normal behavior (CSS drives height).

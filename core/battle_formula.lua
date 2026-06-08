@@ -116,7 +116,7 @@ end
 --- @return table result { success, dc, total, roll, ... }
 function BattleFormula.RollConcentration(caster, damage, opts)
     opts = opts or {}
-    local conBonus = tonumber(opts.conSaveBonus or (caster and caster.saveFort)) or 0
+    local conBonus = tonumber(opts.conSaveBonus or (caster and caster.saveCon)) or 0
     local dc = math.max(10, math.floor((tonumber(damage) or 0) / 2))
     local r = BattleFormula.RollSave(caster, dc, conBonus, opts)
     r.dc = dc

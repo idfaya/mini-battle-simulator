@@ -38,9 +38,9 @@ local function new_unit(id, name, hp, atk, def)
         spellAttack = 999,
         ac = 1,
         spellDC = 999,
-        saveFort = 0,
-        saveRef = 0,
-        saveWill = 0,
+        saveCon = 0,
+        saveDex = 0,
+        saveWis = 0,
         __ignoreNatRules = true,
         isDead = false, isAlive = true,
         attributes = { final = {} },
@@ -293,7 +293,7 @@ do
     local hero = new_unit(1004, "Tester_SpellSave", 10000, 200, 0)
     hero.spellDC = 10
     local target = new_unit(2004, "SpellSave_Target", 10000, 0, 0)
-    target.saveWill = 1000
+    target.saveWis = 1000
     local SkillTimeline = require("core.skill_timeline")
     local SkillTimelineCompiler = require("skills.skill_timeline_compiler")
     local missEvent = nil

@@ -27,22 +27,22 @@ local Ability5e = {}
 ---@field primary_ability "str"|"dex"|"con"|"int"|"wis"|"cha"
 ---@field spell_ability "none"|"str"|"dex"|"con"|"int"|"wis"|"cha"
 ---@field armor_formula ArmorFormula
----@field fort boolean
----@field ref boolean
----@field will boolean
+---@field con boolean
+---@field dex boolean
+---@field wis boolean
 
 ---@type table<integer, ClassAbilityProfile>
 local CLASS_ABILITY_PROFILE = {
-    [1] = { primary_ability = "dex", spell_ability = "none", armor_formula = "light_11_dex",      fort = false, ref = true,  will = false }, -- Rogue
-    [2] = { primary_ability = "str", spell_ability = "none", armor_formula = "heavy_fixed",       fort = true,  ref = false, will = true  }, -- Fighter
-    [3] = { primary_ability = "dex", spell_ability = "wis",  armor_formula = "unarmored_dex_wis", fort = true,  ref = true,  will = false }, -- Monk
-    [4] = { primary_ability = "str", spell_ability = "cha",  armor_formula = "medium_capped",     fort = true,  ref = false, will = false }, -- Paladin
-    [5] = { primary_ability = "dex", spell_ability = "wis",  armor_formula = "light_12_dex",      fort = false, ref = true,  will = true  }, -- Ranger
-    [6] = { primary_ability = "str", spell_ability = "wis",  armor_formula = "medium_capped",     fort = false, ref = false, will = true  }, -- Cleric
-    [7] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = false, ref = false, will = true  }, -- Sorcerer
-    [8] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = true,  ref = false, will = true  }, -- Wizard
-    [9] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          fort = false, ref = true,  will = true  }, -- Warlock
-    [10] = { primary_ability = "str", spell_ability = "none", armor_formula = "unarmored_dex_con", fort = true, ref = false, will = false }, -- Barbarian
+    [1] = { primary_ability = "dex", spell_ability = "none", armor_formula = "light_11_dex",      con = false, dex = true,  wis = false }, -- Rogue
+    [2] = { primary_ability = "str", spell_ability = "none", armor_formula = "heavy_fixed",       con = true,  dex = false, wis = true  }, -- Fighter
+    [3] = { primary_ability = "dex", spell_ability = "wis",  armor_formula = "unarmored_dex_wis", con = true,  dex = true,  wis = false }, -- Monk
+    [4] = { primary_ability = "str", spell_ability = "cha",  armor_formula = "medium_capped",     con = true,  dex = false, wis = false }, -- Paladin
+    [5] = { primary_ability = "dex", spell_ability = "wis",  armor_formula = "light_12_dex",      con = false, dex = true,  wis = true  }, -- Ranger
+    [6] = { primary_ability = "str", spell_ability = "wis",  armor_formula = "medium_capped",     con = false, dex = false, wis = true  }, -- Cleric
+    [7] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          con = false, dex = false, wis = true  }, -- Sorcerer
+    [8] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          con = true,  dex = false, wis = true  }, -- Wizard
+    [9] = { primary_ability = "int", spell_ability = "int",  armor_formula = "robe_dex",          con = false, dex = true,  wis = true  }, -- Warlock
+    [10] = { primary_ability = "str", spell_ability = "none", armor_formula = "unarmored_dex_con", con = true, dex = false, wis = false }, -- Barbarian
 }
 
 Ability5e.CLASS_ABILITY_PROFILE = CLASS_ABILITY_PROFILE
@@ -104,9 +104,9 @@ end
 function Ability5e.IsSaveProficient(classId, saveType)
     local profile = CLASS_ABILITY_PROFILE[tonumber(classId) or 0]
     if not profile then return false end
-    if saveType == "fort" then return profile.fort == true end
-    if saveType == "ref"  then return profile.ref  == true end
-    if saveType == "will" then return profile.will == true end
+    if saveType == "con" then return profile.con == true end
+    if saveType == "dex" then return profile.dex == true end
+    if saveType == "wis" then return profile.wis == true end
     return false
 end
 

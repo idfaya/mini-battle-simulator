@@ -374,9 +374,9 @@ local function summarizeUnits(units)
             ac = unit.ac,
             hit = unit.hit,
             spellDC = unit.spellDC,
-            saveFort = unit.saveFort,
-            saveRef = unit.saveRef,
-            saveWill = unit.saveWill,
+            saveCon = unit.saveCon,
+            saveDex = unit.saveDex,
+            saveWis = unit.saveWis,
             isAlive = unit.isAlive,
             buffs = unit.buffs,
         }

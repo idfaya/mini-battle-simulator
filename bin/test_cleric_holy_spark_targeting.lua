@@ -124,7 +124,7 @@ do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveWill = -20,
+        saveCon = -20,
     })
     cleric.isLeft = false
     assert_eq(BattleFormation.IsHeroOnLeftTeam(cleric), true, "caster remains on left team despite isLeft drift")
@@ -168,17 +168,17 @@ do
     BattleSkill.OnFinal()
 end
 
--- 6) 战斗日志应包含意志豁免与伤害骰信息
+-- 6) 战斗日志应包含体质豁免与伤害骰信息
 do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveWill = -20,
+        saveCon = -20,
     })
     local logs = captureHolySparkCombatLogs(cleric, enemy, skill)
     assert_true(#logs > 0, "holy spark should publish combat log")
     local joined = table.concat(logs, "\n")
-    assert_true(joined:find("意志豁免") ~= nil, "holy spark combat log should mention will save")
+    assert_true(joined:find("体质豁免") ~= nil, "holy spark combat log should mention con save")
     assert_true(joined:find("vs DC") ~= nil, "holy spark combat log should include save DC")
     assert_true(joined:find("伤害骰") ~= nil, "holy spark combat log should include damage dice")
     BattleFormation.OnFinal()
@@ -190,7 +190,7 @@ do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveWill = -20,
+        saveCon = -20,
     })
     cleric.isLeft = false
 

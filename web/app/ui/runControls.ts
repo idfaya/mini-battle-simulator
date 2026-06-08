@@ -176,7 +176,7 @@ function createRosterInfo(member: RunTeamMember) {
     member.ac !== undefined ||
     member.hit !== undefined ||
     member.spellDC !== undefined ||
-    member.saveFort !== undefined;
+    member.saveCon !== undefined;
   if (hasCombatStats) {
     const stats = document.createElement("div");
     stats.className = "run-roster-stats";
@@ -185,9 +185,9 @@ function createRosterInfo(member: RunTeamMember) {
       { label: "命中", value: formatSigned(member.hit) },
       { label: "法术", value: formatSigned(member.spellAttack) },
       { label: "法术DC", value: member.spellDC !== undefined ? String(member.spellDC) : "-" },
-      { label: "强韧", value: formatSigned(member.saveFort) },
-      { label: "反射", value: formatSigned(member.saveRef) },
-      { label: "意志", value: formatSigned(member.saveWill) },
+      { label: "体质", value: formatSigned(member.saveCon) },
+      { label: "敏捷", value: formatSigned(member.saveDex) },
+      { label: "感知", value: formatSigned(member.saveWis) },
       { label: "武器骰", value: member.weaponDice ?? "-" },
     ];
     for (const item of statItems) {

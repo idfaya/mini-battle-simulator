@@ -284,7 +284,7 @@ export function renderControls(
       stateBits.push(`专注:${focusUnit.concentrationSkillName ?? focusUnit.concentrationSkillId ?? "未知技能"}`);
     }
     lines.push(
-      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 先攻 ${focusUnit.initiative ?? 0} (${focusUnit.initiativeRoll ?? 0}${(focusUnit.initiativeMod ?? 0) >= 0 ? "+" : ""}${focusUnit.initiativeMod ?? 0}) | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveFort}/${focusUnit.saveRef}/${focusUnit.saveWill}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
+      `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 先攻 ${focusUnit.initiative ?? 0} (${focusUnit.initiativeRoll ?? 0}${(focusUnit.initiativeMod ?? 0) >= 0 ? "+" : ""}${focusUnit.initiativeMod ?? 0}) | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveCon}/${focusUnit.saveDex}/${focusUnit.saveWis}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
     );
   }
   controls.status.textContent = lines.join("\n");
