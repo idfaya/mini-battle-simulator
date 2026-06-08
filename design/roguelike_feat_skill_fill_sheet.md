@@ -125,7 +125,7 @@
 | 节点 | 父节点 | 类型 | 效果 | 落点 |
 | --- | --- | --- | --- | --- |
 | `R 疾风连击` | — | `R` | 每回合第一次徒手打击后必定追加一次额外攻击；不要求命中，也不走概率；非首击不连击；额外攻击不再触发连击 | `grant low 核心被动` |
-| `B 疾风步` | `疾风连击` | `B` | 被动；只要未失能，就免疫偷袭 | `modify 徒手打击` |
+| `B 疾风步` | `疾风连击` | `B` | 被动；徒手打击无视前排保护；只要未失能，就免疫偷袭 | `modify 徒手打击` |
 | `B 徒手强化` | `疾风连击` | `B` | 徒手打击伤害骰提升至 `1d8` | `modify 徒手打击` |
 | `T1 震慑拳` | `疾风连击` | `T1` | Lv3 主干：mid 核心主动；造成 `1` 次徒手打击，体豁失败 `STUN 1` 回合 | `grant mid_slot` |
 | `B 拨挡攻击` | `疾风连击` | `B` | 受到物理伤害时，伤害 `-3` | `modify 连击被动防御钩子` |
@@ -315,6 +315,7 @@
 | `guardExtendsToRanged` | 护卫架势承担远程攻击 | 战 B 护卫熟练 | 战士 passive / 护卫架势 skill |
 | `firstHitGuaranteedCombo` | 每回合首次徒手打击后必触发连击，不要求命中 | 武 R 疾风连击 | 武僧 passive 文件 |
 | `weaponDiceOverride` | 覆盖职业基础武器骰 / 徒手骰 | 武 B 徒手强化、武 J 徒手大师 | `modules/battle_skill.lua` |
+| `ignoreFrontProtection` | 该技能无视前排保护 | 武 B 疾风步 | `modules/battle_skill.lua`（目标选择） |
 | `sneakAttackImmune` | 未失能时免疫偷袭 | 武 B 疾风步 | 武僧 passive / 盗贼 passive 文件 |
 | `deflectAttackFlat` | 受到物理伤害时固定减伤 | 武 B 拨挡攻击 | 武僧 passive 文件 |
 | `deflectSpellFlat` | 受到法术伤害时固定减伤 | 武 J 拨挡能量 | 武僧 passive 文件 |

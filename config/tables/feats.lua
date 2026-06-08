@@ -638,8 +638,8 @@ local fighterTree = {
 local monkTree = {
     {key="b_monk_combo_plus", classId=3, level=5, slot="B", prereqs={F.monk_R}, name="徒手强化", desc="徒手打击伤害骰提升至 1d8。",
         effects={{type="modify_skill", skill=80003011, add={weaponDiceOverride="1d8"}}}},
-    {key="b_monk_combo_shadow_step", classId=3, level=2, slot="B", prereqs={F.monk_R}, name="疾风步", desc="被动。只要未失能，就免疫偷袭。",
-        effects={{type="modify_skill", skill=80003011, add={sneakAttackImmune=true}}}},
+    {key="b_monk_combo_shadow_step", classId=3, level=2, slot="B", prereqs={F.monk_R}, name="疾风步", desc="被动。徒手打击无视前排保护；只要未失能，就免疫偷袭。",
+        effects={{type="modify_skill", skill=80003011, add={ignoreFrontProtection=true, sneakAttackImmune=true}}}},
     {key="b_monk_stun_extend", classId=3, level=6, slot="B", prereqs={F.monk_R}, name="拨挡攻击", desc="受到物理伤害时，伤害 -3。",
         effects={{type="modify_skill", skill=80003101, add={deflectAttackFlat=3}}}},
     {key="j_monk_pulse_master", classId=3, level=7, slot="J", prereqs={F.monk_R}, name="拨挡能量", desc="受到法术伤害时，伤害 -3。",
