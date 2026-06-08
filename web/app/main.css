@@ -366,10 +366,12 @@ body {
   margin: 0;
   padding-left: 14px;
   overflow: auto;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .battle-log li {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   color: #d9e2ec;
 }
 
@@ -1118,13 +1120,13 @@ body {
 
   .battle-log {
     min-height: 0;
-    font-size: 12px;
-    line-height: 1.35;
+    font-size: 14px;
+    line-height: 1.45;
     overflow-y: auto;
     flex: 1 1 auto;
   }
 
   .battle-log li {
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 }

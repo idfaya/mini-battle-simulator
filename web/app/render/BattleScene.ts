@@ -1275,15 +1275,6 @@ export class BattleScene {
     }
     ctx.textAlign = "left";
 
-    if (state.runContext) {
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "#d9e2ec";
-      ctx.fillText(
-        `${state.runContext.chapterLabel} · ${state.runContext.nodeTitle} · 金币 ${state.runContext.gold} · 装备 ${state.runContext.equipmentCount} · 祝福 ${state.runContext.blessingCount}`,
-        48,
-        TOP_BAR_TEXT_Y + 14,
-      );
-    }
   }
 
   private drawBuffSummary(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, unit: UnitState) {
