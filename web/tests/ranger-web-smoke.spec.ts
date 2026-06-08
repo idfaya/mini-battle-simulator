@@ -35,7 +35,7 @@ test("ranger smoke shows hunter mark, double shot and arrow rain", async ({ page
   expect(logs.some((line) => line.includes("发动箭雨"))).toBeTruthy();
   expect(logs.some((line) => line.includes("箭雨第"))).toBeTruthy();
   expect(logs.some((line) => line.includes("二连射"))).toBeTruthy();
-  expect(animationSummary.maxProjectileCount).toBeGreaterThan(0);
+  expect(animationSummary.maxProjectileCount).toBeGreaterThanOrEqual(2);
   expect(animationSummary.observedProjectileKinds).toContain("arrow");
   await expectNoClientErrors(page, pageErrors, consoleErrors);
 });

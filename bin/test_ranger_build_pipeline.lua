@@ -13,6 +13,7 @@ local HeroData = require("config.hero_data")
 local BattleFormation = require("modules.battle_formation")
 local BattleSkill = require("modules.battle_skill")
 local BattleMain = require("modules.battle_main")
+local HunterShotTimeline = require("config.skill.skill_80005013")
 
 local canonicalSelections = function(classId, toLevel)
     return Common.canonicalSelections(ClassBuildProgression, classId, toLevel)
@@ -73,6 +74,35 @@ do
     assert_true(rangerSelectedSkill.skillId == SkillRuntimeConfig.Ids.ranger_hunter_mastery,
         "Ranger auto action prioritizes limited-use arrow rain")
     BattleFormation.OnFinal()
+end
+
+do
+    local ranger = new_unit(9501, "RangerTester", 18, 5)
+    ranger.isLeft = true
+    local enemyA = new_unit(9502, "EnemyA", 10, 3)
+    enemyA.isLeft = false
+    local enemyB = new_unit(9503, "EnemyB", 10, 3)
+    enemyB.isLeft = false
+    local timeline = HunterShotTimeline.BuildTimeline(ranger, { enemyA, enemyB }, {
+        skillId = SkillRuntimeConfig.Ids.ranger_hunter_shot,
+        name = "二连射",
+    })
+    local frames = timeline and (timeline.frames or timeline) or {}
+    local projectileFrames = {}
+    local damageFrames = {}
+    for _, frame in ipairs(frames) do
+        if frame.op == "projectile" then
+            projectileFrames[#projectileFrames + 1] = frame.frame
+        elseif frame.op == "damage" then
+            damageFrames[#damageFrames + 1] = frame.frame
+        end
+    end
+    assert_true(#projectileFrames == 2, "Ranger double shot spawns two projectile frames")
+    assert_true(#damageFrames == 2, "Ranger double shot resolves two damage frames")
+    assert_true(projectileFrames[1] == 12 and projectileFrames[2] == 12,
+        "Ranger double shot projectiles fire on the same frame")
+    assert_true(damageFrames[1] == 24 and damageFrames[2] == 24,
+        "Ranger double shot damage resolves on the same frame")
 end
 
 log("Ranger build pipeline tests passed.")
