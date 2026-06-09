@@ -227,18 +227,20 @@ body {
     ". up ."
     "left center right"
     ". down .";
-  gap: 10px;
+  gap: 6px;
   align-items: stretch;
+  width: min(100%, 240px);
+  margin: 0 auto;
 }
 
 .run-direction-slot {
   display: grid;
-  gap: 6px;
-  min-height: 108px;
-  padding: 10px;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.42);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.28);
 }
 
 .run-direction-slot--up {
@@ -262,16 +264,17 @@ body {
 }
 
 .run-direction-slot__label {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
-  color: #d9e2ec;
+  color: #9fb3c8;
   text-align: center;
+  line-height: 1;
 }
 
 .run-direction-slot__content,
 .run-direction-fallback {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .run-direction-slot__content {
@@ -282,15 +285,18 @@ body {
 .run-direction-slot__empty {
   display: grid;
   place-items: center;
-  min-height: 56px;
+  min-height: 28px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 6px;
   color: #8aa1bc;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .run-direction-button {
-  min-height: 56px;
+  min-height: 34px;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .run-direction-button--stair {
@@ -1158,16 +1164,18 @@ body {
   }
 
   .run-direction-pad {
-    gap: 8px;
+    gap: 4px;
+    width: min(100%, 220px);
   }
 
   .run-direction-slot {
-    min-height: 96px;
-    padding: 8px;
+    padding: 3px;
   }
 
   .run-direction-button {
-    min-height: 48px;
+    min-height: 32px;
+    padding: 4px 5px;
+    font-size: 10px;
   }
 
   .run-compact-field {

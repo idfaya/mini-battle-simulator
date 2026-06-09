@@ -961,15 +961,25 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
       ensureSlotItems(slotKey).push({ knownTitle, node });
     }
 
-    const buildNodeButtons = (slot: string) =>
-      (slotItems.get(slot) ?? []).map(({ knownTitle, node }) => {
-        const button = makeButton(knownTitle, false, async () => {
+    const buttonLabelBySlot: Record<string, string> = {
+      up: "上",
+      down: "下",
+      left: "左",
+      right: "右",
+    };
+
+    const buildNodeButtons = (slot: string) => {
+      const items = slotItems.get(slot) ?? [];
+      return items.map(({ node }) => {
+        const label = buttonLabelBySlot[slot] ?? "移动";
+        const button = makeButton(label, false, async () => {
           await controls.handlers.onChooseNode(node.id);
           await controls.handlers.onEnterNode();
         });
         button.classList.add("run-direction-button");
         return button;
       });
+    };
 
     appendPadSlot("up", "上", ...buildNodeButtons("up"));
     appendPadSlot("left", "左", ...buildNodeButtons("left"));
