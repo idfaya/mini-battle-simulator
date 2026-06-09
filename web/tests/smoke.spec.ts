@@ -244,7 +244,7 @@ test("heal_received clears casting label and shows heal brief", () => {
       payload: {
         heroId: "hero-3",
         heroName: "牧师",
-        skillName: "神圣火花",
+        skillName: "治愈真言",
         skillType: 2,
       },
     },
@@ -257,13 +257,13 @@ test("heal_received clears casting label and shows heal brief", () => {
         targetId: "hero-1",
         targetName: "战士",
         healAmount: 12,
-        skillName: "神圣火花",
+        skillName: "治愈真言",
       },
     },
   ]);
 
   expect(store.getState().skillCasting).toBe(false);
-  expect(store.getState().skillBrief).toBe("神圣火花 治疗 +12");
+  expect(store.getState().skillBrief).toBe("治愈真言 治疗 +12");
   expect(store.getState().skillBrief).not.toContain("释放中");
   expect(store.getState().damageBrief).toBeNull();
 });

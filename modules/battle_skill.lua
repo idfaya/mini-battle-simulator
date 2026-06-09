@@ -563,6 +563,7 @@ function BattleSkill.ResolveScaledDamage(attacker, defender, opts)
     if bonusHitMod ~= 0 then
         attackBonus = (tonumber(attackBonus) or 0) + bonusHitMod
     end
+    attackBonus = (tonumber(attackBonus) or 0) + (tonumber(BuildPassiveCommon.GetAttackerHitBonus(attacker, defender, skillIdForMods)) or 0)
     attackBonus = (tonumber(attackBonus) or 0) + GetConditionalHitBonusForTarget(attacker, defender, skillIdForMods)
 
     local BattleBuff = require("modules.battle_buff")

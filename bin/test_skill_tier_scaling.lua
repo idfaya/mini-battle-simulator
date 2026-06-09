@@ -224,32 +224,17 @@ do
         hero.wisMod = sparkSpellMod
         enemy.isLeft = false
         hero.spellDC = 999
-        enemy.saveCon = -20
+        enemy.saveDex = -20
         capturedDice = nil
         local dealt = ClericBuildPassives.PerformBasicSpellAttack(hero, enemy, {
             skillId = 80006011,
-            name = "神圣火花",
+            name = "圣火术",
             level = tier,
         })
         local expectedDice = ({ "1d8", "2d8", "3d8" })[tier]
-        assert_true(dealt >= tier + sparkSpellMod, "Cleric basic spell deals Divine Spark damage (tier " .. tier .. ")")
+        assert_true(dealt >= tier + sparkSpellMod, "Cleric basic spell deals sacred flame damage (tier " .. tier .. ")")
         assert_true(capturedDice == expectedDice, "Cleric basic spell damage dice scales (" .. tier .. ")")
     end
-
-    local healer = new_unit(3731, "ClericHeal")
-    local ally = new_unit(3732, "Ally")
-    healer.isLeft = true
-    healer.wisMod = sparkSpellMod
-    ally.isLeft = true
-    ally.hp = 50
-    ally.maxHp = 100
-    local healed = ClericBuildPassives.PerformBasicSpellAttack(healer, ally, {
-        skillId = 80006011,
-        name = "神圣火花",
-        level = 3,
-    })
-    assert_true(healed >= 3 + sparkSpellMod, "Cleric ally basic spell heals with Divine Spark scalar")
-    assert_true(ally.hp >= 50 + 3 + sparkSpellMod and ally.hp <= ally.maxHp, "Cleric ally heal remains valid")
 
     BattleSkill.ResolveScaledDamage = oldResolveScaledDamage
 end

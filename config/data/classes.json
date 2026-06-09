@@ -44,8 +44,8 @@
     "role": {"name": "牧师", "icon": "💚", "streamId": "Cleric", "isMelee": false, "preferRow": "back"},
     "weapon": {"weaponDice": "1d4"},
     "rhythm": {"healScale": 1, "spellDiceScale": 1},
-    "lv1FeatIds": [2150101, 2150202],
-    "treePool": [2150102, 2150303, 2306001, 2306002, 2306003, 2306004, 2306005, 2306006, 2306007, 2306008]
+    "lv1FeatIds": [2150101, 2150102],
+    "treePool": [2306003, 2150303, 2306010, 2306006, 2306009, 2150202, 2306001, 2306005, 2306002, 2306004, 2306007, 2306008]
   },
   {
     "classId": 7,

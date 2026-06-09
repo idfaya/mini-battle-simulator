@@ -770,6 +770,10 @@ end
 
 function BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)
     local total = 0
+    local okCleric, ClericBuildPassives = pcall(require, "skills.cleric_build_passives")
+    if okCleric and ClericBuildPassives and ClericBuildPassives.GetAuraSaveBonus then
+        total = total + (tonumber(ClericBuildPassives.GetAuraSaveBonus(defender, saveType)) or 0)
+    end
     local okPaladin, PaladinBuildPassives = pcall(require, "skills.paladin_build_passives")
     if okPaladin and PaladinBuildPassives and PaladinBuildPassives.GetAuraSaveBonus then
         total = total + (tonumber(PaladinBuildPassives.GetAuraSaveBonus(defender, saveType)) or 0)
@@ -779,6 +783,15 @@ function BuildPassiveCommon.GetDefenderSaveBonus(defender, saveType)
         if okBattleBuff and BattleBuff and BattleBuff.GetBuffValueBySubType then
             total = total - (tonumber(BattleBuff.GetBuffValueBySubType(defender, 890005)) or 0)
         end
+    end
+    return total
+end
+
+function BuildPassiveCommon.GetAttackerHitBonus(attacker, defender, skill)
+    local total = 0
+    local okCleric, ClericBuildPassives = pcall(require, "skills.cleric_build_passives")
+    if okCleric and ClericBuildPassives and ClericBuildPassives.GetAuraAttackBonus then
+        total = total + (tonumber(ClericBuildPassives.GetAuraAttackBonus(attacker, defender, skill)) or 0)
     end
     return total
 end

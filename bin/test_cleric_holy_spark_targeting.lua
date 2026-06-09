@@ -1,5 +1,5 @@
---- 神圣火花（80006011）阵营判定与结算回归：
---- 敌人被误治疗通常来自 isLeft 字段漂移；应以 teamLeft/teamRight 为准。
+--- 圣火术（80006011）阵营判定与结算回归：
+--- 敌人被误判为友方通常来自 isLeft 字段漂移；应以 teamLeft/teamRight 为准。
 local script_source = debug.getinfo(1, "S").source
 local script_path = script_source:sub(2)
 local script_dir = script_path:match("(.*[/\\])") or "./"
@@ -15,7 +15,7 @@ local SkillTimeline = require("core.skill_timeline")
 local SkillRuntimeConfig = require("config.tables.skill_runtime")
 
 local IDS = SkillRuntimeConfig.Ids
-local HOLY_SPARK_ID = IDS.cleric_basic_spell or 80006011
+local SACRED_FLAME_ID = IDS.cleric_basic_spell or 80006011
 
 local function assert_true(condition, message)
     if not condition then
@@ -52,37 +52,38 @@ local function setupClericVsScout(enemyOverrides)
     BattleAttribute.Init(enemy, {})
     BattleSkill.Init(cleric, cleric.skillsConfig or cleric.skills)
 
-    local skill = cleric.skillData.skillInstances[HOLY_SPARK_ID]
-    assert_true(skill ~= nil, "cleric should have holy spark skill instance")
+    local skill = cleric.skillData.skillInstances[SACRED_FLAME_ID]
+    assert_true(skill ~= nil, "cleric should have sacred flame skill instance")
 
     return cleric, enemy, skill
 end
 
-local function buildHolySparkTimeline(cleric, target, skill)
+local function buildSacredFlameTimeline(cleric, target, skill)
     return require("config.skill.skill_80006011").BuildTimeline(cleric, { target }, skill)
 end
 
-local function runHolySpark(cleric, target, skill)
-    local timeline = buildHolySparkTimeline(cleric, target, skill)
+local function runSacredFlame(cleric, target, skill)
+    local timeline = buildSacredFlameTimeline(cleric, target, skill)
     local _, result = SkillTimeline.Execute(cleric, { target }, skill, timeline)
     return result
 end
 
-local function captureHolySparkCombatLogs(cleric, enemy, skill)
+local function captureSacredFlameCombatLogs(cleric, enemy, skill)
     local BattleEvent = require("core.battle_event")
     local logs = {}
-    BattleEvent.AddListener("CombatLog", function(payload)
+    local listener = function(payload)
         if payload and payload.message then
             logs[#logs + 1] = payload.message
         end
-    end, "test_cleric_holy_spark_targeting")
-    runHolySpark(cleric, enemy, skill)
-    BattleEvent.RemoveListener("CombatLog", "test_cleric_holy_spark_targeting")
+    end
+    BattleEvent.AddListener("CombatLog", listener, "test_cleric_holy_spark_targeting")
+    runSacredFlame(cleric, enemy, skill)
+    BattleEvent.RemoveListener("CombatLog", listener)
     return logs
 end
 
---- 误治疗敌人的判定：结算走治疗或敌人 HP 上升。
-local function assert_enemy_not_healed(enemy, enemyHpBefore, result, message)
+--- 敌方不应被治疗或获得任何正向生命收益。
+local function assert_enemy_not_helped(enemy, enemyHpBefore, result, message)
     assert_true((result and result.totalHeal or 0) == 0, message .. " (totalHeal)")
     assert_true(enemy.hp <= enemyHpBefore, message .. " (hp increased)")
 end
@@ -98,10 +99,10 @@ do
     assert_eq(BattleSkill.IsAlly(cleric, cleric), true, "cleric vs self should be ally")
 
     local enemyHpBefore = enemy.hp
-    local result = runHolySpark(cleric, enemy, skill)
-    assert_true((result and result.totalDamage or 0) > 0, "holy spark should damage enemy at baseline")
-    assert_true((result and result.totalHeal or 0) == 0, "holy spark should not heal enemy at baseline")
-    assert_true(enemy.hp < enemyHpBefore, "enemy hp should drop after holy spark")
+    local result = runSacredFlame(cleric, enemy, skill)
+    assert_true((result and result.totalDamage or 0) > 0, "sacred flame should damage enemy at baseline")
+    assert_true((result and result.totalHeal or 0) == 0, "sacred flame should not heal enemy at baseline")
+    assert_true(enemy.hp < enemyHpBefore, "enemy hp should drop after sacred flame")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
@@ -113,8 +114,8 @@ do
     assert_eq(BattleSkill.IsAlly(cleric, enemy), false, "drifted target.isLeft must not mark enemy as ally")
 
     local enemyHpBefore = enemy.hp
-    local result = runHolySpark(cleric, enemy, skill)
-    assert_enemy_not_healed(enemy, enemyHpBefore, result, "holy spark must not heal enemy when target.isLeft drifts")
+    local result = runSacredFlame(cleric, enemy, skill)
+    assert_enemy_not_helped(enemy, enemyHpBefore, result, "sacred flame must not heal enemy when target.isLeft drifts")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
@@ -124,16 +125,16 @@ do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveCon = -20,
+        saveDex = -20,
     })
     cleric.isLeft = false
     assert_eq(BattleFormation.IsHeroOnLeftTeam(cleric), true, "caster remains on left team despite isLeft drift")
     assert_eq(BattleSkill.IsAlly(cleric, enemy), false, "drifted caster.isLeft must not mark enemy as ally")
 
     local enemyHpBefore = enemy.hp
-    local result = runHolySpark(cleric, enemy, skill)
-    assert_enemy_not_healed(enemy, enemyHpBefore, result, "holy spark must not heal enemy when caster.isLeft drifts")
-    assert_true(enemy.hp < enemyHpBefore, "holy spark should damage enemy when caster.isLeft drifts")
+    local result = runSacredFlame(cleric, enemy, skill)
+    assert_enemy_not_helped(enemy, enemyHpBefore, result, "sacred flame must not heal enemy when caster.isLeft drifts")
+    assert_true(enemy.hp < enemyHpBefore, "sacred flame should damage enemy when caster.isLeft drifts")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
@@ -146,13 +147,13 @@ do
     assert_eq(BattleSkill.IsAlly(cleric, enemy), false, "same wrong isLeft on both sides must not imply ally")
 
     local enemyHpBefore = enemy.hp
-    local result = runHolySpark(cleric, enemy, skill)
-    assert_enemy_not_healed(enemy, enemyHpBefore, result, "holy spark must not heal enemy when both isLeft drift")
+    local result = runSacredFlame(cleric, enemy, skill)
+    assert_enemy_not_helped(enemy, enemyHpBefore, result, "sacred flame must not heal enemy when both isLeft drift")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
 
--- 5) 对友方目标：仍应治疗（正向用例，防止修过头）
+-- 5) 对友方目标：不再治疗（圣火术只负责对敌伤害）
 do
     local cleric, enemy, skill = setupClericVsScout()
     local injuredHp = math.max(1, math.floor(cleric.maxHp * 0.5))
@@ -160,27 +161,27 @@ do
     local enemyHpBefore = enemy.hp
     assert_true(BattleSkill.IsAlly(cleric, cleric), "self should count as ally")
 
-    local result = runHolySpark(cleric, cleric, skill)
-    assert_true(cleric.hp > injuredHp, "holy spark should heal when target is ally")
-    assert_true((result and result.totalHeal or 0) == 0, "timeline heal is tracked via hp, not totalHeal field")
-    assert_true(enemy.hp == enemyHpBefore, "enemy should be untouched when cleric self-heals")
+    local result = runSacredFlame(cleric, cleric, skill)
+    assert_true(cleric.hp == injuredHp, "sacred flame should not heal ally")
+    assert_true((result and result.totalHeal or 0) == 0, "sacred flame should not emit heal on ally target")
+    assert_true(enemy.hp == enemyHpBefore, "enemy should be untouched when cleric self-targets sacred flame")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
 
--- 6) 战斗日志应包含体质豁免与伤害骰信息
+-- 6) 战斗日志应包含敏捷豁免与伤害骰信息
 do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveCon = -20,
+        saveDex = -20,
     })
-    local logs = captureHolySparkCombatLogs(cleric, enemy, skill)
-    assert_true(#logs > 0, "holy spark should publish combat log")
+    local logs = captureSacredFlameCombatLogs(cleric, enemy, skill)
+    assert_true(#logs > 0, "sacred flame should publish combat log")
     local joined = table.concat(logs, "\n")
-    assert_true(joined:find("体质豁免") ~= nil, "holy spark combat log should mention con save")
-    assert_true(joined:find("vs DC") ~= nil, "holy spark combat log should include save DC")
-    assert_true(joined:find("伤害骰") ~= nil, "holy spark combat log should include damage dice")
+    assert_true(joined:find("敏捷豁免") ~= nil, "sacred flame combat log should mention dex save")
+    assert_true(joined:find("vs DC") ~= nil, "sacred flame combat log should include save DC")
+    assert_true(joined:find("伤害骰") ~= nil, "sacred flame combat log should include damage dice")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
@@ -190,21 +191,21 @@ do
     local cleric, enemy, skill = setupClericVsScout({
         hp = 1000,
         maxHp = 1000,
-        saveCon = -20,
+        saveDex = -20,
     })
     cleric.isLeft = false
 
     local enemyHpBefore = enemy.hp
-    local castOk = BattleSkill.CastSkillInSeqWithResult(cleric, enemy, HOLY_SPARK_ID, {
+    local castOk = BattleSkill.CastSkillInSeqWithResult(cleric, enemy, SACRED_FLAME_ID, {
         resolvedTargets = { enemy },
     })
     local castResult = SkillTimeline.GetLastCompletedResult()
-    assert_true(castOk, "CastSkillInSeqWithResult should complete holy spark")
-    assert_true(castResult and castResult.succeeded, "holy spark cast should succeed")
-    assert_enemy_not_healed(enemy, enemyHpBefore, castResult, "cast path must not heal enemy when caster.isLeft drifts")
+    assert_true(castOk, "CastSkillInSeqWithResult should complete sacred flame")
+    assert_true(castResult and castResult.succeeded, "sacred flame cast should succeed")
+    assert_enemy_not_helped(enemy, enemyHpBefore, castResult, "cast path must not heal enemy when caster.isLeft drifts")
     assert_true(enemy.hp < enemyHpBefore, "cast path should damage enemy when caster.isLeft drifts")
     BattleFormation.OnFinal()
     BattleSkill.OnFinal()
 end
 
-print("cleric holy spark targeting test passed")
+print("cleric sacred flame targeting test passed")

@@ -452,6 +452,13 @@ function BattleFormation.GetAliveHeroesByRow(isLeft, row)
     return result
 end
 
+function BattleFormation.GetHeroRow(hero)
+    if not hero then
+        return nil
+    end
+    return ROW_BY_WP_TYPE[hero.wpType]
+end
+
 function BattleFormation.GetAliveHeroesByColumn(isLeft, column)
     local team = isLeft and BattleFormation.teamLeft or BattleFormation.teamRight
     local result = {}

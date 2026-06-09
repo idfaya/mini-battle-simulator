@@ -303,7 +303,7 @@ do
         end
     end
     BattleEvent.AddListener(BattleVisualEvents.MISS, missListener)
-    local skill = { skillId = 80006011, name = "神圣火花" }
+    local skill = { skillId = 80006011, name = "圣火术" }
     local timeline = SkillTimelineCompiler.Build(hero, { target }, skill, {
         id = 990002,
         frames = {

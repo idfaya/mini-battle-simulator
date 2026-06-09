@@ -142,6 +142,30 @@ local function getLowestHpAllies(hero, includeSelf, count)
     return picked
 end
 
+local function getRowOfUnit(unit)
+    local BattleFormation = require("modules.battle_formation")
+    if not unit then
+        return nil
+    end
+    return tonumber(BattleFormation.GetHeroRow and BattleFormation.GetHeroRow(unit)) or ({
+        [1] = 1, [2] = 1, [3] = 2, [4] = 2
+    })[tonumber(unit.wpType) or 0]
+end
+
+local function collectAliveAlliesInRow(hero, row)
+    local BattleFormation = require("modules.battle_formation")
+    local result = {}
+    if not hero or not row then
+        return result
+    end
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+        if isAlive(ally) and getRowOfUnit(ally) == row then
+            result[#result + 1] = ally
+        end
+    end
+    return result
+end
+
 local function resolveAliveUnit(unit)
     if not unit then
         return nil
@@ -232,13 +256,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     local sparkDice = getBasicSpellStageDice(skill)
     local spellAbilityMod = getClericSpellAbilityMod(hero)
     if BattleSkill.IsAlly(hero, target) then
-        return applyHealAmount(
-            hero,
-            target,
-            sparkDice,
-            spellAbilityMod,
-            skill and skill.skillId or IDS.cleric_basic_spell,
-            skill and skill.name or "神圣火花")
+        return 0
     end
     local BattlePassiveSkill = require("modules.battle_passive_skill")
     local BattleDmgHeal = require("modules.battle_dmg_heal")
@@ -284,16 +302,16 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             isDodged = damageResult and damageResult.isDodged or false,
             isBlocked = damageResult and damageResult.isBlock or false,
             skillId = skill and skill.skillId or IDS.cleric_basic_spell,
-            skillName = skill and skill.name or "神圣火花",
+            skillName = skill and skill.name or "圣火术",
             damageKind = "spell",
             attackRoll = rollParams.attackRoll,
             saveRoll = rollParams.saveRoll,
             damageRoll = rollParams.damageRoll,
-            saveType = rollParams.saveType or "con",
-            onSaveSuccess = rollParams.onSaveSuccess or "half",
+            saveType = rollParams.saveType or "dex",
+            onSaveSuccess = rollParams.onSaveSuccess or "none",
         })
         local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog(rollParams, true)
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用神圣火花：对 %s 造成 %d 点伤害%s",
+        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用圣火术：对 %s 造成 %d 点伤害%s",
             hero.name or "Unknown",
             target.name or "目标",
             damage,
@@ -312,7 +330,7 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             target,
             {
                 skillId = skill and skill.skillId or IDS.cleric_basic_spell,
-                skillName = skill and skill.name or "神圣火花",
+                skillName = skill and skill.name or "圣火术",
                 attackRoll = damageResult.hit,
             }))
     end
@@ -349,12 +367,15 @@ function ClericBuildPassives.PerformHealingWord(hero, skill, lockedTargets)
     local total = 0
     local dispelOnlyPrimary = mods and mods.dispelOnlyPrimary == true
     local shieldValue = math.max(0, math.floor(tonumber(mods and mods.postHealShield) or 0))
+    if shieldValue <= 0 and hasSkill(hero, IDS.cleric_shelter_prayer) then
+        shieldValue = 4
+    end
     for index, ally in ipairs(targets) do
         total = total + applyHealAmount(hero, ally, "1d8", tonumber(hero.level) or 1,
             skill and skill.skillId or IDS.cleric_healing_word,
-            skill and skill.name or "治愈之言")
+            skill and skill.name or "治愈真言")
         if shieldValue > 0 then
-            grantTempHp(ally, shieldValue, skill and skill.name or "治愈之言")
+            grantTempHp(ally, shieldValue, skill and skill.name or "治愈真言")
         end
         if index == 1 or not dispelOnlyPrimary then
             clearOneDebuff(ally)
@@ -368,47 +389,68 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill, lockedTargets)
         return 0
     end
     local runtime = ensureRuntime(hero)
-    runtime.clericSanctuaryExpireRound = getRound() + 2
-    syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
-    local ally = nil
-    if type(lockedTargets) == "table" then
-        for _, lockedTarget in ipairs(lockedTargets) do
-            local resolvedTarget = resolveAliveUnit(lockedTarget)
-            if resolvedTarget and not sameUnit(resolvedTarget, hero) then
-                ally = resolvedTarget
-                break
+    local blessMods = hero and hero.buildState and hero.buildState.skillMods
+        and hero.buildState.skillMods[IDS.cleric_sanctuary_prayer]
+        or {}
+    local blessAttackBonus = math.max(1, math.floor(tonumber(blessMods and blessMods.blessAttackBonus) or 1))
+    local blessSaveBonus = math.max(1, math.floor(tonumber(blessMods and blessMods.blessSaveBonus) or 1))
+    local blessTempHpFlat = math.max(0, math.floor(tonumber(blessMods and blessMods.blessTempHpFlat) or 0))
+    local blessAcBonus = math.max(0, math.floor(tonumber(blessMods and blessMods.blessAcBonus) or 0))
+    local targetRow = nil
+    if type(lockedTargets) == "table" and #lockedTargets > 0 then
+        targetRow = getRowOfUnit(resolveAliveUnit(lockedTargets[1]))
+    end
+    if not targetRow then
+        local frontAllies = collectAliveAlliesInRow(hero, 1)
+        local backAllies = collectAliveAlliesInRow(hero, 2)
+        local frontInjured = 0
+        local backInjured = 0
+        for _, ally in ipairs(frontAllies) do
+            if (tonumber(ally.hp) or 0) < (tonumber(ally.maxHp) or 0) then
+                frontInjured = frontInjured + 1
             end
         end
+        for _, ally in ipairs(backAllies) do
+            if (tonumber(ally.hp) or 0) < (tonumber(ally.maxHp) or 0) then
+                backInjured = backInjured + 1
+            end
+        end
+        targetRow = (backInjured > frontInjured) and 2 or 1
     end
-    if not ally then
-        ally = BuildPassiveCommon.PickLowestHpAlly(hero, true)
-    end
-    local affectedTargets = { hero }
-    if isAlive(ally) then
-        local heal = BuildPassiveCommon.RollDice("1d4")
-        local BattleDmgHeal = require("modules.battle_dmg_heal")
-        BattleDmgHeal.ApplyHeal(ally, heal, hero)
-        grantTempHp(ally, 4, skill and skill.name or "圣域祷言")
-        if not sameUnit(ally, hero) then
-            affectedTargets[#affectedTargets + 1] = ally
+    runtime.clericSanctuaryExpireRound = getRound() + 2
+    runtime.clericSanctuaryTargetRow = targetRow
+    runtime.clericSanctuaryAttackBonus = blessAttackBonus
+    runtime.clericSanctuarySaveBonus = blessSaveBonus
+    runtime.clericSanctuaryTempHpFlat = blessTempHpFlat
+    runtime.clericSanctuaryAcBonus = blessAcBonus
+    syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
+    local affectedTargets = collectAliveAlliesInRow(hero, targetRow)
+    for _, ally in ipairs(affectedTargets) do
+        if blessTempHpFlat > 0 then
+            grantTempHp(ally, blessTempHpFlat, skill and skill.name or "祝福术")
         end
     end
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：我方全体获得圣域护持",
+    local rowLabel = targetRow == 1 and "前排" or "后排"
+    BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：%s获得祝福护持（攻击检定 +%d，豁免检定 +%d%s%s）",
         hero.name or "Unknown",
-        skill and skill.name or "圣域祷言"))
+        skill and skill.name or "祝福术",
+        rowLabel,
+        blessAttackBonus,
+        blessSaveBonus,
+        blessTempHpFlat > 0 and ("，临时生命 +" .. tostring(blessTempHpFlat)) or "",
+        blessAcBonus > 0 and ("，AC +" .. tostring(blessAcBonus)) or ""))
     return 1, affectedTargets
 end
 
-local function getSanctuaryAcBonus(source)
+local function getBlessBonuses(source)
     local runtime = ensureRuntime(source)
     if (tonumber(runtime.clericSanctuaryExpireRound) or -1) < getRound() then
-        return 0
+        return 0, 0, 0, nil
     end
-    local bonus = 1
-    if hasSkill(source, IDS.cleric_sanctuary_mastery) then
-        bonus = bonus + 1
-    end
-    return bonus
+    return math.max(0, tonumber(runtime.clericSanctuaryAttackBonus) or 0),
+        math.max(0, tonumber(runtime.clericSanctuarySaveBonus) or 0),
+        math.max(0, tonumber(runtime.clericSanctuaryAcBonus) or 0),
+        tonumber(runtime.clericSanctuaryTargetRow)
 end
 
 function ClericBuildPassives.GetAuraAcBonus(defender, attacker)
@@ -416,82 +458,57 @@ function ClericBuildPassives.GetAuraAcBonus(defender, attacker)
     if not isAlive(defender) then
         return 0
     end
+    local defenderRow = getRowOfUnit(defender)
     local total = 0
     for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
         if isAlive(ally) then
-            total = total + getSanctuaryAcBonus(ally)
+            local _, _, acBonus, targetRow = getBlessBonuses(ally)
+            if targetRow and targetRow == defenderRow then
+                total = total + acBonus
+            end
+        end
+    end
+    return total
+end
+
+function ClericBuildPassives.GetAuraSaveBonus(defender, saveType)
+    local BattleFormation = require("modules.battle_formation")
+    if not isAlive(defender) then
+        return 0
+    end
+    local total = 0
+    local defenderRow = getRowOfUnit(defender)
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
+        if isAlive(ally) then
+            local _, saveBonus, _, targetRow = getBlessBonuses(ally)
+            if targetRow and targetRow == defenderRow then
+                total = total + saveBonus
+            end
+        end
+    end
+    return total
+end
+
+function ClericBuildPassives.GetAuraAttackBonus(attacker, defender)
+    local BattleFormation = require("modules.battle_formation")
+    if not isAlive(attacker) then
+        return 0
+    end
+    local attackerRow = getRowOfUnit(attacker)
+    local total = 0
+    for _, ally in ipairs(BattleFormation.GetFriendTeam(attacker) or {}) do
+        if isAlive(ally) then
+            local attackBonus, _, _, targetRow = getBlessBonuses(ally)
+            if targetRow and targetRow == attackerRow then
+                total = total + attackBonus
+            end
         end
     end
     return total
 end
 
 function ClericBuildPassives.ApplyClericProtections(defender, extraParam)
-    local BattleFormation = require("modules.battle_formation")
-    if not isAlive(defender) then
-        return
-    end
-    local damageContext = extraParam and extraParam.damageContext or nil
-    if not damageContext then
-        return
-    end
-    for _, ally in ipairs(BattleFormation.GetFriendTeam(defender) or {}) do
-        if isAlive(ally) then
-            local runtime = ensureRuntime(ally)
-            local round = getRound()
-            local bestReduction = 0
-            local bestLabel = nil
-            local shelterMods = ally.buildState and ally.buildState.skillMods and ally.buildState.skillMods[IDS.cleric_shelter_prayer] or {}
-            local defenderId = tonumber(defender.instanceId or defender.id) or 0
-            -- §6 shelterPerUnit：默认按 caster 每回合 1 次；feat 解锁后按 per-defender 计数。
-            local shelterPerUnit = FeatModHelper.HasFlag(ally, IDS.cleric_shelter_prayer, "shelterPerUnit")
-                or (ally.buildState and ally.buildState.classMods and ally.buildState.classMods.shelterPerUnit == true)
-            if hasSkill(ally, IDS.cleric_shelter_prayer) then
-                local triggered = false
-                local prioritizeLowestHp = shelterMods and shelterMods.shelterPrioritizeLowestHp == true
-                if prioritizeLowestHp then
-                    local lowestAlly = BuildPassiveCommon.PickLowestHpAlly(ally, true)
-                    if not sameUnit(lowestAlly, defender) then
-                        goto continue_ally
-                    end
-                end
-                if shelterPerUnit then
-                    runtime.clericShelterProtectedTargets = runtime.clericShelterProtectedTargets or {}
-                    if runtime.clericShelterProtectedTargets[defenderId] ~= round then
-                        runtime.clericShelterProtectedTargets[defenderId] = round
-                        triggered = true
-                    end
-                else
-                    if runtime.clericShelterProtectedRound ~= round then
-                        runtime.clericShelterProtectedRound = round
-                        triggered = true
-                    end
-                end
-                if triggered then
-                    bestReduction = BuildPassiveCommon.RollDice("1d6")
-                    bestLabel = "神恩庇护"
-                end
-            end
-            if bestReduction > 0 then
-                damageContext.damage = math.max(0, (tonumber(damageContext.damage) or 0) - bestReduction)
-                BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：为 %s 减免 %d 伤害",
-                    ally.name or "Unknown",
-                    bestLabel or "神术庇护",
-                    defender.name or "目标",
-                    bestReduction))
-                local tempHpDice = shelterMods and shelterMods.shelterTempHpDice or nil
-                local tempHpFlat = math.max(0, math.floor(tonumber(shelterMods and shelterMods.shelterTempHpFlat) or 0))
-                local tempHp = tempHpFlat
-                if type(tempHpDice) == "string" and tempHpDice ~= "" then
-                    tempHp = tempHp + BuildPassiveCommon.RollDice(tempHpDice)
-                end
-                if tempHp > 0 then
-                    grantTempHp(defender, tempHp, bestLabel)
-                end
-                grantShelterDebuffGuard(defender, shelterMods and shelterMods.shelterDebuffDurationDelta)
-            end
-        end
-        ::continue_ally::
-    end
+    return
 end
 
 function ClericBuildPassives.PerformTurnUndead(hero, skill, lockedTargets)
