@@ -24,6 +24,7 @@ type RunControls = {
   status: HTMLDivElement;
   screenTabs: HTMLDivElement;
   mapPanel: HTMLDivElement;
+  mapOverlay: HTMLDivElement;
   teamPanel: HTMLDivElement;
   infoPanel: HTMLDivElement;
   logList: HTMLUListElement;
@@ -49,6 +50,9 @@ export function createRunControls(handlers: RunHandlers): RunControls {
   const mapPanel = document.createElement("div");
   mapPanel.className = "ult-panel run-map-panel";
 
+  const mapOverlay = document.createElement("div");
+  mapOverlay.className = "run-map-overlay";
+
   const teamPanel = document.createElement("div");
   teamPanel.className = "setup-panel run-team-panel";
 
@@ -63,6 +67,7 @@ export function createRunControls(handlers: RunHandlers): RunControls {
     status,
     screenTabs,
     mapPanel,
+    mapOverlay,
     teamPanel,
     infoPanel,
     logList,
@@ -121,7 +126,7 @@ export function createRunControls(handlers: RunHandlers): RunControls {
     }
   };
 
-  root.append(screenTabs, status, mapPanel, teamPanel, infoPanel, logList);
+  root.append(status, mapPanel, mapOverlay, teamPanel, infoPanel, logList, screenTabs);
   setScreen("map");
 
   return controls;
@@ -887,13 +892,10 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 
 function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
+  controls.mapOverlay.replaceChildren();
+  controls.mapOverlay.classList.remove("is-active");
 
   if ((snapshot.phase === "map" || snapshot.phase === "stair") && snapshot.map) {
-    const title = document.createElement("div");
-    title.className = "panel-title";
-    title.textContent = snapshot.phase === "stair" ? "楼梯房：选择行动" : "选择下一个节点";
-    host.append(title);
-
     const currentNode = snapshot.currentNodeId
       ? snapshot.map.nodes.find((item) => item.id === snapshot.currentNodeId) ?? null
       : null;
@@ -915,7 +917,7 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
       return "";
     };
 
-    const slotItems = new Map<string, Array<{ knownTitle: string; node: typeof selectable[number] }>>();
+    const slotItems = new Map<string, Array<typeof selectable[number]>>();
     const ensureSlotItems = (slot: string) => {
       let list = slotItems.get(slot);
       if (!list) {
@@ -924,41 +926,27 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
       }
       return list;
     };
-    const appendPadSlot = (slot: string, title: string, ...children: HTMLElement[]) => {
-      const section = document.createElement("section");
-      section.className = `run-direction-slot run-direction-slot--${slot}`;
-      section.dataset.slot = slot;
-
-      const label = document.createElement("div");
-      label.className = "run-direction-slot__label";
-      label.textContent = title;
-      section.append(label);
-
-      const content = document.createElement("div");
-      content.className = "run-direction-slot__content";
-      if (children.length > 0) {
-        content.append(...children);
+    const appendPadCell = (slot: string, child?: HTMLElement) => {
+      const cell = document.createElement("div");
+      cell.className = `run-direction-cell run-direction-cell--${slot}`;
+      cell.dataset.slot = slot;
+      if (child) {
+        cell.append(child);
       } else {
-        const empty = document.createElement("div");
-        empty.className = "run-direction-slot__empty";
-        empty.textContent = "无";
-        content.append(empty);
+        cell.classList.add("run-direction-cell--empty");
       }
-      section.append(content);
-      directionPad.append(section);
+      directionPad.append(cell);
     };
 
     for (const node of selectable) {
       const dir = directionOf(node);
-      // 未踏足的房间不暴露类型/标题；已访问过的（迂回回头路）才显示原标题。
-      const knownTitle = node.revealed && node.titleVisible && node.title ? node.title : "未知房间";
       const slotKey =
         dir === "上" ? "up" :
         dir === "下" ? "down" :
         dir === "左" ? "left" :
         dir === "右" ? "right" :
         "free";
-      ensureSlotItems(slotKey).push({ knownTitle, node });
+      ensureSlotItems(slotKey).push(node);
     }
 
     const buttonLabelBySlot: Record<string, string> = {
@@ -970,7 +958,7 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
 
     const buildNodeButtons = (slot: string) => {
       const items = slotItems.get(slot) ?? [];
-      return items.map(({ node }) => {
+      return items.map((node) => {
         const label = buttonLabelBySlot[slot] ?? "移动";
         const button = makeButton(label, false, async () => {
           await controls.handlers.onChooseNode(node.id);
@@ -981,63 +969,27 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
       });
     };
 
-    appendPadSlot("up", "上", ...buildNodeButtons("up"));
-    appendPadSlot("left", "左", ...buildNodeButtons("left"));
+    appendPadCell("up", buildNodeButtons("up")[0]);
+    appendPadCell("left", buildNodeButtons("left")[0]);
 
-    const centerChildren: HTMLElement[] = [];
+    let centerButton: HTMLElement | undefined;
     if (snapshot.phase === "stair" && snapshot.stairState) {
       const dir = snapshot.stairState.direction;
       const dirLabel = snapshot.stairState.isHiddenEntrance
-        ? "进入隐藏层"
+        ? "下楼"
         : dir === "up"
           ? "上楼"
           : "下楼";
-      const stairButton = makeButton(`${dirLabel} · 进入下一层`, false, () => controls.handlers.onStairUse());
+      const stairButton = makeButton(dirLabel, false, () => controls.handlers.onStairUse());
       stairButton.classList.add("run-direction-button", "run-direction-button--stair");
-      centerChildren.push(stairButton);
+      centerButton = stairButton;
     }
-    appendPadSlot("center", "上下楼", ...centerChildren);
+    appendPadCell("center", centerButton);
 
-    appendPadSlot("right", "右", ...buildNodeButtons("right"));
-    appendPadSlot("down", "下", ...buildNodeButtons("down"));
-    host.append(directionPad);
-
-    const freeButtons = buildNodeButtons("free");
-    if (freeButtons.length > 0) {
-      const fallbackTitle = document.createElement("div");
-      fallbackTitle.className = "panel-title";
-      fallbackTitle.textContent = "其他可选节点";
-      const fallback = document.createElement("div");
-      fallback.className = "run-direction-fallback";
-      fallback.append(...freeButtons);
-      host.append(fallbackTitle, fallback);
-    }
-  } else {
-    // 非 map 阶段：显示当前所在场景提示，提示切回「信息」页
-    const title = document.createElement("div");
-    title.className = "panel-title";
-    const phaseLabel =
-      snapshot.phase === "event"
-        ? "事件进行中"
-        : snapshot.phase === "reward"
-          ? "选择奖励中"
-          : snapshot.phase === "shop"
-            ? "商店中"
-            : snapshot.phase === "camp"
-              ? "营地中"
-              : snapshot.phase === "battle"
-                ? "战斗中"
-                : snapshot.phase === "chapter_result"
-                  ? "章节结算"
-                  : snapshot.phase === "failed"
-                    ? "Run 已失败"
-                    : snapshot.phase;
-    title.textContent = `当前场景：${phaseLabel}`;
-    host.append(title);
-    const hint = document.createElement("div");
-    hint.className = "run-roster-meta";
-    hint.textContent = "请切到「信息」页处理当前场景";
-    host.append(hint);
+    appendPadCell("right", buildNodeButtons("right")[0]);
+    appendPadCell("down", buildNodeButtons("down")[0]);
+    controls.mapOverlay.append(directionPad);
+    controls.mapOverlay.classList.add("is-active");
   }
 }
 
@@ -1045,6 +997,8 @@ export function renderRunControls(controls: RunControls, snapshot: RunSnapshot |
   if (!snapshot) {
     controls.status.textContent = "run: loading | Run 加载中";
     controls.mapPanel.replaceChildren();
+    controls.mapOverlay.replaceChildren();
+    controls.mapOverlay.classList.remove("is-active");
     controls.teamPanel.replaceChildren();
     controls.infoPanel.replaceChildren();
     controls.logList.replaceChildren();

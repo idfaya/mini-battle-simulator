@@ -17,13 +17,12 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
   await page.goto("/?seed=1");
   await page.waitForTimeout(1500);
   await expect(page.locator(".fatal-error")).toHaveCount(0);
-  await expect(page.locator(".hud-status")).toContainText("阶段: map", { timeout: 20000 });
 
   await page.getByRole("button", { name: "地图" }).click();
-  await expect(page.locator(".run-map-panel .panel-title")).toBeVisible();
+  await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
 
   const enterFirstNeighbor = async () => {
-    const btn = page.locator(".run-map-panel button").first();
+    const btn = page.locator(".run-map-overlay.is-active .run-direction-button").first();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
     }

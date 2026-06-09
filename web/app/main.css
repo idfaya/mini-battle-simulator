@@ -43,6 +43,7 @@ body {
 .stage {
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 
 .stage canvas {
@@ -52,6 +53,12 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
   box-sizing: border-box;
+}
+
+.shell[data-screen="run-map"] .stage canvas {
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 .hud {
@@ -85,6 +92,11 @@ body {
 .hud[data-screen="team"],
 .hud[data-screen="info"] {
   grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.hud[data-screen="map"] {
+  grid-template-rows: auto auto;
+  align-content: start;
 }
 
 .hud[data-screen="settings"] .setup-panel,
@@ -216,87 +228,86 @@ body {
   overflow: auto;
 }
 
+.hud[data-screen="map"] .run-map-panel {
+  display: none;
+}
+
+.hud[data-screen="map"] .hud-status {
+  display: none;
+}
+
 .run-info-panel {
   align-content: start;
 }
 
+.run-map-overlay {
+  display: none;
+  width: auto;
+  justify-items: start;
+  align-items: start;
+  align-self: flex-start;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.hud[data-screen="map"] .run-map-overlay.is-active {
+  display: grid;
+}
+
 .run-direction-pad {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, 44px);
   grid-template-areas:
     ". up ."
     "left center right"
     ". down .";
   gap: 6px;
-  align-items: stretch;
-  width: min(100%, 240px);
-  margin: 0 auto;
+  place-content: start;
+  width: 144px;
+  margin: 0;
 }
 
-.run-direction-slot {
+.run-direction-cell {
   display: grid;
-  gap: 4px;
+  place-items: center;
+  min-width: 0;
   min-height: 0;
-  padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.28);
 }
 
-.run-direction-slot--up {
+.run-direction-cell--up {
   grid-area: up;
 }
 
-.run-direction-slot--left {
+.run-direction-cell--left {
   grid-area: left;
 }
 
-.run-direction-slot--center {
+.run-direction-cell--center {
   grid-area: center;
 }
 
-.run-direction-slot--right {
+.run-direction-cell--right {
   grid-area: right;
 }
 
-.run-direction-slot--down {
+.run-direction-cell--down {
   grid-area: down;
 }
 
-.run-direction-slot__label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #9fb3c8;
-  text-align: center;
-  line-height: 1;
-}
-
-.run-direction-slot__content,
-.run-direction-fallback {
-  display: grid;
-  gap: 4px;
-}
-
-.run-direction-slot__content {
-  align-content: start;
-  min-height: 0;
-}
-
-.run-direction-slot__empty {
-  display: grid;
-  place-items: center;
-  min-height: 28px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  color: #8aa1bc;
-  font-size: 10px;
+.run-direction-cell--empty {
+  width: 44px;
+  height: 44px;
 }
 
 .run-direction-button {
-  min-height: 34px;
-  padding: 4px 6px;
-  font-size: 11px;
-  line-height: 1.15;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: auto;
 }
 
 .run-direction-button--stair {
@@ -1039,6 +1050,10 @@ body {
     object-fit: contain;
   }
 
+  .shell[data-screen="run-map"] .stage canvas {
+    background: transparent;
+  }
+
   /* Roguelike map: allow vertical scrolling when the map canvas grows taller than the viewport */
   .shell[data-screen="run-map"] .stage {
     overflow-y: auto;
@@ -1164,18 +1179,22 @@ body {
   }
 
   .run-direction-pad {
-    gap: 4px;
-    width: min(100%, 220px);
+    grid-template-columns: repeat(3, 42px);
+    gap: 3px;
+    width: 132px;
   }
 
-  .run-direction-slot {
-    padding: 3px;
+  .run-direction-cell--empty {
+    width: 42px;
+    height: 42px;
   }
 
   .run-direction-button {
-    min-height: 32px;
-    padding: 4px 5px;
-    font-size: 10px;
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    border-radius: 12px;
+    font-size: 12px;
   }
 
   .run-compact-field {
