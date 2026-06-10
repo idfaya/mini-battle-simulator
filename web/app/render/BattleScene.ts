@@ -877,30 +877,11 @@ export class BattleScene {
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
 
-    if (!micro) {
-      const isCaster = unit.classId >= 6 && unit.classId <= 9;
-      const acVal = Math.max(0, Math.floor(Number(unit.ac) || 0));
-      const offVal = isCaster
-        ? Math.max(0, Math.floor(Number(unit.spellDC) || 0))
-        : Math.floor(Number(unit.hit) || 0);
-      const offText = isCaster ? String(offVal) : `${offVal >= 0 ? "+" : ""}${offVal}`;
-      const gemRadius = compact ? 11 : tight ? 12 : 14;
-      const gemY = y + height - gemRadius - 2;
-      const acGemX = x + gemRadius + 4;
-      const offGemX = x + width - gemRadius - 4;
-      this.drawStatGem(ctx, acGemX, gemY, gemRadius, "shield", "#3a7bd5", "#9bc7ff", String(acVal));
-      const offFill = isCaster ? "#7b3fbf" : "#d49a2c";
-      const offStroke = isCaster ? "#d8a8ff" : "#ffe082";
-      this.drawStatGem(ctx, offGemX, gemY, gemRadius, isCaster ? "orb" : "sword", offFill, offStroke, offText);
-    }
-
-
-    const gemReserve = micro ? 0 : compact ? 28 : 36;
     this.drawBuffIcons(
       ctx,
-      compact ? x + 10 + gemReserve / 2 : x + 16 + gemReserve / 2,
+      compact ? x + 10 : x + 16,
       micro ? hpY + 8 : tight ? hpY + 10 : compact ? hpY + 12 : y + 72,
-      (compact ? width - 20 : width - 32) - gemReserve,
+      compact ? width - 20 : width - 32,
       unit,
       micro ? 10 : tight ? 14 : 18,
       micro ? 4 : 6,
@@ -924,111 +905,6 @@ export class BattleScene {
     }
 
     ctx.restore();
-  }
-
-  private drawStatGem(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    cy: number,
-    radius: number,
-    shape: "shield" | "sword" | "orb",
-    fill: string,
-    stroke: string,
-    text: string,
-  ) {
-    ctx.save();
-    // 背景光晕
-    const glow = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius * 1.4);
-    glow.addColorStop(0, "rgba(0,0,0,0.45)");
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 1.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 宝石主体（径向渐变）
-    const grad = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.4, radius * 0.1, cx, cy, radius);
-    grad.addColorStop(0, this.lightenColor(fill, 0.55));
-    grad.addColorStop(0.55, fill);
-    grad.addColorStop(1, this.darkenColor(fill, 0.45));
-    ctx.fillStyle = grad;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-    if (shape === "shield") {
-      // 盾牌形
-      const top = cy - radius;
-      const sideTop = cy - radius * 0.4;
-      const bottom = cy + radius;
-      ctx.moveTo(cx - radius * 0.95, top + radius * 0.1);
-      ctx.lineTo(cx + radius * 0.95, top + radius * 0.1);
-      ctx.lineTo(cx + radius * 0.95, sideTop);
-      ctx.quadraticCurveTo(cx + radius * 0.85, bottom - radius * 0.1, cx, bottom);
-      ctx.quadraticCurveTo(cx - radius * 0.85, bottom - radius * 0.1, cx - radius * 0.95, sideTop);
-      ctx.closePath();
-    } else if (shape === "sword") {
-      // 八角宝石（剑/物理攻击）
-      const sides = 8;
-      for (let i = 0; i < sides; i += 1) {
-        const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
-        const r = i % 2 === 0 ? radius : radius * 0.78;
-        const px = cx + Math.cos(angle) * r;
-        const py = cy + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-    } else {
-      // 球形（法系）
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.stroke();
-
-    // 高光
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.beginPath();
-    ctx.ellipse(cx - radius * 0.3, cy - radius * 0.45, radius * 0.45, radius * 0.22, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 数值文字
-    const fontSize = Math.max(10, Math.floor(radius * 1.05));
-    ctx.fillStyle = "#fff";
-    ctx.strokeStyle = "rgba(0,0,0,0.65)";
-    ctx.lineWidth = 2;
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.strokeText(text, cx, cy + 0.5);
-    ctx.fillText(text, cx, cy + 0.5);
-    ctx.restore();
-  }
-
-  private lightenColor(hex: string, amount: number): string {
-    const { r, g, b } = this.parseHex(hex);
-    const lr = Math.round(r + (255 - r) * amount);
-    const lg = Math.round(g + (255 - g) * amount);
-    const lb = Math.round(b + (255 - b) * amount);
-    return `rgb(${lr}, ${lg}, ${lb})`;
-  }
-
-  private darkenColor(hex: string, amount: number): string {
-    const { r, g, b } = this.parseHex(hex);
-    const lr = Math.round(r * (1 - amount));
-    const lg = Math.round(g * (1 - amount));
-    const lb = Math.round(b * (1 - amount));
-    return `rgb(${lr}, ${lg}, ${lb})`;
-  }
-
-  private parseHex(hex: string): { r: number; g: number; b: number } {
-    const m = hex.replace("#", "");
-    const v = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
-    return {
-      r: parseInt(v.slice(0, 2), 16) || 0,
-      g: parseInt(v.slice(2, 4), 16) || 0,
-      b: parseInt(v.slice(4, 6), 16) || 0,
-    };
   }
 
   private drawPill(
