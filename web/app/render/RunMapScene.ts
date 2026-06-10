@@ -13,7 +13,26 @@ const ROOM_GAP = 22;
 const SIDE_PADDING = 32;
 const BOTTOM_PADDING = 48;
 
+type RunMapDebugState = {
+  totalNodes: number;
+  revealedNodes: number;
+  hiddenNodes: number;
+  drawnRooms: number;
+  drawnFogRooms: number;
+  drawnEdges: number;
+};
+
 export class RunMapScene {
+  private lastDebugState: RunMapDebugState = {
+    totalNodes: 0,
+    revealedNodes: 0,
+    hiddenNodes: 0,
+    drawnRooms: 0,
+    drawnFogRooms: 0,
+    drawnEdges: 0,
+  };
+  private fogPattern: CanvasPattern | null = null;
+
   /**
    * Used by CanvasRenderer to decide whether we should grow the canvas.
    * 单层平面图通常一屏可以放下，但窄屏 / 大网格仍可能溢出。
@@ -33,6 +52,14 @@ export class RunMapScene {
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, snapshot: RunSnapshot | null) {
     ctx.clearRect(0, 0, width, height);
     this.drawBackground(ctx, width, height);
+    this.lastDebugState = {
+      totalNodes: 0,
+      revealedNodes: 0,
+      hiddenNodes: 0,
+      drawnRooms: 0,
+      drawnFogRooms: 0,
+      drawnEdges: 0,
+    };
 
     if (!snapshot?.map) {
       ctx.fillStyle = "#f8f9fa";
@@ -49,16 +76,31 @@ export class RunMapScene {
       return;
     }
 
+    const revealedNodes = countRevealed(bucket);
+    this.lastDebugState = {
+      totalNodes: bucket.nodes.length,
+      revealedNodes,
+      hiddenNodes: Math.max(0, bucket.nodes.length - revealedNodes),
+      drawnRooms: 0,
+      drawnFogRooms: 0,
+      drawnEdges: 0,
+    };
+
     const layout = computeFloorLayout(width, bucket);
 
     // Position lookup
     const nodePositions = new Map<number, { x: number; y: number; revealed: boolean }>();
+    const visibleNodeIds = new Set<number>();
+    const visibleEdges: Array<{ fromX: number; fromY: number; toX: number; toY: number; bothRevealed: boolean }> = [];
     for (const placement of layout.placements) {
       nodePositions.set(placement.node.id, {
         x: placement.x,
         y: placement.y,
         revealed: placement.node.revealed,
       });
+      if (placement.node.revealed) {
+        visibleNodeIds.add(placement.node.id);
+      }
     }
 
     // Floor plate
@@ -83,22 +125,42 @@ export class RunMapScene {
       if (!from.revealed && !to.revealed) {
         continue;
       }
+      visibleNodeIds.add(edge.fromNodeId);
+      visibleNodeIds.add(edge.toNodeId);
       const bothRevealed = from.revealed && to.revealed;
-      ctx.strokeStyle = bothRevealed ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.16)";
+      visibleEdges.push({
+        fromX: from.x,
+        fromY: from.y,
+        toX: to.x,
+        toY: to.y,
+        bothRevealed,
+      });
+    }
+
+    this.drawUnexploredFog(ctx, layout);
+
+    for (const edge of visibleEdges) {
+      ctx.strokeStyle = edge.bothRevealed ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.16)";
       ctx.lineWidth = 4;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+      ctx.moveTo(edge.fromX, edge.fromY);
+      ctx.lineTo(edge.toX, edge.toY);
       ctx.stroke();
+      this.lastDebugState.drawnEdges += 1;
     }
 
     // Rooms
     for (const placement of layout.placements) {
+      if (!visibleNodeIds.has(placement.node.id)) {
+        continue;
+      }
       if (placement.node.revealed) {
         this.drawRoom(ctx, placement.x, placement.y, placement.node, layout.cellSize);
+        this.lastDebugState.drawnRooms += 1;
       } else {
         this.drawFogRoom(ctx, placement.x, placement.y, layout.cellSize, placement.node.selectable);
+        this.lastDebugState.drawnFogRooms += 1;
       }
     }
 
@@ -122,6 +184,10 @@ export class RunMapScene {
     ctx.fillText(`${floorLabel} · ${countRevealed(bucket)} / ${bucket.nodes.length} 房间已探索`, 42, 96);
   }
 
+  getDebugState() {
+    return { ...this.lastDebugState };
+  }
+
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
     const gradient = ctx.createLinearGradient(0, 0, width, height);
     gradient.addColorStop(0, "#12263a");
@@ -129,6 +195,65 @@ export class RunMapScene {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
   }
+
+  private drawUnexploredFog(
+    ctx: CanvasRenderingContext2D,
+    layout: FloorRenderLayout,
+  ) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(layout.plateX, layout.plateY, layout.plateW, layout.plateH);
+    ctx.clip();
+
+    // 底色：弥漫整层的暗色蒙版
+    ctx.fillStyle = "rgba(6, 12, 22, 0.55)";
+    ctx.fillRect(layout.plateX, layout.plateY, layout.plateW, layout.plateH);
+
+    // 斜线 hatch pattern：覆盖整张地图
+    const pattern = this.getFogPattern(ctx);
+    if (pattern) {
+      ctx.fillStyle = pattern;
+      ctx.fillRect(layout.plateX, layout.plateY, layout.plateW, layout.plateH);
+    }
+
+    ctx.restore();
+  }
+
+  private getFogPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+    if (this.fogPattern) {
+      return this.fogPattern;
+    }
+    const tileSize = 12;
+    const tile = document.createElement("canvas");
+    tile.width = tileSize;
+    tile.height = tileSize;
+    const tctx = tile.getContext("2d");
+    if (!tctx) {
+      return null;
+    }
+    tctx.clearRect(0, 0, tileSize, tileSize);
+    tctx.strokeStyle = "rgba(220, 230, 245, 0.18)";
+    tctx.lineWidth = 1.5;
+    tctx.lineCap = "square";
+    // 主斜线
+    tctx.beginPath();
+    tctx.moveTo(-2, tileSize + 2);
+    tctx.lineTo(tileSize + 2, -2);
+    tctx.stroke();
+    // 平铺接缝补线
+    tctx.beginPath();
+    tctx.moveTo(-2, 2);
+    tctx.lineTo(2, -2);
+    tctx.stroke();
+    tctx.beginPath();
+    tctx.moveTo(tileSize - 2, tileSize + 2);
+    tctx.lineTo(tileSize + 2, tileSize - 2);
+    tctx.stroke();
+
+    this.fogPattern = ctx.createPattern(tile, "repeat");
+    return this.fogPattern;
+  }
+
 
   private drawRoom(ctx: CanvasRenderingContext2D, cx: number, cy: number, node: RunMapNodeState, cellSize: number) {
     const color = node.isHiddenFloor

@@ -71,4 +71,8 @@ export class CanvasRenderer {
   getBattleDebugState() {
     return this.scene.getDebugState();
   }
+
+  getRunMapDebugState() {
+    return this.runMapScene.getDebugState();
+  }
 }

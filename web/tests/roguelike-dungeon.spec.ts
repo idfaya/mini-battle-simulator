@@ -20,6 +20,43 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
 
   await page.getByRole("button", { name: "地图" }).click();
   await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
+  const mapDebugState = await page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        getRunSnapshot: () => Promise<{
+          currentFloorDepth?: number | null;
+          map?: {
+            nodes?: Array<{ floor?: number; revealed?: boolean }>;
+          };
+        }>;
+      };
+      __miniBattleRenderer?: {
+        getRunMapDebugState?: () => {
+          totalNodes: number;
+          revealedNodes: number;
+          hiddenNodes: number;
+          drawnRooms: number;
+          drawnFogRooms: number;
+          drawnEdges: number;
+        };
+      };
+    };
+    const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+    const currentFloor = snapshot?.currentFloorDepth ?? 1;
+    const floorNodes = (snapshot?.map?.nodes ?? []).filter((node) => (node.floor ?? 1) === currentFloor);
+    return {
+      hiddenInSnapshot: floorNodes.filter((node) => node.revealed !== true).length,
+      renderer: runtime.__miniBattleRenderer?.getRunMapDebugState?.() ?? null,
+    };
+  });
+  expect(mapDebugState.hiddenInSnapshot).toBeGreaterThan(0);
+  expect(mapDebugState.renderer).not.toBeNull();
+  expect(mapDebugState.renderer?.hiddenNodes).toBeGreaterThan(0);
+  expect(mapDebugState.renderer?.drawnFogRooms).toBeGreaterThan(0);
+  expect((mapDebugState.renderer?.drawnRooms ?? 0) + (mapDebugState.renderer?.drawnFogRooms ?? 0)).toBeLessThanOrEqual(
+    mapDebugState.renderer?.totalNodes ?? 0,
+  );
+  expect(mapDebugState.renderer?.drawnRooms).toBe(mapDebugState.renderer?.revealedNodes);
 
   const enterFirstNeighbor = async () => {
     const btn = page.locator(".run-map-overlay.is-active .run-direction-button").first();
