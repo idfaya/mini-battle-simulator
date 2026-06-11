@@ -298,8 +298,12 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
         return 0, nil
     end
     local BattleBuff = require("modules.battle_buff")
+    local BattleDmgHeal = require("modules.battle_dmg_heal")
     local amount = BuildPassiveCommon.RollDice("2d8+4")
-    BuildPassiveCommon.ApplyHeal(ally, amount)
+    BattleDmgHeal.ApplyHeal(ally, amount, hero, {
+        skillId = (skill and skill.skillId) or IDS.paladin_lay_on_hands,
+        skillName = (skill and skill.name) or "圣疗",
+    })
     local cleanseDebuffs = FeatModHelper.HasFlag(hero, IDS.paladin_lay_on_hands, "cleanseDebuffs")
     if cleanseDebuffs then
         BattleBuff.DelBuffBySubType(ally, E_BUFF_SPEC_SUBTYPE.Frozen)
@@ -308,12 +312,6 @@ function PaladinBuildPassives.PerformLayOnHands(hero, target, skill)
         BattleBuff.DelBuffBySubType(ally, POISON_BUFF_SUBTYPE)
         BattleBuff.DelBuffBySubType(ally, BURN_BUFF_SUBTYPE)
     end
-    local detail = cleanseDebuffs and "并净化负面状态" or ""
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 发动圣疗：为 %s 回复 %d 生命%s",
-        hero and hero.name or "Unknown",
-        ally.name or "目标",
-        amount,
-        detail))
     return amount, ally
 end
 
@@ -358,10 +356,6 @@ function PaladinBuildPassives.PerformVengeanceSmite(hero, target, skill)
             end
             damage = damage + splashDamage
         end
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 发动破邪斩：对 %s 追加 %d 点光耀伤害",
-            hero.name or "Unknown",
-            target.name or "目标",
-            bonus))
     end
     return damage
 end

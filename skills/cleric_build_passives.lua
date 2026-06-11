@@ -108,12 +108,10 @@ local function applyHealAmount(hero, ally, baseDice, flatBonus, sourceSkillId, s
     end
     local runtime = ensureRuntime(hero)
     local round = getRound()
-    BattleDmgHeal.ApplyHeal(ally, healAmount, hero)
-    BuildPassiveCommon.PublishCombatLog(string.format("%s 使用%s：为 %s 回复 %d 生命",
-        hero.name or "Unknown",
-        sourceSkillName or "神术治疗",
-        ally.name or "目标",
-        healAmount))
+    BattleDmgHeal.ApplyHeal(ally, healAmount, hero, {
+        skillId = sourceSkillId,
+        skillName = sourceSkillName or "神术治疗",
+    })
     return healAmount
 end
 
@@ -223,13 +221,6 @@ local function applyRadiantBonus(hero, target, diceExpr, sourceSkillId, sourceSk
         skillId = sourceSkillId,
         skillName = sourceSkillName,
     })
-    if bonus > 0 then
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 触发%s：对 %s 追加 %d 点光耀伤害",
-            hero.name or "Unknown",
-            label or sourceSkillName or "神术强化",
-            target.name or "目标",
-            bonus))
-    end
     return bonus
 end
 
@@ -294,7 +285,10 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
     damage = math.max(0, math.floor(tonumber(damageContext.damage) or damage))
     if damage > 0 then
         if runtime.clericBasicSpellLastConnected then
-            damage = damage + applyBasicSpellPostHit(hero, target)
+            BuildPassiveCommon.OpenBonusDamageBucket(hero, target)
+            applyBasicSpellPostHit(hero, target)
+            local bucketRaw = BuildPassiveCommon.CloseBonusDamageBucket(hero)
+            damage = damage + math.max(0, bucketRaw)
         end
         local rollParams = BuildPassiveCommon.BuildDamageEventRollParams(damageResult, meta)
         BattleDmgHeal.ApplyDamage(target, damage, hero, {
@@ -310,12 +304,6 @@ function ClericBuildPassives.PerformBasicSpellAttack(hero, target, skill)
             saveType = rollParams.saveType or "dex",
             onSaveSuccess = rollParams.onSaveSuccess or "none",
         })
-        local rollSuffix = BuildPassiveCommon.FormatRollSuffixForLog(rollParams, true)
-        BuildPassiveCommon.PublishCombatLog(string.format("%s 使用圣火术：对 %s 造成 %d 点伤害%s",
-            hero.name or "Unknown",
-            target.name or "目标",
-            damage,
-            rollSuffix))
         BattlePassiveSkill.RunSkillOnDefAfterDmg(target, { attacker = hero, damage = damage })
         BattleSkill.TriggerDamageBuffs(hero, target, damage)
         if target.isDead or (tonumber(target.hp) or 0) <= 0 then

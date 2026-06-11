@@ -232,12 +232,6 @@ function RangerBuildPassives.PerformShadowShot(hero, target, skill)
             skillName = skill and skill.name or "暮影射击",
         })
         damage = damage + bonus
-        if bonus > 0 then
-            BuildPassiveCommon.PublishCombatLog(string.format("%s 发动暮影射击：后排目标 %s 额外受到 %d 伤害",
-                hero.name or "Unknown",
-                target.name or "目标",
-                bonus))
-        end
     end
     return damage
 end
