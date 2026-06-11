@@ -78,10 +78,10 @@ export async function captureTopBarSummary(page: Page, durationMs = 8000) {
       if (topBar.skillCasting === true || skillBrief.includes("释放中")) {
         sawCasting = true;
       }
-      if (skillBrief.includes("敏捷豁免") || skillBrief.includes("体质豁免") || skillBrief.includes("感知豁免")) {
+      if (/\[\d+\][-+]?\d*=\d+\s*(成功|失败)/.test(skillBrief)) {
         sawSaveRoll = true;
       }
-      if (damageBrief.includes("伤害骰")) {
+      if (/\[\d+\]/.test(damageBrief) && /=\d+/.test(damageBrief)) {
         sawDamageRoll = true;
       }
       await sleep(50);

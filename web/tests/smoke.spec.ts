@@ -187,8 +187,8 @@ test("basic attack damage merges with attached skill damage into one yellow numb
   expect(merged?.color).toBe("#ffd166");
   expect(merged?.text).toBe("20");
 
-  expect(store.getState().damageBrief).toContain("1d8");
-  expect(store.getState().damageBrief).toContain("1d6");
+  expect(store.getState().damageBrief).toContain("[9]");
+  expect(store.getState().damageBrief).toContain("[6]");
   expect(store.getState().damageBrief).toContain("=20");
   expect(store["state"].log[0]).toContain("造成 20 伤害");
   expect(store["state"].log[0]).toContain("1d8");
@@ -197,21 +197,21 @@ test("basic attack damage merges with attached skill damage into one yellow numb
 
 test("normalizeTopBarCheckText detects nat20 crit from combat log", () => {
   expect(normalizeTopBarCheckText("攻击检定 d20 20+5=25 vs AC 14")).toBe(
-    "攻击检定 d20+5 vs AC14 [20]+5 =25 成功 暴击",
+    "[20]+5=25 成功 暴击",
   );
   expect(normalizeTopBarCheckText("攻击检定 d20 4+5=9 vs AC 14")).toBe(
-    "攻击检定 d20+5 vs AC14 [4]+5 =9 失败",
+    "[4]+5=9 失败",
   );
 });
 
 test("splitRollBriefDisplay keeps dice icon before rolled values", () => {
-  expect(splitRollBriefDisplay("伤害骰 1d6+2 [4]+2=6")).toEqual({
-    prefix: "伤害骰 1d6+2",
+  expect(splitRollBriefDisplay("[4]+2=6")).toEqual({
+    prefix: "",
     rollText: "[4]+2=6",
   });
-  expect(splitRollBriefDisplay("冻结新星 敏捷豁免 d20-2 vs DC13 [3]-2 =1 失败")).toEqual({
-    prefix: "冻结新星 敏捷豁免 d20-2 vs DC13",
-    rollText: "[3]-2 =1 失败",
+  expect(splitRollBriefDisplay("冻结新星 [3]-2=1 失败")).toEqual({
+    prefix: "冻结新星",
+    rollText: "[3]-2=1 失败",
   });
 });
 
@@ -350,8 +350,8 @@ test("aoe damage_dealt annotates multi-target hit index on skill brief", () => {
     },
   ]);
 
-  expect(store.getState().skillBrief).toBe("冻结新星 ·2 敏捷豁免 d20-2 vs DC13 [8]-2 =6 成功（半伤）");
-  expect(store.getState().damageBrief).toContain("伤害骰");
+  expect(store.getState().skillBrief).toBe("冻结新星 ·2 [8]-2=6 成功（半伤）");
+  expect(store.getState().damageBrief).toContain("[2]");
 });
 
 test("damage_dealt updates battlefield skill brief without attacker or target names", () => {
@@ -386,14 +386,14 @@ test("damage_dealt updates battlefield skill brief without attacker or target na
   ]);
 
   expect(store.getState().skillCasting).toBe(false);
-  expect(store.getState().skillBrief).toBe("冻结新星 敏捷豁免 d20-2 vs DC13 [3]-2 =1 失败");
+  expect(store.getState().skillBrief).toBe("冻结新星 [3]-2=1 失败");
   expect(store.getState().skillBrief).not.toMatch(/[（）]/);
   expect(store.getState().skillBrief).not.toContain("释放中");
   expect(store.getState().skillBrief).not.toContain("伤害骰");
   expect(store.getState().skillBrief).not.toContain("法师");
   expect(store.getState().skillBrief).not.toContain("骷髅兵");
-  expect(store.getState().damageBrief).toContain("伤害骰");
-  expect(store.getState().damageBrief).toContain("1d6+2");
+  expect(store.getState().damageBrief).toContain("[4]");
+  expect(store.getState().damageBrief).toContain("=6");
 });
 
 test("attack roll shows hit outcome on top bar", () => {
@@ -428,7 +428,7 @@ test("attack roll shows hit outcome on top bar", () => {
     },
   ]);
 
-  expect(store.getState().skillBrief).toBe("寒霜射线 ·2 攻击检定 d20+5 vs AC14 [4]+5 =9 失败");
+  expect(store.getState().skillBrief).toBe("寒霜射线 ·2 [4]+5=9 失败");
 });
 
 test("attack roll shows crit on successful natural 20", () => {

@@ -166,6 +166,29 @@ export function formatDamageRoll(value: unknown) {
   return `伤害骰 ${expr}${partText ? ` ${partText}` : ""}=${total}`;
 }
 
+export function formatTopBarDamageRoll(value: unknown) {
+  const roll = readRecord(value);
+  if (!roll) {
+    return null;
+  }
+
+  const parts = Array.isArray(roll.parts) ? roll.parts : [];
+  const partText = parts
+    .map((part) => {
+      const partRecord = readRecord(part);
+      if (!partRecord) {
+        return "";
+      }
+      const rolls = Array.isArray(partRecord.rolls) ? partRecord.rolls.map((item) => String(item)).join(",") : "";
+      const bonus = readNumber(partRecord.bonus);
+      return `[${rolls}]${bonus !== 0 ? formatSigned(bonus) : ""}`;
+    })
+    .filter(Boolean)
+    .join(";");
+  const total = readNumber(roll.total);
+  return `${partText ? `${partText}=` : ""}${total}`;
+}
+
 function formatTopBarCheckRoll(
   value: unknown,
   options?: {
@@ -182,15 +205,14 @@ function formatTopBarCheckRoll(
   const d20 = readNumber(roll.roll);
   const bonus = readNumber(roll.bonus);
   const total = readNumber(roll.total);
-  const rollResult = `[${d20}]${formatSigned(bonus)} =${total}`;
+  const rollResult = `[${d20}]${formatSigned(bonus)}=${total}`;
   if ("targetAC" in roll) {
     const outcome = formatAttackOutcome(roll, options?.isCrit);
-    return `攻击检定 d20${formatSigned(bonus)} vs AC${readNumber(roll.targetAC)} ${rollResult} ${outcome}`;
+    return `${rollResult} ${outcome}`;
   }
   if ("dc" in roll) {
-    const label = SAVE_TYPE_LABELS[String(options?.saveType ?? "")] ?? "豁免";
     const outcome = formatSaveOutcome(Boolean(roll.success), options?.onSaveSuccess);
-    return `${label}豁免 d20${formatSigned(bonus)} vs DC${readNumber(roll.dc)} ${rollResult} ${outcome}`;
+    return `${rollResult} ${outcome}`;
   }
   return null;
 }
@@ -211,8 +233,8 @@ export function normalizeTopBarCheckText(text: string) {
     /^(体质|敏捷|感知|豁免)豁免(失败|成功（半伤）|成功（无伤）|成功)?\s*d20\s+(\d+)([-+]\d+)=(\d+)\s+vs\s+DC\s*(\d+)/,
   );
   if (saveMatch) {
-    const [, label, outcome = "失败", roll, bonusText, total, dc] = saveMatch;
-    return `${label}豁免 d20${bonusText} vs DC${dc} [${roll}]${bonusText} =${total} ${outcome}`;
+    const [, , outcome = "失败", roll, bonusText, total] = saveMatch;
+    return `[${roll}]${bonusText}=${total} ${outcome}`;
   }
 
   const attackMatch = text.match(/^攻击检定\s+d20\s+(\d+)([-+]\d+)=(\d+)\s+vs\s+AC\s*(\d+)/);
@@ -226,9 +248,21 @@ export function normalizeTopBarCheckText(text: string) {
     if (hit && (rollNum === 20 || text.includes("暴击"))) {
       outcome = "成功 暴击";
     }
-    return `攻击检定 d20${bonusText} vs AC${ac} [${roll}]${bonusText} =${total} ${outcome}`;
+    return `[${roll}]${bonusText}=${total} ${outcome}`;
   }
 
+  return text;
+}
+
+export function normalizeTopBarDamageText(text: string) {
+  const damageMatch = text.match(/^伤害骰\s+\S+\s+(.+)$/);
+  if (damageMatch) {
+    return damageMatch[1];
+  }
+  const fallback = text.match(/^伤害骰\s+(.+)$/);
+  if (fallback) {
+    return fallback[1];
+  }
   return text;
 }
 

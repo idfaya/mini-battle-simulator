@@ -1,7 +1,8 @@
 import {
-  formatDamageRoll,
   formatTopBarCheckSuffix,
+  formatTopBarDamageRoll,
   normalizeTopBarCheckText,
+  normalizeTopBarDamageText,
 } from "./rollFormat";
 
 export type TopBarBriefs = {
@@ -22,7 +23,7 @@ export function buildSkillCheckBrief(payload: Record<string, unknown>): string |
 }
 
 export function buildDamageBriefFromPayload(payload: Record<string, unknown>): string | null {
-  return formatDamageRoll(payload.damageRoll);
+  return formatTopBarDamageRoll(payload.damageRoll);
 }
 
 export function buildTopBarBriefsFromPayload(
@@ -35,14 +36,7 @@ export function buildTopBarBriefsFromPayload(
   };
 }
 
-const MULTI_TARGET_SKILL_MARKERS = [
-  " 攻击检定",
-  " 体质豁免",
-  " 敏捷豁免",
-  " 感知豁免",
-  " 豁免豁免",
-  " 治疗 ",
-] as const;
+const MULTI_TARGET_SKILL_MARKERS = [" ["] as const;
 
 export function annotateMultiTargetSkillBrief(skillBrief: string, hitIndex: number): string {
   if (hitIndex <= 1) {
@@ -97,6 +91,6 @@ export function extractTopBarBriefsFromCombatLog(message: string): TopBarBriefs 
   const skillBrief = checkText ? `${skillName} ${normalizeTopBarCheckText(checkText)}`.trim() : skillName;
   return {
     skillBrief: skillBrief || null,
-    damageBrief: damageText,
+    damageBrief: damageText ? normalizeTopBarDamageText(damageText) : null,
   };
 }
