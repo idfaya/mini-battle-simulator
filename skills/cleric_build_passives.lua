@@ -414,6 +414,9 @@ function ClericBuildPassives.ActivateSanctuary(hero, skill, lockedTargets)
     syncTimedBuff(hero, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
     local affectedTargets = collectAliveAlliesInRow(hero, targetRow)
     for _, ally in ipairs(affectedTargets) do
+        if not sameUnit(ally, hero) then
+            syncTimedBuff(ally, SANCTUARY_BUFF_ID, runtime.clericSanctuaryExpireRound)
+        end
         if blessTempHpFlat > 0 then
             grantTempHp(ally, blessTempHpFlat, skill and skill.name or "祝福术")
         end
