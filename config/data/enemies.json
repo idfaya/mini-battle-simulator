@@ -231,7 +231,7 @@
     "AbilityScores": { "str": 8, "dex": 13, "con": 10, "int": 8, "wis": 8, "cha": 8 },
     "SkillIDs": [
       { "skillId": 80005011, "level": 1 },
-      { "skillId": 80005014, "level": 1 }
+      { "skillId": 80005101, "level": 1 }
     ],
     "Star": 2,
     "Quality": 2

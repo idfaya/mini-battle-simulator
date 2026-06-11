@@ -146,7 +146,7 @@ assert_true(thunderLord.spellDC == 12, "ThunderLord spell DC stays in current CR
 assert_array_equals(skillIdsFromHeroData(910007), { 80009001, 80009002, 80009003, 80009004 }, "ThunderLord uses static skills")
 assert_array_equals(skillTiersFromHeroData(910007), { 3, 3, 3, 3 }, "ThunderLord skills are CR-2 tier")
 
-assert_array_equals(skillIdsFromHeroData(910012), { 80005011, 80005014 }, "GoblinThrower uses static skills")
+assert_array_equals(skillIdsFromHeroData(910012), { 80005011, 80005101 }, "GoblinThrower uses static skills")
 assert_array_equals(skillIdsFromHeroData(910013), { 80005011, 80005013 }, "SkeletonArcher uses static skills")
 assert_array_equals(skillIdsFromHeroData(910011), { 80010011, 80010013, 80010101 }, "Berserker uses static skills")
 assert_array_equals(skillTiersFromHeroData(910011), { 2, 2, 2 }, "Berserker skills are CR-1 tier")
