@@ -1086,8 +1086,12 @@ local function BuildFallbackTimeline(hero, targets, skill)
             frame = 10,
             op = "attack",
             execute = function()
-                local dmg = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill) or 0
-                return { damage = dmg }
+                local resolvedTargets = {}
+                local dmg = BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill, resolvedTargets) or 0
+                -- Frame targets must reflect protection redirects (e.g. fighter guard) so the
+                -- web layer can drive melee clashes/damage animations against the actual defender.
+                local frameTargets = (#resolvedTargets > 0) and resolvedTargets or targets
+                return { damage = dmg, targets = frameTargets }
             end
         }
     }
@@ -1536,8 +1540,9 @@ end
 ---@param hero table 攻击者
 ---@param targets table 目标列表
 ---@param skill table 技能对象
+---@param outResolvedTargets table|nil 可选输出参数：收集经过护卫等保护重定向后实际命中的目标
 ---@return number 总伤害值（用于吸血等被动技能）
-function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
+function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill, outResolvedTargets)
     if not hero or not targets or #targets == 0 then
         return 0
     end
@@ -1547,6 +1552,7 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
     -- Dice-first: default attacks rely on dice/meta, not damageRate/healRate multipliers.
     local totalDamage = 0
     local energyStats = hero.__energyCastStats
+    local resolvedSeen = {}
 
     -- 对每个目标执行效果
     for _, target in ipairs(targets) do
@@ -1558,6 +1564,13 @@ function BattleSkill.ExecuteDefaultAttackWithPassive(hero, targets, skill)
                 skill = skill,
             })
             hero.__lastNormalAttackTarget = actualTarget
+            if outResolvedTargets and actualTarget then
+                local resolvedId = actualTarget.instanceId or actualTarget.id
+                if resolvedId and not resolvedSeen[resolvedId] then
+                    resolvedSeen[resolvedId] = true
+                    outResolvedTargets[#outResolvedTargets + 1] = actualTarget
+                end
+            end
             local damageResult = BattleSkill.ResolveScaledDamage(hero, actualTarget, BuildPassiveCommon.BuildBasicAttackResolveOpts(hero, actualTarget, skill))
             local damage = tonumber(damageResult and damageResult.damage) or 0
             local damageContext = {
