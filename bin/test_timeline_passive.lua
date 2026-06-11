@@ -360,26 +360,44 @@ do
     assert_true(BattleBuff.GetBuff(target, 880001) ~= nil, "IceArrow applies slow buff")
 end
 
--- Test 3: Frost Nova freezes slowed targets and slows fresh targets (80008003)
+-- Test 3: Frost Nova freezes save-failed targets (extends to 2 rounds when already slowed),
+--         and slows save-succeeded targets (80008003)
 do
+    local BattleSkillStatus = require("skills.battle_skill_status")
+    local SkillTimeline = require("core.skill_timeline")
+    local skillLua = require("config.skill.skill_80008003")
+
+    -- Case A: target already slowed, save fails -> freeze 2 rounds
     local hero = new_unit(1102, "Tester_FrostNova", 10000, 200, 0)
     local frozenTarget = new_unit(2102, "Nova_FrozenTarget", 10000, 0, 0)
-    local BattleSkillStatus = require("skills.battle_skill_status")
     BattleSkillStatus.ApplySlow(frozenTarget, 2, hero)
-    local skillLua = require("config.skill.skill_80008003")
     local timeline = skillLua.BuildTimeline(hero, { frozenTarget }, { skillId = 80008003, name = "冰霜新星" })
-    local SkillTimeline = require("core.skill_timeline")
     local ok, _ = SkillTimeline.Execute(hero, { frozenTarget }, { skillId = 80008003, name = "冰霜新星" }, timeline)
     assert_true(ok, "FrostNova timeline execute ok")
-    assert_true(BattleBuff.GetBuffBySubType(frozenTarget, E_BUFF_SPEC_SUBTYPE.Frozen) ~= nil, "FrostNova freezes pre-slowed target")
+    local frozenBuff = BattleBuff.GetBuffBySubType(frozenTarget, E_BUFF_SPEC_SUBTYPE.Frozen)
+    assert_true(frozenBuff ~= nil, "FrostNova freezes save-failed target that was pre-slowed")
+    assert_true((frozenBuff.duration or 0) == 2, "Frost extends to 2 rounds when target already slowed")
     local canAct = BattleSkill.ProcessTurnStartStatus(frozenTarget)
     assert_true(canAct == false, "Frozen target skips action on turn start")
 
+    -- Case B: fresh target, save fails -> freeze 1 round (no slow applied)
     local freshTarget = new_unit(2103, "Nova_FreshTarget", 10000, 0, 0)
     local freshTimeline = skillLua.BuildTimeline(hero, { freshTarget }, { skillId = 80008003, name = "冰霜新星" })
     local freshOk, _ = SkillTimeline.Execute(hero, { freshTarget }, { skillId = 80008003, name = "冰霜新星" }, freshTimeline)
     assert_true(freshOk, "FrostNova fresh-target timeline execute ok")
-    assert_true(BattleBuff.GetBuff(freshTarget, 880001) ~= nil, "FrostNova applies slow to fresh target")
+    local freshFrozen = BattleBuff.GetBuffBySubType(freshTarget, E_BUFF_SPEC_SUBTYPE.Frozen)
+    assert_true(freshFrozen ~= nil, "FrostNova freezes save-failed fresh target")
+    assert_true((freshFrozen.duration or 0) == 1, "Fresh save-failed target frozen for 1 round")
+    assert_true(BattleBuff.GetBuff(freshTarget, 880001) == nil, "Save-failed target is not slowed")
+
+    -- Case C: target succeeds save -> only slow applied (no freeze)
+    local savedTarget = new_unit(2104, "Nova_SavedTarget", 10000, 0, 0)
+    savedTarget.saveDex = 9999  -- guarantee save success vs DC=999
+    local savedTimeline = skillLua.BuildTimeline(hero, { savedTarget }, { skillId = 80008003, name = "冰霜新星" })
+    local savedOk, _ = SkillTimeline.Execute(hero, { savedTarget }, { skillId = 80008003, name = "冰霜新星" }, savedTimeline)
+    assert_true(savedOk, "FrostNova save-success timeline execute ok")
+    assert_true(BattleBuff.GetBuffBySubType(savedTarget, E_BUFF_SPEC_SUBTYPE.Frozen) == nil, "Save-success target not frozen")
+    assert_true(BattleBuff.GetBuff(savedTarget, 880001) ~= nil, "FrostNova applies slow to save-success target")
 end
 
 -- Test 5: Chain Lightning hits current target and one extra target (80009003)

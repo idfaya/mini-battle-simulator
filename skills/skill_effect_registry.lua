@@ -791,18 +791,24 @@ function SkillEffectRegistry.RegisterBuiltins()
 
         for _, t in ipairs(targets) do
             local targetId = t and (t.instanceId or t.id) or nil
-            if t and not t.isDead and targetId and not seen[targetId]
-                and not (frameCopy.__savedTargets and frameCopy.__savedTargets[targetId])
-                and ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
+            if t and not t.isDead and targetId and not seen[targetId] then
                 seen[targetId] = true
-                if BattleSkillStatus.HasSlow(t) then
-                    BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880002, ctx.skill, { duration = 1 })
+                local saved = frameCopy.__savedTargets and frameCopy.__savedTargets[targetId]
+                if saved then
+                    -- 豁免成功 → 施加减速
+                    if ClaimSpellLikeStatusApplication(ctx, t, "slow") then
+                        BattleSkillStatus.ApplySlow(t, 2, ctx.hero)
+                    end
                 else
-                    BattleSkillStatus.ApplySlow(t, 2, ctx.hero)
+                    -- 豁免失败 → 施加冻结；已减速则延长至 2 回合
+                    if ClaimSpellLikeStatusApplication(ctx, t, "freeze") then
+                        local duration = BattleSkillStatus.HasSlow(t) and 2 or 1
+                        BattleSkill.ApplyBuffFromSkill(ctx.hero, t, 880002, ctx.skill, { duration = duration })
+                    end
                 end
             end
         end
-        return { buffId = 880001 }
+        return { buffId = 880002 }
     end)
 
     SkillEffectRegistry.Register("wizard_blizzard_settlement", function(ctx, frameCopy, phase, spec)

@@ -409,8 +409,14 @@ function BattleFormation.GetMaxWpType()
     return MAX_WP_TYPE
 end
 
-function BattleFormation.GetHeroRow(wpType)
-    return ROW_BY_WP_TYPE[wpType]
+function BattleFormation.GetHeroRow(wpTypeOrHero)
+    if wpTypeOrHero == nil then
+        return nil
+    end
+    if type(wpTypeOrHero) == "table" then
+        return ROW_BY_WP_TYPE[wpTypeOrHero.wpType]
+    end
+    return ROW_BY_WP_TYPE[wpTypeOrHero]
 end
 
 function BattleFormation.GetHeroColumn(wpType)
@@ -450,13 +456,6 @@ function BattleFormation.GetAliveHeroesByRow(isLeft, row)
     end
 
     return result
-end
-
-function BattleFormation.GetHeroRow(hero)
-    if not hero then
-        return nil
-    end
-    return ROW_BY_WP_TYPE[hero.wpType]
 end
 
 function BattleFormation.GetAliveHeroesByColumn(isLeft, column)
