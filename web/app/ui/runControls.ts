@@ -116,10 +116,10 @@ export function createRunControls(handlers: RunHandlers): RunControls {
       return;
     }
     lastAutoPhase = phase;
-    // phase 切换意味着新的操作场景，统一把玩家引导到 info（营地/商店/事件/奖励）或 map
-    if (phase === "event" || phase === "reward" || phase === "shop" || phase === "camp") {
+    // phase 切换意味着新的操作场景。事件操作直接显示在战场舞台上，继续留在地图页。
+    if (phase === "reward" || phase === "shop" || phase === "camp") {
       setScreen("info");
-    } else if (phase === "map" || phase === "stair") {
+    } else if (phase === "map" || phase === "stair" || phase === "event") {
       setScreen("map");
     } else if (phase === "chapter_result" || phase === "failed") {
       setScreen("info");
@@ -884,8 +884,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       : msg.includes("营地安息")
       ? msg
       : snapshot.lastBattleSummary?.won
-        ? "（结算已展示，切到「地图」页选择下一个节点）"
-        : "（地图推进中，请切到「地图」页选择下一个节点）";
+        ? "（结算已展示，在战场下方选择下一扇门继续推进）"
+        : "（探索推进中，在战场下方选择一扇门）";
     host.append(hint);
   }
 }
@@ -989,6 +989,27 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     appendPadCell("right", buildNodeButtons("right")[0]);
     appendPadCell("down", buildNodeButtons("down")[0]);
     controls.mapOverlay.append(directionPad);
+    controls.mapOverlay.classList.add("is-active");
+  } else if (snapshot.phase === "event" && snapshot.eventState) {
+    const eventActions = document.createElement("div");
+    eventActions.className = "run-event-actions";
+    if (snapshot.eventState.result) {
+      const button = makeButton(
+        snapshot.eventState.result.actionLabel || "继续前进",
+        false,
+        controls.handlers.onContinueEvent,
+      );
+      button.classList.add("run-event-button");
+      eventActions.append(button);
+    } else {
+      for (const option of snapshot.eventState.options) {
+        const label = option.zeroRisk ? `${option.label}（零风险）` : option.label;
+        const button = makeButton(label, false, () => controls.handlers.onChooseEventOption(option.id));
+        button.classList.add("run-event-button");
+        eventActions.append(button);
+      }
+    }
+    controls.mapOverlay.append(eventActions);
     controls.mapOverlay.classList.add("is-active");
   }
 }

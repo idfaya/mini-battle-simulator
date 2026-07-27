@@ -419,10 +419,12 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   await expect(page.locator(".fatal-error")).toHaveCount(0);
   await expect(page.locator("canvas")).toHaveCount(1);
   await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
-  await page.getByRole("button", { name: "队伍" }).click();
   await expect(page.locator(".run-team-card")).toHaveCount(4);
   await expect(page.locator(".run-team-card").first()).toContainText("Lv1");
   await expect(page.locator(".run-team-card").first()).toContainText("构筑:");
+  await page.getByRole("button", { name: "信息" }).click();
+  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.locator(".run-team-card")).toHaveCount(4);
   await page.getByRole("button", { name: "地图" }).click();
   const routeState: RouteState = {
     firstBattleResolved: false,

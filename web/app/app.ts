@@ -146,6 +146,7 @@ export async function bootstrapApp(container: HTMLElement): Promise<AppHandle> {
       host,
       renderer,
       panelHost,
+      stage,
       battleStore,
       runStore,
       shell,
@@ -330,6 +331,7 @@ async function bootstrapRunMode(
   host: LuaBattleHost,
   renderer: CanvasRenderer,
   panelHost: HTMLDivElement,
+  stage: HTMLDivElement,
   battleStore: BattleStore,
   runStore: RunStore,
   shell: HTMLDivElement,
@@ -475,6 +477,7 @@ async function bootstrapRunMode(
       syncRunSnapshot(await host.restartRun({ chapterId: 101, seed: runSeed }));
     },
   });
+  stage.append(runControls.mapOverlay);
 
   syncRunSnapshot(await host.startRun({ chapterId: 101, seed: runSeed }));
 
@@ -556,6 +559,7 @@ async function bootstrapRunMode(
 
     const shouldRenderBattle = holdBattleResultScene || (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot);
     if (shouldRenderBattle && battleStore.getState().snapshot) {
+      runControls.mapOverlay.classList.remove("is-active");
       if (panelHost.firstChild !== battleControls.root) {
         panelHost.replaceChildren(battleControls.root);
         // 切换到战斗 HUD 时，把当前 hud 的 screen 同步到 shell，避免 CSS 失配

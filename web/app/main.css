@@ -56,9 +56,15 @@ body {
 }
 
 .shell[data-screen="run-map"] .stage canvas {
-  border: none;
-  box-shadow: none;
-  background: transparent;
+  background: rgba(9, 17, 30, 0.68);
+}
+
+.shell[data-screen^="run-"] .stage {
+  overflow: hidden;
+}
+
+.shell[data-screen^="run-"] .stage canvas {
+  background: rgba(9, 17, 30, 0.68);
 }
 
 .hud {
@@ -205,35 +211,40 @@ body {
   display: none;
 }
 
-/* Roguelike 多页布局：按 screen 显示对应面板 */
-.hud[data-screen="map"] .run-team-panel,
-.hud[data-screen="map"] .run-info-panel,
-.hud[data-screen="map"] .battle-log,
+/* Roguelike 常驻布局：战场承载探索/事件/战斗，队伍与信息保持可见 */
+.hud[data-screen="map"] .run-map-panel,
 .hud[data-screen="team"] .run-map-panel,
-.hud[data-screen="team"] .run-info-panel,
-.hud[data-screen="team"] .battle-log,
 .hud[data-screen="info"] .run-map-panel,
-.hud[data-screen="info"] .run-team-panel,
+.hud[data-screen="map"] .battle-log,
+.hud[data-screen="team"] .battle-log,
 .hud[data-screen="info"] .battle-log,
 .hud[data-screen="log"] .run-map-panel,
 .hud[data-screen="log"] .run-team-panel,
-.hud[data-screen="log"] .run-info-panel {
+.hud[data-screen="log"] .run-info-panel,
+.hud[data-screen="log"] .hud-status {
   display: none;
 }
 
-/* Roguelike 场景下活跃面板全部拉满可用空间并内部滚动 */
-.hud[data-screen="map"] .run-map-panel,
+.hud[data-screen="map"] .run-team-panel,
 .hud[data-screen="team"] .run-team-panel,
+.hud[data-screen="info"] .run-team-panel,
+.hud[data-screen="map"] .run-info-panel,
+.hud[data-screen="team"] .run-info-panel,
 .hud[data-screen="info"] .run-info-panel {
+  display: grid;
   overflow: auto;
 }
 
-.hud[data-screen="map"] .run-map-panel {
-  display: none;
+.hud[data-screen="map"],
+.hud[data-screen="team"],
+.hud[data-screen="info"] {
+  grid-template-rows: auto minmax(160px, 0.9fr) minmax(180px, 1fr) auto;
+  min-height: 0;
 }
 
-.hud[data-screen="map"] .hud-status {
-  display: none;
+.run-team-panel,
+.run-info-panel {
+  min-height: 0;
 }
 
 .run-info-panel {
@@ -242,15 +253,17 @@ body {
 
 .run-map-overlay {
   display: none;
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 5;
   width: auto;
   justify-items: start;
   align-items: start;
-  align-self: flex-start;
-  flex-shrink: 0;
   pointer-events: none;
 }
 
-.hud[data-screen="map"] .run-map-overlay.is-active {
+.run-map-overlay.is-active {
   display: grid;
 }
 
@@ -313,6 +326,18 @@ body {
 .run-direction-button--stair {
   background: #245f4b;
   box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.35) inset;
+}
+
+.run-event-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.run-event-button {
+  min-height: 42px;
+  padding: 8px 10px;
 }
 
 .ult-panel,
@@ -1038,6 +1063,16 @@ body {
     display: none;
   }
 
+  .shell[data-screen="run-team"],
+  .shell[data-screen="run-info"] {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .shell[data-screen="run-team"] .stage,
+  .shell[data-screen="run-info"] .stage {
+    display: block;
+  }
+
   .stage {
     max-height: none;
   }
@@ -1054,10 +1089,21 @@ body {
     background: transparent;
   }
 
-  /* Roguelike map: allow vertical scrolling when the map canvas grows taller than the viewport */
+  /* Roguelike stage keeps the same battlefield-sized canvas; the maze lives in the minimap. */
   .shell[data-screen="run-map"] .stage {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
+  }
+
+  .shell[data-screen^="run-"] .run-map-overlay {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    justify-items: stretch;
+    align-items: stretch;
+  }
+
+  .shell[data-screen^="run-"] .run-map-overlay.is-active {
+    display: block;
   }
 
   .shell > .hud > .hud {
@@ -1075,6 +1121,23 @@ body {
     flex-direction: column;
     gap: 8px;
     min-height: 0;
+  }
+
+  /* Run keeps team and info visible; log remains the only exclusive panel. */
+  .hud[data-screen="map"] .run-team-panel,
+  .hud[data-screen="team"] .run-team-panel,
+  .hud[data-screen="info"] .run-team-panel,
+  .hud[data-screen="map"] .run-info-panel,
+  .hud[data-screen="team"] .run-info-panel,
+  .hud[data-screen="info"] .run-info-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .hud[data-screen="map"] .run-team-panel,
+  .hud[data-screen="map"] .run-info-panel {
+    display: none;
   }
 
   /* 各页面里活跃主体面板自动占据剩余高度并内部滚动 */
@@ -1179,22 +1242,44 @@ body {
   }
 
   .run-direction-pad {
-    grid-template-columns: repeat(3, 42px);
-    gap: 3px;
-    width: 132px;
+    position: absolute;
+    left: 50%;
+    top: min(30%, 150px);
+    grid-template-columns: repeat(3, 76px);
+    gap: 6px;
+    width: 240px;
+    transform: translateX(-50%);
   }
 
   .run-direction-cell--empty {
-    width: 42px;
-    height: 42px;
+    width: 76px;
+    height: 40px;
   }
 
   .run-direction-button {
-    width: 42px;
-    min-width: 42px;
-    min-height: 42px;
+    width: 76px;
+    min-width: 76px;
+    min-height: 40px;
     border-radius: 12px;
     font-size: 12px;
+  }
+
+  .run-event-actions {
+    position: absolute;
+    left: 50%;
+    top: min(34%, 172px);
+    grid-template-columns: repeat(3, 78px);
+    gap: 6px;
+    transform: translateX(-50%);
+  }
+
+  .run-event-button {
+    min-width: 78px;
+    min-height: 40px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.15;
   }
 
   .run-compact-field {

@@ -20,6 +20,8 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
 
   await page.getByRole("button", { name: "地图" }).click();
   await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
+  await expect(page.locator(".run-team-card")).toHaveCount(4);
+  await expect(page.locator("canvas")).toBeVisible();
   const mapDebugState = await page.evaluate(async () => {
     const runtime = window as typeof window & {
       __miniBattleHost?: {
@@ -109,5 +111,43 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
   }
 
   expect(pageErrors).toEqual([]);
+  expect(filterKnownNoise(consoleErrors)).toEqual([]);
+});
+
+test("roguelike mobile portrait keeps stage, formation, and bottom menu", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      consoleErrors.push(msg.text());
+    }
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?seed=1");
+  await page.waitForTimeout(1500);
+  await expect(page.locator(".fatal-error")).toHaveCount(0);
+
+  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
+  await expect(page.getByRole("button", { name: "地图" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "队伍" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "信息" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "日志" })).toBeVisible();
+  await expect(page.locator(".hud[data-screen='map'] .run-team-card").first()).toBeHidden();
+
+  const debugState = await page.evaluate(() => {
+    const runtime = window as typeof window & {
+      __miniBattleRenderer?: {
+        getRunMapDebugState?: () => {
+          totalNodes: number;
+          drawnRooms: number;
+          drawnFogRooms: number;
+        };
+      };
+    };
+    return runtime.__miniBattleRenderer?.getRunMapDebugState?.() ?? null;
+  });
+  expect(debugState).not.toBeNull();
+  expect((debugState?.drawnRooms ?? 0) + (debugState?.drawnFogRooms ?? 0)).toBeGreaterThan(0);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });
