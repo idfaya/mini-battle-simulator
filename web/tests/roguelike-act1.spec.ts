@@ -489,7 +489,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       const rewardButton = Array.from(document.querySelectorAll("button")).find((button) =>
         /查看\s*奖励/.test(button.textContent || ""),
       );
-      rewardButton?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      rewardButton?.click();
     });
   };
 
@@ -520,8 +520,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
         return;
       }
       expect(currentPhase).toBe("reward");
-      await page.getByRole("button", { name: "信息" }).click();
-      const title = page.locator(".run-info-panel .panel-title").filter({ hasText: titlePattern });
+      const title = page.locator(".run-stage-modal__title").filter({ hasText: titlePattern });
       const hasExpectedTitle = await title.isVisible({ timeout: 1500 }).catch(() => false);
       if (!hasExpectedTitle) {
         const status = (await page.locator(".hud-status").textContent()) ?? "";
@@ -551,7 +550,7 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
       continue;
     }
     if (phase === "reward") {
-      await resolveRewardChain(/队伍升级|选择职业卡|选择升级|选择奖励|选择招募/);
+      await resolveRewardChain(/战斗结算|队伍升级|选择职业卡|选择升级|选择奖励|选择招募/);
       continue;
     }
     if (phase === "camp") {

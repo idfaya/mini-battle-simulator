@@ -1,3 +1,5 @@
+import { BattleScene } from "./BattleScene";
+import type { UnitState } from "../types/battle";
 import type { RunMapNodeState, RunSnapshot, RunTeamMember } from "../types/roguelike";
 
 type FloorBucket = {
@@ -35,6 +37,8 @@ export class RunMapScene {
     drawnEdges: 0,
   };
   private fogPattern: CanvasPattern | null = null;
+
+  constructor(private readonly battleScene: BattleScene) {}
 
   /**
    * Used by CanvasRenderer to decide whether we should grow the canvas.
@@ -383,20 +387,14 @@ export class RunMapScene {
     const nodeColor = this.getNodeColor(nodeType);
     const title = currentNode?.titleVisible ? currentNode.title : this.getNodeTypeLabel(nodeType);
     const phaseCopy = getPhaseCopy(snapshot, currentNode);
-    const topH = Math.max(210, Math.floor(height * 0.42));
-    const partyTop = topH + 10;
-    const partyBottom = Math.max(partyTop + 160, height - 12);
+    const topH = Math.max(190, Math.floor(height * 0.42));
+    const explorationUnits = snapshot.team.map((member, index) => toExplorationUnit(member, index));
 
     ctx.save();
-    const wallGradient = ctx.createLinearGradient(0, 0, 0, height);
-    wallGradient.addColorStop(0, "#111724");
-    wallGradient.addColorStop(0.55, "#0d1119");
-    wallGradient.addColorStop(1, "#07090d");
-    ctx.fillStyle = wallGradient;
-    ctx.fillRect(0, 0, width, height);
+    this.battleScene.drawRunExplorationFormation(ctx, width, height, explorationUnits);
 
     // 上半部：竖版房间 / 地图区域。
-    ctx.fillStyle = "rgba(255,255,255,0.035)";
+    ctx.fillStyle = "rgba(6,12,22,0.58)";
     roundRect(ctx, 8, 8, width - 16, topH - 8, 16);
     ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.12)";
@@ -448,174 +446,7 @@ export class RunMapScene {
     ctx.fillStyle = "rgba(217,226,236,0.82)";
     ctx.font = "12px sans-serif";
     wrapText(ctx, phaseCopy, 18, 104, Math.max(180, width - 130), 17);
-
-    // 下半部：与战斗阵容一致的 3 列前后排单位卡。
-    this.drawMobilePartyFormation(ctx, width, Math.min(partyBottom, height - 8), partyTop, snapshot.team);
     ctx.restore();
-  }
-
-  private drawMobilePartyFormation(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    bottom: number,
-    top: number,
-    team: RunTeamMember[],
-  ) {
-    const left = 8;
-    const w = width - 16;
-    const h = Math.max(150, bottom - top);
-    ctx.save();
-    ctx.fillStyle = "rgba(9,17,30,0.66)";
-    roundRect(ctx, left, top, w, h, 16);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(217,226,236,0.78)";
-    ctx.font = "700 12px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText("队伍阵列", left + 12, top + 22);
-    ctx.fillStyle = "rgba(217,226,236,0.48)";
-    ctx.font = "11px sans-serif";
-    ctx.fillText("3 列前后排 / 战斗单位卡", left + 78, top + 22, width - 100);
-
-    const gap = 7;
-    const cardW = Math.floor((w - 24 - gap * 2) / 3);
-    const cardH = Math.max(54, Math.floor((h - 44 - gap) / 2));
-    const startX = left + 12;
-    const startY = top + 34;
-    const slots: Array<RunTeamMember | null> = [
-      team[0] ?? null,
-      team[1] ?? null,
-      team[2] ?? null,
-      team[3] ?? null,
-      team[4] ?? null,
-      team[5] ?? null,
-    ];
-    slots.forEach((member, index) => {
-      const col = index % 3;
-      const row = Math.floor(index / 3);
-      const x = startX + col * (cardW + gap);
-      const y = startY + row * (cardH + gap);
-      this.drawMobileUnitCard(ctx, x, y, cardW, cardH, member);
-    });
-    ctx.restore();
-  }
-
-  private drawMobileUnitCard(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    member: RunTeamMember | null,
-  ) {
-    ctx.save();
-    if (!member) {
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
-      ctx.setLineDash([4, 4]);
-      roundRect(ctx, x, y, width, height, 12);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-      return;
-    }
-
-    const dead = member.isDead || member.hp <= 0;
-    const fillGradient = ctx.createLinearGradient(0, y, 0, y + height);
-    fillGradient.addColorStop(0, "rgba(25,40,36,0.96)");
-    fillGradient.addColorStop(1, "rgba(12,15,22,0.96)");
-    ctx.fillStyle = fillGradient;
-    roundRect(ctx, x, y, width, height, 12);
-    ctx.fill();
-    ctx.strokeStyle = dead ? "rgba(255,255,255,0.18)" : "rgba(128,237,153,0.46)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    const badgeSize = 18;
-    ctx.fillStyle = this.getClassBadgeFill(member.classId);
-    ctx.strokeStyle = "rgba(159,179,200,0.72)";
-    roundRect(ctx, x + 7, y + 7, badgeSize, badgeSize, badgeSize / 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "700 11px sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(member.name, x + 31, y + 21, Math.max(20, width - 66));
-
-    const levelText = `Lv${Math.max(1, Math.floor(Number(member.level) || 1))}`;
-    ctx.fillStyle = "rgba(128,237,153,0.14)";
-    ctx.strokeStyle = "rgba(128,237,153,0.44)";
-    roundRect(ctx, x + width - 34, y + 7, 27, 16, 8);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "700 8px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(levelText, x + width - 20.5, y + 15);
-
-    const hpRate = member.maxHp > 0 ? Math.max(0, Math.min(1, member.hp / member.maxHp)) : 0;
-    const hpY = y + Math.max(31, height - 25);
-    this.drawBar(ctx, x + 8, hpY, width - 16, 8, hpRate, this.getHpBarColor(hpRate), "#263238");
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = "700 7px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(`${Math.max(0, Math.floor(member.hp))}/${Math.floor(member.maxHp)}`, x + width / 2, hpY + 4);
-
-    for (let index = 0; index < 3; index += 1) {
-      const bx = x + 8 + index * 15;
-      const by = hpY + 12;
-      ctx.fillStyle = index === 0 ? "rgba(128,237,153,0.16)" : "rgba(255,255,255,0.05)";
-      ctx.strokeStyle = index === 0 ? "rgba(128,237,153,0.58)" : "rgba(255,255,255,0.16)";
-      roundRect(ctx, bx, by, 12, 12, 3);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    if (dead) {
-      ctx.fillStyle = "rgba(0,0,0,0.46)";
-      roundRect(ctx, x, y, width, height, 12);
-      ctx.fill();
-      ctx.fillStyle = "#f8f9fa";
-      ctx.font = "700 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("DEFEATED", x + width / 2, y + height / 2 + 3, width - 8);
-    }
-    ctx.restore();
-  }
-
-  private drawBar(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    rate: number,
-    fill: string,
-    background: string,
-  ) {
-    ctx.fillStyle = background;
-    roundRect(ctx, x, y, width, height, height / 2);
-    ctx.fill();
-    ctx.fillStyle = fill;
-    roundRect(ctx, x, y, Math.max(0, width * Math.max(0, Math.min(1, rate))), height, height / 2);
-    ctx.fill();
-  }
-
-  private getHpBarColor(rate: number) {
-    if (rate <= 0.25) return "#ef476f";
-    if (rate <= 0.5) return "#ffd166";
-    return "#80ed99";
-  }
-
-  private getClassBadgeFill(classId: number) {
-    if (classId >= 1 && classId <= 5) return "#243b53";
-    if (classId >= 6 && classId <= 9) return "#3d3650";
-    return "#2e4634";
   }
 
   private drawMiniMap(
@@ -965,6 +796,75 @@ function getDirectionLabel(currentNode: RunMapNodeState, target: RunMapNodeState
   if (dy === 0 && dx < 0) return "左";
   if (dy === 0 && dx > 0) return "右";
   return "";
+}
+
+function toExplorationUnit(member: RunTeamMember, index: number): UnitState {
+  const position = index + 1;
+  const alive = !member.isDead && member.hp > 0;
+  return {
+    id: member.unitId ?? `run-${member.rosterId ?? member.heroId ?? index}`,
+    name: member.name,
+    team: "left",
+    position,
+    classId: member.classId,
+    className: member.className ?? "",
+    classIcon: getClassIcon(member.classId),
+    level: member.level,
+    hp: member.hp,
+    maxHp: member.maxHp,
+    speed: 0,
+    initiativeRoll: 0,
+    initiativeMod: 0,
+    initiative: 0,
+    ac: member.ac ?? 10,
+    hit: member.hit ?? 0,
+    spellDC: member.spellDC ?? 0,
+    saveCon: member.saveCon ?? 0,
+    saveDex: member.saveDex ?? 0,
+    saveWis: member.saveWis ?? 0,
+    energy: 0,
+    maxEnergy: 100,
+    ultimateCharges: 0,
+    ultimateChargesMax: 0,
+    isAlive: alive,
+    isChanting: false,
+    pendingSkillName: null,
+    isConcentrating: false,
+    concentrationSkillId: null,
+    concentrationSkillName: null,
+    buffs: [],
+    actionBar: 0,
+    actionBarMax: 100,
+    ultimateReady: false,
+    ultimateSkillName: "",
+  };
+}
+
+function getClassIcon(classId: number) {
+  switch (classId) {
+    case 1:
+      return "🗡️";
+    case 2:
+      return "🛡️";
+    case 3:
+      return "⚡";
+    case 4:
+      return "✨";
+    case 5:
+      return "🏹";
+    case 6:
+      return "💚";
+    case 7:
+      return "🔥";
+    case 8:
+      return "❄️";
+    case 9:
+      return "🌩️";
+    case 10:
+      return "🪓";
+    default:
+      return "?";
+  }
 }
 
 function wrapText(

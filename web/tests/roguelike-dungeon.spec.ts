@@ -73,17 +73,18 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
       break;
     }
     if (status.includes("event")) {
-      await page.getByRole("button", { name: "信息" }).click();
+      const modal = page.locator(".run-stage-modal");
+      await expect(modal).toBeVisible();
       const hasSkillHint = await page
-        .locator(".run-info-panel .run-roster-meta")
+        .locator(".run-stage-modal")
         .filter({ hasText: /检定|DC/ })
         .first()
         .isVisible()
         .catch(() => false);
       if (hasSkillHint) {
-        await expect(page.locator(".run-info-panel")).toContainText(/检定|DC/);
+        await expect(modal).toContainText(/检定|DC/);
       }
-      const optionBtn = page.locator(".run-info-panel button").first();
+      const optionBtn = page.locator(".run-stage-modal button").first();
       if (await optionBtn.isVisible().catch(() => false)) {
         await optionBtn.click();
       }
@@ -143,11 +144,18 @@ test("roguelike mobile portrait keeps stage, formation, and bottom menu", async 
           drawnRooms: number;
           drawnFogRooms: number;
         };
+        getBattleDebugState?: () => {
+          unitLayouts?: Array<{ id: string; team: string; isAlive: boolean }>;
+        };
       };
     };
-    return runtime.__miniBattleRenderer?.getRunMapDebugState?.() ?? null;
+    return {
+      map: runtime.__miniBattleRenderer?.getRunMapDebugState?.() ?? null,
+      battle: runtime.__miniBattleRenderer?.getBattleDebugState?.() ?? null,
+    };
   });
-  expect(debugState).not.toBeNull();
-  expect((debugState?.drawnRooms ?? 0) + (debugState?.drawnFogRooms ?? 0)).toBeGreaterThan(0);
+  expect(debugState.map).not.toBeNull();
+  expect((debugState.map?.drawnRooms ?? 0) + (debugState.map?.drawnFogRooms ?? 0)).toBeGreaterThan(0);
+  expect(debugState.battle?.unitLayouts?.filter((layout) => layout.team === "left")).toHaveLength(4);
   expect(filterKnownNoise(consoleErrors)).toEqual([]);
 });

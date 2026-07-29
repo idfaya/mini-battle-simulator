@@ -283,6 +283,25 @@ export class BattleScene {
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
 
+  drawRunExplorationFormation(ctx: CanvasRenderingContext2D, width: number, height: number, team: UnitState[]) {
+    this.drawBackground(ctx, width, height);
+    const metrics = this.computeFormationMetrics(width, height);
+    const playerLayouts = this.layoutTeam(team, metrics, "player");
+    this.lastResolvedLayouts = playerLayouts.map((layout) => ({
+      id: layout.unit.id,
+      team: layout.unit.team,
+      x: layout.x,
+      y: layout.y,
+      baseX: layout.baseX,
+      baseY: layout.baseY,
+      isAlive: layout.unit.isAlive,
+    }));
+    this.drawBoardFrame(ctx, width, height, playerLayouts);
+    for (const layout of playerLayouts) {
+      this.drawUnitCard(ctx, layout, false);
+    }
+  }
+
   private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
     // 背景仅依赖 (width, height)，将其缓存到离屏 canvas，避免每帧重新创建
     // 3 个渐变对象（在手机端 Canvas 2D 上是显著开销）。

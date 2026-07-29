@@ -267,6 +267,94 @@ body {
   display: grid;
 }
 
+.run-map-overlay--modal {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  justify-items: center;
+  align-items: center;
+}
+
+.run-map-overlay--modal.is-active {
+  display: grid;
+}
+
+.run-stage-modal {
+  pointer-events: auto;
+  width: min(720px, calc(100% - 48px));
+  max-height: min(78%, 640px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 214, 102, 0.32);
+  border-radius: 18px;
+  color: #f8f9fa;
+  background:
+    radial-gradient(circle at top right, rgba(255, 214, 102, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(9, 17, 30, 0.94), rgba(6, 10, 18, 0.98));
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.44), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(10px);
+}
+
+.run-stage-modal__header,
+.run-stage-modal__body {
+  min-width: 0;
+}
+
+.run-stage-modal__header {
+  display: grid;
+  gap: 4px;
+}
+
+.run-stage-modal__title {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.run-stage-modal__subtitle,
+.run-stage-modal__meta {
+  font-size: 12px;
+  color: #d9e2ec;
+  line-height: 1.4;
+}
+
+.run-stage-modal__body {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+}
+
+.run-stage-modal__summary,
+.run-stage-modal__result-title {
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.run-stage-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.run-stage-modal__button {
+  min-width: 132px;
+}
+
+.run-stage-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.run-stage-notice {
+  border: 1px solid rgba(255, 214, 102, 0.22);
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #fff1b8;
+  background: rgba(255, 214, 102, 0.09);
+  font-size: 12px;
+}
+
 .run-direction-pad {
   display: grid;
   grid-template-columns: repeat(3, 44px);
@@ -1106,6 +1194,10 @@ body {
     display: block;
   }
 
+  .shell[data-screen^="run-"] .run-map-overlay--modal.is-active {
+    display: grid;
+  }
+
   .shell > .hud > .hud {
     gap: 8px;
   }
@@ -1280,6 +1372,23 @@ body {
     border-radius: 12px;
     font-size: 12px;
     line-height: 1.15;
+  }
+
+  .run-stage-modal {
+    width: calc(100% - 22px);
+    max-height: 70%;
+    padding: 12px;
+    border-radius: 14px;
+    gap: 10px;
+  }
+
+  .run-stage-modal__title {
+    font-size: 16px;
+  }
+
+  .run-stage-modal__actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .run-compact-field {

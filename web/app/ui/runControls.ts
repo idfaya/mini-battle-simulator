@@ -116,10 +116,10 @@ export function createRunControls(handlers: RunHandlers): RunControls {
       return;
     }
     lastAutoPhase = phase;
-    // phase 切换意味着新的操作场景。事件操作直接显示在战场舞台上，继续留在地图页。
-    if (phase === "reward" || phase === "shop" || phase === "camp") {
+    // phase 切换意味着新的操作场景。事件 / 奖励操作直接显示在战场舞台上，继续留在地图页。
+    if (phase === "shop" || phase === "camp") {
       setScreen("info");
-    } else if (phase === "map" || phase === "stair" || phase === "event") {
+    } else if (phase === "map" || phase === "stair" || phase === "event" || phase === "reward") {
       setScreen("map");
     } else if (phase === "chapter_result" || phase === "failed") {
       setScreen("info");
@@ -145,6 +145,38 @@ function makeButton(label: string, disabled: boolean, onClick: () => void | Prom
     }
   };
   return button;
+}
+
+function createStageModal(title: string, subtitle?: string) {
+  const modal = document.createElement("section");
+  modal.className = "run-stage-modal";
+
+  const header = document.createElement("div");
+  header.className = "run-stage-modal__header";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "run-stage-modal__title";
+  titleEl.textContent = title;
+  header.append(titleEl);
+
+  if (subtitle) {
+    const subtitleEl = document.createElement("div");
+    subtitleEl.className = "run-stage-modal__subtitle";
+    subtitleEl.textContent = subtitle;
+    header.append(subtitleEl);
+  }
+
+  const body = document.createElement("div");
+  body.className = "run-stage-modal__body";
+  modal.append(header, body);
+  return { modal, body };
+}
+
+function appendStageNotice(host: HTMLElement, text = "请在战场弹窗中处理当前选择。") {
+  const notice = document.createElement("div");
+  notice.className = "run-stage-notice";
+  notice.textContent = text;
+  host.append(notice);
 }
 
 function formatSigned(value: number | undefined | null): string {
@@ -374,6 +406,255 @@ function createEquipmentCard(equipment: EquipmentState): HTMLDivElement {
   return card;
 }
 
+function getBestSkillCheckMod(snapshot: RunSnapshot, ability: string) {
+  const key = (ability || "investigation").toLowerCase();
+  const table: Record<string, keyof RunTeamMember> = {
+    athletics: "str",
+    acrobatics: "dex",
+    stealth: "dex",
+    investigation: "int",
+    arcana: "int",
+    religion: "wis",
+    perception: "wis",
+    deception: "cha",
+    persuasion: "cha",
+  };
+  const stat = table[key] ?? "int";
+  let best = -99;
+  for (const hero of snapshot.team) {
+    if (hero.isDead) continue;
+    const score = Number(hero[stat] ?? 10);
+    const mod = Math.floor((score - 10) / 2);
+    if (mod > best) best = mod;
+  }
+  return best;
+}
+
+function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
+  if (!snapshot.eventState) {
+    return;
+  }
+  const { modal, body } = createStageModal(`事件 · ${snapshot.eventState.title}`, "在当前房间内处理");
+
+  const lastCheck = snapshot.eventState.lastSkillCheck;
+  if (lastCheck) {
+    const outcome = document.createElement("div");
+    outcome.className = "run-stage-modal__meta";
+    outcome.textContent = `检定结果：${lastCheck.heroName ? `${lastCheck.heroName} · ` : ""}${lastCheck.ability ?? "?"} d20(${lastCheck.roll ?? "?"})+${lastCheck.modifier ?? "?"}=${lastCheck.total ?? "?"} vs DC${lastCheck.dc ?? "?"} → ${formatEventTierLabel(lastCheck.tier)}`;
+    body.append(outcome);
+  }
+
+  if (snapshot.eventState.result) {
+    const resultTitle = document.createElement("div");
+    resultTitle.className = "run-stage-modal__result-title";
+    resultTitle.textContent = snapshot.eventState.result.title || "事件结果";
+    body.append(resultTitle);
+
+    if (snapshot.eventState.result.optionLabel) {
+      const option = document.createElement("div");
+      option.className = "run-stage-modal__meta";
+      option.textContent = `已选项：${snapshot.eventState.result.optionLabel}`;
+      body.append(option);
+    }
+
+    const summary = document.createElement("div");
+    summary.className = "run-stage-modal__summary";
+    summary.textContent = snapshot.eventState.result.summary || "事件已结算";
+    body.append(summary);
+
+    for (const line of snapshot.eventState.result.details ?? []) {
+      const detail = document.createElement("div");
+      detail.className = "run-stage-modal__meta";
+      detail.textContent = line;
+      body.append(detail);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "run-stage-modal__actions";
+    const continueButton = makeButton(
+      snapshot.eventState.result.actionLabel || "继续前进",
+      false,
+      controls.handlers.onContinueEvent,
+    );
+    continueButton.classList.add("run-stage-modal__button");
+    actions.append(continueButton);
+    body.append(actions);
+  } else {
+    const optionGrid = document.createElement("div");
+    optionGrid.className = "run-stage-choice-grid";
+    for (const option of snapshot.eventState.options) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = option.zeroRisk ? "reward-card" : "reward-card reward-card--risk";
+      button.addEventListener("click", () => controls.handlers.onChooseEventOption(option.id));
+
+      const header = document.createElement("div");
+      header.className = "reward-card__header";
+      const label = document.createElement("div");
+      label.className = "reward-card__feat";
+      label.textContent = option.label;
+      const risk = document.createElement("div");
+      risk.className = "reward-card__level";
+      risk.textContent = option.zeroRisk ? "零风险" : "事件选择";
+      header.append(label, risk);
+      button.append(header);
+
+      if (option.skillCheck) {
+        const mod = getBestSkillCheckMod(snapshot, option.skillCheck.ability);
+        const desc = document.createElement("div");
+        desc.className = "reward-card__desc";
+        desc.textContent = `检定 ${option.skillCheck.ability} DC${option.skillCheck.dc} · 队伍最佳修正约 +${mod >= 0 ? mod : mod}`;
+        button.append(desc);
+      }
+
+      optionGrid.append(button);
+    }
+    body.append(optionGrid);
+  }
+
+  controls.mapOverlay.append(modal);
+  controls.mapOverlay.classList.add("run-map-overlay--modal");
+  controls.mapOverlay.classList.add("is-active");
+}
+
+function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
+  if (!snapshot.rewardState) {
+    return;
+  }
+  const title =
+    snapshot.rewardState.kind === "feat_levelup"
+      ? "队伍升级"
+      : snapshot.rewardState.kind === "node_recruit"
+        ? "选择职业卡"
+        : snapshot.rewardState.kind === "chest"
+          ? "战斗结算"
+          : "选择奖励";
+  const { modal, body } = createStageModal(title, "在战场结算当前选择");
+
+  if (snapshot.rewardState.kind === "feat_levelup") {
+    const featState = snapshot.rewardState;
+    const pendingHint = featState.pendingLevels > 1 ? `剩余 ${featState.pendingLevels} 次升级` : "三选一";
+    const subtitle = document.createElement("div");
+    subtitle.className = "run-stage-modal__meta";
+    subtitle.textContent = `请为队伍中一名英雄选择 1 张专长 · ${pendingHint}`;
+    body.append(subtitle);
+
+    const grid = document.createElement("div");
+    grid.className = "reward-card-grid run-stage-choice-grid";
+    const featOptions = featState.options as FeatOption[];
+    featOptions.forEach((option, index) => {
+      const tier = option.tier ?? "small";
+      const tierLabel = tier === "high" ? "高阶" : tier === "medium" ? "中阶" : "小";
+      const isSubclassCore = option.isSubclassCore === true;
+      const heroName = option.heroName ?? "未知";
+      const featName = option.featName ?? `Feat ${option.featId}`;
+      const featDesc = option.featDescription ?? "";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `reward-card${isSubclassCore ? " feat-card--subclass-core" : ""}`;
+      btn.addEventListener("click", () => controls.handlers.onChooseReward(index + 1));
+
+      const header = document.createElement("div");
+      header.className = "reward-card__header";
+      const hero = document.createElement("div");
+      hero.className = "reward-card__hero";
+      hero.textContent = `为 ${heroName} 选择 Lv${option.level} 天赋`;
+      const lv = document.createElement("div");
+      lv.className = "reward-card__level";
+      lv.textContent = `${tierLabel}${isSubclassCore ? " · 子职核心" : ""}`;
+      header.append(hero, lv);
+
+      const feat = document.createElement("div");
+      feat.className = "reward-card__feat";
+      feat.textContent = `#${option.featId} ${featName}`;
+
+      const desc = document.createElement("div");
+      desc.className = "reward-card__desc";
+      desc.textContent = featDesc;
+
+      btn.append(header, feat, desc);
+      grid.append(btn);
+    });
+    body.append(grid);
+  } else if (snapshot.rewardState.kind === "chest") {
+    const option = (snapshot.rewardState.options as RewardOption[])[0];
+    if (option) {
+      const rarityLabel =
+        option.rarity === "boss" ? "传说" : option.rarity === "rare" ? "稀有" : "普通";
+      const typeLabel =
+        option.rewardType === "equipment"
+          ? "装备"
+          : option.rewardType === "blessing"
+            ? "祝福"
+            : option.rewardType === "gold"
+              ? "金币"
+              : "奖励";
+      const reveal = document.createElement("div");
+      reveal.className = `chest-reveal chest-reveal--${option.rewardType}`;
+
+      const icon = document.createElement("div");
+      icon.className = "chest-reveal__icon";
+      icon.textContent = snapshot.rewardState.source === "elite_victory" ? "战" : "箱";
+
+      const copy = document.createElement("div");
+      copy.className = "chest-reveal__copy";
+      const headline = document.createElement("div");
+      headline.className = "chest-reveal__headline";
+      headline.textContent = `获得 ${rarityLabel}${typeLabel}`;
+      const desc = document.createElement("div");
+      desc.className = "chest-reveal__desc";
+      desc.textContent = option.description || option.label;
+      copy.append(headline, desc);
+      reveal.append(icon, copy);
+      body.append(reveal);
+
+      if (option.rewardType === "equipment") {
+        const equipment =
+          option.equipmentPreview ??
+          ({
+            equipmentId: option.refId ?? 0,
+            name: option.label,
+            rarity: option.rarity ?? "common",
+            code: option.description,
+            effectDescription: option.description,
+          } satisfies EquipmentState);
+        body.append(createEquipmentCard(equipment));
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "run-stage-modal__actions";
+      const take = makeButton("收下奖励", false, () => controls.handlers.onChooseReward(1));
+      take.classList.add("run-stage-modal__button");
+      actions.append(take);
+      body.append(actions);
+    }
+  } else {
+    const grid = document.createElement("div");
+    grid.className = "run-stage-choice-grid";
+    const options = snapshot.rewardState.options as RewardOption[];
+    options.forEach((option, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "reward-card";
+      btn.addEventListener("click", () => controls.handlers.onChooseReward(index + 1));
+      const name = document.createElement("div");
+      name.className = "reward-card__feat";
+      name.textContent = option.label;
+      const desc = document.createElement("div");
+      desc.className = "reward-card__desc";
+      desc.textContent = option.description ?? "";
+      btn.append(name, desc);
+      grid.append(btn);
+    });
+    body.append(grid);
+  }
+
+  controls.mapOverlay.append(modal);
+  controls.mapOverlay.classList.add("run-map-overlay--modal");
+  controls.mapOverlay.classList.add("is-active");
+}
+
 function renderTeamPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
 
@@ -578,6 +859,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
       outcome.textContent = `检定结果：${lastCheck.heroName ? `${lastCheck.heroName} · ` : ""}${lastCheck.ability ?? "?"} d20(${lastCheck.roll ?? "?"})+${lastCheck.modifier ?? "?"}=${lastCheck.total ?? "?"} vs DC${lastCheck.dc ?? "?"} → ${formatEventTierLabel(lastCheck.tier)}`;
       host.append(outcome);
     }
+    appendStageNotice(host);
+    return;
 
     if (snapshot.eventState.result) {
       const resultSection = document.createElement("section");
@@ -670,6 +953,8 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
             ? "宝箱开启"
           : "选择奖励";
     host.append(title);
+    appendStageNotice(host);
+    return;
     if (snapshot.rewardState.kind === "feat_levelup") {
       const featState = snapshot.rewardState;
       const subtitle = document.createElement("div");
@@ -894,6 +1179,7 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
   host.replaceChildren();
   controls.mapOverlay.replaceChildren();
   controls.mapOverlay.classList.remove("is-active");
+  controls.mapOverlay.classList.remove("run-map-overlay--modal");
 
   if ((snapshot.phase === "map" || snapshot.phase === "stair") && snapshot.map) {
     const currentNode = snapshot.currentNodeId
@@ -991,27 +1277,30 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     controls.mapOverlay.append(directionPad);
     controls.mapOverlay.classList.add("is-active");
   } else if (snapshot.phase === "event" && snapshot.eventState) {
-    const eventActions = document.createElement("div");
-    eventActions.className = "run-event-actions";
-    if (snapshot.eventState.result) {
-      const button = makeButton(
-        snapshot.eventState.result.actionLabel || "继续前进",
-        false,
-        controls.handlers.onContinueEvent,
-      );
-      button.classList.add("run-event-button");
-      eventActions.append(button);
-    } else {
-      for (const option of snapshot.eventState.options) {
-        const label = option.zeroRisk ? `${option.label}（零风险）` : option.label;
-        const button = makeButton(label, false, () => controls.handlers.onChooseEventOption(option.id));
-        button.classList.add("run-event-button");
-        eventActions.append(button);
-      }
-    }
-    controls.mapOverlay.append(eventActions);
-    controls.mapOverlay.classList.add("is-active");
+    renderEventStageModal(controls, snapshot);
+  } else if (snapshot.phase === "reward" && snapshot.rewardState) {
+    renderRewardStageModal(controls, snapshot);
   }
+}
+
+export function renderBattleResultStageOverlay(controls: RunControls, onContinue: () => void | Promise<void>) {
+  controls.mapOverlay.replaceChildren();
+  const { modal, body } = createStageModal("战斗结算", "战斗已结束，继续处理奖励");
+  const summary = document.createElement("div");
+  summary.className = "run-stage-modal__summary";
+  summary.textContent = "队伍保持在同一战场中，查看奖励后继续完成战利品 / 三选一选择。";
+  body.append(summary);
+
+  const actions = document.createElement("div");
+  actions.className = "run-stage-modal__actions";
+  const button = makeButton("查看奖励", false, onContinue);
+  button.classList.add("run-stage-modal__button");
+  actions.append(button);
+  body.append(actions);
+
+  controls.mapOverlay.append(modal);
+  controls.mapOverlay.classList.add("run-map-overlay--modal");
+  controls.mapOverlay.classList.add("is-active");
 }
 
 export function renderRunControls(controls: RunControls, snapshot: RunSnapshot | null, logs: string[]) {

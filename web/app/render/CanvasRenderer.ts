@@ -7,7 +7,7 @@ export class CanvasRenderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly scene = new BattleScene();
-  private readonly runMapScene = new RunMapScene();
+  private readonly runMapScene = new RunMapScene(this.scene);
   private displayWidth = 960;
   private displayHeight = 760;
 

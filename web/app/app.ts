@@ -5,7 +5,7 @@ import { RunStore } from "./state/runStore";
 import type { BattleSetup } from "./types/battle";
 import type { RunSnapshot } from "./types/roguelike";
 import { createControls, renderControls } from "./ui/domControls";
-import { createRunControls, renderRunControls } from "./ui/runControls";
+import { createRunControls, renderBattleResultStageOverlay, renderRunControls } from "./ui/runControls";
 
 const BATTLE_ENTRANCE_HOLD_MS = 760;
 
@@ -393,8 +393,8 @@ async function bootstrapRunMode(
     deferredPostBattleSnapshot = null;
     holdBattleResultScene = false;
     syncRunSnapshot(nextSnapshot);
-    runControls.setScreen("info");
-    shell.dataset.screen = "run-info";
+    runControls.setScreen("map");
+    shell.dataset.screen = "run-map";
   };
 
   const battleControls = createControls(
@@ -559,7 +559,12 @@ async function bootstrapRunMode(
 
     const shouldRenderBattle = holdBattleResultScene || (runSnapshot?.phase === "battle" && runSnapshot.battleSnapshot);
     if (shouldRenderBattle && battleStore.getState().snapshot) {
-      runControls.mapOverlay.classList.remove("is-active");
+      if (holdBattleResultScene) {
+        renderBattleResultStageOverlay(runControls, exitBattleScene);
+      } else {
+        runControls.mapOverlay.classList.remove("is-active");
+        runControls.mapOverlay.classList.remove("run-map-overlay--modal");
+      }
       if (panelHost.firstChild !== battleControls.root) {
         panelHost.replaceChildren(battleControls.root);
         // 切换到战斗 HUD 时，把当前 hud 的 screen 同步到 shell，避免 CSS 失配
@@ -569,16 +574,7 @@ async function bootstrapRunMode(
       }
       battleControls.root.classList.toggle("battle-ended", holdBattleResultScene);
       renderer.renderBattle(battleStore.getState(), now);
-      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate, {
-        extraActions: holdBattleResultScene
-          ? [
-              {
-                label: "查看奖励",
-                onClick: exitBattleScene,
-              },
-            ]
-          : [],
-      });
+      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate);
       syncMobileBattleStageHeight();
       battleStore.clearTransient(now);
     } else {
