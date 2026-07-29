@@ -485,12 +485,10 @@ test("roguelike act1 boots into map and can finish the chapter flow", async ({ p
   };
 
   const leaveBattleResultIfNeeded = async () => {
-    await page.evaluate(() => {
-      const rewardButton = Array.from(document.querySelectorAll("button")).find((button) =>
-        /查看\s*奖励/.test(button.textContent || ""),
-      );
-      rewardButton?.click();
-    });
+    const rewardButton = page.getByRole("button", { name: /查看\s*奖励/ }).first();
+    if (await rewardButton.isVisible().catch(() => false)) {
+      await rewardButton.click();
+    }
   };
 
   const resolveRewardChain = async (titlePattern: RegExp) => {

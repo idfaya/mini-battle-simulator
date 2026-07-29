@@ -1284,8 +1284,18 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
 }
 
 export function renderBattleResultStageOverlay(controls: RunControls, onContinue: () => void | Promise<void>) {
+  const existingModal = controls.mapOverlay.querySelector<HTMLElement>(
+    ".run-stage-modal[data-stage-modal='battle-result']",
+  );
+  if (existingModal) {
+    controls.mapOverlay.classList.add("run-map-overlay--modal");
+    controls.mapOverlay.classList.add("is-active");
+    return;
+  }
+
   controls.mapOverlay.replaceChildren();
   const { modal, body } = createStageModal("战斗结算", "战斗已结束，继续处理奖励");
+  modal.dataset.stageModal = "battle-result";
   const summary = document.createElement("div");
   summary.className = "run-stage-modal__summary";
   summary.textContent = "队伍保持在同一战场中，查看奖励后继续完成战利品 / 三选一选择。";
