@@ -1236,10 +1236,10 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     }
 
     const buttonLabelBySlot: Record<string, string> = {
-      up: "上",
-      down: "下",
-      left: "左",
-      right: "右",
+      up: "进入",
+      down: "返回",
+      left: "左门",
+      right: "右门",
     };
 
     const buildNodeButtons = (slot: string) => {

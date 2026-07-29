@@ -239,6 +239,10 @@ export class RunMapScene {
     const nodeColor = this.getNodeColor(nodeType);
     const title = currentNode?.titleVisible ? currentNode.title : this.getNodeTypeLabel(nodeType);
     const phaseCopy = getPhaseCopy(snapshot, currentNode);
+    const selectable = snapshot.map?.nodes.filter((node) => node.selectable) ?? [];
+    const directions = new Set(
+      currentNode ? selectable.map((node) => getDirectionLabel(currentNode, node)).filter(Boolean) : [],
+    );
 
     ctx.save();
 
@@ -268,8 +272,31 @@ export class RunMapScene {
     ctx.closePath();
     ctx.fill();
 
-    this.drawStageDoor(ctx, width * 0.5, floorY - 80, Math.min(210, width * 0.22), 210, nodeColor);
-    this.drawExitHints(ctx, width, floorY, snapshot, currentNode);
+    const mainDoorColor = directions.has("上")
+      ? { fill: "#1b2b3d", stroke: "rgba(128,237,153,0.82)" }
+      : nodeColor;
+    this.drawStageDoor(ctx, width * 0.5, floorY - 80, Math.min(210, width * 0.22), 210, mainDoorColor);
+
+    if (directions.has("左")) {
+      this.drawStageDoor(ctx, width * 0.23, floorY - 46, Math.min(118, width * 0.12), 132, {
+        fill: "#1b2b3d",
+        stroke: "rgba(128,237,153,0.72)",
+      });
+    }
+    if (directions.has("右")) {
+      this.drawStageDoor(ctx, width * 0.77, floorY - 46, Math.min(118, width * 0.12), 132, {
+        fill: "#1b2b3d",
+        stroke: "rgba(128,237,153,0.72)",
+      });
+    }
+    if (directions.has("下")) {
+      ctx.fillStyle = "rgba(128,237,153,0.1)";
+      ctx.strokeStyle = "rgba(128,237,153,0.42)";
+      roundRect(ctx, width * 0.5 - 78, floorY + 30, 156, 42, 20);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     this.drawPartySilhouettes(ctx, width, floorY);
 
     ctx.fillStyle = "#f8f9fa";
@@ -389,35 +416,73 @@ export class RunMapScene {
     const phaseCopy = getPhaseCopy(snapshot, currentNode);
     const topH = Math.max(190, Math.floor(height * 0.42));
     const explorationUnits = snapshot.team.map((member, index) => toExplorationUnit(member, index));
+    const selectable = snapshot.map?.nodes.filter((node) => node.selectable) ?? [];
+    const directions = new Set(
+      currentNode ? selectable.map((node) => getDirectionLabel(currentNode, node)).filter(Boolean) : [],
+    );
 
     ctx.save();
     this.battleScene.drawRunExplorationFormation(ctx, width, height, explorationUnits);
 
-    // 上半部：竖版房间 / 地图区域。
-    ctx.fillStyle = "rgba(6,12,22,0.58)";
-    roundRect(ctx, 8, 8, width - 16, topH - 8, 16);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
+    // 上半部：竖版房间 / 地图区域。保持战场语境，只用轻量环境层表达门廊。
     const floorY = Math.floor(topH * 0.72);
-    const roomGradient = ctx.createLinearGradient(0, 8, 0, topH);
-    roomGradient.addColorStop(0, "#1a2332");
-    roomGradient.addColorStop(1, "#0d1119");
+    const roomGradient = ctx.createLinearGradient(0, 0, 0, topH);
+    roomGradient.addColorStop(0, "rgba(18, 29, 44, 0.94)");
+    roomGradient.addColorStop(0.58, "rgba(10, 16, 26, 0.7)");
+    roomGradient.addColorStop(1, "rgba(9, 14, 23, 0.18)");
     ctx.fillStyle = roomGradient;
-    roundRect(ctx, 9, 9, width - 18, topH - 10, 15);
+    ctx.fillRect(0, 0, width, topH + 6);
+
+    const floorGradient = ctx.createLinearGradient(0, floorY - 16, 0, topH + 20);
+    floorGradient.addColorStop(0, "rgba(56, 64, 78, 0.16)");
+    floorGradient.addColorStop(1, "rgba(19, 22, 30, 0.78)");
+    ctx.fillStyle = floorGradient;
+    ctx.beginPath();
+    ctx.moveTo(0, topH + 6);
+    ctx.lineTo(width * 0.24, floorY - 14);
+    ctx.lineTo(width * 0.76, floorY - 14);
+    ctx.lineTo(width, topH + 6);
+    ctx.closePath();
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(232,213,176,0.14)";
+    ctx.strokeStyle = "rgba(232,213,176,0.16)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(width * 0.12, floorY - 54);
-    ctx.lineTo(width * 0.88, floorY - 54);
-    ctx.moveTo(width * 0.22, floorY - 6);
-    ctx.lineTo(width * 0.78, floorY - 6);
+    ctx.moveTo(width * 0.5, Math.max(58, topH * 0.24));
+    ctx.lineTo(width * 0.18, topH + 6);
+    ctx.moveTo(width * 0.5, Math.max(58, topH * 0.24));
+    ctx.lineTo(width * 0.82, topH + 6);
+    ctx.moveTo(width * 0.17, floorY - 28);
+    ctx.lineTo(width * 0.83, floorY - 28);
+    ctx.moveTo(width * 0.27, floorY + 16);
+    ctx.lineTo(width * 0.73, floorY + 16);
     ctx.stroke();
 
-    this.drawStageDoor(ctx, width * 0.5, Math.max(58, topH * 0.26), Math.min(92, width * 0.24), 86, nodeColor);
+    const mainDoorY = Math.max(66, topH * 0.27);
+    const mainDoorColor = directions.has("上")
+      ? { fill: "#1b2b3d", stroke: "rgba(128,237,153,0.82)" }
+      : nodeColor;
+    this.drawStageDoor(ctx, width * 0.5, mainDoorY, Math.min(98, width * 0.25), 96, mainDoorColor);
+
+    if (directions.has("左")) {
+      this.drawStageDoor(ctx, width * 0.18, floorY - 34, Math.min(58, width * 0.15), 70, {
+        fill: "#1b2b3d",
+        stroke: "rgba(128,237,153,0.72)",
+      });
+    }
+    if (directions.has("右")) {
+      this.drawStageDoor(ctx, width * 0.82, floorY - 34, Math.min(58, width * 0.15), 70, {
+        fill: "#1b2b3d",
+        stroke: "rgba(128,237,153,0.72)",
+      });
+    }
+    if (directions.has("下")) {
+      ctx.fillStyle = "rgba(128,237,153,0.1)";
+      ctx.strokeStyle = "rgba(128,237,153,0.42)";
+      roundRect(ctx, width * 0.5 - 42, floorY + 10, 84, 24, 12);
+      ctx.fill();
+      ctx.stroke();
+    }
 
     if (snapshot.phase === "event" && snapshot.eventState) {
       ctx.fillStyle = "rgba(214,168,80,0.12)";
@@ -435,17 +500,17 @@ export class RunMapScene {
     ctx.fillStyle = "#f8f9fa";
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.font = "700 15px sans-serif";
+    ctx.font = "700 12px sans-serif";
     ctx.fillText(`Act ${snapshot.chapterId === 101 ? 1 : snapshot.chapterId} · ${floorLabel}`, 18, 32);
     ctx.fillStyle = nodeColor.stroke;
-    ctx.font = "700 12px sans-serif";
+    ctx.font = "700 11px sans-serif";
     ctx.fillText(getPhaseLabel(snapshot.phase), 18, 54);
     ctx.fillStyle = "#f8f9fa";
-    ctx.font = "800 21px sans-serif";
-    ctx.fillText(title || "未知房间", 18, 82, width - 126);
+    ctx.font = "800 18px sans-serif";
+    ctx.fillText(title || "未知房间", 18, 79, width - 126);
     ctx.fillStyle = "rgba(217,226,236,0.82)";
-    ctx.font = "12px sans-serif";
-    wrapText(ctx, phaseCopy, 18, 104, Math.max(180, width - 130), 17);
+    ctx.font = "11px sans-serif";
+    wrapText(ctx, phaseCopy, 18, 98, Math.max(168, width - 136), 15);
     ctx.restore();
   }
 
@@ -456,8 +521,8 @@ export class RunMapScene {
     edges: Array<{ fromNodeId: number; toNodeId: number }>,
   ) {
     const mobile = width < 520;
-    const mapW = mobile ? 96 : Math.min(MINIMAP_WIDTH, Math.max(190, width * 0.32));
-    const mapH = mobile ? 96 : MINIMAP_HEIGHT;
+    const mapW = mobile ? 86 : Math.min(MINIMAP_WIDTH, Math.max(190, width * 0.32));
+    const mapH = mobile ? 86 : MINIMAP_HEIGHT;
     const x = Math.max(mobile ? 10 : 24, width - mapW - (mobile ? 10 : MINIMAP_PADDING));
     const y = mobile ? 10 : MINIMAP_PADDING;
     const layout = computeMiniMapLayout(x, y, mapW, mapH, bucket);
