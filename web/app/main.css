@@ -598,34 +598,49 @@ body {
   width: 100%;
   min-width: 0;
   min-height: 100%;
-  padding: 0 8px 10px;
-  border: 1px solid rgba(128, 237, 153, 0.3);
-  border-radius: 16px;
-  color: #dcffe2;
-  background: radial-gradient(circle at 50% 72%, rgba(128, 237, 153, 0.18), rgba(36, 95, 75, 0.04) 58%, transparent 74%);
-  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.08) inset;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: transparent;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0;
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  text-shadow: none;
   pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.run-direction-button:hover,
+.run-direction-button:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
 .run-direction-button:focus-visible {
-  border-color: rgba(128, 237, 153, 0.78);
-  background: radial-gradient(circle at 50% 70%, rgba(128, 237, 153, 0.32), rgba(36, 95, 75, 0.1) 60%, transparent 76%);
-  box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.2) inset, 0 0 18px rgba(128, 237, 153, 0.24);
+  border-radius: 12px;
+  outline: 2px solid rgba(128, 237, 153, 0.78);
+  outline-offset: 2px;
+  background: rgba(128, 237, 153, 0.05);
+  box-shadow: 0 0 18px rgba(128, 237, 153, 0.18);
 }
 
 .run-direction-button:active {
-  background: radial-gradient(circle at 50% 70%, rgba(128, 237, 153, 0.42), rgba(36, 95, 75, 0.16) 60%, transparent 76%);
+  background: transparent;
+  box-shadow: none;
 }
 
 .run-direction-button--stair {
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(128, 237, 153, 0.32);
+  border-radius: 14px;
+  color: #dcffe2;
   background: #245f4b;
   box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.35) inset;
+  font-size: 12px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
 }
 
 .run-event-actions {
@@ -1608,28 +1623,48 @@ body {
     width: 100%;
     min-width: 0;
     min-height: 100%;
-    padding: 0 4px 7px;
-    border: 1px solid rgba(128, 237, 153, 0.3);
-    border-radius: 14px;
-    color: #dcffe2;
-    background: radial-gradient(circle at 50% 72%, rgba(128, 237, 153, 0.18), rgba(36, 95, 75, 0.04) 58%, transparent 74%);
-    box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.08) inset;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: transparent;
+    background: transparent;
+    box-shadow: none;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 0;
     font-weight: 800;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    text-shadow: none;
     pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .run-direction-button:hover,
+  .run-direction-button:hover {
+    background: transparent;
+    box-shadow: none;
+  }
+
   .run-direction-button:focus-visible {
-    border-color: rgba(128, 237, 153, 0.78);
-    background: radial-gradient(circle at 50% 70%, rgba(128, 237, 153, 0.32), rgba(36, 95, 75, 0.1) 60%, transparent 76%);
-    box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.2) inset, 0 0 18px rgba(128, 237, 153, 0.24);
+    border-radius: 10px;
+    outline: 2px solid rgba(128, 237, 153, 0.78);
+    outline-offset: 2px;
+    background: rgba(128, 237, 153, 0.05);
+    box-shadow: 0 0 14px rgba(128, 237, 153, 0.16);
   }
 
   .run-direction-button:active {
-    background: radial-gradient(circle at 50% 70%, rgba(128, 237, 153, 0.42), rgba(36, 95, 75, 0.16) 60%, transparent 76%);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .run-direction-button--stair {
+    align-items: center;
+    padding: 0 8px;
+    border: 1px solid rgba(128, 237, 153, 0.32);
+    border-radius: 12px;
+    color: #dcffe2;
+    background: #245f4b;
+    box-shadow: 0 0 0 1px rgba(128, 237, 153, 0.35) inset;
+    font-size: 11px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
   }
 
   .run-event-actions {
