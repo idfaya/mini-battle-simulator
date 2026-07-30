@@ -116,10 +116,10 @@ export function createRunControls(handlers: RunHandlers): RunControls {
       return;
     }
     lastAutoPhase = phase;
-    // phase 切换意味着新的操作场景。事件 / 奖励操作直接显示在战场舞台上，继续留在地图页。
-    if (phase === "shop" || phase === "camp") {
+    // phase 切换意味着新的操作场景。事件 / 商店 / 奖励操作直接显示在战场舞台上，继续留在地图页。
+    if (phase === "camp") {
       setScreen("info");
-    } else if (phase === "map" || phase === "stair" || phase === "event" || phase === "reward") {
+    } else if (phase === "map" || phase === "stair" || phase === "event" || phase === "shop" || phase === "reward") {
       setScreen("map");
     } else if (phase === "chapter_result" || phase === "failed") {
       setScreen("info");
@@ -435,6 +435,7 @@ function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
     return;
   }
   const { modal, body } = createStageModal(`事件 · ${snapshot.eventState.title}`, "在当前房间内处理");
+  modal.classList.add("run-stage-modal--event");
 
   const lastCheck = snapshot.eventState.lastSkillCheck;
   if (lastCheck) {
@@ -481,20 +482,20 @@ function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
     body.append(actions);
   } else {
     const optionGrid = document.createElement("div");
-    optionGrid.className = "run-stage-choice-grid";
+    optionGrid.className = "run-stage-choice-grid run-stage-choice-grid--event";
     for (const option of snapshot.eventState.options) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = option.zeroRisk ? "reward-card" : "reward-card reward-card--risk";
+      button.className = option.zeroRisk ? "run-event-choice" : "run-event-choice run-event-choice--risk";
       button.addEventListener("click", () => controls.handlers.onChooseEventOption(option.id));
 
       const header = document.createElement("div");
-      header.className = "reward-card__header";
+      header.className = "run-event-choice__header";
       const label = document.createElement("div");
-      label.className = "reward-card__feat";
+      label.className = "run-event-choice__label";
       label.textContent = option.label;
       const risk = document.createElement("div");
-      risk.className = "reward-card__level";
+      risk.className = "run-event-choice__tag";
       risk.textContent = option.zeroRisk ? "零风险" : "事件选择";
       header.append(label, risk);
       button.append(header);
@@ -502,7 +503,7 @@ function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
       if (option.skillCheck) {
         const mod = getBestSkillCheckMod(snapshot, option.skillCheck.ability);
         const desc = document.createElement("div");
-        desc.className = "reward-card__desc";
+        desc.className = "run-event-choice__desc";
         desc.textContent = `检定 ${option.skillCheck.ability} DC${option.skillCheck.dc} · 队伍最佳修正约 +${mod >= 0 ? mod : mod}`;
         button.append(desc);
       }
@@ -511,6 +512,82 @@ function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
     }
     body.append(optionGrid);
   }
+
+  controls.mapOverlay.append(modal);
+  controls.mapOverlay.classList.add("run-map-overlay--modal");
+  controls.mapOverlay.classList.add("is-active");
+}
+
+function renderShopStageModal(controls: RunControls, snapshot: RunSnapshot) {
+  if (!snapshot.shopState) {
+    return;
+  }
+
+  const { modal, body } = createStageModal(`商店 · ${snapshot.shopState.name}`, `金币 ${snapshot.gold}`);
+  modal.classList.add("run-stage-modal--shop");
+
+  const goodsGrid = document.createElement("div");
+  goodsGrid.className = "run-shop-goods";
+
+  for (const goods of snapshot.shopState.goods) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = goods.sold ? "run-shop-good is-sold" : "run-shop-good";
+    button.disabled = goods.sold || snapshot.gold < goods.price;
+    button.addEventListener("click", () => controls.handlers.onShopBuy(goods.goodsId));
+
+    const header = document.createElement("div");
+    header.className = "run-shop-good__header";
+
+    const name = document.createElement("div");
+    name.className = "run-shop-good__name";
+    name.textContent = goods.name;
+
+    const price = document.createElement("div");
+    price.className = "run-shop-good__price";
+    price.textContent = goods.sold ? "已售" : `${goods.price}G`;
+
+    header.append(name, price);
+    button.append(header);
+
+    if (goods.description) {
+      const description = document.createElement("div");
+      description.className = "run-shop-good__desc";
+      description.textContent = goods.description;
+      button.append(description);
+    }
+
+    const tags = document.createElement("div");
+    tags.className = "run-shop-good__tags";
+    const type = document.createElement("span");
+    type.textContent = goods.goodsType;
+    const rarity = document.createElement("span");
+    rarity.textContent = goods.rarity;
+    tags.append(type, rarity);
+    button.append(tags);
+
+    goodsGrid.append(button);
+  }
+
+  body.append(goodsGrid);
+
+  const actions = document.createElement("div");
+  actions.className = "run-stage-modal__actions run-shop-actions";
+
+  if (snapshot.shopState.maxRefresh > 0) {
+    const refresh = makeButton(
+      `刷新 ${snapshot.shopState.refreshCost}G`,
+      snapshot.shopState.refreshCount >= snapshot.shopState.maxRefresh || snapshot.gold < snapshot.shopState.refreshCost,
+      controls.handlers.onShopRefresh,
+    );
+    refresh.classList.add("run-stage-modal__button");
+    actions.append(refresh);
+  }
+
+  const leave = makeButton("离开商店", false, controls.handlers.onShopLeave);
+  leave.classList.add("run-stage-modal__button");
+  actions.append(leave);
+  body.append(actions);
 
   controls.mapOverlay.append(modal);
   controls.mapOverlay.classList.add("run-map-overlay--modal");
@@ -1127,16 +1204,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     title.className = "panel-title";
     title.textContent = `商店 · ${snapshot.shopState.name}`;
     host.append(title);
-    for (const goods of snapshot.shopState.goods) {
-      host.append(
-        makeButton(
-          `${goods.name}${goods.description ? ` · ${goods.description}` : ""} · ${goods.price}`,
-          goods.sold,
-          () => controls.handlers.onShopBuy(goods.goodsId),
-        ),
-      );
-    }
-    host.append(makeButton("离开商店", false, controls.handlers.onShopLeave));
+    appendStageNotice(host, "请在战场商店弹窗中购买或离开。");
   } else if (snapshot.phase === "camp" && snapshot.campState) {
     const title = document.createElement("div");
     title.className = "panel-title";
@@ -1278,6 +1346,8 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     controls.mapOverlay.classList.add("is-active");
   } else if (snapshot.phase === "event" && snapshot.eventState) {
     renderEventStageModal(controls, snapshot);
+  } else if (snapshot.phase === "shop" && snapshot.shopState) {
+    renderShopStageModal(controls, snapshot);
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     renderRewardStageModal(controls, snapshot);
   }

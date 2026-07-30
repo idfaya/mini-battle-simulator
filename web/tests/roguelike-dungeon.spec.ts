@@ -91,10 +91,11 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
       continue;
     }
     if (status.includes("shop")) {
-      await page.getByRole("button", { name: "信息" }).click();
-      await expect(page.locator(".run-info-panel")).toContainText(/复活卷轴|治疗药水|商店/);
-      await expect(page.locator(".run-info-panel button", { hasText: "刷新商店" })).toHaveCount(0);
-      await page.getByRole("button", { name: "离开商店" }).click();
+      const shopModal = page.locator(".run-stage-modal--shop");
+      await expect(shopModal).toBeVisible();
+      await expect(shopModal).toContainText(/复活卷轴|治疗药水|商店/);
+      await expect(shopModal.locator("button", { hasText: "刷新商店" })).toHaveCount(0);
+      await shopModal.getByRole("button", { name: "离开商店" }).click();
       continue;
     }
     if (status.includes("battle")) {
