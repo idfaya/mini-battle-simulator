@@ -22,7 +22,7 @@
 - 战斗经验全部进入 `state.partyExp`，不再分发到个人 `unit.exp`。
 - 当 `partyExp` 达到下一级阈值 → 触发"队伍升级"。
 - `partyExp` 阈值与 **PHB 角色升级表**对齐，SSOT：`config/roguelike/exp_5e.lua`（`PARTY_EXP_SCALE` 可整体缩放 Run 节奏）。
-- 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 章节倍率，见 `config/roguelike/battle_exp_reward.lua` / `roguelike/roguelike_run.lua`。
+- 战斗胜利掉落为 **DMG 按 CR 的遭遇 XP**（`run_encounter_budget.lua` 数量倍率）× 章节倍率，见 `config/roguelike/battle_exp_reward.lua` / `roguelike/roguelike_run.lua`；Act1 当前使用 `chapterMultiplier = 2.30` 补偿 F4 / Boss 降压后的 CR XP 下降。
 - 第一章怪物模板按 `CR` 固定强度，`Level` 仅作显示；**楼层越深，普通/精英/Boss 遭遇池纳入越高 CR 的组合**（`floors.json` → `battlePoolIds` → `run_enemy_pick_pool`），压强由 `run_battle_profile.budget` 闭环；运行时不对单怪面板做楼层缩放。
 - 第一章节奏目标调整为**章末队伍 Lv9-Lv10**；保证 4 人队平均能升到 Lv3 左右，避免 partyLevel 过低导致成长感缺失。
 - 程序实现与回归：[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md) §5.1；节奏模拟 [`bin/test_roguelike_progression_pacing.lua`](../bin/test_roguelike_progression_pacing.lua)。

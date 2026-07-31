@@ -323,6 +323,9 @@ body {
   display: grid;
   gap: 10px;
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .run-stage-modal__summary,

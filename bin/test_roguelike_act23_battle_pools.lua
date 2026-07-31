@@ -107,7 +107,7 @@ assertEnemyPoolLevelRange(701005, 1, 2, "act1_f23_back")
 assertEnemyPoolLevelRange(701004, 2, 3, "act1_f4_front")
 assertEnemyPoolLevelRange(701011, 2, 3, "act1_f4_back")
 assertEnemyPoolLevelRange(701202, 2, 3, "act1_boss_guard")
-assertEnemyPoolLevelRange(701204, 3, 5, "act1_boss_back")
+assertEnemyPoolLevelRange(701204, 1, 2, "act1_boss_back")
 
 assertEnemyPoolLevelRange(702001, 2, 5, "act2_f1_front")
 assertEnemyPoolLevelRange(702002, 1, 5, "act2_f1_back")

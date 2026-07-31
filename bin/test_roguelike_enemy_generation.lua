@@ -101,7 +101,7 @@ assertSeen(f3Seen, 910014, "Orc Fighter in act1 F3 pool")
 assertNotSeen(f3Seen, 910001, "Slime in act1 F3 pool")
 
 local lateSeen = collectPoolEnemyIds(401003, 2, 1301, 1380)
-assertSeen(lateSeen, 910016, "Shadow Priest in act1 F4 pool")
+assertSeen(lateSeen, 910010, "Oathguard in act1 F4 pool")
 assertNotSeen(lateSeen, 910001, "Slime in act1 F4 pool")
 
 local eliteSeen = collectPoolEnemyIds(401101, 1, 2001, 2120)
@@ -110,8 +110,10 @@ assertSeen(eliteSeen, 910016, "Shadow Priest in elite pool")
 
 local bossSeen = collectPoolEnemyIds(401201, 2, 3001, 3120)
 assertSeen(bossSeen, 910006, "Ice Demon in boss pool")
-assertSeen(bossSeen, 910011, "Berserker as boss guard")
-assertSeen(bossSeen, 910016, "Shadow Priest as boss backline")
+assertSeen(bossSeen, 910013, "Skeleton Archer as boss backline")
+assertSeen(bossSeen, 910012, "Goblin Thrower as boss backline")
+assertNotSeen(bossSeen, 910011, "Berserker in act1 boss support pool")
+assertNotSeen(bossSeen, 910016, "Shadow Priest in act1 boss support pool")
 assertNotSeen(bossSeen, 910001, "Slime in act1 boss pool")
 
 local lowPressureAvg = averageAdjustedXp(401101, 1, 4001, 4060, {

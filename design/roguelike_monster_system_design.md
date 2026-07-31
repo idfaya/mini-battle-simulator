@@ -345,7 +345,7 @@ Roguelike 怪物编组层
 - 单个怪物负责自身身份和玩法。
 - 编组模板负责“这场战斗想表达什么压力”。
 - Encounter 负责整体难度带。
-- **同章内楼层递进**：每层 `floors.json` 绑定不同战斗池；`run_enemy_pick_pool` 随楼层纳入更高 CR 模板（第一章：F1 以 CR 1/8 为主 → F2 CR 1/4 → F3–F4 CR 1/2 → F5 Boss 含 CR 1 护卫）。单怪 `Level`/面板不随楼层运行时缩放；回归见 `bin/test_roguelike_act1_floor_cr.lua`。
+- **同章内楼层递进**：每层 `floors.json` 绑定不同战斗池；`run_enemy_pick_pool` 随楼层纳入更高 CR 模板（第一章：F1 以 CR 1/8 为主 → F2 CR 1/4 → F3–F4 CR 1/2 → F5 Boss 由 CR 1 冰魔承担终局识别度，护卫 / 后排以 CR 1/4–1/2 缓压单位为主）。单怪 `Level`/面板不随楼层运行时缩放；回归见 `bin/test_roguelike_act1_floor_cr.lua`。
 
 ### 8.3 Boss 必须保持强识别度
 
@@ -508,6 +508,18 @@ Roguelike 怪物编组层
 
 - 每次改 `enemies.json` 的怪物基线或静态技能包时，应同步检查并更新怪物对齐测试。
 - 静态测试的职责是锁定“当前真值”，不是怀念旧平衡版本。
+
+### 9.10 Act1 当前真战基线
+
+- 当前真战脚本中 `unknown / Other Fail = 0` 时，平衡结论才可用。
+- Act1 若出现低清关率但无流程失败，优先检查 F3–F5 连续战损耗和 Boss 总 adjusted XP。
+- Boss 战目标不是把冰魔本体削成普通怪，而是让两波总压强接近 `run_battle_profile` 的目标预算。
+
+设计结论：
+
+- F4 普通战保留两波和每波 4 怪，但 CR 1/2 护卫 / 反击型单位只作为低权重上限出现，不应连续堆叠多只。
+- F5 Boss 保留两波、冰魔本体和 1 名护卫；前置波不再额外塞第 5 只增援，Boss 守卫波使用 1 前排 + 1 后排 + Boss + 护卫的缓压阵型。
+- Boss 的 CR 1 识别度由冰魔本体承担，护卫与后排不再必须包含 CR 1 单位。
 
 ---
 

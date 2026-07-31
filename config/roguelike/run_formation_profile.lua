@@ -88,6 +88,18 @@ RunFormationProfile.PROFILES = {
         guardCountMin = 1,
         guardCountMax = 1,
     },
+    [601203] = {
+        id = 601203,
+        code = "boss_front1_back1_soft",
+        name = "Boss 1 Front 1 Back Soft",
+        frontSlots = 1,
+        backSlots = 1,
+        waveUnitCap = 4,
+        maxSameEnemy = 2,
+        requireBoss = true,
+        guardCountMin = 1,
+        guardCountMax = 1,
+    },
 }
 
 function RunFormationProfile.GetProfile(profileId)

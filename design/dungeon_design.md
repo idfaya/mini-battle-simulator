@@ -61,7 +61,7 @@
   - `Level` 在 `enemies.json` 中按 `exp_5e.MONSTER_DISPLAY_LEVEL_BY_CR` 配置，运行时直接读取，不随楼层或队伍状态变化
 - 遭遇压强由 `run_battle_profile.budget` 给定，再在敌人生成阶段从候选波次中挑选最接近目标预算的编组。
 - 章节推进通过更高 `CR` 的怪物组合、精英/Boss 配置与 `budget` 形成节奏，而不是运行时按楼层或玩家状态自适应抬难度。
-- 第一章普通战按楼层绑定不同 `run_enemy_pick_pool`：`F1` 以 CR 1/8 为主、`F2` CR 1/4、`F3–F4` 引入 CR 1/2、`F5` Boss 战含 CR 1 护卫（见 `bin/test_roguelike_act1_floor_cr.lua`）。
+- 第一章普通战按楼层绑定不同 `run_enemy_pick_pool`：`F1` 以 CR 1/8 为主、`F2` CR 1/4、`F3–F4` 引入 CR 1/2、`F5` Boss 战由 CR 1 冰魔承担终局识别度，护卫 / 后排以 CR 1/4–1/2 缓压单位为主（见 `bin/test_roguelike_act1_floor_cr.lua`）。
 
 ### 3.3 隐藏层（可选）
 

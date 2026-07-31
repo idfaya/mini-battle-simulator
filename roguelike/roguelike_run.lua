@@ -151,9 +151,9 @@ local function finishDeferredPostBattleReward()
     return true
 end
 
--- 章节战斗经验倍率：三章统一 2.00，配合 5e CR XP + 数量倍率控制全 Run 节奏。
+-- 章节战斗经验倍率：Act1 降压后单战 CR XP 下降，单独上调以维持章末 Lv9-Lv10。
 local CHAPTER_BATTLE_EXP_MULTIPLIER = {
-    [101] = 2.00,
+    [101] = 2.30,
     [102] = 2.00,
     [103] = 2.00,
 }

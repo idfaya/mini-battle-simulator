@@ -172,6 +172,41 @@ function createStageModal(title: string, subtitle?: string) {
   return { modal, body };
 }
 
+function getStageModalRenderState(snapshot: RunSnapshot): { type: string; key: string } | null {
+  if (snapshot.phase === "event" && snapshot.eventState) {
+    const event = snapshot.eventState;
+    const resultKey = event.result
+      ? `result:${event.result.title}:${event.result.optionLabel ?? ""}:${event.result.summary}:${event.result.actionLabel}`
+      : `options:${event.options.map((option) => option.id).join(",")}`;
+    const check = event.lastSkillCheck;
+    const checkKey = check ? `${check.total ?? ""}:${check.tier ?? ""}` : "";
+    return { type: "event", key: `event:${event.id}:${event.code}:${resultKey}:${checkKey}` };
+  }
+
+  if (snapshot.phase === "shop" && snapshot.shopState) {
+    const shop = snapshot.shopState;
+    const goodsKey = shop.goods
+      .map((goods) => `${goods.goodsId}:${goods.price}:${goods.sold ? 1 : 0}`)
+      .join(",");
+    return { type: "shop", key: `shop:${shop.shopId}:${shop.refreshCount}:${snapshot.gold}:${goodsKey}` };
+  }
+
+  if (snapshot.phase === "reward" && snapshot.rewardState) {
+    const reward = snapshot.rewardState;
+    const optionKey = reward.options
+      .map((option) => "featId" in option ? option.featId : `${option.rewardType}:${option.refId ?? ""}:${option.value ?? ""}`)
+      .join(",");
+    return { type: "reward", key: `reward:${reward.kind}:${optionKey}` };
+  }
+
+  return null;
+}
+
+function applyStageModalRenderState(modal: HTMLElement, renderState: { type: string; key: string }) {
+  modal.dataset.stageModal = renderState.type;
+  modal.dataset.stageModalKey = renderState.key;
+}
+
 function appendStageNotice(host: HTMLElement, text = "请在战场弹窗中处理当前选择。") {
   const notice = document.createElement("div");
   notice.className = "run-stage-notice";
@@ -436,6 +471,8 @@ function renderEventStageModal(controls: RunControls, snapshot: RunSnapshot) {
   }
   const { modal, body } = createStageModal(`事件 · ${snapshot.eventState.title}`, "在当前房间内处理");
   modal.classList.add("run-stage-modal--event");
+  const renderState = getStageModalRenderState(snapshot);
+  if (renderState) applyStageModalRenderState(modal, renderState);
 
   const lastCheck = snapshot.eventState.lastSkillCheck;
   if (lastCheck) {
@@ -525,6 +562,8 @@ function renderShopStageModal(controls: RunControls, snapshot: RunSnapshot) {
 
   const { modal, body } = createStageModal(`商店 · ${snapshot.shopState.name}`, `金币 ${snapshot.gold}`);
   modal.classList.add("run-stage-modal--shop");
+  const renderState = getStageModalRenderState(snapshot);
+  if (renderState) applyStageModalRenderState(modal, renderState);
 
   const goodsGrid = document.createElement("div");
   goodsGrid.className = "run-shop-goods";
@@ -607,6 +646,8 @@ function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
           ? "战斗结算"
           : "选择奖励";
   const { modal, body } = createStageModal(title, "在战场结算当前选择");
+  const renderState = getStageModalRenderState(snapshot);
+  if (renderState) applyStageModalRenderState(modal, renderState);
 
   if (snapshot.rewardState.kind === "feat_levelup") {
     const featState = snapshot.rewardState;
@@ -1245,6 +1286,18 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 
 function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: RunSnapshot) {
   host.replaceChildren();
+  const nextModalState = getStageModalRenderState(snapshot);
+  const existingModal = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal[data-stage-modal-key]");
+  if (nextModalState && existingModal?.dataset.stageModalKey === nextModalState.key) {
+    controls.mapOverlay.classList.add("is-active");
+    controls.mapOverlay.classList.add("run-map-overlay--modal");
+    return;
+  }
+
+  const previousModalType = existingModal?.dataset.stageModal ?? "";
+  const previousBodyScrollTop =
+    existingModal?.querySelector<HTMLElement>(".run-stage-modal__body")?.scrollTop ?? 0;
+
   controls.mapOverlay.replaceChildren();
   controls.mapOverlay.classList.remove("is-active");
   controls.mapOverlay.classList.remove("run-map-overlay--modal");
@@ -1350,6 +1403,13 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     renderShopStageModal(controls, snapshot);
   } else if (snapshot.phase === "reward" && snapshot.rewardState) {
     renderRewardStageModal(controls, snapshot);
+  }
+
+  if (nextModalState && previousModalType === nextModalState.type && previousBodyScrollTop > 0) {
+    const nextBody = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body");
+    if (nextBody) {
+      nextBody.scrollTop = previousBodyScrollTop;
+    }
   }
 }
 
