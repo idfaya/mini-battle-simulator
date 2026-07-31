@@ -155,7 +155,7 @@ RunEnemyPickPool.POOLS = {
         entries = {
             { enemyId = 910003, weight = 25 },
             { enemyId = 910010, weight = 25 },
-            { enemyId = 910011, weight = 20 },
+            { enemyId = 910004, weight = 20 },
             { enemyId = 910014, weight = 30 },
         },
     },
@@ -166,25 +166,25 @@ RunEnemyPickPool.POOLS = {
             { enemyId = 910009, weight = 20 },
             { enemyId = 910012, weight = 20 },
             { enemyId = 910013, weight = 25 },
-            { enemyId = 910005, weight = 15 },
+            { enemyId = 910016, weight = 15 },
         },
     },
     [702003] = {
         id = 702003,
         entries = {
-            { enemyId = 910015, weight = 35 },
-            { enemyId = 910010, weight = 20 },
-            { enemyId = 910014, weight = 20 },
-            { enemyId = 910011, weight = 25 },
+            { enemyId = 910015, weight = 15 },
+            { enemyId = 910010, weight = 30 },
+            { enemyId = 910014, weight = 35 },
+            { enemyId = 910011, weight = 20 },
         },
     },
     [702004] = {
         id = 702004,
         entries = {
-            { enemyId = 910005, weight = 35 },
-            { enemyId = 910016, weight = 35 },
-            { enemyId = 910013, weight = 15 },
-            { enemyId = 910009, weight = 15 },
+            { enemyId = 910016, weight = 40 },
+            { enemyId = 910013, weight = 30 },
+            { enemyId = 910009, weight = 20 },
+            { enemyId = 910012, weight = 10 },
         },
     },
     [702201] = {

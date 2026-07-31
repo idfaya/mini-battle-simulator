@@ -98,8 +98,7 @@ RunBattlePool.POOLS = {
         chapterId = 102,
         kind = "normal",
         entries = {
-            { battleTemplateId = 202002, weight = 60 },
-            { battleTemplateId = 202003, weight = 40 },
+            { battleTemplateId = 202002, weight = 100 },
         },
     },
     [102003] = {

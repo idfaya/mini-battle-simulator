@@ -1,6 +1,8 @@
 ---@class RunChapterClearRewards
 ---@field gold integer
 ---@field healPct number
+---@field reviveCount integer|nil
+---@field revivePct number|nil
 
 ---@class RunChapterPostBattleRest
 ---@field healPct number
@@ -42,9 +44,23 @@ local DEFAULT_POST_BATTLE_REST = {
     reviveDead = false,
 }
 
+local ACT2_POST_BATTLE_REST = {
+    healPct = 0.35,
+    clearCooldowns = true,
+    restoreUltimateCharges = true,
+    reviveDead = false,
+}
+
 local DEFAULT_CLEAR_REWARDS = {
     gold = 90,
     healPct = 0.00,
+}
+
+local CHAPTER_TRANSITION_REWARDS = {
+    gold = 90,
+    healPct = 1.00,
+    reviveCount = 1,
+    revivePct = 0.50,
 }
 
 ---@type table<integer, RunChapterEntry>
@@ -68,7 +84,7 @@ RunChapterConfig.CHAPTERS = {
         shopId = 101001,
         campId = 101001,
         postBattleRest = DEFAULT_POST_BATTLE_REST,
-        chapterClearRewards = DEFAULT_CLEAR_REWARDS,
+        chapterClearRewards = CHAPTER_TRANSITION_REWARDS,
     },
     [102] = {
         id = 102,
@@ -87,7 +103,7 @@ RunChapterConfig.CHAPTERS = {
         mapGenProfileId = 102001,
         shopId = 101001,
         campId = 101001,
-        postBattleRest = DEFAULT_POST_BATTLE_REST,
+        postBattleRest = ACT2_POST_BATTLE_REST,
         chapterClearRewards = DEFAULT_CLEAR_REWARDS,
     },
     [103] = {

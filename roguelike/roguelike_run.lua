@@ -21,6 +21,7 @@ local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RoguelikeTrinket = require("roguelike.trinket")
 local DungeonGenerator = require("roguelike.dungeon_generator")
 local Act1BossPrep = require("roguelike.act1_boss_prep")
+local ChapterClearPrep = require("roguelike.chapter_clear_prep")
 
 local RoguelikeRun = {}
 local state = nil
@@ -687,14 +688,7 @@ end
 local function enterChapterResult()
     local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
     local clearRewards = chapter.chapterClearRewards or {}
-    if (clearRewards.healPct or 0) > 0 then
-        for _, hero in ipairs(RoguelikeRoster.GetTeamUnits(state)) do
-            if not hero.isDead then
-                local heal = math.floor((hero.maxHp or 0) * clearRewards.healPct)
-                hero.currentHp = math.min(hero.maxHp or 0, (hero.currentHp or 0) + heal)
-            end
-        end
-    end
+    ChapterClearPrep.Apply(state, clearRewards)
     -- 章 1/2 boss 通关：切下一章并重生地牢；金币已在 Tick 里加，避免 double-count。
     if state.chapterId < 103 then
         local nextChapterId = state.chapterId + 1

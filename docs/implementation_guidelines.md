@@ -187,6 +187,7 @@
 | 发放 | `roguelike/roguelike_run.lua` `grantBattleExp` | 只按当场敌人 `CR` 组合结算；**不读**模板 `expReward` |
 
 - 章节战斗经验倍率默认 `chapterMultiplier = 2.00`；Act1 当前为 `2.30`，用于补偿 F4 / Boss 降压后的 CR XP 下降并维持章末 Lv9–10。数量倍率见 `run_encounter_budget.GetCountMultiplier`（3–4 怪 ×2，5–6 ×2.5，7–8 ×3，9–10 ×3.5）。
+- 章节战后恢复默认 `postBattleRest.healPct = 0.20`；Act2 当前单独使用 `0.35`，用于缓冲中段连续战，不改变跨章整备和 Act3 入口。
 - 改 EXP/节奏：优先动 `exp_5e.lua`、`battle_exp_reward.lua`、`run_battle_profile.lua` 与怪物池/波次组合，勿在 `run_battle_template.expReward` 手填。
 
 ### 5.2 房间一次性（dungeon §4.2）

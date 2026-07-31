@@ -5,6 +5,7 @@ Bootstrap.SetupFromSource("@bin/test_roguelike_act23_battle_pools.lua", { includ
 
 local FloorsTable = require("config.tables.floors")
 local RunBattlePool = require("config.roguelike.run_battle_pool")
+local RunBattleProfile = require("config.roguelike.run_battle_profile")
 local RunBattleTemplate = require("config.roguelike.run_battle_template")
 local RunWaveGroupPool = require("config.roguelike.run_wave_group_pool")
 local RunEnemyPickPool = require("config.roguelike.run_enemy_pick_pool")
@@ -56,6 +57,15 @@ local function assertEnemyPoolLevelRange(poolId, minLevel, maxLevel, label)
     end
 end
 
+local function assertAllBattleTemplateProfiles()
+    for templateId, template in pairs(RunBattleTemplate.TEMPLATES or {}) do
+        for _, entry in ipairs(template.battleEntries or {}) do
+            assertTrue(RunBattleProfile.GetBattleProfile(entry.battleId) ~= nil,
+                ("template %d references missing battle profile %s"):format(templateId, tostring(entry.battleId)))
+        end
+    end
+end
+
 local function assertChapterBattleFlow(floorId, expectedNormalPoolId, expectedElitePoolId, expectedBossPoolId)
     local floor = getFloor(floorId)
     local battlePoolIds = floor.battlePoolIds or {}
@@ -86,6 +96,8 @@ local function assertChapterBattleFlow(floorId, expectedNormalPoolId, expectedEl
     assertTrue(getEnemyPool(eliteWaveTemplate.backPoolId) ~= nil, "elite back pool missing")
 end
 
+assertAllBattleTemplateProfiles()
+
 assertChapterBattleFlow(10201, 102001, 102101)
 assertChapterBattleFlow(10202, 102002, 102101)
 assertChapterBattleFlow(10204, 102003, 102102)
@@ -109,8 +121,8 @@ assertEnemyPoolLevelRange(701011, 2, 3, "act1_f4_back")
 assertEnemyPoolLevelRange(701202, 2, 3, "act1_boss_guard")
 assertEnemyPoolLevelRange(701204, 1, 2, "act1_boss_back")
 
-assertEnemyPoolLevelRange(702001, 2, 5, "act2_f1_front")
-assertEnemyPoolLevelRange(702002, 1, 5, "act2_f1_back")
+assertEnemyPoolLevelRange(702001, 2, 3, "act2_f1_front")
+assertEnemyPoolLevelRange(702002, 1, 3, "act2_f1_back")
 assertEnemyPoolLevelRange(702003, 3, 5, "act2_f23_front")
 assertEnemyPoolLevelRange(702004, 1, 5, "act2_f23_back")
 assertEnemyPoolLevelRange(702202, 3, 5, "act2_boss_guard")

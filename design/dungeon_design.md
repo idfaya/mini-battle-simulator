@@ -194,6 +194,8 @@ Floor = Maze(Room ⇄ Room)
   - **章节装备 ×1~2 件**；
   - **章节 trinket 必掉**（特殊装备，作为下一章诱因；**不进** `equipmentIds`，独立 `state.trinketIds`）；
   - **章节 bless ×1**。
+- 章 1 / 2 Boss 通关进入下一章前触发一次章节整备：存活队员恢复至满生命，并复活 1 名阵亡队员至 `50%` 最大生命，避免新章入口直接继承 Boss 战残损。
+- Act2 自身连续战使用局部战后恢复 `35%`，不提高跨章全局恢复。
 - **实现**：[`roguelike/trinket.lua`](../roguelike/trinket.lua) `GrantChapterBoss`；效果 SSOT 为 `config/data/trinkets.json` 的 `effectType` + `params`，由 [`roguelike/trinket_effects.lua`](../roguelike/trinket_effects.lua) 解释（战斗 / 事件检定 / 战后加金回满 / 隐藏 Boss 第三件）。回归 [`bin/test_roguelike_boss_trinket.lua`](../bin/test_roguelike_boss_trinket.lua)、[`bin/test_roguelike_trinket_effects.lua`](../bin/test_roguelike_trinket_effects.lua)。
 
 ---

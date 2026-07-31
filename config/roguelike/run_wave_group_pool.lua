@@ -84,9 +84,7 @@ RunWaveGroupPool.POOLS = {
     [402002] = {
         id = 402002,
         entries = {
-            { templateId = 502002, weight = 55 },
-            { templateId = 502003, weight = 25 },
-            { templateId = 502004, weight = 20 },
+            { templateId = 502002, weight = 100 },
         },
     },
     [402003] = {
@@ -375,7 +373,7 @@ RunWaveGroupPool.TEMPLATES = {
         id = 502201,
         code = "act2_boss_wave",
         name = "Act2 Boss 波次",
-        formationProfileId = 601201,
+        formationProfileId = 601203,
         frontPoolId = 702202,
         backPoolId = 702203,
         reinforcePoolId = 702203,
