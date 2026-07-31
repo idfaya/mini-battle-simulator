@@ -53,9 +53,10 @@ local DEFAULT_CONFIG = {
 }
 
 local REWARD_PRIORITY = {
-    equipment = 1,
-    blessing = 2,
-    gold = 3,
+    recruit = 1,
+    equipment = 2,
+    blessing = 3,
+    gold = 4,
 }
 
 local SHOP_PRIORITY = {

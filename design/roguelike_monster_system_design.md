@@ -527,7 +527,7 @@ Roguelike 怪物编组层
 
 - `bin/test_roguelike_act2_real_combat_balance.lua` 当前是 Act2 压力测试脚本：Act1 使用 `ch101_reach` 前置进入 Act2，再观察 Act2 战斗分布。
 - 当前脚本已清零 `other`；`102004` / `103004` 这类 battle template 引用缺 profile 的假失败由 `bin/test_roguelike_act23_battle_pools.lua` 静态断言覆盖。
-- 在 Act1 已使用 Boss 前“终局整备”的 30 seed 压力测试中，`ch101Clear=15/30`，`ch102Clear=5/30`，`other=0`；Act2 战斗失败仍集中在 `102002` / `102003` / `102004`，但已有更多样本能通过 Act2 Boss 进入 Act3。
+- 在 Act1 已使用 Boss 前“终局整备”、Act2 出战 5 人的 30 seed 压力测试中，`ch101Clear=16/30`，`ch102Clear=14/30`，`other=0`；剩余 Act2 战斗失败只剩少量 `102002` / `102201` 样本，主要瓶颈已回到 Act1 前置通过率。
 
 设计结论：
 
@@ -540,6 +540,7 @@ Roguelike 怪物编组层
 - Act2 F4 可以进入 late 双波压力，但 `102003` 不应连续高概率抽到 `202003`；普通 late 池采用软单波 / late 双波各半，让 Boss 前仍有损耗但不稳定清空队伍。
 - `pressureFactor` 和普通战显示等级微调不改变当前 30 seed 分布，说明池离散度仍锁住编组；当前有效方向是收敛池质量、波次池和 Boss 护卫结构。
 - Act2 入口不应直接继承 Act1 Boss 战后的重伤状态；章 1 Boss 通关进入 Act2 前应触发章节整备：存活队员回满，复活 1 名阵亡队员至 `50%` 最大生命。
+- 章 1 / 2 通关还会触发队伍扩编：进入 Act2 前补到 5 名出战队员，进入 Act3 前补到 6 名出战队员；扩编走招募 reward 流程，优先展示未拥有职业，玩家选择后新增队员按当前队伍等级生成并直接上场。
 - Act2 自身连续战使用局部战后恢复 `35%`；不提高跨章全局恢复，避免把 Act3 入口一并抬宽。
 - Act2 Boss 保留两波和冰魔本体，但最终波使用 `601203` 软 Boss 阵型，先削护卫结构，不削 Boss 本体识别度。
 - Act2 Boss 最终波使用 Boss 专用软护卫 / 后排池，避免复用精英池时把 CR 1 护卫和 CR 1 暗法师一起带进 Boss 房。

@@ -2,8 +2,43 @@ local RunRewardPool = require("config.roguelike.run_reward_pool")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local BuildConstraints = require("roguelike.build_constraints")
+local RoguelikeRoster = require("roguelike.roguelike_roster")
+local HeroData = require("config.hero_data")
 
 local RoguelikeReward = {}
+
+local function allocateRosterId(runState)
+    local nextId = tonumber(runState.nextRosterId) or 1
+    runState.nextRosterId = nextId + 1
+    return nextId
+end
+
+local function recruitHero(runState, classId)
+    local resolvedClassId = tonumber(classId) or 0
+    if resolvedClassId <= 0 then
+        return false, "invalid_recruit_class"
+    end
+    if RoguelikeRoster.GetTeamUnitCount(runState) >= (tonumber(runState.maxHeroCount) or 0) then
+        return false, "team_full"
+    end
+
+    local rosterId = allocateRosterId(runState)
+    local unit = HeroData.CreateClassUnit(resolvedClassId, {
+        rosterId = rosterId,
+        unitId = string.format("class_unit_%d_%d", resolvedClassId, rosterId),
+        level = tonumber(runState.partyLevel) or 1,
+        teamState = "active",
+        source = "recruit",
+        ultimateCharges = 1,
+        ultimateChargesMax = 1,
+        skillCooldowns = {},
+    })
+    if not unit then
+        return false, "recruit_create_failed"
+    end
+    RoguelikeRoster.AddOwnedUnit(runState, unit, "active")
+    return true, unit
+end
 
 local SLOT_LABELS = {
     weapon = "武器",
@@ -476,6 +511,12 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
             return false, reason
         end
         runState.lastActionMessage = prefix .. option.label
+    elseif option.rewardType == "recruit" then
+        local ok, result = recruitHero(runState, option.classId or option.refId)
+        if not ok then
+            return false, result
+        end
+        runState.lastActionMessage = "招募队员：" .. tostring(option.label or result.name or "新队员")
     else
         return false, "unsupported_reward"
     end

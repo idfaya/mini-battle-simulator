@@ -3,6 +3,8 @@
 ---@field healPct number
 ---@field reviveCount integer|nil
 ---@field revivePct number|nil
+---@field targetTeamSize integer|nil
+---@field recruitClassIds integer[]|nil
 
 ---@class RunChapterPostBattleRest
 ---@field healPct number
@@ -56,11 +58,24 @@ local DEFAULT_CLEAR_REWARDS = {
     healPct = 0.00,
 }
 
-local CHAPTER_TRANSITION_REWARDS = {
+local DEFAULT_RECRUIT_CLASS_IDS = { 4, 5, 1, 8, 9, 10, 3, 2, 6, 7 }
+
+local ACT1_CLEAR_REWARDS = {
     gold = 90,
     healPct = 1.00,
     reviveCount = 1,
     revivePct = 0.50,
+    targetTeamSize = 5,
+    recruitClassIds = DEFAULT_RECRUIT_CLASS_IDS,
+}
+
+local ACT2_CLEAR_REWARDS = {
+    gold = 90,
+    healPct = 1.00,
+    reviveCount = 1,
+    revivePct = 0.50,
+    targetTeamSize = 6,
+    recruitClassIds = DEFAULT_RECRUIT_CLASS_IDS,
 }
 
 ---@type table<integer, RunChapterEntry>
@@ -78,13 +93,13 @@ RunChapterConfig.CHAPTERS = {
         -- targetMaxLevel 定义章节队伍节奏目标；楼层怪物难度由 battlePoolIds → 更高 CR 遭遇池 + budget 控制。
         targetMaxLevel = 10,
         initialHeroCount = 4,
-        maxHeroCount = 6,
+        maxHeroCount = 4,
         reviveLimit = 1,
         mapGenProfileId = 101001,
         shopId = 101001,
         campId = 101001,
         postBattleRest = DEFAULT_POST_BATTLE_REST,
-        chapterClearRewards = CHAPTER_TRANSITION_REWARDS,
+        chapterClearRewards = ACT1_CLEAR_REWARDS,
     },
     [102] = {
         id = 102,
@@ -97,14 +112,14 @@ RunChapterConfig.CHAPTERS = {
         startGold = 100,
         startFood = 1,
         targetMaxLevel = 18,
-        initialHeroCount = 4,
-        maxHeroCount = 6,
+        initialHeroCount = 5,
+        maxHeroCount = 5,
         reviveLimit = 1,
         mapGenProfileId = 102001,
         shopId = 101001,
         campId = 101001,
         postBattleRest = ACT2_POST_BATTLE_REST,
-        chapterClearRewards = DEFAULT_CLEAR_REWARDS,
+        chapterClearRewards = ACT2_CLEAR_REWARDS,
     },
     [103] = {
         id = 103,
@@ -117,7 +132,7 @@ RunChapterConfig.CHAPTERS = {
         startGold = 100,
         startFood = 1,
         targetMaxLevel = 24,
-        initialHeroCount = 4,
+        initialHeroCount = 6,
         maxHeroCount = 6,
         reviveLimit = 1,
         mapGenProfileId = 103001,

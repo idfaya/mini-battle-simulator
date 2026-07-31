@@ -98,6 +98,19 @@ local function chooseSelectableFallback(snapshot)
     return selectable[1]
 end
 
+local function chooseProgressHop(snapshot)
+    local hop = RoguelikeTestRoute.findPathNextHop(snapshot, function(node)
+        if node.visited then
+            return false
+        end
+        return node.nodeType ~= "empty" and node.nodeType ~= "stair_up" and node.nodeType ~= "entrance"
+    end)
+    return RoguelikeTestRoute.pickHopIfSelectable(
+        RoguelikeTestRoute.findSelectableNodes(snapshot),
+        hop
+    )
+end
+
 for offset = 0, SEED_COUNT - 1 do
     local seed = SEED_START + offset
     Run.StartRun({ chapterId = 101, starterHeroIds = { 900005, 900001, 900007, 900002 }, seed = seed })
@@ -160,6 +173,9 @@ for offset = 0, SEED_COUNT - 1 do
 
         if snap.phase == "map" then
             local nextNode = RoguelikeTestRoute.chooseNextNode(snap, routeState)
+            if nextNode and nextNode.visited then
+                nextNode = chooseProgressHop(snap) or nextNode
+            end
             if not isSelectable(snap, nextNode) then
                 nextNode = chooseSelectableFallback(snap)
             end

@@ -121,6 +121,7 @@ export type BlessingState = {
 export type RewardOption = {
   rewardType: "gold" | "equipment" | "blessing" | "recruit";
   refId?: number;
+  classId?: number;
   value?: number;
   label: string;
   description: string;

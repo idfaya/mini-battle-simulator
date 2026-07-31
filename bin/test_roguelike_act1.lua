@@ -152,9 +152,10 @@ function chooseRewardIndex(snapshot)
     end
 
     local priority = {
-        equipment = 1,
-        blessing = 2,
-        gold = 3,
+        recruit = 1,
+        equipment = 2,
+        blessing = 3,
+        gold = 4,
     }
     local bestIndex, bestScore
     for index, option in ipairs(reward.options) do

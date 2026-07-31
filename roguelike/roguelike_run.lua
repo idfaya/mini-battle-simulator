@@ -269,7 +269,8 @@ local function shuffleArray(list)
     return list
 end
 
-local function buildRandomStarterHeroIds()
+local function buildRandomStarterHeroIds(targetCount)
+    local desiredCount = math.max(1, math.floor(tonumber(targetCount) or DEFAULT_STARTER_TEAM_SIZE))
     local frontPool = {}
     local backPool = {}
     for _, classId in ipairs(HeroData.GetAllClassIds() or {}) do
@@ -290,11 +291,11 @@ local function buildRandomStarterHeroIds()
     for index = 1, math.min(DEFAULT_STARTER_FRONT_COUNT, #frontPool) do
         picked[#picked + 1] = frontPool[index]
     end
-    for index = 1, math.min(DEFAULT_STARTER_TEAM_SIZE - #picked, #backPool) do
+    for index = 1, math.min(desiredCount - #picked, #backPool) do
         picked[#picked + 1] = backPool[index]
     end
 
-    if #picked < DEFAULT_STARTER_TEAM_SIZE then
+    if #picked < desiredCount then
         local seen = {}
         for _, heroId in ipairs(picked) do
             seen[heroId] = true
@@ -309,7 +310,7 @@ local function buildRandomStarterHeroIds()
         shuffleArray(fallbackPool)
         for _, heroId in ipairs(fallbackPool) do
             picked[#picked + 1] = heroId
-            if #picked >= DEFAULT_STARTER_TEAM_SIZE then
+            if #picked >= desiredCount then
                 break
             end
         end
@@ -354,6 +355,7 @@ local function resetRunState()
         dungeonState = nil,
         seed = nil,
         rewardReturnMode = "map",
+        chapterClearPrepAppliedFor = nil,
         nextRosterId = 1,
         hiddenFloorInjected = false,
         hiddenFloorActive = false,
@@ -688,13 +690,25 @@ end
 local function enterChapterResult()
     local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
     local clearRewards = chapter.chapterClearRewards or {}
-    ChapterClearPrep.Apply(state, clearRewards)
+    if state.chapterClearPrepAppliedFor ~= state.chapterId then
+        ChapterClearPrep.Apply(state, clearRewards)
+        state.chapterClearPrepAppliedFor = state.chapterId
+    end
+    local recruitReward = ChapterClearPrep.BuildRecruitRewardState(state, clearRewards)
+    if recruitReward then
+        state.rewardState = recruitReward
+        state.rewardReturnMode = "chapter_result"
+        state.phase = "reward"
+        return
+    end
+    state.chapterClearPrepAppliedFor = nil
     -- 章 1/2 boss 通关：切下一章并重生地牢；金币已在 Tick 里加，避免 double-count。
     if state.chapterId < 103 then
         local nextChapterId = state.chapterId + 1
         local nextChapter = RoguelikeMap.GetChapter(nextChapterId)
         if nextChapter then
             state.chapterId = nextChapterId
+            state.maxHeroCount = nextChapter.maxHeroCount or state.maxHeroCount
             -- targetMaxLevel 是章节节奏设计目标（用于怪物等级曲线），不是 partyLevel 硬上限。
             -- partyLevel 上限统一走 CHAPTER_LEVEL_CAP，避免 partyLevel 触达 targetMaxLevel 时 UI 误显示"已满级"。
             state.levelCap = CHAPTER_LEVEL_CAP
@@ -799,7 +813,7 @@ function RoguelikeRun.StartRun(config)
 
     local starterHeroIds = cloneArray((config or {}).starterHeroIds)
     if #starterHeroIds == 0 then
-        starterHeroIds = buildRandomStarterHeroIds()
+        starterHeroIds = buildRandomStarterHeroIds(chapter.initialHeroCount or DEFAULT_STARTER_TEAM_SIZE)
     end
     state.ownedUnits = buildStarterRoster(state, starterHeroIds)
     RoguelikeRoster.RefreshLegacyViews(state)

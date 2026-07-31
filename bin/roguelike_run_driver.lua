@@ -149,7 +149,7 @@ function RoguelikeRunDriver.chooseRewardIndex(snapshot)
             return bestIndex
         end
     end
-    local priority = { equipment = 1, blessing = 2, gold = 3 }
+    local priority = { recruit = 1, equipment = 2, blessing = 3, gold = 4 }
     local bestIndex, bestScore
     for index, option in ipairs(reward.options) do
         local score = priority[option.rewardType] or 99
