@@ -20,6 +20,7 @@ local BattleExpReward = require("config.roguelike.battle_exp_reward")
 local EncounterLevelCurve = require("config.roguelike.encounter_level_curve")
 local RoguelikeTrinket = require("roguelike.trinket")
 local DungeonGenerator = require("roguelike.dungeon_generator")
+local Act1BossPrep = require("roguelike.act1_boss_prep")
 
 local RoguelikeRun = {}
 local state = nil
@@ -166,6 +167,20 @@ local function countAliveTeamSize()
         end
     end
     return math.max(1, count)
+end
+
+local function applyAct1BossPrepIfNeeded(node)
+    if not node or node.nodeType ~= "boss" then
+        return
+    end
+    if (tonumber(state.chapterId) or 0) ~= 101 then
+        return
+    end
+    if state.act1BossPrepUsed == true then
+        return
+    end
+
+    Act1BossPrep.Apply(state)
 end
 
 local function grantBattleExp(_battle)
@@ -538,6 +553,7 @@ local function enterNode(nodeId)
     end
 
     if node.nodeType == "battle_normal" or node.nodeType == "battle_elite" or node.nodeType == "boss" then
+        applyAct1BossPrepIfNeeded(node)
         local battle, battleProfile, resolveReason = RoguelikeBattleResolver.ResolveNodeBattle(state, node)
         if not battle or not battleProfile then
             return false, resolveReason or "battle_not_found"

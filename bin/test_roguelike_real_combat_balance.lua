@@ -26,7 +26,17 @@ end
 local results = {}
 local bossCleared, wiped, otherEnd = 0, 0, 0
 local floorWipeCount = {}  -- floorDepth -> count
+local battleWipeCount = {} -- battleId -> count
 local floorEnterHpSum, floorEnterHpN = {}, {}
+
+local function recordWipe(depth, battleId)
+    floorWipeCount[depth] = (floorWipeCount[depth] or 0) + 1
+    local bid = tonumber(battleId) or 0
+    if bid > 0 then
+        battleWipeCount[bid] = (battleWipeCount[bid] or 0) + 1
+    end
+    wiped = wiped + 1
+end
 
 for offset = 0, SEED_COUNT - 1 do
     local seed = SEED_START + offset
@@ -53,8 +63,7 @@ for offset = 0, SEED_COUNT - 1 do
         end
         if snap.phase == "failed" then
             outcome = "wipe"
-            floorWipeCount[depth] = (floorWipeCount[depth] or 0) + 1
-            wiped = wiped + 1
+            recordWipe(depth, snap.currentBattleId or (snap.lastBattleSummary and snap.lastBattleSummary.battleId))
             break
         end
         if snap.phase == "chapter_result" or (tonumber(snap.chapterId) or 101) > 101 then
@@ -86,11 +95,11 @@ for offset = 0, SEED_COUNT - 1 do
                 routeState.firstBattleResolved = true
             end
         elseif snap.phase == "battle" then
+            local battleId = snap.currentBattleId
             snap = Driver.runBattleUntilResolved(Run, 900, 800)
             if snap.phase == "failed" then
                 outcome = "wipe"
-                floorWipeCount[depth] = (floorWipeCount[depth] or 0) + 1
-                wiped = wiped + 1
+                recordWipe(depth, battleId or snap.currentBattleId or (snap.lastBattleSummary and snap.lastBattleSummary.battleId))
                 break
             end
             if snap.phase == "reward" then
@@ -160,6 +169,16 @@ for d = 1, 5 do
     if (floorWipeCount[d] or 0) > 0 then
         print(string.format("    floor %d: %d wipes", d, floorWipeCount[d]))
     end
+end
+
+print("  Wipe distribution by battleId:")
+local battleIds = {}
+for battleId, _ in pairs(battleWipeCount) do
+    battleIds[#battleIds + 1] = battleId
+end
+table.sort(battleIds)
+for _, battleId in ipairs(battleIds) do
+    print(string.format("    battle %d: %d wipes", battleId, battleWipeCount[battleId]))
 end
 
 print("  Avg HP ratio entering each floor:")
