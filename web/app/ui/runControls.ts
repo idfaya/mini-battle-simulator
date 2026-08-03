@@ -562,6 +562,7 @@ function renderShopStageModal(controls: RunControls, snapshot: RunSnapshot) {
 
   const { modal, body } = createStageModal(`商店 · ${snapshot.shopState.name}`, `金币 ${snapshot.gold}`);
   modal.classList.add("run-stage-modal--shop");
+  body.classList.add("run-stage-modal__body--shop");
   const renderState = getStageModalRenderState(snapshot);
   if (renderState) applyStageModalRenderState(modal, renderState);
 
@@ -1295,8 +1296,11 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
   }
 
   const previousModalType = existingModal?.dataset.stageModal ?? "";
-  const previousBodyScrollTop =
-    existingModal?.querySelector<HTMLElement>(".run-stage-modal__body")?.scrollTop ?? 0;
+  const previousScrollTarget =
+    existingModal?.querySelector<HTMLElement>(".run-shop-goods")
+    ?? existingModal?.querySelector<HTMLElement>(".run-stage-modal__body")
+    ?? null;
+  const previousScrollTop = previousScrollTarget?.scrollTop ?? 0;
 
   controls.mapOverlay.replaceChildren();
   controls.mapOverlay.classList.remove("is-active");
@@ -1405,10 +1409,12 @@ function renderMapPanel(host: HTMLDivElement, controls: RunControls, snapshot: R
     renderRewardStageModal(controls, snapshot);
   }
 
-  if (nextModalState && previousModalType === nextModalState.type && previousBodyScrollTop > 0) {
-    const nextBody = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body");
-    if (nextBody) {
-      nextBody.scrollTop = previousBodyScrollTop;
+  if (nextModalState && previousModalType === nextModalState.type && previousScrollTop > 0) {
+    const nextScrollTarget =
+      controls.mapOverlay.querySelector<HTMLElement>(".run-shop-goods")
+      ?? controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body");
+    if (nextScrollTarget) {
+      nextScrollTarget.scrollTop = previousScrollTop;
     }
   }
 }

@@ -283,6 +283,7 @@ body {
   pointer-events: auto;
   width: min(720px, calc(100% - 48px));
   max-height: min(78%, 640px);
+  min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
@@ -320,12 +321,18 @@ body {
 }
 
 .run-stage-modal__body {
+  min-height: 0;
   display: grid;
   gap: 10px;
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+.run-stage-modal__body--shop {
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .run-stage-modal__summary,
@@ -447,9 +454,14 @@ body {
 }
 
 .run-shop-goods {
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .run-shop-good {
@@ -525,6 +537,8 @@ body {
 
 .run-shop-actions {
   padding-top: 2px;
+  border-top: 1px solid rgba(255, 214, 102, 0.16);
+  background: linear-gradient(180deg, rgba(8, 11, 18, 0), rgba(8, 11, 18, 0.28));
 }
 
 .run-stage-notice {

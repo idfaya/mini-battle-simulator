@@ -80,7 +80,9 @@ test("roguelike stage modals keep scroll position across UI refreshes", async ({
 
     renderRunControls(controls, eventSnapshot as never, []);
     const eventBody = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body");
-    if (!eventBody) return { eventBefore: -1, eventAfter: -1, shopBefore: -1, shopAfter: -1 };
+    if (!eventBody) {
+      return { eventBefore: -1, eventAfter: -1, shopBefore: -1, shopAfter: -1, leaveBefore: false, leaveAfter: false };
+    }
     eventBody.scrollTop = 999;
     const eventBefore = eventBody.scrollTop;
     renderRunControls(controls, eventSnapshot as never, []);
@@ -108,10 +110,18 @@ test("roguelike stage modals keep scroll position across UI refreshes", async ({
     };
 
     renderRunControls(controls, shopSnapshot as never, []);
-    const shopBody = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body");
-    if (!shopBody) return { eventBefore, eventAfter, shopBefore: -1, shopAfter: -1 };
-    shopBody.scrollTop = 999;
-    const shopBefore = shopBody.scrollTop;
+    const shopGoods = controls.mapOverlay.querySelector<HTMLElement>(".run-shop-goods");
+    const leaveButton = controls.mapOverlay.querySelector<HTMLButtonElement>(".run-shop-actions button:last-child");
+    const leaveBefore = leaveButton
+      ? (() => {
+          const modalRect = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal")?.getBoundingClientRect();
+          const buttonRect = leaveButton.getBoundingClientRect();
+          return !!modalRect && buttonRect.bottom <= modalRect.bottom && buttonRect.top >= modalRect.top;
+        })()
+      : false;
+    if (!shopGoods) return { eventBefore, eventAfter, shopBefore: -1, shopAfter: -1, leaveBefore, leaveAfter: false };
+    shopGoods.scrollTop = 999;
+    const shopBefore = shopGoods.scrollTop;
     renderRunControls(
       controls,
       {
@@ -126,13 +136,23 @@ test("roguelike stage modals keep scroll position across UI refreshes", async ({
       } as never,
       [],
     );
-    const shopAfter = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal__body")?.scrollTop ?? -1;
+    const shopAfter = controls.mapOverlay.querySelector<HTMLElement>(".run-shop-goods")?.scrollTop ?? -1;
+    const nextLeaveButton = controls.mapOverlay.querySelector<HTMLButtonElement>(".run-shop-actions button:last-child");
+    const leaveAfter = nextLeaveButton
+      ? (() => {
+          const modalRect = controls.mapOverlay.querySelector<HTMLElement>(".run-stage-modal")?.getBoundingClientRect();
+          const buttonRect = nextLeaveButton.getBoundingClientRect();
+          return !!modalRect && buttonRect.bottom <= modalRect.bottom && buttonRect.top >= modalRect.top;
+        })()
+      : false;
 
-    return { eventBefore, eventAfter, shopBefore, shopAfter };
+    return { eventBefore, eventAfter, shopBefore, shopAfter, leaveBefore, leaveAfter };
   });
 
   expect(result.eventBefore).toBeGreaterThan(0);
   expect(result.eventAfter).toBe(result.eventBefore);
   expect(result.shopBefore).toBeGreaterThan(0);
-  expect(result.shopAfter).toBeGreaterThan(0);
+  expect(result.shopAfter).toBe(result.shopBefore);
+  expect(result.leaveBefore).toBe(true);
+  expect(result.leaveAfter).toBe(true);
 });
