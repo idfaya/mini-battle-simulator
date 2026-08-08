@@ -14,6 +14,12 @@
 
 local Ability5e = {}
 
+local COMBAT_PACING = {
+    attackRollBonus = 2,
+    spellDCBonus = 1,
+    hpMultiplier = 1.25,
+}
+
 ---@alias ArmorFormula
 ---| "heavy_fixed"         # Fighter 17
 ---| "unarmored_dex_con"   # Barbarian 10+dex+con
@@ -46,6 +52,18 @@ local CLASS_ABILITY_PROFILE = {
 }
 
 Ability5e.CLASS_ABILITY_PROFILE = CLASS_ABILITY_PROFILE
+
+function Ability5e.GetAttackRollPacingBonus()
+    return COMBAT_PACING.attackRollBonus
+end
+
+function Ability5e.GetSpellDCPacingBonus()
+    return COMBAT_PACING.spellDCBonus
+end
+
+function Ability5e.ApplyHpPacing(value)
+    return math.max(1, math.floor((tonumber(value) or 1) * COMBAT_PACING.hpMultiplier))
+end
 
 function Ability5e.GetClassProfile(classId)
     return CLASS_ABILITY_PROFILE[tonumber(classId) or 0]

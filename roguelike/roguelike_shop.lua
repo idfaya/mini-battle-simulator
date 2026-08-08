@@ -3,6 +3,7 @@ local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local BuildConstraints = require("roguelike.build_constraints")
+local CardBattle = require("roguelike.card_battle")
 
 local RoguelikeShop = {}
 
@@ -56,6 +57,10 @@ local function validateServicePurchase(runState, goods)
     if payload.effectType == "revive_one" then
         if not hasDeadTeamHero(runState) then
             return false, "no_dead_hero"
+        end
+    elseif payload.effectType == "remove_one_curse" then
+        if #CardBattle.GetCurseCards(runState) <= 0 then
+            return false, "no_curse"
         end
     end
     return true
@@ -198,7 +203,13 @@ function RoguelikeShop.Buy(runState, shopId, goodsId)
             return true
         end
         if effectType == "remove_one_curse" then
-            runState.lastActionMessage = "移除诅咒(占位)"
+            local purified, purifyResult = CardBattle.PurifyOneCurse(runState)
+            if not purified then
+                runState.gold = (runState.gold or 0) + price
+                runState.shopSoldMap[goodsId] = nil
+                return false, purifyResult
+            end
+            runState.lastActionMessage = "净化诅咒：" .. tostring(purifyResult.cardName or "诅咒")
             return true
         end
         runState.gold = (runState.gold or 0) + price

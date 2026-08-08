@@ -375,6 +375,37 @@ function MiniBattleWebApi.queue_run_battle_command(payloadJson)
     end)
 end
 
+function MiniBattleWebApi.play_card(payloadJson)
+    return safeCall(function()
+        local payload = JSON.JsonDecode(payloadJson)
+        local ok, result = RunRuntime.PlayCard(payload and payload.cardUid, payload and payload.targetId)
+        local response = {
+            accepted = ok,
+        }
+        if ok then
+            response.result = result
+        else
+            response.reason = result
+        end
+        return JSON.JsonEncode(response)
+    end)
+end
+
+function MiniBattleWebApi.end_turn()
+    return safeCall(function()
+        local ok, result = RunRuntime.EndTurn()
+        local response = {
+            accepted = ok,
+        }
+        if ok then
+            response.result = result
+        else
+            response.reason = result
+        end
+        return JSON.JsonEncode(response)
+    end)
+end
+
 function MiniBattleWebApi.restart_run(configJson)
     return safeCall(function()
         local config = nil

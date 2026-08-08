@@ -11,6 +11,7 @@ local BattleVisualEvents = require("ui.battle_visual_events")
 
 ---@class BattleDmgHeal
 local BattleDmgHeal = {}
+local activeCardBattleGuardState = nil
 
 -- 伤害统计
 local damageStats = {
@@ -45,6 +46,35 @@ function BattleDmgHeal.OnFinal()
         totalHealDone = 0,
         totalHealReceived = 0,
     }
+end
+
+function BattleDmgHeal.BindCardBattleGuardState(cardBattleState)
+    activeCardBattleGuardState = cardBattleState
+end
+
+function BattleDmgHeal.ClearCardBattleGuardState(cardBattleState)
+    if cardBattleState == nil or activeCardBattleGuardState == cardBattleState then
+        activeCardBattleGuardState = nil
+    end
+end
+
+local function ConsumeCardBattleGuard(target, damage)
+    if type(activeCardBattleGuardState) ~= "table" or not target or target.isLeft ~= true then
+        return math.max(0, math.floor(tonumber(damage) or 0)), 0
+    end
+    if activeCardBattleGuardState.phase ~= "enemy" then
+        return math.max(0, math.floor(tonumber(damage) or 0)), 0
+    end
+
+    local value = math.max(0, math.floor(tonumber(damage) or 0))
+    local guard = math.max(0, math.floor(tonumber(activeCardBattleGuardState.guard) or 0))
+    local absorbed = math.min(guard, value)
+    if absorbed <= 0 then
+        return value, 0
+    end
+
+    activeCardBattleGuardState.guard = guard - absorbed
+    return value - absorbed, absorbed
 end
 
 --- 处理吸血效果（生命偷取）
@@ -179,6 +209,9 @@ function BattleDmgHeal.ApplyDamage(target, damage, attacker, params)
             reducedDamage = math.max(0, reducedDamage - spellReduce)
         end
     end
+
+    local absorbedByGuard = 0
+    reducedDamage, absorbedByGuard = ConsumeCardBattleGuard(target, reducedDamage)
 
     local tempHpBefore = math.max(0, math.floor(tonumber(target.tempHp) or 0))
     local absorbedByTempHp = math.min(tempHpBefore, reducedDamage)

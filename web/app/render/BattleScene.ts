@@ -222,8 +222,12 @@ export class BattleScene {
     y: number;
     baseX: number;
     baseY: number;
+    width: number;
+    height: number;
     isAlive: boolean;
+    row: FormationRow;
   }> = [];
+  private selectableTargetIds = new Set<string>();
   private lastTopBarState: Pick<BattleStoreState, "skillCasting" | "skillBrief" | "damageBrief"> = {
     skillCasting: false,
     skillBrief: null,
@@ -259,10 +263,14 @@ export class BattleScene {
       y: layout.y,
       baseX: layout.baseX,
       baseY: layout.baseY,
+      width: layout.width,
+      height: layout.height,
       isAlive: layout.unit.isAlive,
+      row: layout.row,
     }));
     this.captureCounterOverlapObservation(allLayouts);
     this.drawBoardFrame(ctx, width, height, allLayouts);
+    this.drawTargetSelectionHints(ctx, allLayouts);
     this.drawAoeAnimations(ctx, allLayouts, now);
 
     for (const layout of allLayouts) {
@@ -283,6 +291,23 @@ export class BattleScene {
     this.drawFloatingTexts(ctx, allLayouts, now);
   }
 
+  setSelectableTargetIds(targetIds: string[]) {
+    this.selectableTargetIds = new Set(targetIds);
+  }
+
+  pickUnitAt(x: number, y: number) {
+    for (let index = this.lastResolvedLayouts.length - 1; index >= 0; index -= 1) {
+      const layout = this.lastResolvedLayouts[index];
+      if (!layout.isAlive || !this.selectableTargetIds.has(layout.id)) {
+        continue;
+      }
+      if (x >= layout.x && x <= layout.x + layout.width && y >= layout.y && y <= layout.y + layout.height) {
+        return { ...layout };
+      }
+    }
+    return null;
+  }
+
   drawRunExplorationFormation(ctx: CanvasRenderingContext2D, width: number, height: number, team: UnitState[]) {
     this.drawBackground(ctx, width, height);
     const metrics = this.computeFormationMetrics(width, height);
@@ -294,7 +319,10 @@ export class BattleScene {
       y: layout.y,
       baseX: layout.baseX,
       baseY: layout.baseY,
+      width: layout.width,
+      height: layout.height,
       isAlive: layout.unit.isAlive,
+      row: layout.row,
     }));
     this.drawBoardFrame(ctx, width, height, playerLayouts);
     for (const layout of playerLayouts) {
@@ -795,12 +823,43 @@ export class BattleScene {
     };
   }
 
+  private drawTargetSelectionHints(ctx: CanvasRenderingContext2D, layouts: UnitLayout[]) {
+    if (this.selectableTargetIds.size === 0) {
+      return;
+    }
+    for (const layout of layouts) {
+      if (!layout.unit.isAlive || !this.selectableTargetIds.has(layout.unit.id)) {
+        continue;
+      }
+      ctx.save();
+      ctx.fillStyle = "rgba(126, 167, 255, 0.2)";
+      ctx.strokeStyle = "rgba(126, 167, 255, 0.86)";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "rgba(126, 167, 255, 0.72)";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.ellipse(
+        layout.x + layout.width / 2,
+        layout.y + layout.height + 7,
+        Math.max(18, layout.width * 0.36),
+        Math.max(6, layout.height * 0.08),
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   private drawUnitCard(ctx: CanvasRenderingContext2D, layout: UnitLayout, isActive: boolean) {
     let x = layout.x;
     let y = layout.y;
     const { width, height, unit } = layout;
     const isCastingHero = this.activeTimeline?.heroId === unit.id;
     const isTimelineTarget = this.activeTimeline?.targetIds.includes(unit.id) ?? false;
+    const isSelectableTarget = this.selectableTargetIds.has(unit.id);
     const classBadge = this.getClassBadge(unit.classId);
     const centerX = x + width / 2;
     const centerY = y + height / 2;
@@ -829,12 +888,14 @@ export class BattleScene {
       ? "#ffd166"
       : isCastingHero
         ? "#ffd166"
+        : isSelectableTarget
+          ? "#7ea7ff"
         : isTimelineTarget
           ? "#4cc9f0"
           : unit.ultimateReady
             ? "#80ed99"
             : "rgba(255,255,255,0.2)";
-    ctx.lineWidth = isActive || isCastingHero ? 4 : isTimelineTarget ? 3 : 2;
+    ctx.lineWidth = isActive || isCastingHero ? 4 : isSelectableTarget ? 4 : isTimelineTarget ? 3 : 2;
     ctx.beginPath();
     ctx.roundRect(x, y, width, height, 18);
     ctx.fill();
@@ -842,8 +903,12 @@ export class BattleScene {
     ctx.shadowOffsetY = 0;
     ctx.stroke();
 
-    if (isCastingHero || isTimelineTarget) {
-      ctx.fillStyle = isCastingHero ? "rgba(255, 209, 102, 0.12)" : "rgba(76, 201, 240, 0.12)";
+    if (isCastingHero || isSelectableTarget || isTimelineTarget) {
+      ctx.fillStyle = isCastingHero
+        ? "rgba(255, 209, 102, 0.12)"
+        : isSelectableTarget
+          ? "rgba(126, 167, 255, 0.14)"
+          : "rgba(76, 201, 240, 0.12)";
       ctx.beginPath();
       ctx.roundRect(x + 2, y + 2, width - 4, height - 4, 16);
       ctx.fill();

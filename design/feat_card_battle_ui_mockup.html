@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feat Card Battle UI Mockup</title>
+  <style>
+    :root {
+      --bg: #080b12;
+      --panel: rgba(17, 22, 34, 0.86);
+      --panel-soft: rgba(28, 35, 52, 0.72);
+      --line: rgba(224, 213, 184, 0.16);
+      --text: #f3ead8;
+      --muted: #a99f8d;
+      --dim: #696f7b;
+      --gold: #d7aa55;
+      --blue: #7fa8ff;
+      --red: #e06a62;
+      --green: #7fd08a;
+      --violet: #bd91ff;
+      --shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 50% 10%, rgba(91, 70, 38, 0.28), transparent 34%),
+        radial-gradient(circle at 22% 78%, rgba(78, 104, 170, 0.22), transparent 28%),
+        linear-gradient(180deg, #111827 0%, var(--bg) 62%, #05070b 100%);
+      overflow-x: hidden;
+    }
+
+    .screen {
+      width: min(1440px, 100vw);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 16px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 16px;
+      animation: enterDown 500ms ease-out both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(215, 170, 85, 0.48);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      background: rgba(215, 170, 85, 0.09);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      box-shadow: inset 0 0 18px rgba(215, 170, 85, 0.08);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.08em;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+    }
+
+    .round-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(8, 11, 18, 0.54);
+      box-shadow: var(--shadow);
+      white-space: nowrap;
+    }
+
+    .round-state strong {
+      font-size: 15px;
+      color: var(--gold);
+    }
+
+    .round-state span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .deck-meta {
+      justify-self: end;
+      display: flex;
+      gap: 12px;
+    }
+
+    .pill {
+      min-width: 78px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(17, 22, 34, 0.66);
+      text-align: center;
+    }
+
+    .pill b {
+      display: block;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .pill span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .battlefield {
+      position: relative;
+      min-height: 520px;
+      border: 1px solid rgba(224, 213, 184, 0.14);
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 42%),
+        radial-gradient(ellipse at center, rgba(215, 170, 85, 0.12), transparent 55%),
+        rgba(7, 10, 16, 0.7);
+      box-shadow: var(--shadow);
+      animation: fadeIn 650ms ease-out both;
+    }
+
+    .battlefield::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 49.8%, rgba(224, 213, 184, 0.1) 50%, transparent 50.2%),
+        linear-gradient(0deg, transparent 62%, rgba(224, 213, 184, 0.08) 62.2%, transparent 62.4%);
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    .lane-label {
+      position: absolute;
+      left: 24px;
+      top: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .intent-strip {
+      position: absolute;
+      left: 50%;
+      top: 22px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 3;
+    }
+
+    .intent {
+      width: 128px;
+      padding: 10px 11px;
+      border: 1px solid rgba(224, 213, 184, 0.18);
+      border-radius: 16px;
+      background: rgba(8, 11, 18, 0.74);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+    }
+
+    .intent.attack {
+      border-color: rgba(224, 106, 98, 0.52);
+    }
+
+    .intent.buff {
+      border-color: rgba(189, 145, 255, 0.48);
+    }
+
+    .intent .kind {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .intent .icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      color: #0a0d14;
+      background: var(--gold);
+    }
+
+    .intent.attack .icon {
+      background: var(--red);
+    }
+
+    .intent.buff .icon {
+      background: var(--violet);
+    }
+
+    .intent strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .intent small {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .units {
+      position: absolute;
+      inset: 80px 48px 120px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 80px;
+      z-index: 2;
+    }
+
+    .side {
+      display: grid;
+      gap: 22px;
+    }
+
+    .side.enemy {
+      justify-items: end;
+    }
+
+    .unit {
+      width: min(360px, 100%);
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(12, 16, 26, 0.72);
+      backdrop-filter: blur(10px);
+    }
+
+    .side.enemy .unit {
+      grid-template-columns: 1fr 74px;
+    }
+
+    .portrait {
+      width: 74px;
+      height: 74px;
+      border-radius: 20px;
+      border: 1px solid rgba(224, 213, 184, 0.22);
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      font-weight: 900;
+      color: #10141f;
+      background: linear-gradient(145deg, #d7aa55, #7fa8ff);
+      box-shadow: inset 0 0 26px rgba(255, 255, 255, 0.18);
+    }
+
+    .enemy .portrait {
+      background: linear-gradient(145deg, #e06a62, #563039);
+      color: #fff0e9;
+    }
+
+    .unit-info {
+      min-width: 0;
+    }
+
+    .side.enemy .unit-info {
+      text-align: right;
+      order: -1;
+    }
+
+    .unit-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .side.enemy .unit-name {
+      flex-direction: row-reverse;
+    }
+
+    .unit-name b {
+      font-size: 16px;
+    }
+
+    .tag {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(215, 170, 85, 0.12);
+      color: var(--gold);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(243, 234, 216, 0.08);
+      overflow: hidden;
+      border: 1px solid rgba(243, 234, 216, 0.08);
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), #d7aa55);
+    }
+
+    .enemy .bar > span {
+      background: linear-gradient(90deg, var(--red), #d7aa55);
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .target-line {
+      position: absolute;
+      left: 50%;
+      top: 44%;
+      width: 31%;
+      height: 2px;
+      transform: translateX(-4%);
+      transform-origin: left;
+      background: linear-gradient(90deg, rgba(224, 106, 98, 0), rgba(224, 106, 98, 0.65), rgba(224, 106, 98, 0));
+      opacity: 0.7;
+    }
+
+    .party-state {
+      position: absolute;
+      left: 24px;
+      bottom: 24px;
+      right: 24px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      z-index: 4;
+    }
+
+    .hero-mini {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(8, 11, 18, 0.72);
+      display: grid;
+      gap: 8px;
+    }
+
+    .hero-mini.dimmed {
+      opacity: 0.48;
+      filter: grayscale(0.8);
+    }
+
+    .hero-mini .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+    }
+
+    .hero-mini b {
+      font-size: 13px;
+    }
+
+    .guard {
+      color: var(--blue);
+    }
+
+    .hand-zone {
+      display: grid;
+      grid-template-columns: 150px 1fr 164px;
+      gap: 16px;
+      align-items: end;
+      animation: enterUp 550ms 120ms ease-out both;
+    }
+
+    .energy-orb {
+      min-height: 210px;
+      padding: 18px;
+      border: 1px solid rgba(127, 168, 255, 0.35);
+      border-radius: 28px;
+      background: rgba(10, 18, 35, 0.72);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .orb {
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      border: 1px solid rgba(127, 168, 255, 0.48);
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.42), transparent 18%),
+        radial-gradient(circle, rgba(127, 168, 255, 0.78), rgba(46, 78, 151, 0.38) 66%, rgba(10, 18, 35, 0.2));
+      box-shadow: 0 0 42px rgba(127, 168, 255, 0.25);
+    }
+
+    .orb strong {
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .energy-orb span {
+      display: block;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .cards {
+      min-width: 0;
+      display: flex;
+      gap: 12px;
+      align-items: end;
+      justify-content: center;
+    }
+
+    .card {
+      position: relative;
+      width: 172px;
+      height: 232px;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(224, 213, 184, 0.28);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 34%),
+        #171d2b;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
+      transform-origin: bottom center;
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-14px);
+      border-color: rgba(215, 170, 85, 0.68);
+      box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .card.attack {
+      background:
+        linear-gradient(180deg, rgba(224, 106, 98, 0.16), transparent 38%),
+        #171d2b;
+    }
+
+    .card.skill {
+      background:
+        linear-gradient(180deg, rgba(127, 168, 255, 0.16), transparent 38%),
+        #171d2b;
+    }
+
+    .card.power {
+      background:
+        linear-gradient(180deg, rgba(189, 145, 255, 0.18), transparent 38%),
+        #171d2b;
+    }
+
+    .card.status {
+      background:
+        linear-gradient(180deg, rgba(105, 111, 123, 0.24), transparent 38%),
+        #121620;
+      opacity: 0.72;
+    }
+
+    .cost {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #080b12;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      box-shadow: 0 0 0 3px rgba(8, 11, 18, 0.7);
+    }
+
+    .card.status .cost {
+      background: var(--dim);
+      color: #d9deea;
+    }
+
+    .card-type {
+      position: absolute;
+      right: 12px;
+      top: 16px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .card h2 {
+      margin: 56px 0 8px;
+      font-size: 18px;
+      line-height: 1.18;
+    }
+
+    .owner {
+      color: var(--gold);
+      font-size: 12px;
+    }
+
+    .card p {
+      margin: 14px 0 0;
+      min-height: 62px;
+      color: #d7d0c2;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .keywords {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .kw {
+      padding: 4px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(224, 213, 184, 0.16);
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .end-turn {
+      min-height: 210px;
+      border: 1px solid rgba(215, 170, 85, 0.45);
+      border-radius: 28px;
+      background: rgba(46, 34, 16, 0.56);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .end-turn b {
+      display: block;
+      font-size: 18px;
+      letter-spacing: 0.08em;
+    }
+
+    .end-turn span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.985); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes enterDown {
+      from { opacity: 0; transform: translateY(-14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes enterUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .intent.attack {
+        animation: pulseIntent 1800ms ease-in-out infinite;
+      }
+
+      @keyframes pulseIntent {
+        0%, 100% { box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3); }
+        50% { box-shadow: 0 14px 44px rgba(224, 106, 98, 0.18); }
+      }
+    }
+
+    @media (max-width: 1120px) {
+      .screen {
+        padding: 16px;
+      }
+
+      .topbar,
+      .hand-zone {
+        grid-template-columns: 1fr;
+      }
+
+      .deck-meta {
+        justify-self: stretch;
+        justify-content: space-between;
+      }
+
+      .battlefield {
+        min-height: 680px;
+      }
+
+      .units {
+        inset: 110px 20px 180px;
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      .side.enemy {
+        justify-items: stretch;
+      }
+
+      .unit {
+        width: 100%;
+      }
+
+      .party-state {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .cards {
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding-bottom: 12px;
+      }
+
+      .card {
+        flex: 0 0 172px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <header class="topbar">
+      <section class="brand" aria-label="title">
+        <div class="mark">FC</div>
+        <div>
+          <h1>Feat Card Battle</h1>
+          <p>Team deck turn-based combat</p>
+        </div>
+      </section>
+
+      <section class="round-state" aria-label="round">
+        <strong>玩家回合 03</strong>
+        <span>看 Intent，打出队伍手牌</span>
+      </section>
+
+      <section class="deck-meta" aria-label="deck">
+        <div class="pill"><b>12</b><span>抽牌堆</span></div>
+        <div class="pill"><b>7</b><span>弃牌堆</span></div>
+        <div class="pill"><b>2</b><span>消耗区</span></div>
+      </section>
+    </header>
+
+    <section class="battlefield" aria-label="battlefield">
+      <div class="lane-label">公开敌方意图</div>
+
+      <div class="intent-strip">
+        <div class="intent attack">
+          <div class="kind"><span class="icon">!</span><span>重击前排</span></div>
+          <strong>12 伤害</strong>
+          <small>护甲减伤 2 后预览</small>
+        </div>
+        <div class="intent attack">
+          <div class="kind"><span class="icon">↗</span><span>射击后排</span></div>
+          <strong>7 伤害</strong>
+          <small>目标：牧师</small>
+        </div>
+        <div class="intent buff">
+          <div class="kind"><span class="icon">✦</span><span>蓄力</span></div>
+          <strong>下回合</strong>
+          <small>群体增伤</small>
+        </div>
+      </div>
+
+      <div class="target-line" aria-hidden="true"></div>
+
+      <div class="units">
+        <section class="side ally" aria-label="allies">
+          <article class="unit">
+            <div class="portrait">F</div>
+            <div class="unit-info">
+              <div class="unit-name"><b>战士</b><span class="tag">护卫中</span></div>
+              <div class="bar"><span style="width: 72%"></span></div>
+              <div class="stats"><span>HP 31/43</span><span class="guard">guard 10</span></div>
+            </div>
+          </article>
+          <article class="unit">
+            <div class="portrait">C</div>
+            <div class="unit-info">
+              <div class="unit-name"><b>牧师</b><span class="tag">focus: 祝福</span></div>
+              <div class="bar"><span style="width: 54%"></span></div>
+              <div class="stats"><span>HP 18/33</span><span>抗性 +1</span></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="side enemy" aria-label="enemies">
+          <article class="unit">
+            <div class="portrait">O</div>
+            <div class="unit-info">
+              <div class="unit-name"><b>兽人斗士</b><span class="tag">攻击</span></div>
+              <div class="bar"><span style="width: 48%"></span></div>
+              <div class="stats"><span>HP 24/50</span><span>护甲减伤 2</span></div>
+            </div>
+          </article>
+          <article class="unit">
+            <div class="portrait">S</div>
+            <div class="unit-info">
+              <div class="unit-name"><b>暗影祭司</b><span class="tag">蓄力</span></div>
+              <div class="bar"><span style="width: 86%"></span></div>
+              <div class="stats"><span>HP 38/44</span><span>抗性 2</span></div>
+            </div>
+          </article>
+        </section>
+      </div>
+
+      <section class="party-state" aria-label="party">
+        <div class="hero-mini">
+          <div class="row"><b>战士</b><span class="guard">guard 10</span></div>
+          <div class="bar"><span style="width: 72%"></span></div>
+        </div>
+        <div class="hero-mini">
+          <div class="row"><b>牧师</b><span>focus</span></div>
+          <div class="bar"><span style="width: 54%"></span></div>
+        </div>
+        <div class="hero-mini">
+          <div class="row"><b>游侠</b><span>mark</span></div>
+          <div class="bar"><span style="width: 66%"></span></div>
+        </div>
+        <div class="hero-mini dimmed">
+          <div class="row"><b>法师</b><span>阵亡</span></div>
+          <div class="bar"><span style="width: 0%"></span></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="hand-zone" aria-label="hand">
+      <aside class="energy-orb">
+        <div>
+          <div class="orb"><strong>3</strong></div>
+          <span>teamEnergy / 3</span>
+        </div>
+      </aside>
+
+      <section class="cards">
+        <article class="card attack">
+          <div class="cost">1</div>
+          <div class="card-type">Attack</div>
+          <h2>长剑攻击</h2>
+          <div class="owner">owner：战士</div>
+          <p>造成武器伤害。穿甲 +1，目标合法即命中。</p>
+          <div class="keywords"><span class="kw">melee</span><span class="kw">armorPierce</span></div>
+        </article>
+        <article class="card skill">
+          <div class="cost">1</div>
+          <div class="card-type">Skill</div>
+          <h2>护卫</h2>
+          <div class="owner">owner：战士</div>
+          <p>指定一名友军获得 10 guard，并登记本轮护卫反击。</p>
+          <div class="keywords"><span class="kw">guard</span><span class="kw">counter</span></div>
+        </article>
+        <article class="card attack">
+          <div class="cost">1</div>
+          <div class="card-type">Attack</div>
+          <h2>圣火术</h2>
+          <div class="owner">owner：牧师</div>
+          <p>造成法术伤害。按目标感知抗性减免，可驱散亡灵标记。</p>
+          <div class="keywords"><span class="kw">spell</span><span class="kw">holy</span></div>
+        </article>
+        <article class="card power">
+          <div class="cost">1</div>
+          <div class="card-type">Power</div>
+          <h2>祝福术</h2>
+          <div class="owner">owner：牧师</div>
+          <p>获得 focus：本场 attack Card 穿甲 +1，治疗 Card +2。</p>
+          <div class="keywords"><span class="kw">focus</span><span class="kw">bless</span></div>
+        </article>
+        <article class="card status">
+          <div class="cost">—</div>
+          <div class="card-type">Status</div>
+          <h2>伤口</h2>
+          <div class="owner">team status</div>
+          <p>不可打出。占据手牌，回合结束进入弃牌堆。</p>
+          <div class="keywords"><span class="kw">wound</span><span class="kw">污染</span></div>
+        </article>
+      </section>
+
+      <button class="end-turn" type="button">
+        <span>
+          <b>结束回合</b>
+          <span>敌方按 Intent 行动</span>
+        </span>
+      </button>
+    </section>
+  </main>
+</body>
+</html>

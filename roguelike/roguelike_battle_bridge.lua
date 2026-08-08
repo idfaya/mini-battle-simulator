@@ -549,6 +549,37 @@ function RoguelikeBattleBridge.QueueCommand(command)
     return BattleRuntime.queueCommand(command)
 end
 
+function RoguelikeBattleBridge.PlayCardSkill(card, targetId)
+    if type(card) ~= "table" then
+        return false, "invalid_card"
+    end
+    return BattleRuntime.playSkillCard({
+        ownerInstanceId = card.ownerInstanceId,
+        skillId = card.skillId,
+        targetId = targetId,
+        targetSide = card.targetSide,
+        targetMode = card.targetMode,
+        targetCount = card.targetCount,
+        ignoreFrontProtection = card.ignoreFrontProtection == true,
+    })
+end
+
+function RoguelikeBattleBridge.BuildEnemyIntents()
+    return BattleRuntime.buildEnemyIntents()
+end
+
+function RoguelikeBattleBridge.ExecuteEnemyIntent(intent)
+    return BattleRuntime.executeEnemyIntent(intent)
+end
+
+function RoguelikeBattleBridge.AdvanceCardBattleRound()
+    return BattleRuntime.advanceCardBattleRound()
+end
+
+function RoguelikeBattleBridge.EvaluateBattleEnd()
+    return BattleRuntime.evaluateBattleEnd()
+end
+
 function RoguelikeBattleBridge.GetSnapshot()
     return BattleRuntime.getSnapshot()
 end

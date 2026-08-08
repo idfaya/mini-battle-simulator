@@ -90,6 +90,26 @@ local function runBattleUntilResolved(maxSteps)
     local snapshot = Run.GetSnapshot()
     local castedUltimate = false
     for _ = 1, maxSteps do
+        if snapshot.cardBattle then
+            local played = false
+            for _, card in ipairs(snapshot.cardBattle.hand or {}) do
+                local cost = tonumber(card.cost) or 0
+                if card.disabled ~= true and (tonumber(snapshot.cardBattle.teamEnergy) or 0) >= cost then
+                    local ok = Run.PlayCard(card.uid)
+                    if ok then
+                        played = true
+                        break
+                    end
+                end
+            end
+            if not played then
+                Run.EndTurn()
+            end
+            snapshot = Run.GetSnapshot()
+            if snapshot.phase ~= "battle" then
+                return snapshot
+            end
+        else
         local readyHeroId = (not castedUltimate) and findReadyHero(snapshot) or nil
         if readyHeroId and snapshot.battleSnapshot and snapshot.battleSnapshot.pendingCommands == 0 then
             Run.QueueBattleCommand({ type = "cast_ultimate", heroId = readyHeroId })
@@ -99,6 +119,7 @@ local function runBattleUntilResolved(maxSteps)
         snapshot = Run.GetSnapshot()
         if snapshot.phase ~= "battle" then
             return snapshot
+        end
         end
     end
     error("battle did not resolve in time")
@@ -229,6 +250,16 @@ do
     assert_true(result.nextSession ~= nil, "next session should auto-launch when pendingLevels > 0")
     assert_true(result.nextSession.pendingLevels == 1,
         "next session.pendingLevels should be 1 after consuming 1")
+
+    local totalLevelBeforeSkip = (tonumber(heroA.level) or 0) + (tonumber(heroB.level) or 0)
+    ok, result = FeatPicker.Skip(mockState)
+    assert_true(ok, "Skip should succeed")
+    assert_true(result.skipped == true, "Skip result should mark skipped")
+    assert_true(result.sessionExhausted == true, "Skip should exhaust the final pending level")
+    assert_true(mockState.featPickerSession == nil, "Skip should clear session when exhausted")
+    assert_true((tonumber(mockState.partyLevelOwed) or 0) == 0, "Skip should consume partyLevelOwed")
+    local totalLevelAfterSkip = (tonumber(heroA.level) or 0) + (tonumber(heroB.level) or 0)
+    assert_true(totalLevelAfterSkip == totalLevelBeforeSkip, "Skip should not level up any hero")
 end
 
 print("party EXP level-up test passed")

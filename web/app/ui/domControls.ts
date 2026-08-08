@@ -1,4 +1,5 @@
 import type { BattleSetup, BattleSnapshot, UnitState } from "../types/battle";
+import type { RunCardBattleState, RunCardState } from "../types/roguelike";
 
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 20;
@@ -26,6 +27,55 @@ function getFormationSlot(unit: UnitState, fallbackIndex: number) {
     row: Math.floor(slot / 3) + 1,
     column: (slot % 3) + 1,
   };
+}
+
+function isAlive(unit: UnitState): boolean {
+  return unit.isAlive && unit.hp > 0;
+}
+
+function isFrontRow(unit: UnitState): boolean {
+  return unit.position >= 1 && unit.position <= 3;
+}
+
+function buildTargetButtons(
+  snapshot: BattleSnapshot,
+  card: RunCardState,
+  handlers: {
+    onCancel: () => void;
+    onChooseTarget: (targetId: string) => void;
+  },
+): HTMLButtonElement[] {
+  const sourcePool = card.targetSide === "ally" ? snapshot.leftTeam : snapshot.rightTeam;
+  let candidates = sourcePool.filter(isAlive);
+  if (card.targetSide !== "ally" && card.ignoreFrontProtection !== true) {
+    const frontCandidates = candidates.filter(isFrontRow);
+    if (frontCandidates.length > 0) {
+      candidates = frontCandidates;
+    }
+  }
+
+  const buttons = candidates.map((unit) => {
+    const button = document.createElement("button");
+    button.className = "ult-button battle-target-button";
+    button.type = "button";
+    button.textContent = `${card.name} → ${unit.name}`;
+    button.onpointerdown = (event) => {
+      event.preventDefault();
+      handlers.onChooseTarget(unit.id);
+    };
+    return button;
+  });
+
+  const cancel = document.createElement("button");
+  cancel.className = "ult-button battle-target-button battle-target-button--cancel";
+  cancel.type = "button";
+  cancel.textContent = "取消选牌";
+  cancel.onpointerdown = (event) => {
+    event.preventDefault();
+    handlers.onCancel();
+  };
+  buttons.push(cancel);
+  return buttons;
 }
 
 export function createControls(
@@ -251,6 +301,11 @@ export function renderControls(
   logEntries: string[],
   onUltCast: (heroId: string) => void,
   options?: {
+    cardBattle?: RunCardBattleState | null;
+    selectedCardUid?: string | null;
+    onSelectCard?: (cardUid: string | null) => void;
+    onPlayCard?: (cardUid: string, targetId?: string) => void | Promise<void>;
+    onEndTurn?: () => void | Promise<void>;
     extraActions?: Array<{
       label: string;
       disabled?: boolean;
@@ -287,9 +342,106 @@ export function renderControls(
       `${activeUnit ? "当前行动" : "当前角色"}: ${focusUnit.name} | HP ${focusUnit.hp}/${focusUnit.maxHp} | 先攻 ${focusUnit.initiative ?? 0} (${focusUnit.initiativeRoll ?? 0}${(focusUnit.initiativeMod ?? 0) >= 0 ? "+" : ""}${focusUnit.initiativeMod ?? 0}) | AC ${focusUnit.ac} | 命中 ${focusUnit.hit} | 法术命中 ${focusUnit.spellDC} | 豁免 F/R/W ${focusUnit.saveCon}/${focusUnit.saveDex}/${focusUnit.saveWis}${stateBits.length > 0 ? ` | 状态 ${stateBits.join(" / ")}` : ""}`,
     );
   }
+  if (options?.cardBattle) {
+    const cardBattle = options.cardBattle;
+    const intentText = (cardBattle.enemyIntents ?? []).length
+      ? (cardBattle.enemyIntents ?? [])
+          .map((intent) => `${intent.enemyName ?? "敌人"}:${intent.skillName ?? intent.type}${intent.targetNames.length ? `→${intent.targetNames.join("/")}` : ""}`)
+          .join(" | ")
+      : "无";
+    lines.push(
+      `牌局: ${cardBattle.phase} | 能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} | 抽牌 ${cardBattle.drawPileCount} | 弃牌 ${cardBattle.discardPileCount} | 消耗 ${cardBattle.exhaustPileCount} | Intent ${intentText}`,
+    );
+  }
   controls.status.textContent = lines.join("\n");
 
   controls.buttonsHost.replaceChildren();
+  if (snapshot && !snapshot.result && options?.cardBattle?.hand?.length) {
+    const cardBattle = options.cardBattle;
+    controls.buttonsHost.style.display = "";
+    const selectedCard = cardBattle.hand.find((card) => card.uid === options.selectedCardUid) ?? null;
+    const handNodes = cardBattle.hand.map((card) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        const costValue = Number(card.cost ?? 0);
+        const isPollution = card.type === "status" || card.type === "curse";
+        const canPlay =
+          cardBattle.phase === "player" &&
+          !isPollution &&
+          card.disabled !== true &&
+          cardBattle.teamEnergy >= costValue &&
+          typeof options.onPlayCard === "function";
+        button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}`;
+        button.disabled = !canPlay;
+        button.onpointerdown = (event) => {
+          event.preventDefault();
+          if (!button.disabled) {
+            if (card.targetSide === "self") {
+              void options.onPlayCard?.(card.uid, card.ownerInstanceId ? String(card.ownerInstanceId) : undefined);
+            } else {
+              options.onSelectCard?.(card.uid);
+            }
+          }
+        };
+
+        const cost = document.createElement("span");
+        cost.className = "battle-card-cost";
+        cost.textContent = String(card.cost ?? 0);
+
+        const name = document.createElement("span");
+        name.className = "ult-button-name";
+        name.textContent = card.name;
+
+        const owner = document.createElement("span");
+        owner.className = "ult-button-skill";
+        owner.textContent = card.ownerName || "队伍";
+
+        const hint = document.createElement("span");
+        hint.className = "battle-card-hint";
+        hint.textContent = isPollution
+          ? "污染"
+          : card.disabled
+          ? "阵亡失效"
+          : cardBattle.phase !== "player"
+            ? "敌方行动"
+          : cardBattle.teamEnergy < costValue
+            ? "能量不足"
+            : (card.guardValue ?? 0) > 0
+              ? `防御 +${card.guardValue}`
+            : (card.targetCount ?? 0) > 1
+              ? `最多 ${card.targetCount} 目标`
+            : "点击打出";
+
+        button.append(cost, name, owner, hint);
+        return button;
+      });
+    const targetNodes = selectedCard ? buildTargetButtons(snapshot, selectedCard, {
+      onCancel: () => options.onSelectCard?.(null),
+      onChooseTarget: (targetId) => {
+        void options.onPlayCard?.(selectedCard.uid, targetId);
+      },
+    }) : [];
+    const endTurnButton = document.createElement("button");
+    endTurnButton.className = "ult-button battle-card-button battle-end-turn-button";
+    endTurnButton.type = "button";
+    endTurnButton.disabled = cardBattle.phase !== "player" || typeof options.onEndTurn !== "function";
+    endTurnButton.textContent = cardBattle.phase === "player" ? "结束回合" : "敌方行动中";
+    endTurnButton.onpointerdown = (event) => {
+      event.preventDefault();
+      if (!endTurnButton.disabled) {
+        void options.onEndTurn?.();
+      }
+    };
+    controls.buttonsHost.replaceChildren(...handNodes, ...targetNodes, endTurnButton);
+  } else if (snapshot && !snapshot.result) {
+    controls.buttonsHost.style.display = "";
+    const missing = document.createElement("div");
+    missing.className = "battle-card-missing";
+    missing.textContent = "cardBattle 未初始化：战斗牌局状态缺失";
+    controls.buttonsHost.replaceChildren(missing);
+  } else {
+    controls.buttonsHost.style.display = "none";
+  }
 
   // Battle result actions live in a dedicated host (not mixed with ult buttons).
   const extraActions = options?.extraActions ?? [];

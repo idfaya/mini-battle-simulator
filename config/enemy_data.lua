@@ -161,12 +161,12 @@ local function GetEnemyTemplateStats(enemy)
     local prof = getMonsterProficiencyBonusByCr(challengeMeta.cr)
 
     return {
-        hp = math.max(1, math.floor(getEnemyBaseHp(enemy, hitDie, conMod))),
+        hp = Ability5e.ApplyHpPacing(getEnemyBaseHp(enemy, hitDie, conMod)),
         ac = math.max(10, math.floor(getEnemyArmorClass(enemy, dexMod))),
-        hit = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod))),
-        atk = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod))),
-        spellAttack = math.max(0, math.floor(prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod))),
-        spellDC = math.max(10, math.floor(8 + prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod))),
+        hit = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + Ability5e.GetAttackRollPacingBonus())),
+        atk = math.max(0, math.floor(prof + getAttackAbilityMod(classId, strMod, dexMod, intMod, wisMod) + Ability5e.GetAttackRollPacingBonus())),
+        spellAttack = math.max(0, math.floor(prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod) + Ability5e.GetAttackRollPacingBonus())),
+        spellDC = math.max(10, math.floor(8 + prof + getSpellAbilityMod(classId, intMod, wisMod, chaMod) + Ability5e.GetSpellDCPacingBonus())),
         saveCon = math.max(0, math.floor(conMod + (isSaveProficient(classId, "con") and prof or 0))),
         saveDex = math.max(0, math.floor(dexMod + (isSaveProficient(classId, "dex") and prof or 0))),
         saveWis = math.max(0, math.floor(wisMod + (isSaveProficient(classId, "wis") and prof or 0))),

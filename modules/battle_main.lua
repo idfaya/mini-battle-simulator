@@ -1772,6 +1772,13 @@ function BattleMain.GetCurrentRound()
     return currentRound
 end
 
+function BattleMain.AdvanceCardBattleRound()
+    StartNextCombatRound()
+    TryRefreshEnemyReserve("periodic")
+    TryRefreshEnemyReserve("clear")
+    return currentRound
+end
+
 function BattleMain.GetActiveHeroInstanceId()
     if currentAction and currentAction.hero then
         return currentAction.hero.instanceId or currentAction.hero.id
@@ -1818,6 +1825,14 @@ function BattleMain.CanAcceptExternalCommand()
         return false
     end
     return (tonumber(actionPostGapRemainingMs) or 0) <= 0
+end
+
+function BattleMain.EvaluateBattleEnd()
+    local isEnd, winner, reason = CheckBattleEnd()
+    if isEnd then
+        TriggerBattleEnd(winner, reason)
+    end
+    return battleResult
 end
 
 --- 获取战斗结果

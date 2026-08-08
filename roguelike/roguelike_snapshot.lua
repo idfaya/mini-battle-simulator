@@ -8,6 +8,7 @@ local RoguelikeRoster = require("roguelike.roguelike_roster")
 local RoguelikeTrinket = require("roguelike.trinket")
 local Ability5e = require("modules.ability_5e")
 local RoguelikeBattleBridge = require("roguelike.roguelike_battle_bridge")
+local CardBattle = require("roguelike.card_battle")
 
 local RoguelikeSnapshot = {}
 -- 注：等级曲线统一来自 config.roguelike.level_curve；本文件不再维护本地阈值表。
@@ -351,6 +352,8 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
             currentNodeId = runState.currentNodeId,
             lastActionMessage = runState.lastActionMessage or "",
             battleSnapshot = battleSnapshot,
+            cardLibrary = CardBattle.SerializeLibrary(runState.cardLibrary),
+            cardBattle = CardBattle.Serialize(runState.cardBattle),
             lite = true,
         }
     end
@@ -391,6 +394,8 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
         lastBattleSummary = runState.lastBattleSummary,
         currentBattleId = runState.currentBattleId,
         battleSnapshot = battleSnapshot,
+        cardLibrary = CardBattle.SerializeLibrary(runState.cardLibrary),
+        cardBattle = CardBattle.Serialize(runState.cardBattle),
         currentBattleBudget = runState.currentBattleBudget,
         chapterResult = runState.chapterResult,
         debug = {

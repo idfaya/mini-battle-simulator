@@ -1,0 +1,1592 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feat Card Battle Unified Stage Mockup</title>
+  <style>
+    :root {
+      --bg: #070a10;
+      --surface: rgba(18, 23, 35, 0.84);
+      --surface-strong: rgba(26, 32, 48, 0.92);
+      --line: rgba(238, 224, 196, 0.16);
+      --text: #f6ecd8;
+      --muted: #a89e8b;
+      --gold: #d8aa56;
+      --blue: #7ea7ff;
+      --red: #e36b62;
+      --green: #80d18d;
+      --violet: #bd91ff;
+      --dark: #090d15;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(216, 170, 86, 0.22), transparent 32%),
+        radial-gradient(circle at 50% 72%, rgba(126, 167, 255, 0.16), transparent 30%),
+        linear-gradient(180deg, #121929 0%, var(--bg) 54%, #04060a 100%);
+      overflow-x: hidden;
+    }
+
+    .phone-shell {
+      position: relative;
+      width: min(430px, 100vw);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 12px;
+      display: grid;
+      grid-template-rows: auto auto minmax(350px, 1fr) auto;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .phone-shell[data-stage-mode="battle"] .bottom-tabs {
+      display: none;
+    }
+
+    .phone-shell[data-explore-tab="team"],
+    .phone-shell[data-explore-tab="deck"],
+    .phone-shell[data-explore-tab="log"] {
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .phone-shell[data-explore-tab="team"] .intent-rail,
+    .phone-shell[data-explore-tab="team"] .arena,
+    .phone-shell[data-explore-tab="team"] .hand-panel,
+    .phone-shell[data-explore-tab="deck"] .intent-rail,
+    .phone-shell[data-explore-tab="deck"] .arena,
+    .phone-shell[data-explore-tab="deck"] .hand-panel,
+    .phone-shell[data-explore-tab="log"] .intent-rail,
+    .phone-shell[data-explore-tab="log"] .arena,
+    .phone-shell[data-explore-tab="log"] .hand-panel {
+      display: none;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      animation: drop 420ms ease-out both;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .deck-counts {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mini-pill {
+      min-width: 42px;
+      padding: 6px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(10, 14, 22, 0.72);
+      text-align: center;
+    }
+
+    .mini-pill b {
+      display: block;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .mini-pill span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .intent-rail {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      animation: fade 480ms 80ms ease-out both;
+    }
+
+    .intent {
+      min-height: 72px;
+      padding: 8px;
+      border: 1px solid rgba(238, 224, 196, 0.16);
+      border-radius: 16px;
+      background: var(--surface);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .intent.attack {
+      border-color: rgba(227, 107, 98, 0.52);
+    }
+
+    .intent.buff {
+      border-color: rgba(189, 145, 255, 0.45);
+    }
+
+    .intent .label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .intent i {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      background: var(--gold);
+      color: var(--dark);
+      font-style: normal;
+      font-weight: 900;
+      font-size: 10px;
+    }
+
+    .intent.attack i {
+      background: var(--red);
+      color: white;
+    }
+
+    .intent.buff i {
+      background: var(--violet);
+      color: white;
+    }
+
+    .intent strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .intent small {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+    .info-pages {
+      display: none;
+      min-height: 0;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 26px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%),
+        radial-gradient(ellipse at center, rgba(216, 170, 86, 0.09), transparent 58%),
+        rgba(7, 10, 16, 0.78);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      animation: fade 220ms ease-out both;
+    }
+
+    .phone-shell[data-explore-tab="team"] .info-pages,
+    .phone-shell[data-explore-tab="deck"] .info-pages,
+    .phone-shell[data-explore-tab="log"] .info-pages {
+      display: block;
+      height: 100%;
+    }
+
+    .info-page {
+      display: none;
+      height: 100%;
+    }
+
+    .info-page.active {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+
+    .info-head h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .info-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .info-list {
+      display: grid;
+      gap: 9px;
+      align-content: start;
+    }
+
+    .info-card {
+      min-width: 0;
+      padding: 11px;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 18px;
+      background: rgba(246, 236, 216, 0.055);
+    }
+
+    .info-card.dead {
+      opacity: 0.55;
+      filter: grayscale(0.75);
+    }
+
+    .info-card b {
+      display: block;
+      font-size: 13px;
+    }
+
+    .info-card span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .info-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .deck-card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-content: start;
+    }
+
+    .deck-card {
+      position: relative;
+      min-height: 132px;
+      padding: 8px;
+      border: 1px solid rgba(238, 224, 196, 0.18);
+      border-radius: 15px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 38%),
+        rgba(26, 32, 48, 0.94);
+      overflow: hidden;
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
+    }
+
+    .deck-card.attack { border-color: rgba(227, 107, 98, 0.42); }
+    .deck-card.skill { border-color: rgba(126, 167, 255, 0.44); }
+    .deck-card.power { border-color: rgba(189, 145, 255, 0.42); }
+    .deck-card.status { border-color: rgba(168, 158, 139, 0.34); filter: grayscale(0.35); }
+    .deck-card.disabled { opacity: 0.48; filter: grayscale(0.82); }
+
+    .deck-card .cost {
+      left: 7px;
+      top: 7px;
+      width: 23px;
+      height: 23px;
+      font-size: 12px;
+    }
+
+    .deck-card .type {
+      margin-left: 28px;
+      font-size: 8px;
+    }
+
+    .deck-card h3 {
+      margin: 18px 0 0;
+      font-size: 13px;
+      line-height: 1.12;
+    }
+
+    .deck-card p {
+      margin: 7px 0 0;
+      color: #d8d0c2;
+      font-size: 9px;
+      line-height: 1.3;
+    }
+
+    .deck-card .owner {
+      margin-top: 5px;
+      font-size: 8px;
+    }
+
+    .deck-card .badge {
+      position: absolute;
+      right: 7px;
+      top: 7px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(216, 170, 86, 0.18);
+      color: var(--gold);
+      font-size: 8px;
+      font-weight: 900;
+    }
+
+    .arena {
+      position: relative;
+      min-height: 390px;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 26px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%),
+        radial-gradient(ellipse at center, rgba(216, 170, 86, 0.12), transparent 58%),
+        rgba(7, 10, 16, 0.76);
+      box-shadow: var(--shadow);
+      animation: fade 520ms 120ms ease-out both;
+    }
+
+    .stage-toggle {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      z-index: 7;
+      display: flex;
+      gap: 6px;
+    }
+
+    .stage-toggle button {
+      border: 1px solid rgba(238, 224, 196, 0.16);
+      border-radius: 999px;
+      background: rgba(8, 12, 20, 0.72);
+      color: var(--muted);
+      padding: 6px 9px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .stage-toggle button.active {
+      border-color: rgba(216, 170, 86, 0.68);
+      color: var(--gold);
+      background: rgba(216, 170, 86, 0.14);
+    }
+
+    .arena::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(0deg, transparent 51%, rgba(238, 224, 196, 0.08) 51.2%, transparent 51.6%),
+        linear-gradient(90deg, transparent 49.6%, rgba(238, 224, 196, 0.07) 50%, transparent 50.4%);
+      pointer-events: none;
+    }
+
+    .enemy-line,
+    .ally-line {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      z-index: 2;
+    }
+
+    .enemy-line {
+      top: 18px;
+    }
+
+    .door-line {
+      position: absolute;
+      left: 28px;
+      right: 28px;
+      top: 20px;
+      height: 190px;
+      z-index: 2;
+    }
+
+    .door-node {
+      position: absolute;
+      width: 104px;
+      min-height: 94px;
+      padding: 10px 8px;
+      border: 1px solid rgba(126, 167, 255, 0.5);
+      border-radius: 42px 42px 14px 14px;
+      background: linear-gradient(180deg, rgba(126, 167, 255, 0.16), rgba(10, 14, 22, 0.72));
+      color: var(--blue);
+      text-align: center;
+      box-shadow: 0 0 34px rgba(126, 167, 255, 0.12);
+    }
+
+    .door-node.forward {
+      left: calc(50% - 52px);
+      top: 0;
+    }
+
+    .door-node.left {
+      left: 0;
+      top: 94px;
+    }
+
+    .door-node.right {
+      right: 0;
+      top: 94px;
+    }
+
+    .door-node.active {
+      border-color: rgba(126, 167, 255, 0.92);
+      box-shadow: 0 0 42px rgba(126, 167, 255, 0.24);
+    }
+
+    .door-node b {
+      display: block;
+      margin-top: 18px;
+      font-size: 12px;
+    }
+
+    .door-node span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .enemy-line,
+    .door-line {
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .arena[data-stage-mode="doors"] .enemy-line,
+    .arena[data-stage-mode="battle"] .door-line {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px) scale(0.99);
+    }
+
+    .arena[data-stage-mode="doors"] .door-line,
+    .arena[data-stage-mode="battle"] .enemy-line {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .ally-line {
+      bottom: 18px;
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .unit {
+      position: relative;
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(8, 12, 20, 0.72);
+      backdrop-filter: blur(10px);
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+    }
+
+    .unit.targetable {
+      border-color: rgba(126, 167, 255, 0.72);
+      box-shadow: 0 0 0 1px rgba(126, 167, 255, 0.22), 0 12px 26px rgba(126, 167, 255, 0.14);
+      transform: translateY(-3px);
+    }
+
+    .unit.targetable::after {
+      content: "可选";
+      position: absolute;
+      right: 6px;
+      top: 6px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(126, 167, 255, 0.2);
+      color: var(--blue);
+      font-size: 8px;
+      font-weight: 800;
+    }
+
+    .unit.chosen {
+      border-color: rgba(216, 170, 86, 0.82);
+      box-shadow: 0 0 0 1px rgba(216, 170, 86, 0.32), 0 16px 34px rgba(216, 170, 86, 0.14);
+    }
+
+    .unit.locked {
+      opacity: 0.42;
+    }
+
+    .unit.dead {
+      opacity: 0.45;
+      filter: grayscale(0.8);
+    }
+
+    .avatar {
+      width: 46px;
+      height: 46px;
+      margin: 0 auto 6px;
+      border: 1px solid rgba(238, 224, 196, 0.2);
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      color: var(--dark);
+      font-weight: 900;
+      background: linear-gradient(145deg, var(--red), #5c3039);
+    }
+
+    .ally-line .avatar {
+      background: linear-gradient(145deg, var(--gold), var(--blue));
+    }
+
+    .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .hp {
+      height: 7px;
+      margin-top: 6px;
+      border-radius: 999px;
+      background: rgba(246, 236, 216, 0.09);
+      overflow: hidden;
+    }
+
+    .hp span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--gold));
+    }
+
+    .enemy-line .hp span {
+      background: linear-gradient(90deg, var(--red), var(--gold));
+    }
+
+    .unit-meta {
+      margin-top: 5px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 9px;
+    }
+
+    .center-status {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      z-index: 3;
+    }
+
+    .round-chip {
+      padding: 8px 11px;
+      border: 1px solid rgba(216, 170, 86, 0.42);
+      border-radius: 999px;
+      background: rgba(8, 12, 20, 0.78);
+      color: var(--gold);
+      font-size: 11px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(216, 170, 86, 0.45), transparent);
+    }
+
+    .hand-panel {
+      min-width: 0;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 26px 26px 0 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%),
+        rgba(9, 13, 21, 0.92);
+      box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.38);
+      padding: 12px 10px 14px;
+      animation: rise 520ms 160ms ease-out both;
+    }
+
+    .hand-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .energy {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--dark);
+      background:
+        radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.55), transparent 20%),
+        radial-gradient(circle, rgba(126, 167, 255, 0.95), rgba(47, 77, 147, 0.55));
+      box-shadow: 0 0 32px rgba(126, 167, 255, 0.28);
+      font-size: 26px;
+      font-weight: 900;
+    }
+
+    .turn-text b {
+      display: block;
+      font-size: 14px;
+    }
+
+    .turn-text span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .end {
+      border: 1px solid rgba(216, 170, 86, 0.42);
+      border-radius: 999px;
+      background: rgba(216, 170, 86, 0.13);
+      color: var(--text);
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 12px;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    .end:active {
+      transform: scale(0.96);
+    }
+
+    .end.ready {
+      background: rgba(216, 170, 86, 0.24);
+      border-color: rgba(216, 170, 86, 0.72);
+    }
+
+    .cards {
+      min-width: 0;
+      max-width: 100%;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      align-items: end;
+      gap: 6px;
+      overflow: visible;
+      padding: 24px 0 0;
+    }
+
+    .explore-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .explore-view {
+      display: none;
+      gap: 10px;
+    }
+
+    .explore-view.active {
+      display: grid;
+    }
+
+    .draw-locked {
+      min-height: 74px;
+      padding: 12px;
+      border: 1px dashed rgba(238, 224, 196, 0.22);
+      border-radius: 18px;
+      background: rgba(246, 236, 216, 0.05);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .draw-locked b {
+      display: block;
+      font-size: 14px;
+    }
+
+    .draw-locked span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .deck-orb {
+      width: 54px;
+      height: 54px;
+      border: 1px solid rgba(126, 167, 255, 0.34);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-weight: 900;
+      background: rgba(126, 167, 255, 0.1);
+    }
+
+    .explore-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .explore-action {
+      min-height: 82px;
+      padding: 9px 7px;
+      border: 1px solid rgba(238, 224, 196, 0.16);
+      border-radius: 16px;
+      background: var(--surface-strong);
+      color: var(--text);
+      text-align: left;
+    }
+
+    .explore-action.active {
+      border-color: rgba(126, 167, 255, 0.62);
+      box-shadow: 0 14px 30px rgba(126, 167, 255, 0.12);
+    }
+
+    .explore-action b {
+      display: block;
+      font-size: 12px;
+    }
+
+    .explore-action span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.3;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .team-row,
+    .deck-row,
+    .log-row {
+      min-width: 0;
+      padding: 9px;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 16px;
+      background: rgba(246, 236, 216, 0.055);
+    }
+
+    .team-row.dead {
+      opacity: 0.52;
+      filter: grayscale(0.75);
+    }
+
+    .team-row b,
+    .deck-row b,
+    .log-row b {
+      display: block;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .team-row span,
+    .deck-row span,
+    .log-row span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.3;
+    }
+
+    .mini-hp {
+      height: 6px;
+      margin-top: 7px;
+      border-radius: 999px;
+      background: rgba(246, 236, 216, 0.09);
+      overflow: hidden;
+    }
+
+    .mini-hp i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--gold));
+    }
+
+    .deck-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .deck-stat {
+      padding: 9px 5px;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 14px;
+      background: rgba(126, 167, 255, 0.07);
+      text-align: center;
+    }
+
+    .deck-stat b {
+      display: block;
+      font-size: 14px;
+    }
+
+    .deck-stat span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .deck-list,
+    .log-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .explore-view[data-tab-panel="deck"] .deck-list {
+      gap: 6px;
+    }
+
+    .explore-view[data-tab-panel="deck"] .deck-row {
+      padding: 7px 9px;
+    }
+
+    .explore-view[data-tab-panel="deck"] .deck-row span {
+      margin-top: 3px;
+    }
+
+    .hand-panel[data-hand-mode="explore"] .cards,
+    .hand-panel[data-hand-mode="battle"] .explore-panel {
+      display: none;
+    }
+
+    .card {
+      position: relative;
+      min-width: 0;
+      height: 112px;
+      scroll-snap-align: center;
+      padding: 7px;
+      border: 1px solid rgba(238, 224, 196, 0.22);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 35%),
+        var(--surface-strong);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+      transition: transform 140ms ease, border-color 140ms ease;
+      cursor: pointer;
+    }
+
+    .card.selected {
+      grid-column: span 2;
+      height: 158px;
+      z-index: 4;
+      border-color: rgba(126, 167, 255, 0.7);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.44), 0 0 0 1px rgba(126, 167, 255, 0.18);
+      transform: translateY(-22px);
+      animation: selectPop 360ms cubic-bezier(0.2, 0.9, 0.24, 1.18) both;
+    }
+
+    .card:focus-within,
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(216, 170, 86, 0.64);
+    }
+
+    .card.selected:hover {
+      transform: translateY(-26px);
+      border-color: rgba(126, 167, 255, 0.86);
+    }
+
+    .card.attack {
+      background:
+        linear-gradient(180deg, rgba(227, 107, 98, 0.17), transparent 38%),
+        var(--surface-strong);
+    }
+
+    .card.skill {
+      background:
+        linear-gradient(180deg, rgba(126, 167, 255, 0.17), transparent 38%),
+        var(--surface-strong);
+    }
+
+    .card.power {
+      background:
+        linear-gradient(180deg, rgba(189, 145, 255, 0.18), transparent 38%),
+        var(--surface-strong);
+    }
+
+    .card.status {
+      opacity: 0.72;
+      filter: grayscale(0.35);
+    }
+
+    .card.disabled {
+      opacity: 0.42;
+      filter: grayscale(0.75);
+      cursor: not-allowed;
+    }
+
+    .cost {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--blue);
+      color: var(--dark);
+      font-weight: 900;
+      font-size: 13px;
+      box-shadow: 0 0 0 2px rgba(7, 10, 16, 0.6);
+    }
+
+    .type {
+      position: absolute;
+      right: 7px;
+      top: 11px;
+      color: var(--muted);
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .card h2 {
+      margin: 18px 0 4px;
+      font-size: 11px;
+      line-height: 1.18;
+      word-break: keep-all;
+    }
+
+    .card.selected h2 {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+
+    .owner {
+      color: var(--gold);
+      font-size: 8px;
+    }
+
+    .card p {
+      display: none;
+    }
+
+    .card.selected p {
+      display: block;
+      margin: 8px 0 0;
+      color: #ddd5c6;
+      font-size: 10px;
+      line-height: 1.32;
+    }
+
+    .kw {
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      right: 6px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .kw span {
+      padding: 2px 4px;
+      border: 1px solid rgba(238, 224, 196, 0.15);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .kw span:nth-child(n + 2) {
+      display: none;
+    }
+
+    .card.selected .kw span:nth-child(n + 2) {
+      display: inline-block;
+    }
+
+    .action-toast {
+      position: absolute;
+      left: 50%;
+      bottom: 122px;
+      z-index: 8;
+      width: min(330px, calc(100% - 28px));
+      padding: 9px 12px;
+      border: 1px solid rgba(216, 170, 86, 0.36);
+      border-radius: 999px;
+      background: rgba(8, 12, 20, 0.86);
+      color: var(--text);
+      font-size: 11px;
+      text-align: center;
+      transform: translate(-50%, 10px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease, transform 150ms ease;
+    }
+
+    .action-toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .bottom-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      border: 1px solid rgba(238, 224, 196, 0.12);
+      border-radius: 20px;
+      background: rgba(8, 12, 20, 0.74);
+      padding: 6px;
+    }
+
+    .bottom-tabs button {
+      border: 0;
+      border-radius: 14px;
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 4px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .bottom-tabs button.active {
+      background: rgba(216, 170, 86, 0.16);
+      color: var(--text);
+    }
+
+    @keyframes drop {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade {
+      from { opacity: 0; transform: scale(0.985); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes selectPop {
+      0% { opacity: 0.8; transform: translateY(0) scale(0.88); }
+      70% { opacity: 1; transform: translateY(-26px) scale(1.03); }
+      100% { opacity: 1; transform: translateY(-22px) scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        transition-duration: 1ms !important;
+      }
+    }
+
+    @media (min-width: 760px) {
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .phone-shell {
+        min-height: min(932px, calc(100vh - 48px));
+        border: 1px solid rgba(238, 224, 196, 0.16);
+        border-radius: 34px;
+        background: rgba(0, 0, 0, 0.16);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone-shell">
+    <header class="top">
+      <section class="title">
+        <h1>Unified Stage</h1>
+        <p>同一打牌界面 · 门 / 敌人只切 Arena 上半部</p>
+      </section>
+      <section class="deck-counts" aria-label="deck">
+        <div class="mini-pill"><b>12</b><span>抽</span></div>
+        <div class="mini-pill"><b>7</b><span>弃</span></div>
+        <div class="mini-pill"><b>2</b><span>耗</span></div>
+      </section>
+    </header>
+
+    <section class="intent-rail" aria-label="enemy intents">
+      <article class="intent attack">
+        <div class="label"><i>!</i><span>重击</span></div>
+        <strong>12</strong>
+        <small>前排目标</small>
+      </article>
+      <article class="intent attack">
+        <div class="label"><i>↗</i><span>射击</span></div>
+        <strong>7</strong>
+        <small>后排牧师</small>
+      </article>
+      <article class="intent buff">
+        <div class="label"><i>✦</i><span>蓄力</span></div>
+        <strong>下轮</strong>
+        <small>群体增伤</small>
+      </article>
+    </section>
+
+    <section class="info-pages" aria-label="explore info pages">
+      <section class="info-page" data-info-panel="team">
+        <header class="info-head">
+          <h2>队伍</h2>
+          <p>非战斗信息页不沿用战斗站位，只展示长期状态、失效卡来源和整备判断。</p>
+        </header>
+        <div class="info-list">
+          <article class="info-card"><b>战士 · Lv5</b><span>31/43 HP · 前排 · 护卫线。核心牌：护卫+、长剑攻击、盾墙训练。</span><div class="mini-hp"><i style="width:72%"></i></div></article>
+          <article class="info-card"><b>牧师 · Lv5</b><span>18/33 HP · 后排 · 祝福线。当前携带 1 张伤口，建议营地清理。</span><div class="mini-hp"><i style="width:54%"></i></div></article>
+          <article class="info-card"><b>游侠 · Lv4</b><span>25/38 HP · 后排 · 标记线。牌库贡献偏攻击，适合精英房爆发。</span><div class="mini-hp"><i style="width:66%"></i></div></article>
+          <article class="info-card dead"><b>法师 · Lv4</b><span>阵亡 · 本战 5 张法师卡失效；复苏后重新洗入弃牌堆。</span><div class="mini-hp"><i style="width:0%"></i></div></article>
+        </div>
+      </section>
+
+      <section class="info-page" data-info-panel="deck">
+        <header class="info-head">
+          <h2>牌库</h2>
+          <p>探索态查看长期牌库结构；战斗开始后才抽牌生成手牌。</p>
+        </header>
+        <div class="info-list">
+          <div class="info-stats">
+            <div class="deck-stat"><b>22</b><span>总牌</span></div>
+            <div class="deck-stat"><b>4</b><span>升级</span></div>
+            <div class="deck-stat"><b>1</b><span>伤口</span></div>
+            <div class="deck-stat"><b>5</b><span>失效</span></div>
+          </div>
+          <div class="deck-card-grid">
+            <article class="deck-card skill">
+              <div class="cost">1</div><div class="type">Skill</div><span class="badge">+1</span>
+              <h3>护卫</h3><div class="owner">战士</div>
+              <p>友军获得 10 guard，并登记本轮护卫反击。</p>
+            </article>
+            <article class="deck-card attack">
+              <div class="cost">1</div><div class="type">Attack</div>
+              <h3>圣火术</h3><div class="owner">牧师</div>
+              <p>法术伤害。按目标感知抗性减免。</p>
+            </article>
+            <article class="deck-card power">
+              <div class="cost">1</div><div class="type">Power</div>
+              <h3>祝福术</h3><div class="owner">牧师</div>
+              <p>获得 focus：attack 穿甲 +1，治疗 +2。</p>
+            </article>
+            <article class="deck-card attack">
+              <div class="cost">1</div><div class="type">Attack</div>
+              <h3>猎人标记</h3><div class="owner">游侠</div>
+              <p>标记敌人。后续攻击追加穿甲。</p>
+            </article>
+            <article class="deck-card status">
+              <div class="cost">—</div><div class="type">Status</div>
+              <h3>伤口</h3><div class="owner">污染</div>
+              <p>不可打出。占据手牌，回合末弃置。</p>
+            </article>
+            <article class="deck-card attack disabled">
+              <div class="cost">2</div><div class="type">Attack</div>
+              <h3>火焰箭</h3><div class="owner">法师阵亡</div>
+              <p>本战失效。复苏后重新洗入弃牌堆。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="info-page" data-info-panel="log">
+        <header class="info-head">
+          <h2>日志</h2>
+          <p>只保留会影响路线、牌库和队伍状态的记录。</p>
+        </header>
+        <div class="info-list">
+          <article class="info-card"><b>F3 破碎回廊</b><span>当前出口：精英 / 事件 / 商店。精英房奖励高，但法师阵亡会稀释有效手牌。</span></article>
+          <article class="info-card"><b>上一战胜利</b><span>获得 31 金币；牧师获得 1 张伤口；战士护卫路线触发 2 次反击。</span></article>
+          <article class="info-card"><b>营地建议</b><span>若不进商店，下一营地优先删伤口，其次复苏法师。</span></article>
+          <article class="info-card"><b>牌库变化</b><span>护卫升级为护卫+；基础攻击仍有 5 张，后续可删弱牌。</span></article>
+        </div>
+      </section>
+    </section>
+
+    <section class="arena" aria-label="battlefield" data-stage-mode="doors">
+      <div class="stage-toggle" aria-label="stage mode">
+        <button class="active" data-stage-mode-button="doors">门</button>
+        <button data-stage-mode-button="battle">敌人</button>
+      </div>
+      <section class="door-line" aria-label="doors">
+        <article class="door-node forward active">
+          <b>前进</b>
+          <span>精英 · 高奖励</span>
+        </article>
+        <article class="door-node left">
+          <b>事件</b>
+          <span>检定 · 变数</span>
+        </article>
+        <article class="door-node right">
+          <b>商店</b>
+          <span>删牌 · 补给</span>
+        </article>
+      </section>
+      <section class="enemy-line" aria-label="enemies">
+        <article class="unit" data-side="enemy" data-name="兽人斗士" tabindex="0">
+          <div class="avatar">O</div>
+          <div class="name">兽人斗士</div>
+          <div class="hp"><span style="width:48%"></span></div>
+          <div class="unit-meta">24/50 · armor 2</div>
+        </article>
+        <article class="unit" data-side="enemy" data-name="骸骨弓手" tabindex="0">
+          <div class="avatar">A</div>
+          <div class="name">骸骨弓手</div>
+          <div class="hp"><span style="width:62%"></span></div>
+          <div class="unit-meta">18/29 · back</div>
+        </article>
+        <article class="unit" data-side="enemy" data-name="暗影祭司" tabindex="0">
+          <div class="avatar">S</div>
+          <div class="name">暗影祭司</div>
+          <div class="hp"><span style="width:86%"></span></div>
+          <div class="unit-meta">38/44 · charge</div>
+        </article>
+      </section>
+
+      <div class="center-status">
+        <div class="line"></div>
+        <div class="round-chip">guard 10 · focus 祝福</div>
+        <div class="line"></div>
+      </div>
+
+      <section class="ally-line" aria-label="allies">
+        <article class="unit" data-side="ally" data-name="战士" tabindex="0">
+          <div class="avatar">F</div>
+          <div class="name">战士</div>
+          <div class="hp"><span style="width:72%"></span></div>
+          <div class="unit-meta">31/43 · guard</div>
+        </article>
+        <article class="unit" data-side="ally" data-name="牧师" tabindex="0">
+          <div class="avatar">C</div>
+          <div class="name">牧师</div>
+          <div class="hp"><span style="width:54%"></span></div>
+          <div class="unit-meta">18/33 · focus</div>
+        </article>
+        <article class="unit" data-side="ally" data-name="游侠" tabindex="0">
+          <div class="avatar">R</div>
+          <div class="name">游侠</div>
+          <div class="hp"><span style="width:66%"></span></div>
+          <div class="unit-meta">25/38 · mark</div>
+        </article>
+        <article class="unit dead" data-side="ally" data-name="法师" data-dead="true" tabindex="0">
+          <div class="avatar">W</div>
+          <div class="name">法师</div>
+          <div class="hp"><span style="width:0%"></span></div>
+          <div class="unit-meta">阵亡 · 卡失效</div>
+        </article>
+      </section>
+    </section>
+
+    <section class="hand-panel" aria-label="hand" data-hand-mode="explore">
+      <div class="hand-head">
+        <div class="energy">3</div>
+        <div class="turn-text">
+          <b>牌库未抽取</b>
+          <span>探索阶段不显示手牌，进入战斗后抽起手牌</span>
+        </div>
+        <button class="end" type="button">进入</button>
+      </div>
+
+      <section class="explore-panel" aria-label="explore actions">
+        <section class="explore-view active" data-tab-panel="map">
+          <div class="draw-locked">
+            <div>
+              <b>队伍牌库待机</b>
+              <span>抽牌堆 22 · 弃牌堆 0 · 本层已探索 5/9。当前只选择出口，不消耗 teamEnergy。</span>
+            </div>
+            <div class="deck-orb">22</div>
+          </div>
+          <div class="explore-actions">
+            <button class="explore-action active" type="button">
+              <b>前进</b>
+              <span>进入精英房，战斗开始后抽 5 张。</span>
+            </button>
+            <button class="explore-action" type="button">
+              <b>事件</b>
+              <span>触发检定，可能获得祝福或伤口。</span>
+            </button>
+            <button class="explore-action" type="button">
+              <b>商店</b>
+              <span>购买卡牌、删牌、补给。</span>
+            </button>
+          </div>
+        </section>
+
+      </section>
+
+      <section class="cards" aria-label="cards">
+        <article class="card attack" data-card="长剑攻击" data-owner="战士" data-target="enemy" data-text="武器伤害。穿甲 +1，目标合法即命中。" tabindex="0">
+          <div class="cost">1</div>
+          <div class="type">Attack</div>
+          <h2>长剑攻击</h2>
+          <div class="owner">owner 战士</div>
+          <p>武器伤害。穿甲 +1，目标合法即命中。</p>
+          <div class="kw"><span>melee</span><span>pierce</span></div>
+        </article>
+        <article class="card skill selected" data-card="护卫" data-owner="战士" data-target="ally" data-text="友军获得 10 guard，并登记本轮护卫反击。" tabindex="0">
+          <div class="cost">1</div>
+          <div class="type">Skill</div>
+          <h2>护卫</h2>
+          <div class="owner">owner 战士 · 目标友军</div>
+          <p>友军获得 10 guard，并登记本轮护卫反击。</p>
+          <div class="kw"><span>guard</span><span>counter</span></div>
+        </article>
+        <article class="card attack" data-card="圣火术" data-owner="牧师" data-target="enemy" data-text="法术伤害。按目标感知抗性减免。" tabindex="0">
+          <div class="cost">1</div>
+          <div class="type">Attack</div>
+          <h2>圣火术</h2>
+          <div class="owner">owner 牧师</div>
+          <p>法术伤害。按目标感知抗性减免。</p>
+          <div class="kw"><span>spell</span><span>holy</span></div>
+        </article>
+        <article class="card power" data-card="祝福术" data-owner="牧师" data-target="self" data-text="获得 focus：attack 穿甲 +1，治疗 +2。" tabindex="0">
+          <div class="cost">1</div>
+          <div class="type">Power</div>
+          <h2>祝福术</h2>
+          <div class="owner">owner 牧师</div>
+          <p>获得 focus：attack 穿甲 +1，治疗 +2。</p>
+          <div class="kw"><span>focus</span><span>bless</span></div>
+        </article>
+        <article class="card status disabled" data-card="伤口" data-owner="team status" data-target="none" data-text="不可打出。占据手牌，回合末弃置。" tabindex="0">
+          <div class="cost">—</div>
+          <div class="type">Status</div>
+          <h2>伤口</h2>
+          <div class="owner">team status</div>
+          <p>不可打出。占据手牌，回合末弃置。</p>
+          <div class="kw"><span>wound</span></div>
+        </article>
+      </section>
+    </section>
+    <div class="action-toast" aria-live="polite"></div>
+    <nav class="bottom-tabs" aria-label="explore tabs">
+      <button class="active" data-tab="map">地图</button>
+      <button data-tab="team">队伍</button>
+      <button data-tab="deck">牌库</button>
+      <button data-tab="log">日志</button>
+    </nav>
+  </main>
+  <script>
+    (() => {
+      const root = document.querySelector(".phone-shell");
+      const arena = root.querySelector(".arena");
+      const handPanel = root.querySelector(".hand-panel");
+      const cards = Array.from(root.querySelectorAll(".card"));
+      const units = Array.from(root.querySelectorAll(".unit"));
+      const intents = Array.from(root.querySelectorAll(".intent"));
+      const stageModeButtons = Array.from(root.querySelectorAll("[data-stage-mode-button]"));
+      const bottomTabs = Array.from(root.querySelectorAll(".bottom-tabs button"));
+      const tabPanels = Array.from(root.querySelectorAll("[data-tab-panel]"));
+      const infoPanels = Array.from(root.querySelectorAll("[data-info-panel]"));
+      const turnHint = root.querySelector(".turn-text span");
+      const turnTitle = root.querySelector(".turn-text b");
+      const endButton = root.querySelector(".end");
+      const toast = root.querySelector(".action-toast");
+      let selectedCard = root.querySelector(".card.selected");
+      let selectedTarget = null;
+      let toastTimer = 0;
+
+      const intentContent = {
+        doors: [
+          { cls: "", icon: "↑", label: "前进", strong: "精英", small: "高风险高奖励" },
+          { cls: "", icon: "?", label: "事件", strong: "检定", small: "可能给祝福/伤口" },
+          { cls: "buff", icon: "$", label: "商店", strong: "补给", small: "删牌 / 买卡" },
+        ],
+        battle: [
+          { cls: "attack", icon: "!", label: "重击", strong: "12", small: "前排目标" },
+          { cls: "attack", icon: "↗", label: "射击", strong: "7", small: "后排牧师" },
+          { cls: "buff", icon: "✦", label: "蓄力", strong: "下轮", small: "群体增伤" },
+        ],
+      };
+
+      const showToast = (message) => {
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 1400);
+      };
+
+      const tabCopy = {
+        map: ["牌库未抽取", "探索阶段不显示手牌，进入战斗后抽起手牌"],
+        team: ["队伍状态", "查看 HP、阵亡与卡牌失效来源"],
+        deck: ["队伍牌库", "查看总牌、升级、污染和失效卡"],
+        log: ["日志", "最近探索、战斗和牌库变化"],
+      };
+
+      const setExploreTab = (name) => {
+        root.dataset.exploreTab = name;
+        bottomTabs.forEach((button) => button.classList.toggle("active", button.dataset.tab === name));
+        tabPanels.forEach((panel) => panel.classList.toggle("active", name === "map" && panel.dataset.tabPanel === name));
+        infoPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.infoPanel === name));
+        const copy = tabCopy[name] || tabCopy.map;
+        if (arena.dataset.stageMode !== "battle") {
+          turnTitle.textContent = copy[0];
+          turnHint.textContent = copy[1];
+          endButton.textContent = name === "map" ? "进入" : "返回";
+        }
+      };
+
+      const setStageMode = (mode, silent) => {
+        root.dataset.stageMode = mode;
+        arena.dataset.stageMode = mode;
+        handPanel.dataset.handMode = mode === "battle" ? "battle" : "explore";
+        stageModeButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.stageModeButton === mode);
+        });
+        intentContent[mode].forEach((item, index) => {
+          const intent = intents[index];
+          intent.className = `intent ${item.cls}`.trim();
+          intent.innerHTML = `<div class="label"><i>${item.icon}</i><span>${item.label}</span></div><strong>${item.strong}</strong><small>${item.small}</small>`;
+        });
+        if (!silent) {
+          showToast(mode === "battle" ? "切到战斗：上半部显示敌人" : "切到探索：上半部显示门");
+        }
+        if (mode === "battle") {
+          root.dataset.exploreTab = "map";
+          infoPanels.forEach((panel) => panel.classList.remove("active"));
+          turnTitle.textContent = "teamEnergy / 3";
+          endButton.textContent = "结束回合";
+          refreshTargets();
+        } else {
+          clearTargets();
+          const activeTab = root.querySelector(".bottom-tabs button.active")?.dataset.tab || "map";
+          setExploreTab(activeTab);
+          endButton.classList.remove("ready");
+        }
+      };
+
+      const isLegalTarget = (unit, targetType) => {
+        if (unit.dataset.dead === "true") return false;
+        if (targetType === "enemy") return unit.dataset.side === "enemy";
+        if (targetType === "ally") return unit.dataset.side === "ally";
+        if (targetType === "self") return unit.dataset.name === (selectedCard?.dataset.owner || "");
+        return false;
+      };
+
+      const clearTargets = () => {
+        units.forEach((unit) => unit.classList.remove("targetable", "locked", "chosen"));
+        selectedTarget = null;
+      };
+
+      const refreshTargets = () => {
+        if (arena.dataset.stageMode !== "battle") {
+          clearTargets();
+          return;
+        }
+        clearTargets();
+        const targetType = selectedCard?.dataset.target || "none";
+        units.forEach((unit) => {
+          if (isLegalTarget(unit, targetType)) {
+            unit.classList.add("targetable");
+          } else {
+            unit.classList.add("locked");
+          }
+        });
+        if (targetType === "none") {
+          turnHint.textContent = `${selectedCard.dataset.card} 无法打出`;
+          endButton.classList.remove("ready");
+          return;
+        }
+        turnHint.textContent = `当前选中：${selectedCard.dataset.card} · 请选择目标`;
+        endButton.classList.remove("ready");
+      };
+
+      const selectCard = (card) => {
+        if (card.classList.contains("disabled")) {
+          showToast(`${card.dataset.card} 是状态牌，当前不可打出`);
+          return;
+        }
+        cards.forEach((item) => {
+          item.classList.remove("selected");
+          item.style.animation = "none";
+          item.offsetHeight;
+          item.style.animation = "";
+        });
+        card.classList.add("selected");
+        selectedCard = card;
+        refreshTargets();
+      };
+
+      const chooseTarget = (unit) => {
+        if (!unit.classList.contains("targetable")) {
+          showToast("该目标不符合当前卡牌");
+          return;
+        }
+        units.forEach((item) => item.classList.remove("chosen"));
+        unit.classList.add("chosen");
+        selectedTarget = unit;
+        turnHint.textContent = `${selectedCard.dataset.card} → ${unit.dataset.name}`;
+        endButton.classList.add("ready");
+        showToast(`已选择 ${unit.dataset.name}`);
+      };
+
+      cards.forEach((card) => {
+        card.addEventListener("click", () => selectCard(card));
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectCard(card);
+          }
+        });
+      });
+
+      stageModeButtons.forEach((button) => {
+        button.addEventListener("click", () => setStageMode(button.dataset.stageModeButton));
+      });
+
+      bottomTabs.forEach((button) => {
+        button.addEventListener("click", () => setExploreTab(button.dataset.tab));
+      });
+
+      units.forEach((unit) => {
+        unit.addEventListener("click", () => chooseTarget(unit));
+        unit.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            chooseTarget(unit);
+          }
+        });
+      });
+
+      endButton.addEventListener("click", () => {
+        if (arena.dataset.stageMode !== "battle") {
+          showToast("进入选中出口后，战斗开始并抽 5 张手牌");
+          return;
+        }
+        if (selectedCard && selectedTarget) {
+          showToast(`预览：${selectedCard.dataset.card} 将结算到 ${selectedTarget.dataset.name}`);
+        } else {
+          showToast("结束玩家回合，敌方按 Intent 行动");
+        }
+      });
+
+      setExploreTab("map");
+      refreshTargets();
+      setStageMode("doors", true);
+    })();
+  </script>
+</body>
+</html>

@@ -1029,6 +1029,219 @@ function Runtime.queueCommand(command)
     return true
 end
 
+local function isAliveUnit(unit)
+    return unit and unit.isAlive and not unit.isDead and (tonumber(unit.hp) or 0) > 0
+end
+
+local function appendUniqueTarget(result, target)
+    if not isAliveUnit(target) then
+        return
+    end
+    for _, existing in ipairs(result or {}) do
+        if existing.instanceId == target.instanceId then
+            return
+        end
+    end
+    result[#result + 1] = target
+end
+
+local function buildCardTargetPool(hero, targetSide, ignoreFrontProtection)
+    if targetSide == "self" then
+        return { hero }
+    end
+    if targetSide == "ally" then
+        local result = {}
+        for _, ally in ipairs(BattleFormation.GetFriendTeam(hero) or {}) do
+            if isAliveUnit(ally) then
+                result[#result + 1] = ally
+            end
+        end
+        return result
+    end
+    return BattleFormation.GetSelectableEnemyHeroes(hero, ignoreFrontProtection == true) or {}
+end
+
+function Runtime.playSkillCard(command)
+    if type(command) ~= "table" then
+        return false, "invalid_command"
+    end
+
+    local hero = BattleFormation.FindHeroByInstanceId(tonumber(command.ownerInstanceId))
+    if not hero or hero.isDead or not hero.isAlive or not hero.isLeft then
+        return false, "hero_unavailable"
+    end
+
+    local skillId = tonumber(command.skillId)
+    if not skillId then
+        return false, "skill_missing"
+    end
+
+    local targetSide = tostring(command.targetSide or "enemy")
+    local targetMode = string.lower(tostring(command.targetMode or ""))
+    local targetCount = math.max(1, math.floor(tonumber(command.targetCount) or 1))
+    local isMultiTarget = targetMode == "muti" or targetMode == "multi" or targetMode == "aoe" or targetMode == "all"
+    local resolvedTargets = {}
+    if command.targetId ~= nil then
+        local target = BattleFormation.FindHeroByInstanceId(tonumber(command.targetId))
+        if not isAliveUnit(target) then
+            return false, "target_unavailable"
+        end
+
+        if targetSide == "self" and target.instanceId ~= hero.instanceId then
+            return false, "target_invalid"
+        end
+        if targetSide == "ally" and target.isLeft ~= hero.isLeft then
+            return false, "target_invalid"
+        end
+        if targetSide ~= "ally" and targetSide ~= "self" and target.isLeft == hero.isLeft then
+            return false, "target_invalid"
+        end
+        if targetSide ~= "ally" and targetSide ~= "self" and command.ignoreFrontProtection ~= true then
+            local selectableEnemies = BattleFormation.GetSelectableEnemyHeroes(hero, false)
+            local allowed = false
+            for _, enemy in ipairs(selectableEnemies or {}) do
+                if enemy.instanceId == target.instanceId then
+                    allowed = true
+                    break
+                end
+            end
+            if not allowed then
+                return false, "target_protected"
+            end
+        end
+        appendUniqueTarget(resolvedTargets, target)
+    end
+
+    if isMultiTarget then
+        for _, candidate in ipairs(buildCardTargetPool(hero, targetSide, command.ignoreFrontProtection == true)) do
+            appendUniqueTarget(resolvedTargets, candidate)
+            if #resolvedTargets >= targetCount then
+                break
+            end
+        end
+    end
+
+    state.activeHeroId = hero.instanceId
+    local ok, result = BattleSkill.CastSkillInSeqWithResult(hero, nil, skillId, {
+        ignoreChant = true,
+        ignoreCooldown = true,
+        resolvedTargets = resolvedTargets,
+    })
+    state.activeHeroId = nil
+    refreshUltimateReadiness()
+
+    if not ok then
+        return false, result and result.reason or "cast_failed"
+    end
+
+    return true, {
+        skillId = skillId,
+        ownerInstanceId = hero.instanceId,
+        totalDamage = result and result.totalDamage or 0,
+    }
+end
+
+local function buildIntentForEnemy(enemy)
+    if not isAliveUnit(enemy) then
+        return nil
+    end
+    local skill, targets = nil, nil
+    if BattleMain.DebugSelectAvailableSkill then
+        skill, targets = BattleMain.DebugSelectAvailableSkill(enemy)
+    end
+    if not skill then
+        return nil
+    end
+
+    local targetIds = {}
+    local targetNames = {}
+    for _, target in ipairs(targets or {}) do
+        if target and target.instanceId ~= nil then
+            targetIds[#targetIds + 1] = target.instanceId
+            targetNames[#targetNames + 1] = target.name or tostring(target.instanceId)
+        end
+    end
+
+    return {
+        enemyInstanceId = enemy.instanceId,
+        enemyName = enemy.name,
+        type = "attack",
+        skillId = skill.skillId,
+        skillName = skill.name,
+        targetIds = targetIds,
+        targetNames = targetNames,
+    }
+end
+
+function Runtime.buildEnemyIntents()
+    local _, rightTeam = BattleFormation.GetTeams()
+    local intents = {}
+    for _, enemy in ipairs(rightTeam or {}) do
+        local intent = buildIntentForEnemy(enemy)
+        if intent then
+            intents[#intents + 1] = intent
+        end
+    end
+    return intents
+end
+
+function Runtime.executeEnemyIntent(intent)
+    if type(intent) ~= "table" then
+        return false, "invalid_intent"
+    end
+    local enemy = BattleFormation.FindHeroByInstanceId(tonumber(intent.enemyInstanceId))
+    if not isAliveUnit(enemy) or enemy.isLeft then
+        return false, "enemy_unavailable"
+    end
+    local skillId = tonumber(intent.skillId)
+    if not skillId then
+        return false, "skill_missing"
+    end
+
+    local resolvedTargets = {}
+    for _, targetId in ipairs(intent.targetIds or {}) do
+        local target = BattleFormation.FindHeroByInstanceId(tonumber(targetId))
+        if isAliveUnit(target) then
+            resolvedTargets[#resolvedTargets + 1] = target
+        end
+    end
+
+    state.activeHeroId = enemy.instanceId
+    local ok, result = BattleSkill.CastSkillInSeqWithResult(enemy, nil, skillId, {
+        ignoreChant = true,
+        resolvedTargets = resolvedTargets,
+    })
+    state.activeHeroId = nil
+    refreshUltimateReadiness()
+    if BattleMain.EvaluateBattleEnd then
+        BattleMain.EvaluateBattleEnd()
+    end
+
+    if not ok then
+        return false, result and result.reason or "cast_failed"
+    end
+
+    return true, {
+        skillId = skillId,
+        enemyInstanceId = enemy.instanceId,
+        totalDamage = result and result.totalDamage or 0,
+    }
+end
+
+function Runtime.advanceCardBattleRound()
+    if BattleMain.AdvanceCardBattleRound then
+        return BattleMain.AdvanceCardBattleRound()
+    end
+    return nil
+end
+
+function Runtime.evaluateBattleEnd()
+    if BattleMain.EvaluateBattleEnd then
+        return BattleMain.EvaluateBattleEnd()
+    end
+    return BattleMain.GetBattleResult and BattleMain.GetBattleResult() or state.battleResult
+end
+
 function Runtime.getSnapshot()
     refreshUltimateReadiness()
     return buildSnapshot()

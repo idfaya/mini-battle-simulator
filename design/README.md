@@ -16,6 +16,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 │   └── single_battle_parameter_table.md
 ├── class_system_design.md                ← 职业 / 5e 画像
 │   └── auto_battle_targeting.md          ← 自动战斗目标倾向
+├── feat_card_battle_design.md            ← Feat 卡牌化小队回合制
 ├── character_progression_design.md        ← Run 养成
 ├── dungeon_design.md                      ← 地牢 / 房间
 ├── roguelike_random_battle_parameter_table.md
@@ -29,6 +30,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 | 任务 | 文档 |
 | --- | --- |
 | 改玩法 / 术语 / 战场 | `combat_system_design.md` → `single_battle_design.md` |
+| 改 Feat 卡牌化战斗 | `feat_card_battle_design.md` |
 | 改 Buff / 状态规则 | `buff_system_design.md`（§2.4 状态符、§11 设计债）→ `roguelike_feat_skill_fill_sheet.md` §8 |
 | 改职业 / 5e 属性口径 | `class_system_design.md` |
 | 改职业核心技 / Feat 树节点 | `roguelike_feat_skill_fill_sheet.md` |

@@ -1,5 +1,6 @@
 ---@alias RunCampActionEffectType
 ---| "revive_full_rest"
+---| "purify_one_curse"
 
 ---@class RunCampActionParams
 ---@field value number|nil
@@ -36,6 +37,11 @@ RunCampConfig.CAMPS = {
                 id = 1,
                 label = "安息",
                 effectType = "revive_full_rest",
+            },
+            {
+                id = 2,
+                label = "净化 1 张诅咒",
+                effectType = "purify_one_curse",
             },
         },
     },

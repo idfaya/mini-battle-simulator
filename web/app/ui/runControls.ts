@@ -1,4 +1,4 @@
-import type { EquipmentState, FeatOption, RewardOption, RunSnapshot, RunTeamMember } from "../types/roguelike";
+import type { EquipmentState, FeatOption, RewardOption, RunCardState, RunSnapshot, RunTeamMember } from "../types/roguelike";
 
 type RunHandlers = {
   onChooseNode: (nodeId: number) => void;
@@ -106,7 +106,7 @@ export function createRunControls(handlers: RunHandlers): RunControls {
 
   addScreenButton("map", "地图");
   addScreenButton("team", "队伍");
-  addScreenButton("info", "信息");
+  addScreenButton("info", "牌库");
   addScreenButton("log", "日志");
 
   // 自动路由：根据 phase 把玩家推到最该看的 tab（但尊重用户主动切换）
@@ -194,7 +194,11 @@ function getStageModalRenderState(snapshot: RunSnapshot): { type: string; key: s
   if (snapshot.phase === "reward" && snapshot.rewardState) {
     const reward = snapshot.rewardState;
     const optionKey = reward.options
-      .map((option) => "featId" in option ? option.featId : `${option.rewardType}:${option.refId ?? ""}:${option.value ?? ""}`)
+      .map((option) =>
+        "featId" in option
+          ? option.featId
+          : `${option.rewardType}:${option.refId ?? ""}:${option.rewardCardId ?? ""}:${option.cardUid ?? ""}:${option.value ?? ""}`,
+      )
       .join(",");
     return { type: "reward", key: `reward:${reward.kind}:${optionKey}` };
   }
@@ -441,6 +445,210 @@ function createEquipmentCard(equipment: EquipmentState): HTMLDivElement {
   return card;
 }
 
+type DeckCardView = {
+  name: string;
+  owner: string;
+  cost: string;
+  type: "attack" | "skill" | "power" | "status" | "curse";
+  typeLabel: string;
+  description: string;
+  upgraded?: boolean;
+  disabled?: boolean;
+  removed?: boolean;
+};
+
+function starterCardsForHero(hero: RunTeamMember): DeckCardView[] {
+  const className = hero.className || `职业${hero.classId}`;
+  const owner = hero.name || className;
+  const disabled = hero.isDead === true;
+  const lowerClass = className.toLowerCase();
+
+  if (className.includes("战士") || lowerClass.includes("fighter")) {
+    return [
+      { name: "精准打击", owner, cost: "1", type: "attack", typeLabel: "Attack", description: "造成武器伤害。按目标 AC 护甲减免。", disabled },
+      { name: "护卫", owner, cost: "1", type: "skill", typeLabel: "Skill", description: "友军获得 guard，并登记本轮护卫反击。", disabled },
+    ];
+  }
+  if (className.includes("牧师") || lowerClass.includes("cleric")) {
+    return [
+      { name: "圣火术", owner, cost: "1", type: "attack", typeLabel: "Attack", description: "法术伤害。按目标感知抗性减免。", disabled },
+      { name: "祝福术", owner, cost: "1", type: "power", typeLabel: "Power", description: "获得 focus：攻击穿甲 +1，治疗 +2。", disabled },
+    ];
+  }
+  if (className.includes("游侠") || lowerClass.includes("ranger")) {
+    return [
+      { name: "猎人标记", owner, cost: "1", type: "attack", typeLabel: "Attack", description: "标记敌人。后续攻击追加穿甲。", disabled },
+      { name: "翻滚射击", owner, cost: "1", type: "skill", typeLabel: "Skill", description: "造成小额伤害并获得少量 guard。", disabled },
+    ];
+  }
+  if (className.includes("法师") || lowerClass.includes("wizard") || lowerClass.includes("mage")) {
+    return [
+      { name: "火焰箭", owner, cost: "2", type: "attack", typeLabel: "Attack", description: "造成高额法术伤害。命中随机性由卡牌效果表达。", disabled },
+      { name: "奥术护盾", owner, cost: "1", type: "skill", typeLabel: "Skill", description: "获得 guard；若已有 focus，额外保留 1 张手牌。", disabled },
+    ];
+  }
+
+  return [
+    { name: "基础攻击", owner, cost: "1", type: "attack", typeLabel: "Attack", description: `${className} 的基础攻击卡。`, disabled },
+    { name: "战术准备", owner, cost: "1", type: "skill", typeLabel: "Skill", description: "获得 guard，并为下一张卡提供节奏收益。", disabled },
+  ];
+}
+
+function formatBuildSummary(summary: RunTeamMember["buildSummary"]): string {
+  if (!summary) {
+    return "";
+  }
+  return Array.isArray(summary) ? summary.filter(Boolean).join(" / ") : String(summary);
+}
+
+function buildDeckCards(snapshot: RunSnapshot): DeckCardView[] {
+  if (snapshot.cardBattle?.deck?.length) {
+    return snapshot.cardBattle.deck.map(cardStateToDeckCard);
+  }
+  if (snapshot.cardLibrary?.cards?.length) {
+    return snapshot.cardLibrary.cards.map(cardStateToDeckCard);
+  }
+
+  const cards: DeckCardView[] = [];
+  for (const hero of snapshot.team) {
+    cards.push(...starterCardsForHero(hero));
+
+    const buildSummary = formatBuildSummary(hero.buildSummary).trim();
+    if (buildSummary) {
+      cards.push({
+        name: buildSummary.split(/[，,、/]/)[0]?.trim() || "专长卡",
+        owner: hero.name,
+        cost: "1",
+        type: "power",
+        typeLabel: "Power",
+        description: buildSummary,
+        upgraded: true,
+        disabled: hero.isDead === true,
+      });
+    }
+  }
+
+  const gainedSkillCards = snapshot.lastBattleSummary?.levelUp?.gainedSkillCards ?? [];
+  for (const skill of gainedSkillCards) {
+    cards.push({
+      name: skill.name,
+      owner: skill.runtimeKind === "passive" ? "被动专长" : "奖励技能",
+      cost: skill.runtimeKind === "passive" ? "0" : "1",
+      type: skill.runtimeKind === "passive" ? "power" : "attack",
+      typeLabel: skill.runtimeKind === "passive" ? "Power" : "Attack",
+      description: "最近升级获得，已进入队伍牌库投影。",
+      upgraded: true,
+    });
+  }
+
+  if (snapshot.team.some((hero) => hero.isDead)) {
+    cards.push({
+      name: "伤口",
+      owner: "污染",
+      cost: "—",
+      type: "status",
+      typeLabel: "Status",
+      description: "不可打出。占据手牌，回合末弃置。",
+    });
+  }
+
+  return cards;
+}
+
+function cardStateToDeckCard(card: RunCardState): DeckCardView {
+  const typeLabel =
+    card.type === "attack"
+      ? "Attack"
+      : card.type === "power"
+        ? "Power"
+        : card.type === "status"
+          ? "Status"
+          : card.type === "curse"
+            ? "Curse"
+          : "Skill";
+  const guardText = (card.guardValue ?? 0) > 0 ? `获得 ${card.guardValue} guard。` : "";
+  const targetText = (card.targetCount ?? 0) > 1 ? `最多影响 ${card.targetCount} 个目标。` : "";
+  const removedText = card.removed ? "已从永久牌库删除。" : "";
+  const description = [removedText, guardText, targetText, card.description || "通过 Feat 投影生成的战斗卡。"].filter(Boolean).join(" ");
+  return {
+    name: card.name,
+    owner: card.ownerName || (card.ownerScope === "team" ? "污染" : "队伍"),
+    cost: String(card.cost ?? 0),
+    type: card.type,
+    typeLabel,
+    description,
+    upgraded: card.upgraded,
+    disabled: card.disabled || card.removed,
+    removed: card.removed,
+  };
+}
+
+function createDeckCard(card: DeckCardView): HTMLElement {
+  const element = document.createElement("article");
+  element.className = `run-deck-card run-deck-card--${card.type}${card.disabled ? " is-disabled" : ""}`;
+
+  const cost = document.createElement("div");
+  cost.className = "run-deck-card__cost";
+  cost.textContent = card.cost;
+
+  const type = document.createElement("div");
+  type.className = "run-deck-card__type";
+  type.textContent = card.typeLabel;
+
+  const title = document.createElement("h3");
+  title.textContent = card.name;
+
+  const owner = document.createElement("div");
+  owner.className = "run-deck-card__owner";
+  owner.textContent = card.removed ? `${card.owner} · 已删除` : card.disabled ? `${card.owner} · 阵亡失效` : card.owner;
+
+  const desc = document.createElement("p");
+  desc.textContent = card.description;
+
+  element.append(cost, type);
+  if (card.upgraded) {
+    const badge = document.createElement("span");
+    badge.className = "run-deck-card__badge";
+    badge.textContent = "+1";
+    element.append(badge);
+  }
+  element.append(title, owner, desc);
+  return element;
+}
+
+function renderDeckPanel(host: HTMLDivElement, snapshot: RunSnapshot) {
+  const cards = buildDeckCards(snapshot);
+  const activeCards = cards.filter((card) => !card.disabled && card.type !== "status").length;
+  const disabledCards = cards.filter((card) => card.disabled).length;
+  const statusCards = cards.filter((card) => card.type === "status").length;
+  const cardBattle = snapshot.cardBattle;
+
+  const title = document.createElement("div");
+  title.className = "panel-title";
+  title.textContent = "队伍牌库";
+
+  const summary = document.createElement("div");
+  summary.className = "run-deck-summary";
+  summary.innerHTML = `
+    <span>总牌 ${cards.length}</span>
+    <span>${cardBattle ? `手牌 ${cardBattle.hand.length}` : `可用 ${activeCards}`}</span>
+    <span>${cardBattle ? `抽牌 ${cardBattle.drawPileCount}` : `失效 ${disabledCards}`}</span>
+    <span>${cardBattle ? `弃牌 ${cardBattle.discardPileCount}` : `污染 ${statusCards}`}</span>
+  `;
+
+  const note = document.createElement("div");
+  note.className = "run-roster-meta";
+  note.textContent = cardBattle
+    ? `真实战斗牌库 · teamEnergy ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} · guard ${cardBattle.guard}`
+    : "当前为 Run 级永久牌库：由 Feat 投影生成，升级和删除会保留到后续战斗。";
+
+  const grid = document.createElement("div");
+  grid.className = "run-deck-card-grid";
+  grid.append(...cards.map(createDeckCard));
+
+  host.append(title, summary, note, grid);
+}
+
 function getBestSkillCheckMod(snapshot: RunSnapshot, ability: string) {
   const key = (ability || "investigation").toLowerCase();
   const table: Record<string, keyof RunTeamMember> = {
@@ -668,6 +876,7 @@ function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
       const heroName = option.heroName ?? "未知";
       const featName = option.featName ?? `Feat ${option.featId}`;
       const featDesc = option.featDescription ?? "";
+      const isCardAction = option.rewardAction === "upgrade_card" || option.rewardAction === "remove_card";
 
       const btn = document.createElement("button");
       btn.type = "button";
@@ -678,7 +887,9 @@ function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
       header.className = "reward-card__header";
       const hero = document.createElement("div");
       hero.className = "reward-card__hero";
-      hero.textContent = `为 ${heroName} 选择 Lv${option.level} 天赋`;
+      hero.textContent = isCardAction
+        ? `${heroName} · ${option.rewardAction === "upgrade_card" ? "升级已有 Card" : "删除已有 Card"}`
+        : `为 ${heroName} 选择 Lv${option.level} 天赋`;
       const lv = document.createElement("div");
       lv.className = "reward-card__level";
       lv.textContent = `${tierLabel}${isSubclassCore ? " · 子职核心" : ""}`;
@@ -686,7 +897,7 @@ function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
 
       const feat = document.createElement("div");
       feat.className = "reward-card__feat";
-      feat.textContent = `#${option.featId} ${featName}`;
+      feat.textContent = isCardAction ? featName : `#${option.featId} ${featName}`;
 
       const desc = document.createElement("div");
       desc.className = "reward-card__desc";
@@ -696,6 +907,10 @@ function renderRewardStageModal(controls: RunControls, snapshot: RunSnapshot) {
       grid.append(btn);
     });
     body.append(grid);
+
+    const skip = makeButton("跳过奖励", false, () => controls.handlers.onChooseReward(0));
+    skip.classList.add("run-secondary-action");
+    body.append(skip);
   } else if (snapshot.rewardState.kind === "chest") {
     const option = (snapshot.rewardState.options as RewardOption[])[0];
     if (option) {
@@ -1093,6 +1308,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         const heroName = option.heroName ?? "未知";
         const featName = option.featName ?? `Feat ${option.featId}`;
         const featDesc = option.featDescription ?? "";
+        const isCardAction = option.rewardAction === "upgrade_card" || option.rewardAction === "remove_card";
 
         const btn = document.createElement("button");
         btn.type = "button";
@@ -1103,7 +1319,9 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         header.className = "reward-card__header";
         const hero = document.createElement("div");
         hero.className = "reward-card__hero";
-        hero.textContent = `为 ${heroName} 选择 Lv${option.level} 天赋`;
+        hero.textContent = isCardAction
+          ? `${heroName} · ${option.rewardAction === "upgrade_card" ? "升级已有 Card" : "删除已有 Card"}`
+          : `为 ${heroName} 选择 Lv${option.level} 天赋`;
         const lv = document.createElement("div");
         lv.className = "reward-card__level";
         lv.textContent = `${tierLabel}${isSubclassCore ? " · 子职核心" : ""}`;
@@ -1111,7 +1329,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
 
         const feat = document.createElement("div");
         feat.className = "reward-card__feat";
-        feat.textContent = `#${option.featId} ${featName}`;
+        feat.textContent = isCardAction ? featName : `#${option.featId} ${featName}`;
 
         const desc = document.createElement("div");
         desc.className = "reward-card__desc";
@@ -1134,6 +1352,10 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
         grid.append(btn);
       });
       host.append(grid);
+
+      const skip = makeButton("跳过奖励", false, () => controls.handlers.onChooseReward(0));
+      skip.classList.add("run-secondary-action");
+      host.append(skip);
     } else if (snapshot.rewardState.kind === "chest") {
       const option = (snapshot.rewardState.options as RewardOption[])[0];
       const rewardSource = snapshot.rewardState.source ?? "chest";
@@ -1253,8 +1475,9 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     title.textContent = `营地 · ${snapshot.campState.name}`;
     host.append(title);
     for (const action of snapshot.campState.actions) {
+      const label = action.available || !action.reason ? action.label : `${action.label} · ${action.reason}`;
       host.append(
-        makeButton(action.label, !action.available, () => controls.handlers.onCampChoose(action.id)),
+        makeButton(label, !action.available, () => controls.handlers.onCampChoose(action.id)),
       );
     }
   } else if (snapshot.phase === "chapter_result" || snapshot.phase === "failed") {
@@ -1271,17 +1494,7 @@ function renderInfoPanel(host: HTMLDivElement, controls: RunControls, snapshot: 
     `;
     host.append(details, makeButton("重新开始第一章", false, controls.handlers.onRestart));
   } else if (snapshot.phase === "map") {
-    const hint = document.createElement("div");
-    hint.className = "run-roster-meta";
-    const msg = snapshot.lastActionMessage || "";
-    hint.textContent = snapshot.hiddenFloorInjected && !snapshot.hiddenFloorCleared
-      ? "已发现隐藏层入口：在地图上前往「隐藏层入口」房间并下楼。"
-      : msg.includes("营地安息")
-      ? msg
-      : snapshot.lastBattleSummary?.won
-        ? "（结算已展示，在战场下方选择下一扇门继续推进）"
-        : "（探索推进中，在战场下方选择一扇门）";
-    host.append(hint);
+    renderDeckPanel(host, snapshot);
   }
 }
 

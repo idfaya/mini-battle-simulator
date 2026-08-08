@@ -1,9 +1,11 @@
 local RunRewardPool = require("config.roguelike.run_reward_pool")
+local RunCardRewardPool = require("config.roguelike.run_card_reward_pool")
 local RunEquipmentConfig = require("config.roguelike.run_equipment_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local BuildConstraints = require("roguelike.build_constraints")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local HeroData = require("config.hero_data")
+local CardBattle = require("roguelike.card_battle")
 
 local RoguelikeReward = {}
 
@@ -342,6 +344,64 @@ local function buildRewardOption(entry)
     return option
 end
 
+local function buildCardRewardOption(entry)
+    return {
+        rewardType = entry.rewardType,
+        cardUid = entry.cardUid,
+        rewardCardId = entry.rewardCardId,
+        skillId = entry.skillId,
+        ownerName = entry.ownerName,
+        label = entry.label,
+        description = entry.description or "",
+        rarity = entry.rarity or "common",
+    }
+end
+
+local function collectAvailableRewardCardEntries(runState)
+    local result = {}
+    for _, entry in ipairs(RunCardRewardPool.GetAllCards()) do
+        local ok, ownerOrReason = CardBattle.CanAddRewardSkillCard(runState, entry)
+        if ok then
+            local copy = {
+                id = entry.id,
+                skillId = entry.skillId,
+                classId = entry.classId,
+                ownerPolicy = entry.ownerPolicy,
+                rarity = entry.rarity or "common",
+                weight = math.max(0, tonumber(entry.weight) or 0),
+                cost = entry.cost,
+                name = entry.name,
+                description = entry.description,
+                ownerName = ownerOrReason and ownerOrReason.name or nil,
+            }
+            if copy.weight > 0 then
+                result[#result + 1] = copy
+            end
+        end
+    end
+    table.sort(result, function(a, b)
+        return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+    end)
+    return result
+end
+
+local function collectCardRewardCandidates(runState)
+    local library = CardBattle.SyncLibrary(runState)
+    local result = {}
+    for _, card in ipairs(library and library.cards or {}) do
+        if card.removed ~= true
+            and card.type ~= "status"
+            and card.type ~= "curse"
+            and card.disabled ~= true then
+            result[#result + 1] = card
+        end
+    end
+    table.sort(result, function(a, b)
+        return tostring(a.uid or "") < tostring(b.uid or "")
+    end)
+    return result
+end
+
 local function buildChestGoldValue(floorDepth)
     local depth = math.max(1, math.floor(tonumber(floorDepth) or 1))
     return 35 + (depth - 1) * 12
@@ -481,6 +541,74 @@ function RoguelikeReward.GenerateChestRewardState(runState, chestContext)
     }
 end
 
+function RoguelikeReward.GenerateCardRewardState(runState, opts)
+    opts = opts or {}
+    local candidates = collectCardRewardCandidates(runState)
+    local rewardCardEntries = collectAvailableRewardCardEntries(runState)
+    if #candidates <= 0 and #rewardCardEntries <= 0 then
+        return nil
+    end
+
+    local options = {}
+    local takenRewardCards = {}
+    local maxGainCards = math.min(2, #rewardCardEntries)
+    for _ = 1, maxGainCards do
+        local pickedIndex, entry = weightedPick(rewardCardEntries, takenRewardCards)
+        if not pickedIndex or not entry then
+            break
+        end
+        takenRewardCards[pickedIndex] = true
+        options[#options + 1] = buildCardRewardOption({
+            rewardType = "gain_card",
+            rewardCardId = entry.id,
+            skillId = entry.skillId,
+            ownerName = entry.ownerName,
+            label = "获得：" .. tostring(entry.name or "Card"),
+            description = entry.description or string.format("将 1 张 %s 加入永久牌库。", tostring(entry.name or "Card")),
+            rarity = entry.rarity or "common",
+        })
+    end
+
+    if #options <= 0 then
+        local maxCopies = math.min(2, #candidates)
+        for index = 1, maxCopies do
+            local card = candidates[index]
+            options[#options + 1] = buildCardRewardOption({
+                rewardType = "copy_card",
+                cardUid = card.uid,
+                label = "复制：" .. tostring(card.name or "Card"),
+                description = string.format("将 1 张 %s 的副本加入永久牌库。", tostring(card.name or "Card")),
+                rarity = card.upgraded == true and "rare" or "common",
+            })
+        end
+    end
+
+    if #candidates > 0 then
+        local greedCard = candidates[math.min(#candidates, #options + 1)] or candidates[1]
+        options[#options + 1] = buildCardRewardOption({
+            rewardType = "copy_card_curse",
+            cardUid = greedCard.uid,
+            label = "贪婪复制：" .. tostring(greedCard.name or "Card"),
+            description = "复制 1 张 Card，但加入 1 张永久诅咒：疑惧。",
+            rarity = "rare",
+        })
+    end
+
+    options[#options + 1] = buildCardRewardOption({
+        rewardType = "skip_card",
+        label = "跳过",
+        description = "不改变永久牌库。",
+        rarity = "common",
+    })
+
+    return {
+        groupId = 0,
+        kind = "card_reward",
+        source = tostring(opts.source or "battle_victory"),
+        options = options,
+    }
+end
+
 function RoguelikeReward.ApplyReward(runState, rewardState, index)
     local option = rewardState and rewardState.options and rewardState.options[index] or nil
     if not option then
@@ -517,6 +645,31 @@ function RoguelikeReward.ApplyReward(runState, rewardState, index)
             return false, result
         end
         runState.lastActionMessage = "招募队员：" .. tostring(option.label or result.name or "新队员")
+    elseif option.rewardType == "copy_card" then
+        local ok, result = CardBattle.CloneLibraryCard(runState, option.cardUid)
+        if not ok then
+            return false, result
+        end
+        runState.lastActionMessage = "卡牌奖励：" .. tostring(result.cardName or option.label or "复制 Card")
+    elseif option.rewardType == "gain_card" then
+        local entry = RunCardRewardPool.GetCard(option.rewardCardId)
+        local ok, result = CardBattle.AddRewardSkillCard(runState, entry)
+        if not ok then
+            return false, result
+        end
+        runState.lastActionMessage = "卡牌奖励：" .. tostring(result.cardName or option.label or "获得 Card")
+    elseif option.rewardType == "copy_card_curse" then
+        local ok, result = CardBattle.CloneLibraryCard(runState, option.cardUid)
+        if not ok then
+            return false, result
+        end
+        local curseOk, curseResult = CardBattle.AddCurseCard(runState, "doubt")
+        if not curseOk then
+            return false, curseResult
+        end
+        runState.lastActionMessage = string.format("贪婪奖励：复制 %s，并加入疑惧", tostring(result.cardName or "Card"))
+    elseif option.rewardType == "skip_card" then
+        runState.lastActionMessage = "跳过卡牌奖励"
     else
         return false, "unsupported_reward"
     end

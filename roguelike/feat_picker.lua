@@ -6,6 +6,7 @@ local FeatBuildConfig = require("config.tables.feats")
 local HeroData = require("config.hero_data")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
 local LevelCurve = require("config.roguelike.level_curve")
+local CardBattle = require("roguelike.card_battle")
 
 local FeatPicker = {}
 
@@ -245,11 +246,86 @@ local function buildOptionPayload(unit, item, targetLevel)
     }
 end
 
+local function buildCardActionOptions(state)
+    local result = {}
+    local upgradeCard = (CardBattle.GetUpgradeableCards(state) or {})[1]
+    if upgradeCard then
+        result[#result + 1] = {
+            rewardAction = "upgrade_card",
+            cardUid = upgradeCard.uid,
+            cardName = upgradeCard.name,
+            heroName = upgradeCard.ownerName or "队伍",
+            tier = "medium",
+            isSubclassCore = false,
+            featName = "升级：" .. tostring(upgradeCard.name or upgradeCard.uid),
+            featDescription = "永久升级这张 Card 实例。优先费用 -1；若已经 0 费则强化 guard 等牌面收益。",
+        }
+    end
+
+    local removeCard = (CardBattle.GetRemovableCards(state) or {})[1]
+    if removeCard then
+        result[#result + 1] = {
+            rewardAction = "remove_card",
+            cardUid = removeCard.uid,
+            cardName = removeCard.name,
+            heroName = removeCard.ownerName or "队伍",
+            tier = "small",
+            isSubclassCore = false,
+            featName = "删除：" .. tostring(removeCard.name or removeCard.uid),
+            featDescription = "永久删除这张 Card 实例。不能删除 status/curse，也不能删除某个存活 owner 的最后一张可打出牌。",
+        }
+    end
+    return result
+end
+
+local function mergeCardActionOptions(state, featOptions)
+    local actionOptions = buildCardActionOptions(state)
+    if #actionOptions == 0 then
+        return featOptions
+    end
+
+    local merged = {}
+    local keepFeatCount = math.max(1, MAX_OPTIONS - #actionOptions)
+    for index = 1, math.min(#featOptions, keepFeatCount) do
+        merged[#merged + 1] = featOptions[index]
+    end
+    for _, option in ipairs(actionOptions) do
+        if #merged < MAX_OPTIONS then
+            merged[#merged + 1] = option
+        end
+    end
+    return merged
+end
+
+local buildOptions
+local function launchNextSessionIfNeeded(state, pendingLevels, result)
+    if pendingLevels <= 0 then
+        return
+    end
+    local entries = gatherCandidates(state)
+    if #entries <= 0 then
+        return
+    end
+    local nextOptions = buildOptions(entries, state)
+    if #nextOptions <= 0 then
+        return
+    end
+    local nextSession = {
+        kind = "feat_levelup",
+        groupId = 0,
+        options = nextOptions,
+        pendingLevels = pendingLevels,
+    }
+    state.featPickerSession = nextSession
+    state.rewardState = nextSession
+    result.nextSession = nextSession
+end
+
 -- 候选生成：保底每个存活英雄至少 1 张候选进池，再随机补满到 MAX_OPTIONS。
 -- 同 choiceGroup 已用项过滤。返回一份 options 数组。
 -- 当存活英雄 > MAX_OPTIONS 时，扩展候选上限到 #heroEntries，
 -- 严格满足设计 §3.1 / §9 "保底每个存活英雄至少 1 张候选进池"。
-local function buildOptions(heroEntries)
+buildOptions = function(heroEntries, state)
     local options = {}
     local usedGroups = {}
     -- 这里 shuffle 一份副本进入 pass1，让 multi-session 视角下每个英雄都有公平机会。
@@ -324,7 +400,7 @@ local function buildOptions(heroEntries)
     end
 
     shuffleArray(options)
-    return options
+    return mergeCardActionOptions(state, options)
 end
 
 -- 计算队伍当前应处的等级（按 partyExp 跨阈值，统一走 LevelCurve）。
@@ -363,7 +439,7 @@ function FeatPicker.BeginSession(state, thresholds)
     if #entries == 0 then
         return nil
     end
-    local options = buildOptions(entries)
+    local options = buildOptions(entries, state)
     if #options == 0 then
         return nil
     end
@@ -399,6 +475,35 @@ function FeatPicker.Pick(state, optionIndex)
     local option = options[idx]
     if not option then
         return false, "invalid_option"
+    end
+
+    if option.rewardAction == "upgrade_card" or option.rewardAction == "remove_card" then
+        local ok, actionResult
+        if option.rewardAction == "upgrade_card" then
+            ok, actionResult = CardBattle.UpgradeLibraryCard(state, option.cardUid)
+        else
+            ok, actionResult = CardBattle.RemoveLibraryCard(state, option.cardUid)
+        end
+        if not ok then
+            return false, actionResult
+        end
+
+        session.pendingLevels = math.max(0, (tonumber(session.pendingLevels) or 1) - 1)
+        state.partyLevelOwed = math.max(0, (tonumber(state.partyLevelOwed) or 0) - 1)
+        state.featPickerSession = nil
+        state.rewardState = nil
+
+        local result = {
+            picked = {
+                rewardAction = option.rewardAction,
+                cardUid = option.cardUid,
+                cardName = option.cardName,
+            },
+            action = actionResult,
+            sessionExhausted = session.pendingLevels <= 0,
+        }
+        launchNextSessionIfNeeded(state, session.pendingLevels, result)
+        return true, result
     end
 
     -- 找到目标英雄
@@ -465,6 +570,7 @@ function FeatPicker.Pick(state, optionIndex)
         target.currentHp = math.max(1, math.min(newMaxHp, oldCurrentHp + deltaHp))
         target.hp = target.currentHp
     end
+    CardBattle.SyncLibrary(state)
 
     -- 当前 session 消费一次 pendingLevels；同步扣减 state.partyLevelOwed（持久化欠债）。
     session.pendingLevels = math.max(0, (tonumber(session.pendingLevels) or 1) - 1)
@@ -486,24 +592,30 @@ function FeatPicker.Pick(state, optionIndex)
     }
 
     -- 若仍有 pending 升级，启动下一轮（沿用旧 thresholds 不需要——这里直接基于存活队伍补一次）
-    if session.pendingLevels > 0 then
-        local entries = gatherCandidates(state)
-        if #entries > 0 then
-            local nextOptions = buildOptions(entries)
-            if #nextOptions > 0 then
-                local nextSession = {
-                    kind = "feat_levelup",
-                    groupId = 0,
-                    options = nextOptions,
-                    pendingLevels = session.pendingLevels,
-                }
-                state.featPickerSession = nextSession
-                state.rewardState = nextSession
-                result.nextSession = nextSession
-            end
-        end
+    launchNextSessionIfNeeded(state, session.pendingLevels, result)
+
+    return true, result
+end
+
+function FeatPicker.Skip(state)
+    if type(state) ~= "table" then
+        return false, "no_state"
+    end
+    local session = state.featPickerSession
+    if not session or session.kind ~= "feat_levelup" then
+        return false, "no_session"
     end
 
+    session.pendingLevels = math.max(0, (tonumber(session.pendingLevels) or 1) - 1)
+    state.partyLevelOwed = math.max(0, (tonumber(state.partyLevelOwed) or 0) - 1)
+    state.featPickerSession = nil
+    state.rewardState = nil
+
+    local result = {
+        skipped = true,
+        sessionExhausted = session.pendingLevels <= 0,
+    }
+    launchNextSessionIfNeeded(state, session.pendingLevels, result)
     return true, result
 end
 

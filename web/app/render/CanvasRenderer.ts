@@ -55,6 +55,21 @@ export class CanvasRenderer {
     this.scene.draw(this.ctx, this.displayWidth, this.displayHeight, state, now);
   }
 
+  setSelectableTargetIds(targetIds: string[]) {
+    this.scene.setSelectableTargetIds(targetIds);
+    this.canvas.style.cursor = targetIds.length > 0 ? "crosshair" : "";
+  }
+
+  pickBattleUnit(clientX: number, clientY: number) {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    const x = ((clientX - rect.left) / rect.width) * this.displayWidth;
+    const y = ((clientY - rect.top) / rect.height) * this.displayHeight;
+    return this.scene.pickUnitAt(x, y);
+  }
+
   renderMap(snapshot: RunSnapshot | null) {
     const preferredHeight = this.runMapScene.getPreferredCanvasHeight(this.displayWidth, snapshot);
     if (preferredHeight != null) {

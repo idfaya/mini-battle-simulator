@@ -100,7 +100,7 @@
 | `HeroBuild` / Feat `statMods`、Roguelike 祝福 | 命中、HP、`healingFlatBonus`、`damageReduce` 等 |
 | `BattleAttribute` 活跃槽位 | HP、ATK（与 `hit` 镜像）、DMG_REDUCE、DMG_INCREASE |
 
-**命中与伤害**：`core/battle_formula.lua` 提供 `RollD20` / `RollHit` / `RollSave` / `RollConcentration`；物理伤害为 d20+`hit` vs `ac`，重击为自然 20；伤害骰与属性调整由 `BattleSkill.ResolveScaledDamage` 结算。治疗固定加成走 `healingFlatBonus`；百分比治疗加成走 Buff / 职业节奏配置。
+**命中与伤害**：`core/battle_formula.lua` 提供 `RollD20` / `RollHit` / `RollSave` / `RollConcentration`；物理伤害为 d20+`hit` vs `ac`，重击为自然 20；全体单位的 `hit` / `spellAttack` 在 5e 基础值上额外获得 `+2` 节奏补正，`spellDC` 额外获得 `+1`，HP 按全局节奏倍率 `x1.25` 提高；伤害骰与属性调整由 `BattleSkill.ResolveScaledDamage` 结算。治疗固定加成走 `healingFlatBonus`；百分比治疗加成走 Buff / 职业节奏配置。
 
 ## 4. 职业实现边界
 

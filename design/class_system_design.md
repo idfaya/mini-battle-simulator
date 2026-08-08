@@ -139,10 +139,12 @@ Class 基础模板
 
 派生属性统一走 5e 公共规则：
 
-- `HP = hit_die + conMod` 累加至当前等级。
+- `HP = hit_die + conMod` 累加至当前等级，再按全局战斗节奏倍率 `x1.25` 提高生命值。
 - `AC` 由职业 `armor_formula` 结合敏捷/感知/体质修正得出。
 - `hit_bonus = proficiency + primary_ability_mod`。
+- 攻击检定在 5e 基础值上额外获得全局节奏补正 `+2`。
 - `spell_dc = 8 + proficiency + spell_ability_mod`。
+- `spell_dc` 在 5e 基础值上额外获得全局节奏补正 `+1`。
 - `save_X = ability_mod + (proficient ? proficiency : 0)`。
 
 所有派生字段必须经由公共 5e 模块计算，禁止各职业各自实现。

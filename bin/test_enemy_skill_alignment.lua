@@ -90,22 +90,22 @@ for _, enemyId in ipairs(explicitMetaEnemyIds) do
 end
 
 local HP_BASELINE = {
-    [910001] = 9,
-    [910002] = 7,
-    [910003] = 13,
-    [910004] = 14,
-    [910005] = 24,
-    [910006] = 30,
-    [910007] = 38,
-    [910008] = 11,
-    [910009] = 8,
-    [910010] = 14,
-    [910011] = 24,
-    [910012] = 7,
-    [910013] = 10,
-    [910014] = 16,
-    [910015] = 22,
-    [910016] = 18,
+    [910001] = 11,
+    [910002] = 8,
+    [910003] = 16,
+    [910004] = 17,
+    [910005] = 30,
+    [910006] = 37,
+    [910007] = 47,
+    [910008] = 13,
+    [910009] = 10,
+    [910010] = 17,
+    [910011] = 30,
+    [910012] = 8,
+    [910013] = 12,
+    [910014] = 20,
+    [910015] = 27,
+    [910016] = 22,
 }
 
 for enemyId, expectedHp in pairs(HP_BASELINE) do
@@ -117,32 +117,32 @@ end
 
 local goblin = EnemyData.ConvertToHeroData(910002, 2)
 assert_true(goblin.ac == 13, "Goblin AC matches current monster baseline")
-assert_true(goblin.hit == 3, "Goblin hit matches current monster baseline")
+assert_true(goblin.hit == 5, "Goblin hit includes global pacing bonus")
 assert_array_equals(skillIdsFromHeroData(910002), { 80001011, 80001101 }, "Goblin uses static skills")
 
 local skeleton = EnemyData.ConvertToHeroData(910004, 4)
 assert_true(skeleton.ac == 12, "Skeleton AC matches current monster baseline")
-assert_true(skeleton.hit == 3, "Skeleton elite hit stays in CR lane")
+assert_true(skeleton.hit == 5, "Skeleton elite hit includes global pacing bonus")
 assert_array_equals(skillIdsFromHeroData(910004), { 80002001, 80002006, 80002104 }, "Skeleton elite uses trimmed frontliner skills")
 
 local darkMage = EnemyData.ConvertToHeroData(910005, 4)
 assert_true(darkMage.ac == 12, "DarkMage AC uses current monster baseline")
-assert_true(darkMage.hit == 4, "DarkMage hit no longer uses player-level scaling")
-assert_true(darkMage.spellDC == 12, "DarkMage spell DC uses CR proficiency")
+assert_true(darkMage.hit == 6, "DarkMage hit includes global pacing bonus")
+assert_true(darkMage.spellDC == 13, "DarkMage spell DC includes global pacing bonus")
 assert_array_equals(skillIdsFromHeroData(910005), { 80007001, 80007002, 80007003, 80007004 }, "DarkMage uses static skills")
 assert_array_equals(skillTiersFromHeroData(910005), { 2, 2, 2, 2 }, "DarkMage skills are CR-1 tier")
 
 local iceDemon = EnemyData.ConvertToHeroData(910006, 4)
 assert_true(iceDemon.ac == 11, "IceDemon AC matches monster baseline")
-assert_true(iceDemon.hit == 3, "IceDemon hit stays in Act1 boss lane")
-assert_true(iceDemon.spellDC == 11, "IceDemon spell DC stays in CR lane")
+assert_true(iceDemon.hit == 5, "IceDemon hit includes global pacing bonus")
+assert_true(iceDemon.spellDC == 12, "IceDemon spell DC includes global pacing bonus")
 assert_array_equals(skillIdsFromHeroData(910006), { 80008001, 80008002, 80008003 }, "IceDemon boss uses frost ray + nova kit")
 assert_array_equals(skillTiersFromHeroData(910006), { 2, 2, 2 }, "IceDemon skills are CR-1 tier")
 
 local thunderLord = EnemyData.ConvertToHeroData(910007, 7)
 assert_true(thunderLord.ac == 12, "ThunderLord AC matches current monster baseline")
-assert_true(thunderLord.hit == 4, "ThunderLord hit stays in current CR lane")
-assert_true(thunderLord.spellDC == 12, "ThunderLord spell DC stays in current CR lane")
+assert_true(thunderLord.hit == 6, "ThunderLord hit includes global pacing bonus")
+assert_true(thunderLord.spellDC == 13, "ThunderLord spell DC includes global pacing bonus")
 assert_array_equals(skillIdsFromHeroData(910007), { 80009001, 80009002, 80009003, 80009004 }, "ThunderLord uses static skills")
 assert_array_equals(skillTiersFromHeroData(910007), { 3, 3, 3, 3 }, "ThunderLord skills are CR-2 tier")
 

@@ -126,6 +126,138 @@ local function findReadyHero(snapshot)
     return nil
 end
 
+local function isAliveUnit(unit)
+    return unit and unit.isAlive ~= false and unit.isDead ~= true and (tonumber(unit.hp) or 0) > 0
+end
+
+local function isFrontRowUnit(unit)
+    local position = tonumber(unit and unit.position) or 0
+    return position >= 1 and position <= 3
+end
+
+local function hpRatio(unit)
+    local maxHp = math.max(1, tonumber(unit and unit.maxHp) or 1)
+    return math.max(0, tonumber(unit and unit.hp) or 0) / maxHp
+end
+
+local function chooseLowestHpUnit(units)
+    local bestUnit, bestRatio
+    for _, unit in ipairs(units or {}) do
+        if isAliveUnit(unit) then
+            local ratio = hpRatio(unit)
+            if not bestRatio or ratio < bestRatio then
+                bestUnit = unit
+                bestRatio = ratio
+            end
+        end
+    end
+    return bestUnit
+end
+
+local function resolveCardTarget(snapshot, card)
+    local battleSnapshot = snapshot and snapshot.battleSnapshot or nil
+    if not battleSnapshot or not card then
+        return nil
+    end
+
+    local targetSide = tostring(card.targetSide or "none")
+    if targetSide == "none" or targetSide == "" then
+        return nil
+    end
+    if targetSide == "self" then
+        return card.ownerInstanceId
+    end
+
+    local sourcePool = targetSide == "ally" and (battleSnapshot.leftTeam or {}) or (battleSnapshot.rightTeam or {})
+    local candidates = {}
+    for _, unit in ipairs(sourcePool) do
+        if isAliveUnit(unit) then
+            candidates[#candidates + 1] = unit
+        end
+    end
+    if targetSide ~= "ally" and card.ignoreFrontProtection ~= true then
+        local front = {}
+        for _, unit in ipairs(candidates) do
+            if isFrontRowUnit(unit) then
+                front[#front + 1] = unit
+            end
+        end
+        if #front > 0 then
+            candidates = front
+        end
+    end
+
+    local picked = chooseLowestHpUnit(candidates)
+    return picked and picked.id or nil
+end
+
+local function cardPriority(card)
+    local cardType = tostring(card and card.type or "")
+    if cardType == "status" or cardType == "curse" then
+        return 9999
+    end
+    local targetSide = tostring(card and card.targetSide or "none")
+    local base = 50
+    if targetSide == "enemy" then
+        base = 10
+    elseif targetSide == "ally" then
+        base = 20
+    elseif targetSide == "self" then
+        base = 30
+    end
+    if cardType == "guard" then
+        base = base - 3
+    elseif cardType == "attack" then
+        base = base - 2
+    elseif cardType == "skill" then
+        base = base - 1
+    end
+    return base + (tonumber(card and card.cost) or 0)
+end
+
+local function collectPlayableCards(snapshot)
+    local cardBattle = snapshot and snapshot.cardBattle or nil
+    if not cardBattle or cardBattle.phase ~= "player" then
+        return {}
+    end
+    local energy = tonumber(cardBattle.teamEnergy) or 0
+    local cards = {}
+    for _, card in ipairs(cardBattle.hand or {}) do
+        local cost = tonumber(card.cost) or 0
+        local cardType = tostring(card.type or "")
+        if card.uid and card.disabled ~= true and cost <= energy and cardType ~= "status" and cardType ~= "curse" then
+            cards[#cards + 1] = card
+        end
+    end
+    table.sort(cards, function(a, b)
+        local pa, pb = cardPriority(a), cardPriority(b)
+        if pa ~= pb then
+            return pa < pb
+        end
+        return tostring(a.uid or "") < tostring(b.uid or "")
+    end)
+    return cards
+end
+
+local function autoPlayCardOnce(Run, snapshot, config)
+    for _, card in ipairs(collectPlayableCards(snapshot)) do
+        local targetId = resolveCardTarget(snapshot, card)
+        local ok, result = Run.PlayCard(card.uid, targetId)
+        if ok then
+            if config and config.verbose then
+                print(string.format("[Card] played %s cost=%s target=%s",
+                    tostring(card.name or card.uid),
+                    tostring(card.cost),
+                    tostring(targetId)))
+            end
+            return true, result
+        elseif config and config.verbose and (config.verboseSkips or tostring(result) ~= "cast_failed") then
+            print(string.format("[Card] skip %s reason=%s", tostring(card.name or card.uid), tostring(result)))
+        end
+    end
+    return false
+end
+
 function RoguelikeRunDriver.chooseRewardIndex(snapshot)
     local reward = snapshot and snapshot.rewardState
     if not reward or not reward.options then
@@ -149,7 +281,16 @@ function RoguelikeRunDriver.chooseRewardIndex(snapshot)
             return bestIndex
         end
     end
-    local priority = { recruit = 1, equipment = 2, blessing = 3, gold = 4 }
+    local priority = {
+        recruit = 1,
+        equipment = 2,
+        blessing = 3,
+        gain_card = 4,
+        copy_card = 5,
+        gold = 6,
+        skip_card = 8,
+        copy_card_curse = 9,
+    }
     local bestIndex, bestScore
     for index, option in ipairs(reward.options) do
         local score = priority[option.rewardType] or 99
@@ -198,17 +339,24 @@ function RoguelikeRunDriver.runBattleUntilResolved(Run, maxSteps, tickMs, config
     tickMs = tickMs or 800
     local snapshot = Run.GetSnapshot()
     for _ = 1, maxSteps or 900 do
-        local heroId = findReadyHero(snapshot)
-        if heroId then
-            Run.QueueBattleCommand({ type = "cast_ultimate", heroId = heroId })
-        end
-        local events = Run.Tick(tickMs)
-        if config and config.verbose then
-            for _, ev in ipairs(events or {}) do
-                if ev.type == "battle_end" then
-                    print(string.format("[Tick] Battle Ended. win=%s rounds=%s", tostring(ev.win), tostring(ev.rounds)))
-                elseif ev.type == "team_wipe" then
-                    print("[Tick] TEAM WIPE DETECTED!")
+        if snapshot.cardBattle then
+            local played = autoPlayCardOnce(Run, snapshot, config)
+            if not played then
+                Run.EndTurn()
+            end
+        else
+            local heroId = findReadyHero(snapshot)
+            if heroId then
+                Run.QueueBattleCommand({ type = "cast_ultimate", heroId = heroId })
+            end
+            local events = Run.Tick(tickMs)
+            if config and config.verbose then
+                for _, ev in ipairs(events or {}) do
+                    if ev.type == "battle_end" then
+                        print(string.format("[Tick] Battle Ended. win=%s rounds=%s", tostring(ev.win), tostring(ev.rounds)))
+                    elseif ev.type == "team_wipe" then
+                        print("[Tick] TEAM WIPE DETECTED!")
+                    end
                 end
             end
         end

@@ -99,12 +99,9 @@ test("roguelike dungeon slice: map grid, shop, event skill hint", async ({ page 
       continue;
     }
     if (status.includes("battle")) {
-      for (let t = 0; t < 40; t++) {
-        await page.waitForTimeout(300);
-        const s = (await page.locator(".hud-status").textContent()) ?? "";
-        if (!s.includes("battle")) break;
-      }
-      continue;
+      await expect(page.locator(".battle-card-button").first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator(".hud-status")).toContainText("牌局:");
+      break;
     }
     if (status.includes("map")) {
       await page.getByRole("button", { name: "地图" }).click();
@@ -133,7 +130,7 @@ test("roguelike mobile portrait keeps stage, formation, and bottom menu", async 
   await expect(page.locator(".run-map-overlay.is-active .run-direction-pad")).toBeVisible();
   await expect(page.getByRole("button", { name: "地图" })).toBeVisible();
   await expect(page.getByRole("button", { name: "队伍" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "信息" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "牌库" })).toBeVisible();
   await expect(page.getByRole("button", { name: "日志" })).toBeVisible();
   await expect(page.locator(".hud[data-screen='map'] .run-team-card").first()).toBeHidden();
 

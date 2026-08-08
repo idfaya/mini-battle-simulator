@@ -1180,7 +1180,7 @@ local function FinalizeSkillCast(hero, skill, totalDamage, onComplete, castMeta)
         hero.__energyCastStats = nil
     end
 
-    if not releaseCommittedChant then
+    if not releaseCommittedChant and not (castMeta and castMeta.ignoreCooldown == true) then
         BattleSkill.SetSkillCurCoolDown(hero, skill.skillId, skill.maxCoolDown)
     end
 
@@ -1237,7 +1237,7 @@ local function PrepareSkillCast(hero, target, skillId, opts)
     end
 
     local curCd = BattleSkill.GetSkillCurCoolDown(hero, skillId)
-    if curCd > 0 then
+    if curCd > 0 and opts.ignoreCooldown ~= true then
         Logger.Log("[BattleSkill.CastSkillInSeq] Skill in cooldown: " .. tostring(skillId) .. ", cd: " .. curCd)
         return nil
     end
@@ -1445,7 +1445,8 @@ function BattleSkill.StartSkillCastInSeq(hero, target, skillId, onComplete, opts
         return false
     end
 
-    local castMeta = ResolveBasicAttackCastMeta(hero, skillId, opts)
+    local castMeta = ResolveBasicAttackCastMeta(hero, skillId, opts) or {}
+    castMeta.ignoreCooldown = opts.ignoreCooldown == true
 
     BattleSkill.TriggerSkillCastEvent(hero, skill, targets)
 

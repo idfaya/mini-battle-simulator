@@ -22,6 +22,7 @@ local RoguelikeTrinket = require("roguelike.trinket")
 local DungeonGenerator = require("roguelike.dungeon_generator")
 local Act1BossPrep = require("roguelike.act1_boss_prep")
 local ChapterClearPrep = require("roguelike.chapter_clear_prep")
+local CardBattle = require("roguelike.card_battle")
 
 local RoguelikeRun = {}
 local state = nil
@@ -361,6 +362,8 @@ local function resetRunState()
         hiddenFloorActive = false,
         hiddenFloorCleared = false,
         hiddenFloorStairRoomId = nil,
+        cardLibrary = nil,
+        cardBattle = nil,
     }
 end
 
@@ -571,6 +574,8 @@ local function enterNode(nodeId)
         state.phase = "battle"
         state.currentBattleId = tonumber(battleProfile and battleProfile.id) or tonumber(battle and battle.id)
         state.currentBattleConfig = battle
+        CardBattle.StartBattle(state, cachedBattleSnapshot)
+        CardBattle.RefreshEnemyIntents(state, RoguelikeBattleBridge.BuildEnemyIntents())
         return true
     end
 
@@ -632,6 +637,7 @@ leaveNodeBackToMap = function()
     state.currentBattleId = nil
     state.currentBattleConfig = nil
     state.currentBattleEnemyIds = nil
+    CardBattle.Clear(state)
     state.rewardReturnMode = "map"
     refreshAvailableNodes()
 end
@@ -818,6 +824,7 @@ function RoguelikeRun.StartRun(config)
     state.ownedUnits = buildStarterRoster(state, starterHeroIds)
     RoguelikeRoster.RefreshLegacyViews(state)
     applyTestPartyBootstrap((config or {}).testPartyLevel)
+    CardBattle.SyncLibrary(state)
     refreshAvailableNodes()
     return RoguelikeRun.GetSnapshot()
 end
@@ -911,91 +918,103 @@ function RoguelikeRun.EnterCurrentNode()
     return enterNode(nodeId)
 end
 
-function RoguelikeRun.Tick(deltaMs)
-    if state.phase ~= "battle" then
-        return {}
-    end
-    local events = RoguelikeBattleBridge.Tick(deltaMs)
-    cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+local function resolveCurrentBattleIfFinished(events)
     local resolved = RoguelikeBattleBridge.ResolveBattle(
         state,
         state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId)),
         RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
     )
-    if resolved then
-        if evaluateFailureIfNoAlive() then
-            return events or {}
-        end
-
-        if resolved.won then
-            local node = getNode(state.currentNodeId)
-            local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId))
-            local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
-            state.deferredPostBattleReward = RoguelikeReward.PrepareEliteEquipmentReward(
-                state,
-                node and node.nodeType or nil,
-                battleProfile
-            )
-            -- 战斗胜利显式管道：节点金币（已由 ResolveBattle 写入）→ 节点掉落 → partyExp →
-            -- FeatPicker 升级三选一 → 战斗后休整 → 进入下一房间。
-            local lootSummary = grantBattleLoot(node, battleProfile)
-            if state.deferredPostBattleReward then
-                lootSummary.equipmentDropCount = 1
-            end
-            local expReward = grantBattleExp(battle)
-            -- BeginSession 内部根据 partyExp 写回 state.partyLevel；recalcPartyLevel 同步进度条字段。
-            local session = FeatPicker.BeginSession(state)
-            recalcPartyLevel()
-            mergeLastBattleSummary({
-                expReward = expReward or 0,
-                levelUps = {},
-                equipmentDropCount = lootSummary.equipmentDropCount or 0,
-                blessingDropCount = lootSummary.blessingDropCount or 0,
-            })
-
-            -- 启动升级三选一会话；若产生 session 则停在 reward 阶段，由 ChooseReward 链推进；
-            -- 若未跨等级则继续后续 rest+前进。
-            if session then
-                if isChapterClearBossNode(node) then
-                    local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
-                    local clearRewards = chapter.chapterClearRewards or {}
-                    state.gold = (state.gold or 0) + (clearRewards.gold or 0)
-                    state.rewardReturnMode = "chapter_result"
-                else
-                    state.rewardReturnMode = "map"
-                end
-                state.phase = "reward"
-                return events or {}
-            end
-
-            -- 无升级会话：休整后展示精英装备或前进。
-            RoguelikeBattleBridge.ApplyPostBattleRest(state)
-            if node and node.nodeType == "boss" then
-                grantBossTrinketIfNeeded(node)
-                if isChapterClearBossNode(node) then
-                    local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
-                    local clearRewards = chapter.chapterClearRewards or {}
-                    state.gold = (state.gold or 0) + (clearRewards.gold or 0)
-                    enterChapterResult()
-                    return events or {}
-                end
-            end
-            if finishDeferredPostBattleReward() then
-                state.rewardReturnMode = "map"
-                return events or {}
-            end
-
-            state.rewardReturnMode = "map"
-            leaveNodeBackToMap()
-        else
-            state.phase = "failed"
-            state.chapterResult = {
-                success = false,
-                reason = "battle_lost",
-                battleResult = resolved.result,
-            }
-        end
+    if not resolved then
+        return false, events or {}
     end
+
+    CardBattle.Clear(state)
+    if evaluateFailureIfNoAlive() then
+        return true, events or {}
+    end
+
+    if resolved.won then
+        local node = getNode(state.currentNodeId)
+        local battle = state.currentBattleConfig or RunBattleConfig.GetBattle(tonumber(state.currentBattleId))
+        local battleProfile = RunBattleProfile.GetBattleProfile(tonumber(state.currentBattleId))
+        state.deferredPostBattleReward = RoguelikeReward.PrepareEliteEquipmentReward(
+            state,
+            node and node.nodeType or nil,
+            battleProfile
+        )
+        if not state.deferredPostBattleReward and node and tostring(node.nodeType or "") == "battle_normal" then
+            state.deferredPostBattleReward = RoguelikeReward.GenerateCardRewardState(state, {
+                source = "battle_normal_victory",
+            })
+        end
+        local lootSummary = grantBattleLoot(node, battleProfile)
+        if state.deferredPostBattleReward then
+            lootSummary.equipmentDropCount = 1
+        end
+        local expReward = grantBattleExp(battle)
+        local session = FeatPicker.BeginSession(state)
+        recalcPartyLevel()
+        mergeLastBattleSummary({
+            expReward = expReward or 0,
+            levelUps = {},
+            equipmentDropCount = lootSummary.equipmentDropCount or 0,
+            blessingDropCount = lootSummary.blessingDropCount or 0,
+        })
+
+        if session then
+            if isChapterClearBossNode(node) then
+                local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+                local clearRewards = chapter.chapterClearRewards or {}
+                state.gold = (state.gold or 0) + (clearRewards.gold or 0)
+                state.rewardReturnMode = "chapter_result"
+            else
+                state.rewardReturnMode = "map"
+            end
+            state.phase = "reward"
+            return true, events or {}
+        end
+
+        RoguelikeBattleBridge.ApplyPostBattleRest(state)
+        if node and node.nodeType == "boss" then
+            grantBossTrinketIfNeeded(node)
+            if isChapterClearBossNode(node) then
+                local chapter = RoguelikeMap.GetChapter(state.chapterId) or {}
+                local clearRewards = chapter.chapterClearRewards or {}
+                state.gold = (state.gold or 0) + (clearRewards.gold or 0)
+                enterChapterResult()
+                return true, events or {}
+            end
+        end
+        if finishDeferredPostBattleReward() then
+            state.rewardReturnMode = "map"
+            return true, events or {}
+        end
+
+        state.rewardReturnMode = "map"
+        leaveNodeBackToMap()
+    else
+        state.phase = "failed"
+        state.chapterResult = {
+            success = false,
+            reason = "battle_lost",
+            battleResult = resolved.result,
+        }
+    end
+
+    return true, events or {}
+end
+
+function RoguelikeRun.Tick(deltaMs)
+    if state.phase ~= "battle" then
+        return {}
+    end
+    if state.cardBattle then
+        cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+        return {}
+    end
+    local events = RoguelikeBattleBridge.Tick(deltaMs)
+    cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+    resolveCurrentBattleIfFinished(events)
     return events or {}
 end
 
@@ -1004,6 +1023,48 @@ function RoguelikeRun.QueueBattleCommand(command)
         return false
     end
     return RoguelikeBattleBridge.QueueCommand(command)
+end
+
+function RoguelikeRun.PlayCard(cardUid, targetId)
+    if state.phase ~= "battle" then
+        return false, "not_in_battle"
+    end
+    local ok, result = CardBattle.PlayCard(state, cardUid, {
+        targetId = targetId,
+        castCard = function(card, resolvedTargetId)
+            return RoguelikeBattleBridge.PlayCardSkill(card, resolvedTargetId)
+        end,
+    })
+    RoguelikeBattleBridge.EvaluateBattleEnd()
+    cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+    CardBattle.SyncOwnerAvailability(state, cachedBattleSnapshot)
+    resolveCurrentBattleIfFinished({})
+    return ok, result
+end
+
+function RoguelikeRun.EndTurn()
+    if state.phase ~= "battle" then
+        return false, "not_in_battle"
+    end
+    local ok, result = CardBattle.EndTurn(state, {
+        executeEnemyIntent = function(intent)
+            return RoguelikeBattleBridge.ExecuteEnemyIntent(intent)
+        end,
+        buildEnemyIntents = function()
+            return RoguelikeBattleBridge.BuildEnemyIntents()
+        end,
+        advanceBattleRound = function()
+            return RoguelikeBattleBridge.AdvanceCardBattleRound()
+        end,
+        isBattleEnded = function()
+            local battleResult = RoguelikeBattleBridge.EvaluateBattleEnd()
+            return battleResult and battleResult.isFinished == true
+        end,
+    })
+    cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
+    CardBattle.SyncOwnerAvailability(state, cachedBattleSnapshot)
+    resolveCurrentBattleIfFinished({})
+    return ok, result
 end
 
 function RoguelikeRun.ChooseReward(index)
@@ -1015,7 +1076,13 @@ function RoguelikeRun.ChooseReward(index)
     -- 升级三选一会话由 FeatPicker 处理，且可能链式触发下一会话；
     -- 仅在 session 完全消费完毕后再进入战斗后休整 + 推进路线。
     if rewardKind == "feat_levelup" then
-        local ok, result = FeatPicker.Pick(state, tonumber(index) or 0)
+        local selectedIndex = tonumber(index) or 0
+        local ok, result
+        if selectedIndex == 0 then
+            ok, result = FeatPicker.Skip(state)
+        else
+            ok, result = FeatPicker.Pick(state, selectedIndex)
+        end
         if not ok then
             return false, result
         end
@@ -1175,6 +1242,8 @@ function RoguelikeRun.ContinueEvent()
             return false, snapshotOrReason
         end
         cachedBattleSnapshot = snapshotOrReason
+        CardBattle.StartBattle(state, cachedBattleSnapshot)
+        CardBattle.RefreshEnemyIntents(state, RoguelikeBattleBridge.BuildEnemyIntents())
         state.eventState = nil
         return true
     end

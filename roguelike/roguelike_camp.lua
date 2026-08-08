@@ -1,6 +1,7 @@
 local RunCampConfig = require("config.roguelike.run_camp_config")
 local RunBlessingConfig = require("config.roguelike.run_blessing_config")
 local RoguelikeRoster = require("roguelike.roguelike_roster")
+local CardBattle = require("roguelike.card_battle")
 
 local RoguelikeCamp = {}
 
@@ -106,10 +107,17 @@ function RoguelikeCamp.BuildCampState(campId, runState)
 
     local actions = {}
     for _, action in ipairs(camp.actions or {}) do
+        local available = true
+        local reason = nil
+        if action.effectType == "purify_one_curse" and #CardBattle.GetCurseCards(runState) <= 0 then
+            available = false
+            reason = "没有可净化的诅咒"
+        end
         actions[#actions + 1] = {
             id = action.id,
             label = action.label,
-            available = true,
+            available = available,
+            reason = reason,
         }
     end
 
@@ -136,11 +144,19 @@ function RoguelikeCamp.ApplyAction(runState, campId, actionId)
     if not selected then
         return false, "action_not_found"
     end
-    if selected.effectType ~= "revive_full_rest" then
-        return false, "unsupported_action"
+    if selected.effectType == "revive_full_rest" then
+        return RoguelikeCamp.ApplyReviveFullRest(runState)
+    end
+    if selected.effectType == "purify_one_curse" then
+        local ok, result = CardBattle.PurifyOneCurse(runState)
+        if not ok then
+            return false, result
+        end
+        runState.lastActionMessage = "营地净化：" .. tostring(result.cardName or "诅咒")
+        return true
     end
 
-    return RoguelikeCamp.ApplyReviveFullRest(runState)
+    return false, "unsupported_action"
 end
 
 return RoguelikeCamp

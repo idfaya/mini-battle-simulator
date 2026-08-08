@@ -63,6 +63,19 @@ body {
   overflow: hidden;
 }
 
+.shell[data-screen="run-team"],
+.shell[data-screen="run-info"],
+.shell[data-screen="run-log"] {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
+
+.shell[data-screen="run-team"] .stage,
+.shell[data-screen="run-info"] .stage,
+.shell[data-screen="run-log"] .stage {
+  display: none;
+}
+
 .shell[data-screen^="run-"] .stage canvas {
   background: rgba(9, 17, 30, 0.68);
 }
@@ -211,12 +224,16 @@ body {
   display: none;
 }
 
-/* Roguelike 常驻布局：战场承载探索/事件/战斗，队伍与信息保持可见 */
+/* Roguelike：地图页使用统一舞台；队伍 / 牌库 / 日志为独立信息页。 */
 .hud[data-screen="map"] .run-map-panel,
 .hud[data-screen="team"] .run-map-panel,
 .hud[data-screen="info"] .run-map-panel,
+.hud[data-screen="map"] .run-team-panel,
+.hud[data-screen="map"] .run-info-panel,
 .hud[data-screen="map"] .battle-log,
+.hud[data-screen="team"] .run-info-panel,
 .hud[data-screen="team"] .battle-log,
+.hud[data-screen="info"] .run-team-panel,
 .hud[data-screen="info"] .battle-log,
 .hud[data-screen="log"] .run-map-panel,
 .hud[data-screen="log"] .run-team-panel,
@@ -225,20 +242,15 @@ body {
   display: none;
 }
 
-.hud[data-screen="map"] .run-team-panel,
 .hud[data-screen="team"] .run-team-panel,
-.hud[data-screen="info"] .run-team-panel,
-.hud[data-screen="map"] .run-info-panel,
-.hud[data-screen="team"] .run-info-panel,
 .hud[data-screen="info"] .run-info-panel {
   display: grid;
   overflow: auto;
 }
 
-.hud[data-screen="map"],
 .hud[data-screen="team"],
 .hud[data-screen="info"] {
-  grid-template-rows: auto minmax(160px, 0.9fr) minmax(180px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
 }
 
@@ -780,10 +792,97 @@ body {
 }
 
 .ult-button {
+  position: relative;
   display: grid;
   align-content: center;
-  gap: 1px;
+  gap: 3px;
   min-width: 0;
+}
+
+.hud[data-screen="battle"] .ult-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.battle-card-button {
+  min-height: 108px;
+  padding: 34px 10px 10px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 38%, rgba(0, 0, 0, 0.2)),
+    rgba(20, 27, 39, 0.94);
+  border-color: rgba(238, 224, 196, 0.18);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.battle-card-button.ready {
+  border-color: rgba(128, 237, 153, 0.58);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(128, 237, 153, 0.16), transparent 54%),
+    rgba(20, 37, 31, 0.94);
+}
+
+.battle-end-turn-button {
+  border-color: rgba(245, 158, 11, 0.58);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.18), transparent 54%),
+    rgba(39, 30, 18, 0.94);
+  color: #ffe8b5;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.battle-card-button:disabled {
+  opacity: 0.78;
+  cursor: default;
+}
+
+.battle-card-missing {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(255, 92, 92, 0.36);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(110, 22, 36, 0.35);
+  color: #ffd6d6;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.battle-card-cost {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f5d270, #b5772d);
+  color: #24160a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.battle-card-hint {
+  color: rgba(217, 226, 236, 0.68);
+  font-size: 11px;
+}
+
+.battle-target-button {
+  min-height: 54px;
+  border-color: rgba(126, 167, 255, 0.5);
+  background: rgba(21, 32, 54, 0.94);
+  color: #e6eefb;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.battle-target-button--cancel {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(31, 41, 55, 0.88);
+  color: rgba(217, 226, 236, 0.72);
 }
 
 .ult-button-name,
@@ -1012,6 +1111,125 @@ body {
 .run-info-section {
   display: grid;
   gap: 8px;
+}
+
+.run-deck-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.run-deck-summary span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 6px;
+  background: rgba(15, 23, 42, 0.52);
+  color: #d9e2ec;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.run-deck-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.run-deck-card {
+  position: relative;
+  min-height: 166px;
+  padding: 34px 12px 12px;
+  border: 1px solid rgba(238, 224, 196, 0.18);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 38%, rgba(0, 0, 0, 0.2)),
+    rgba(20, 27, 39, 0.94);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.run-deck-card--attack {
+  border-color: rgba(255, 138, 96, 0.38);
+}
+
+.run-deck-card--skill {
+  border-color: rgba(126, 167, 255, 0.42);
+}
+
+.run-deck-card--power {
+  border-color: rgba(255, 214, 102, 0.46);
+}
+
+.run-deck-card--status {
+  border-color: rgba(168, 85, 247, 0.42);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.22), transparent 55%),
+    rgba(20, 18, 32, 0.94);
+}
+
+.run-deck-card.is-disabled {
+  filter: grayscale(0.7);
+  opacity: 0.58;
+}
+
+.run-deck-card__cost {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f5d270, #b5772d);
+  color: #24160a;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.run-deck-card__type {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: rgba(238, 224, 196, 0.72);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.run-deck-card__badge {
+  position: absolute;
+  top: 38px;
+  right: 12px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: rgba(128, 237, 153, 0.18);
+  color: #80ed99;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.run-deck-card h3 {
+  margin: 0 0 4px;
+  color: #f8f9fa;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.run-deck-card__owner {
+  margin-bottom: 10px;
+  color: rgba(217, 226, 236, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.run-deck-card p {
+  margin: 0;
+  color: #d9e2ec;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .run-battle-summary-section {
@@ -1393,16 +1611,6 @@ body {
   .shell[data-screen="run-info"] .stage,
   .shell[data-screen="run-log"] .stage {
     display: none;
-  }
-
-  .shell[data-screen="run-team"],
-  .shell[data-screen="run-info"] {
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .shell[data-screen="run-team"] .stage,
-  .shell[data-screen="run-info"] .stage {
-    display: block;
   }
 
   .stage {

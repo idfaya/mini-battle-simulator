@@ -2,8 +2,8 @@ import { LuaBattleHost } from "./lua/LuaBattleHost";
 import { CanvasRenderer } from "./render/CanvasRenderer";
 import { BattleStore } from "./state/battleStore";
 import { RunStore } from "./state/runStore";
-import type { BattleSetup } from "./types/battle";
-import type { RunSnapshot } from "./types/roguelike";
+import type { BattleSetup, BattleSnapshot, UnitState } from "./types/battle";
+import type { RunCardState, RunSnapshot } from "./types/roguelike";
 import { createControls, renderControls } from "./ui/domControls";
 import { createRunControls, renderBattleResultStageOverlay, renderRunControls } from "./ui/runControls";
 
@@ -281,6 +281,7 @@ async function bootstrapStandaloneBattle(
   battleIntroHoldUntil = performance.now() + BATTLE_ENTRANCE_HOLD_MS;
 
   let rafId: number | null = null;
+  let lastBattleControlsSignature = "";
   registerCleanup(() => {
     if (rafId != null) {
       cancelAnimationFrame(rafId);
@@ -327,6 +328,31 @@ async function bootstrapStandaloneBattle(
   rafId = requestAnimationFrame(frame);
 }
 
+function isAliveBattleUnit(unit: UnitState): boolean {
+  return unit.isAlive && unit.hp > 0;
+}
+
+function isFrontRowBattleUnit(unit: UnitState): boolean {
+  return unit.position >= 1 && unit.position <= 3;
+}
+
+function getTargetableUnits(snapshot: BattleSnapshot, card: RunCardState): UnitState[] {
+  if (card.targetSide === "self") {
+    const owner = snapshot.leftTeam.find((unit) => unit.id === String(card.ownerInstanceId ?? ""));
+    return owner && isAliveBattleUnit(owner) ? [owner] : [];
+  }
+
+  const sourcePool = card.targetSide === "ally" ? snapshot.leftTeam : snapshot.rightTeam;
+  let candidates = sourcePool.filter(isAliveBattleUnit);
+  if (card.targetSide !== "ally" && card.ignoreFrontProtection !== true) {
+    const frontCandidates = candidates.filter(isFrontRowBattleUnit);
+    if (frontCandidates.length > 0) {
+      candidates = frontCandidates;
+    }
+  }
+  return candidates;
+}
+
 async function bootstrapRunMode(
   host: LuaBattleHost,
   renderer: CanvasRenderer,
@@ -353,11 +379,15 @@ async function bootstrapRunMode(
   let runUiDirty = true;
   let battleIntroHoldUntil = 0;
   let activeBattleKey = "";
+  let selectedRunCardUid: string | null = null;
 
   const syncRunSnapshot = (snapshot: RunSnapshot) => {
     runSnapshot = snapshot;
     runStore.setSnapshot(snapshot);
     runUiDirty = true;
+    if (selectedRunCardUid && !snapshot.cardBattle?.hand.some((card) => card.uid === selectedRunCardUid)) {
+      selectedRunCardUid = null;
+    }
     if (snapshot.battleSnapshot) {
       const battleKey = `${snapshot.currentNodeId ?? "node"}:${snapshot.battleSnapshot.leftTeam.map((unit) => unit.id).join(",")}__${snapshot.battleSnapshot.rightTeam.map((unit) => unit.id).join(",")}`;
       if (battleKey !== activeBattleKey) {
@@ -381,6 +411,53 @@ async function bootstrapRunMode(
 
   const castRunUltimate = async (heroId: string) => {
     await host.queueRunBattleCommand({ type: "cast_ultimate", heroId });
+  };
+
+  const playRunCard = async (cardUid: string, targetId?: string) => {
+    const response = await host.playCard(cardUid, targetId);
+    if (response.accepted) {
+      selectedRunCardUid = null;
+      syncRunSnapshot(await host.getRunSnapshot());
+    }
+  };
+
+  const getSelectedRunCard = () =>
+    runSnapshot?.cardBattle?.hand.find((card) => card.uid === selectedRunCardUid) ?? null;
+
+  const getSelectableTargetIds = () => {
+    const card = getSelectedRunCard();
+    if (!card || !runSnapshot?.battleSnapshot) {
+      return [];
+    }
+    return getTargetableUnits(runSnapshot.battleSnapshot, card).map((unit) => unit.id);
+  };
+
+  const updateCanvasTargeting = () => {
+    renderer.setSelectableTargetIds(getSelectableTargetIds());
+  };
+
+  const handleBattleCanvasPointerDown = (event: PointerEvent) => {
+    const card = getSelectedRunCard();
+    if (!card || !runSnapshot?.battleSnapshot || runSnapshot.phase !== "battle") {
+      return;
+    }
+    const picked = renderer.pickBattleUnit(event.clientX, event.clientY);
+    if (!picked || !getSelectableTargetIds().includes(picked.id)) {
+      return;
+    }
+    event.preventDefault();
+    void playRunCard(card.uid, picked.id);
+  };
+  renderer.canvas.addEventListener("pointerdown", handleBattleCanvasPointerDown);
+  registerCleanup(() => {
+    renderer.canvas.removeEventListener("pointerdown", handleBattleCanvasPointerDown);
+  });
+
+  const endRunTurn = async () => {
+    const response = await host.endTurn();
+    if (response.accepted) {
+      syncRunSnapshot(await host.getRunSnapshot());
+    }
   };
 
   let runControls!: ReturnType<typeof createRunControls>;
@@ -491,6 +568,7 @@ async function bootstrapRunMode(
 
   let lastFrame = performance.now();
   let inFlight = false;
+  let lastBattleControlsSignature = "";
   const frame = async (now: number) => {
     if (!isActive()) {
       return;
@@ -539,7 +617,12 @@ async function bootstrapRunMode(
           currentNodeId: liteSnapshot.currentNodeId,
           lastActionMessage: liteSnapshot.lastActionMessage,
           battleSnapshot: liteSnapshot.battleSnapshot,
+          cardLibrary: liteSnapshot.cardLibrary ?? runSnapshot.cardLibrary,
+          cardBattle: liteSnapshot.cardBattle,
         };
+        if (selectedRunCardUid && !runSnapshot.cardBattle?.hand.some((card) => card.uid === selectedRunCardUid)) {
+          selectedRunCardUid = null;
+        }
         runStore.setSnapshot(runSnapshot);
         if (liteSnapshot.battleSnapshot) {
           battleStore.setSnapshot(liteSnapshot.battleSnapshot);
@@ -561,31 +644,80 @@ async function bootstrapRunMode(
     if (shouldRenderBattle && battleStore.getState().snapshot) {
       if (holdBattleResultScene) {
         renderBattleResultStageOverlay(runControls, exitBattleScene);
+        lastBattleControlsSignature = "";
       } else {
         runControls.mapOverlay.classList.remove("is-active");
         runControls.mapOverlay.classList.remove("run-map-overlay--modal");
       }
       if (panelHost.firstChild !== battleControls.root) {
         panelHost.replaceChildren(battleControls.root);
+        lastBattleControlsSignature = "";
         // 切换到战斗 HUD 时，把当前 hud 的 screen 同步到 shell，避免 CSS 失配
         const currentScreen = battleControls.root.dataset.screen ?? "battle";
         shell.dataset.screen = currentScreen;
         syncMobileBattleStageHeight();
       }
       battleControls.root.classList.toggle("battle-ended", holdBattleResultScene);
+      updateCanvasTargeting();
       renderer.renderBattle(battleStore.getState(), now);
-      renderControls(battleControls, battleStore.getState().snapshot, battleStore.getState().log, castRunUltimate);
+      const battleSnapshot = battleStore.getState().snapshot;
+      const battleLog = battleStore.getState().log;
+      const cardBattle = runSnapshot?.cardBattle ?? null;
+      const battleControlsSignature = JSON.stringify({
+        phase: battleSnapshot?.phase,
+        result: battleSnapshot?.result?.winner ?? null,
+        activeHeroId: battleSnapshot?.activeHeroId ?? null,
+        logCount: battleLog.length,
+        selectedRunCardUid,
+        cardPhase: cardBattle?.phase ?? null,
+        teamEnergy: cardBattle?.teamEnergy ?? null,
+        guard: cardBattle?.guard ?? null,
+        drawPileCount: cardBattle?.drawPileCount ?? null,
+        discardPileCount: cardBattle?.discardPileCount ?? null,
+        exhaustPileCount: cardBattle?.exhaustPileCount ?? null,
+        statusCreatedCount: cardBattle?.statusCreatedCount ?? null,
+        hand: cardBattle?.hand.map((card) => [
+          card.uid,
+          card.cost,
+          card.disabled,
+          card.type,
+          card.statusSubtype,
+          card.targetSide,
+          card.targetCount,
+        ]) ?? [],
+        intents: cardBattle?.enemyIntents?.map((intent) => [
+          intent.enemyInstanceId,
+          intent.skillId,
+          intent.targetIds.join(","),
+        ]) ?? [],
+      });
+      if (battleControlsSignature !== lastBattleControlsSignature) {
+        renderControls(battleControls, battleSnapshot, battleLog, castRunUltimate, {
+          cardBattle,
+          selectedCardUid: selectedRunCardUid,
+          onSelectCard: (cardUid) => {
+            selectedRunCardUid = cardUid;
+            lastBattleControlsSignature = "";
+            updateCanvasTargeting();
+          },
+          onPlayCard: playRunCard,
+          onEndTurn: endRunTurn,
+        });
+        lastBattleControlsSignature = battleControlsSignature;
+      }
       syncMobileBattleStageHeight();
       battleStore.clearTransient(now);
     } else {
       if (panelHost.firstChild !== runControls.root) {
         panelHost.replaceChildren(runControls.root);
+        lastBattleControlsSignature = "";
         // 切到 Roguelike HUD 时，把 runControls 当前 screen 同步到 shell，手机上 CSS 才会正确隐藏 stage
         const runScreen = runControls.root.dataset.screen ?? "map";
         shell.dataset.screen = `run-${runScreen}`;
         syncMobileBattleStageHeight();
         runUiDirty = true;
       }
+      renderer.setSelectableTargetIds([]);
       renderer.renderMap(runSnapshot);
       if (runUiDirty) {
         renderRunControls(runControls, runStore.getState().snapshot, runStore.getState().logs);

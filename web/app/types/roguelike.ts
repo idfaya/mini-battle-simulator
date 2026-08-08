@@ -119,8 +119,20 @@ export type BlessingState = {
 };
 
 export type RewardOption = {
-  rewardType: "gold" | "equipment" | "blessing" | "recruit";
+  rewardType:
+    | "gold"
+    | "equipment"
+    | "blessing"
+    | "recruit"
+    | "gain_card"
+    | "copy_card"
+    | "copy_card_curse"
+    | "skip_card";
   refId?: number;
+  cardUid?: string;
+  rewardCardId?: number;
+  skillId?: number;
+  ownerName?: string;
   classId?: number;
   value?: number;
   label: string;
@@ -134,17 +146,20 @@ export type RewardOption = {
 
 // 队伍升级三选一选项（kind="feat_levelup"），来自 roguelike/feat_picker.lua。
 export type FeatOption = {
-  featId: number;
-  heroId: number;
+  featId?: number;
+  heroId?: number;
   rosterId?: number;
   heroName: string;
-  classId: number;
-  level: number;
+  classId?: number;
+  level?: number;
   tier: "small" | "medium" | "high";
   isSubclassCore: boolean;
   featName?: string;
   featDescription?: string;
   choiceGroup?: string | null;
+  rewardAction?: "gain_feat" | "upgrade_card" | "remove_card";
+  cardUid?: string;
+  cardName?: string;
 };
 
 export type RewardState =
@@ -275,6 +290,7 @@ export type CampActionState = {
   id: number;
   label: string;
   available: boolean;
+  reason?: string;
 };
 
 export type CampState = {
@@ -296,6 +312,81 @@ export type TrinketState = {
   rarity: string;
   code: string;
   description?: string;
+};
+
+export type RunCardState = {
+  uid: string;
+  cardId: number | string;
+  featId?: number | null;
+  skillId?: number | null;
+  sourceKey?: string;
+  name: string;
+  description?: string;
+  ownerRosterId?: number | null;
+  ownerInstanceId?: string | null;
+  ownerHeroId?: number | null;
+  ownerName?: string;
+  ownerClassId?: number;
+  cost: number;
+  type: "attack" | "skill" | "power" | "status" | "curse";
+  guardValue?: number;
+  targetSide?: "enemy" | "ally" | "self" | string;
+  targetMode?: string;
+  targetCount?: number;
+  ignoreFrontProtection?: boolean;
+  upgraded?: boolean;
+  upgradeLevel?: number;
+  exhaust?: boolean;
+  retain?: boolean;
+  ethereal?: boolean;
+  disabled?: boolean;
+  removed?: boolean;
+  ownerScope?: "team" | string;
+  statusSubtype?: string;
+  transient?: boolean;
+  rewardCardId?: number;
+  rarity?: string;
+};
+
+export type RunEnemyIntentState = {
+  enemyInstanceId: number;
+  enemyName?: string;
+  type: "attack" | "defend" | "buff" | "debuff" | "control" | "summon" | "charge" | string;
+  skillId?: number;
+  skillName?: string;
+  targetIds: number[];
+  targetNames: string[];
+};
+
+export type RunCardBattleState = {
+  version: number;
+  turn: number;
+  phase: "player" | "enemy" | string;
+  teamEnergy: number;
+  baseEnergy: number;
+  maxEnergy: number;
+  energyHardCap?: number;
+  tempEnergy?: number;
+  chargeEnergy?: number;
+  guard: number;
+  handLimit: number;
+  drawCount: number;
+  deck: RunCardState[];
+  hand: RunCardState[];
+  drawPileCount: number;
+  discardPile: RunCardState[];
+  discardPileCount: number;
+  exhaustPile: RunCardState[];
+  exhaustPileCount: number;
+  powers: RunCardState[];
+  enemyIntents?: RunEnemyIntentState[];
+  statusCreatedCount?: number;
+};
+
+export type RunCardLibraryState = {
+  version: number;
+  nextSequence: number;
+  cards: RunCardState[];
 };
 
 export type ChapterResult = {
@@ -337,6 +428,8 @@ export type RunSnapshot = {
   rewardState: RewardState | null;
   lastBattleSummary?: LastBattleSummary | null;
   battleSnapshot: BattleSnapshot | null;
+  cardLibrary?: RunCardLibraryState | null;
+  cardBattle?: RunCardBattleState | null;
   chapterResult: ChapterResult | null;
   debug: {
     availableNextNodeIds: number[];
@@ -349,6 +442,8 @@ export type RunLiteSnapshot = {
   currentNodeId: number | null;
   lastActionMessage: string;
   battleSnapshot: BattleSnapshot | null;
+  cardLibrary?: RunCardLibraryState | null;
+  cardBattle?: RunCardBattleState | null;
 };
 
 export type RunActionResponse = {

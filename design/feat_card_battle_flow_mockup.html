@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feat Card Battle Flow Mockup</title>
+  <style>
+    :root {
+      --bg: #070a10;
+      --surface: rgba(18, 23, 35, 0.84);
+      --surface-strong: rgba(26, 32, 48, 0.92);
+      --line: rgba(238, 224, 196, 0.16);
+      --text: #f6ecd8;
+      --muted: #a89e8b;
+      --gold: #d8aa56;
+      --blue: #7ea7ff;
+      --red: #e36b62;
+      --green: #80d18d;
+      --violet: #bd91ff;
+      --dark: #090d15;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(216, 170, 86, 0.18), transparent 32%),
+        radial-gradient(circle at 50% 76%, rgba(126, 167, 255, 0.15), transparent 34%),
+        linear-gradient(180deg, #121929 0%, var(--bg) 56%, #04060a 100%);
+      overflow-x: hidden;
+    }
+
+    .phone-shell {
+      position: relative;
+      width: min(430px, 100vw);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 12px;
+      display: grid;
+      grid-template-rows: auto auto minmax(540px, 1fr) auto;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      animation: drop 360ms ease-out both;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .resource-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mini-pill {
+      min-width: 44px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(10, 14, 22, 0.72);
+      text-align: center;
+    }
+
+    .mini-pill b {
+      display: block;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .mini-pill span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .flow-tabs {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 5px;
+      animation: fade 420ms 60ms ease-out both;
+    }
+
+    .flow-tab {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(10, 14, 22, 0.62);
+      color: var(--muted);
+      padding: 8px 2px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .flow-tab.active {
+      border-color: rgba(216, 170, 86, 0.7);
+      color: var(--text);
+      background: rgba(216, 170, 86, 0.15);
+      box-shadow: 0 10px 24px rgba(216, 170, 86, 0.1);
+    }
+
+    .stage {
+      position: relative;
+      min-height: 540px;
+      border: 1px solid rgba(238, 224, 196, 0.14);
+      border-radius: 26px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 34%),
+        radial-gradient(ellipse at center, rgba(216, 170, 86, 0.12), transparent 58%),
+        rgba(7, 10, 16, 0.76);
+      box-shadow: var(--shadow);
+      animation: fade 480ms 100ms ease-out both;
+    }
+
+    .screen {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: 14px;
+    }
+
+    .screen.active {
+      display: grid;
+      animation: screenIn 220ms ease-out both;
+    }
+
+    .screen-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 48px;
+    }
+
+    .screen-head h2 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.05;
+    }
+
+    .screen-head p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .stage-chip {
+      flex: 0 0 auto;
+      padding: 6px 9px;
+      border: 1px solid rgba(216, 170, 86, 0.36);
+      border-radius: 999px;
+      color: var(--gold);
+      background: rgba(216, 170, 86, 0.1);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .screen-map {
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+
+    .map-space {
+      position: relative;
+      min-height: 0;
+      border: 1px solid rgba(238, 224, 196, 0.1);
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(246, 236, 216, 0.05), transparent 38%),
+        radial-gradient(circle at 50% 20%, rgba(216, 170, 86, 0.12), transparent 20%),
+        linear-gradient(180deg, rgba(23, 29, 43, 0.7), rgba(6, 9, 15, 0.84));
+      overflow: hidden;
+    }
+
+    .map-space::before {
+      content: "";
+      position: absolute;
+      inset: 18px 28px;
+      border-left: 1px solid rgba(216, 170, 86, 0.16);
+      border-right: 1px solid rgba(216, 170, 86, 0.08);
+      transform: perspective(280px) rotateX(58deg);
+      transform-origin: 50% 100%;
+    }
+
+    .door {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 82px;
+      height: 96px;
+      border: 1px solid rgba(126, 167, 255, 0.5);
+      border-radius: 42px 42px 10px 10px;
+      background: linear-gradient(180deg, rgba(126, 167, 255, 0.16), rgba(10, 14, 22, 0.72));
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 900;
+      box-shadow: 0 0 34px rgba(126, 167, 255, 0.12);
+      cursor: pointer;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .door:hover,
+    .door.active {
+      transform: translateY(-4px);
+      border-color: rgba(126, 167, 255, 0.9);
+      box-shadow: 0 0 42px rgba(126, 167, 255, 0.24);
+    }
+
+    .door-forward {
+      left: calc(50% - 41px);
+      top: 28px;
+    }
+
+    .door-left {
+      left: 22px;
+      top: 150px;
+      width: 72px;
+      height: 82px;
+    }
+
+    .door-right {
+      right: 22px;
+      top: 150px;
+      width: 72px;
+      height: 82px;
+    }
+
+    .stage-toggle {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      z-index: 5;
+      display: flex;
+      gap: 6px;
+    }
+
+    .stage-toggle button {
+      border: 1px solid rgba(238, 224, 196, 0.16);
+      border-radius: 999px;
+      background: rgba(8, 12, 20, 0.72);
+      color: var(--muted);
+      padding: 6px 9px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .stage-toggle button.active {
+      border-color: rgba(216, 170, 86, 0.68);
+      color: var(--gold);
+      background: rgba(216, 170, 86, 0.14);
+    }
+
+    .door-layer,
+    .enemy-layer {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px) scale(0.99);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .map-space[data-stage-mode="doors"] .door-layer,
+    .map-space[data-stage-mode="battle"] .enemy-layer {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .enemy-layer {
+      left: 14px;
+      right: 14px;
+      top: 46px;
+      bottom: 160px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-content: start;
+      z-index: 2;
+    }
+
+    .enemy-unit {
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(8, 12, 20, 0.72);
+      backdrop-filter: blur(10px);
+    }
+
+    .enemy-unit .avatar {
+      background: linear-gradient(145deg, var(--red), #5c3039);
+    }
+
+    .enemy-unit .hp i {
+      background: linear-gradient(90deg, var(--red), var(--gold));
+    }
+
+    .mini-map-wrap {
+      position: absolute;
+      right: 12px;
+      bottom: 142px;
+      width: 128px;
+      height: 128px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      background: rgba(5, 10, 18, 0.72);
+    }
+
+    .mini-map {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 5px;
+      height: 94px;
+      margin-top: 18px;
+    }
+
+    .mini-map-wrap::before {
+      content: "MAP";
+      position: absolute;
+      left: 10px;
+      top: 9px;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .mini-node {
+      position: relative;
+      z-index: 1;
+      width: 18px;
+      height: 18px;
+      justify-self: center;
+      align-self: center;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+      color: #07111e;
+      background: rgba(20, 28, 40, 0.66);
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    .mini-node.empty {
+      opacity: 0.18;
+    }
+
+    .mini-node.visited {
+      border-color: rgba(255, 255, 255, 0.42);
+      color: #07111e;
+      background: rgba(128, 209, 141, 0.78);
+    }
+
+    .mini-node.current {
+      border-color: rgba(255, 209, 102, 0.92);
+      color: #07111e;
+      background: #ffd166;
+      box-shadow: 0 0 18px rgba(255, 209, 102, 0.2);
+      transform: scale(1.14);
+    }
+
+    .mini-node.reachable {
+      border-style: dashed;
+      border-color: #80ed99;
+      color: rgba(255, 255, 255, 0.62);
+      background: rgba(20, 28, 40, 0.66);
+      box-shadow: 0 0 12px rgba(128, 237, 153, 0.12);
+    }
+
+    .mini-node.boss {
+      border-color: rgba(227, 107, 98, 0.82);
+      color: #07111e;
+      background: var(--red);
+    }
+
+    .party-strip {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      z-index: 3;
+    }
+
+    .unit-mini {
+      position: relative;
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(8, 12, 20, 0.72);
+      backdrop-filter: blur(10px);
+      min-height: 104px;
+    }
+
+    .unit-mini.dead {
+      opacity: 0.48;
+      filter: grayscale(0.82);
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 6px;
+      border: 1px solid rgba(238, 224, 196, 0.2);
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      color: var(--dark);
+      font-weight: 900;
+      background: linear-gradient(145deg, var(--gold), var(--blue));
+    }
+
+    .unit-mini b {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+      font-size: 11px;
+    }
+
+    .unit-meta {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 9px;
+    }
+
+    .hp {
+      height: 7px;
+      margin-top: 6px;
+      border-radius: 999px;
+      background: rgba(246, 236, 216, 0.09);
+      overflow: hidden;
+    }
+
+    .hp i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--gold));
+    }
+
+    .modal-screen {
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+    }
+
+    .run-stage-modal {
+      align-self: center;
+      border: 1px solid rgba(238, 224, 196, 0.16);
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 32%),
+        rgba(11, 16, 26, 0.92);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+      padding: 13px;
+    }
+
+    .reward-row,
+    .shop-grid,
+    .recruit-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .reward-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .feat-card,
+    .shop-item,
+    .recruit-card,
+    .result-line,
+    .camp-action {
+      position: relative;
+      min-width: 0;
+      border: 1px solid rgba(238, 224, 196, 0.17);
+      border-radius: 17px;
+      background: var(--surface-strong);
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .feat-card {
+      min-height: 168px;
+      padding: 9px;
+    }
+
+    .feat-card.selected,
+    .shop-item.selected,
+    .recruit-card.selected,
+    .camp-action.selected {
+      border-color: rgba(216, 170, 86, 0.74);
+      box-shadow: 0 16px 34px rgba(216, 170, 86, 0.13);
+      transform: translateY(-5px);
+    }
+
+    .cost {
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--blue);
+      color: var(--dark);
+      font-weight: 900;
+      font-size: 13px;
+      box-shadow: 0 0 0 2px rgba(7, 10, 16, 0.6);
+    }
+
+    .feat-card h3,
+    .shop-item h3,
+    .recruit-card h3 {
+      margin: 11px 0 5px;
+      font-size: 13px;
+      line-height: 1.15;
+    }
+
+    .feat-card p,
+    .shop-item p,
+    .recruit-card p,
+    .camp-action p,
+    .result-line p {
+      margin: 0;
+      color: #ddd5c6;
+      font-size: 10px;
+      line-height: 1.36;
+    }
+
+    .tag-row {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      padding: 2px 5px;
+      border: 1px solid rgba(238, 224, 196, 0.15);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .primary-btn,
+    .ghost-btn {
+      border-radius: 999px;
+      padding: 11px 12px;
+      font-size: 12px;
+      font-weight: 900;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+
+    .primary-btn {
+      border: 1px solid rgba(216, 170, 86, 0.72);
+      background: rgba(216, 170, 86, 0.22);
+      color: var(--text);
+    }
+
+    .ghost-btn {
+      border: 1px solid var(--line);
+      background: rgba(10, 14, 22, 0.7);
+      color: var(--muted);
+    }
+
+    .primary-btn:active,
+    .ghost-btn:active {
+      transform: scale(0.97);
+    }
+
+    .camp-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .camp-action {
+      min-height: 116px;
+      padding: 12px;
+    }
+
+    .camp-action b {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .shop-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shop-item {
+      min-height: 126px;
+      padding: 10px;
+    }
+
+    .price {
+      position: absolute;
+      right: 9px;
+      top: 9px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: rgba(216, 170, 86, 0.14);
+      color: var(--gold);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .recruit-list {
+      grid-template-columns: 1fr;
+    }
+
+    .recruit-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      min-height: 88px;
+      padding: 10px;
+    }
+
+    .portrait {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--dark);
+      background: linear-gradient(145deg, var(--gold), var(--blue));
+      font-weight: 900;
+    }
+
+    .deck-delta {
+      padding: 5px 7px;
+      border: 1px solid rgba(126, 167, 255, 0.36);
+      border-radius: 999px;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .result-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .result-line {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .result-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: rgba(216, 170, 86, 0.16);
+      color: var(--gold);
+      font-weight: 900;
+    }
+
+    .result-line b {
+      display: block;
+      font-size: 13px;
+    }
+
+    .delta {
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .bottom-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 7px;
+      border: 1px solid rgba(238, 224, 196, 0.12);
+      border-radius: 18px;
+      background: rgba(9, 13, 21, 0.9);
+    }
+
+    .bottom-tabs button {
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 4px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .bottom-tabs button.active {
+      background: rgba(216, 170, 86, 0.16);
+      color: var(--text);
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 72px;
+      z-index: 10;
+      width: min(330px, calc(100% - 28px));
+      padding: 9px 12px;
+      border: 1px solid rgba(216, 170, 86, 0.36);
+      border-radius: 999px;
+      background: rgba(8, 12, 20, 0.9);
+      color: var(--text);
+      font-size: 11px;
+      text-align: center;
+      transform: translate(-50%, 10px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease, transform 150ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @keyframes drop {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade {
+      from { opacity: 0; transform: scale(0.985); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes screenIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (min-width: 760px) {
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .phone-shell {
+        min-height: min(932px, calc(100vh - 48px));
+        border: 1px solid rgba(238, 224, 196, 0.16);
+        border-radius: 34px;
+        background: rgba(0, 0, 0, 0.16);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        transition-duration: 1ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone-shell">
+    <header class="top">
+      <section class="title">
+        <h1>Run Flow UI</h1>
+        <p>Feat 卡牌化 · 非战斗界面重设</p>
+      </section>
+      <section class="resource-row" aria-label="resources">
+        <div class="mini-pill"><b>126</b><span>金币</span></div>
+        <div class="mini-pill"><b>22</b><span>牌库</span></div>
+        <div class="mini-pill"><b>Lv5</b><span>队伍</span></div>
+      </section>
+    </header>
+
+    <nav class="flow-tabs" aria-label="flow screens">
+      <button class="flow-tab active" data-screen="map">探索</button>
+      <button class="flow-tab" data-screen="reward">奖励</button>
+      <button class="flow-tab" data-screen="camp">营地</button>
+      <button class="flow-tab" data-screen="shop">商店</button>
+      <button class="flow-tab" data-screen="recruit">招募</button>
+      <button class="flow-tab" data-screen="result">结算</button>
+    </nav>
+
+    <section class="stage" aria-label="stage">
+      <section class="screen screen-map active" data-screen-panel="map">
+        <header class="screen-head">
+          <div>
+            <h2>破碎回廊</h2>
+            <p>点发光门前进；队伍状态固定留在舞台下半区。</p>
+          </div>
+          <span class="stage-chip">Act 1 · F3</span>
+        </header>
+
+        <section class="map-space" data-stage-mode="doors">
+          <div class="stage-toggle" aria-label="stage mode">
+            <button class="active" data-stage-mode-button="doors">门</button>
+            <button data-stage-mode-button="battle">敌人</button>
+          </div>
+          <div class="door-layer">
+            <button class="door door-forward active" data-action="前进到精英房">前进</button>
+            <button class="door door-left" data-action="进入事件房">事件</button>
+            <button class="door door-right" data-action="进入商店">商店</button>
+          </div>
+          <section class="enemy-layer" aria-label="enemy preview">
+            <article class="enemy-unit">
+              <div class="avatar">O</div>
+              <b>兽人斗士</b>
+              <div class="hp"><i style="width:48%"></i></div>
+              <div class="unit-meta">24/50 · armor</div>
+            </article>
+            <article class="enemy-unit">
+              <div class="avatar">A</div>
+              <b>骸骨弓手</b>
+              <div class="hp"><i style="width:62%"></i></div>
+              <div class="unit-meta">18/29 · back</div>
+            </article>
+            <article class="enemy-unit">
+              <div class="avatar">S</div>
+              <b>暗影祭司</b>
+              <div class="hp"><i style="width:86%"></i></div>
+              <div class="unit-meta">38/44 · charge</div>
+            </article>
+          </section>
+          <div class="mini-map-wrap" aria-label="mini map">
+            <div class="mini-map">
+              <div class="mini-node empty"></div>
+              <div class="mini-node visited">战</div>
+              <div class="mini-node reachable">?</div>
+              <div class="mini-node empty"></div>
+              <div class="mini-node visited">营</div>
+              <div class="mini-node current">今</div>
+              <div class="mini-node reachable">店</div>
+              <div class="mini-node reachable">精</div>
+              <div class="mini-node empty"></div>
+              <div class="mini-node visited">战</div>
+              <div class="mini-node empty"></div>
+              <div class="mini-node boss">首</div>
+              <div class="mini-node empty"></div>
+              <div class="mini-node empty"></div>
+              <div class="mini-node visited">宝</div>
+              <div class="mini-node empty"></div>
+            </div>
+          </div>
+
+          <section class="party-strip">
+            <article class="unit-mini">
+              <div class="avatar">战</div>
+              <b>战士</b>
+              <div class="hp"><i style="width:72%"></i></div>
+              <div class="unit-meta">31/43 · guard</div>
+            </article>
+            <article class="unit-mini">
+              <div class="avatar">牧</div>
+              <b>牧师</b>
+              <div class="hp"><i style="width:54%"></i></div>
+              <div class="unit-meta">18/33 · focus</div>
+            </article>
+            <article class="unit-mini">
+              <div class="avatar">游</div>
+              <b>游侠</b>
+              <div class="hp"><i style="width:66%"></i></div>
+              <div class="unit-meta">25/38 · mark</div>
+            </article>
+            <article class="unit-mini dead">
+              <div class="avatar">法</div>
+              <b>法师</b>
+              <div class="hp"><i style="width:0%"></i></div>
+              <div class="unit-meta">阵亡 · 卡失效</div>
+            </article>
+          </section>
+        </section>
+      </section>
+
+      <section class="screen modal-screen" data-screen-panel="reward">
+        <header class="screen-head">
+          <div>
+            <h2>选择一张 Feat 卡</h2>
+            <p>奖励可跳过；默认作用于单张卡实例。</p>
+          </div>
+          <span class="stage-chip">战斗奖励</span>
+        </header>
+        <section class="run-stage-modal">
+          <div class="reward-row">
+            <article class="feat-card selected" data-pick="盾墙训练">
+              <div class="cost">1</div>
+              <h3>盾墙训练</h3>
+              <p>护卫额外获得 4 guard。</p>
+              <div class="tag-row"><span class="tag">upgrade</span><span class="tag">guard</span></div>
+            </article>
+            <article class="feat-card" data-pick="圣火扩散">
+              <div class="cost">1</div>
+              <h3>圣火扩散</h3>
+              <p>圣火术命中后对随机敌人造成 3 点伤害。</p>
+              <div class="tag-row"><span class="tag">attack</span><span class="tag">holy</span></div>
+            </article>
+            <article class="feat-card" data-pick="轻装补给">
+              <div class="cost">0</div>
+              <h3>轻装补给</h3>
+              <p>抽 1 张牌，获得 1 临时能量。</p>
+              <div class="tag-row"><span class="tag">draw</span><span class="tag">temp</span></div>
+            </article>
+          </div>
+          <div class="modal-actions">
+            <button class="primary-btn" data-action="领取选中 Feat">领取</button>
+            <button class="ghost-btn" data-action="跳过奖励">跳过</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="screen modal-screen" data-screen-panel="camp">
+        <header class="screen-head">
+          <div>
+            <h2>营地整备</h2>
+            <p>营地承担牌库维护，不只是回血。</p>
+          </div>
+          <span class="stage-chip">安全房</span>
+        </header>
+        <section class="run-stage-modal">
+          <div class="camp-grid">
+            <article class="camp-action selected" data-pick="休整">
+              <b>休整</b>
+              <p>全队恢复 30% HP，清理 1 张伤口。</p>
+            </article>
+            <article class="camp-action" data-pick="升级卡">
+              <b>升级卡</b>
+              <p>选择 1 张卡实例升级，本 Run 内生效。</p>
+            </article>
+            <article class="camp-action" data-pick="删基础牌">
+              <b>删基础牌</b>
+              <p>移除 1 张 starter card，控制牌库厚度。</p>
+            </article>
+            <article class="camp-action" data-pick="复苏">
+              <b>复苏</b>
+              <p>复活 1 名队友，其卡洗入弃牌堆。</p>
+            </article>
+          </div>
+          <div class="modal-actions">
+            <button class="primary-btn" data-action="执行营地行动">执行</button>
+            <button class="ghost-btn" data-action="离开营地">离开</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="screen modal-screen" data-screen-panel="shop">
+        <header class="screen-head">
+          <div>
+            <h2>烛火商店</h2>
+            <p>购买、删牌、刷新都在舞台弹窗完成。</p>
+          </div>
+          <span class="stage-chip">126 金币</span>
+        </header>
+        <section class="run-stage-modal">
+          <div class="shop-grid">
+            <article class="shop-item selected" data-pick="猎人印记">
+              <span class="price">58</span>
+              <h3>猎人印记</h3>
+              <p>Power：被标记敌人受到 attack +2。</p>
+            </article>
+            <article class="shop-item" data-pick="删牌服务">
+              <span class="price">75</span>
+              <h3>删牌服务</h3>
+              <p>永久移除 1 张基础卡或伤口。</p>
+            </article>
+            <article class="shop-item" data-pick="祝福护符">
+              <span class="price">96</span>
+              <h3>祝福护符</h3>
+              <p>每场首张 Power 费用 -1。</p>
+            </article>
+            <article class="shop-item" data-pick="刷新货架">
+              <span class="price">20</span>
+              <h3>刷新货架</h3>
+              <p>替换所有未购买商品。</p>
+            </article>
+          </div>
+          <div class="modal-actions">
+            <button class="primary-btn" data-action="购买选中商品">购买</button>
+            <button class="ghost-btn" data-action="离开商店">离开</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="screen modal-screen" data-screen-panel="recruit">
+        <header class="screen-head">
+          <div>
+            <h2>招募队友</h2>
+            <p>新角色带来能力，也会稀释整队牌库。</p>
+          </div>
+          <span class="stage-chip">队伍 4/5</span>
+        </header>
+        <section class="run-stage-modal">
+          <div class="recruit-list">
+            <article class="recruit-card selected" data-pick="圣骑士">
+              <div class="portrait">P</div>
+              <div><h3>圣骑士</h3><p>加入护盾、惩戒、灵光 starter cards。</p></div>
+              <span class="deck-delta">+4 牌</span>
+            </article>
+            <article class="recruit-card" data-pick="盗贼">
+              <div class="portrait">R</div>
+              <div><h3>盗贼</h3><p>加入低费攻击、抽牌、弱点牌。</p></div>
+              <span class="deck-delta">+4 牌</span>
+            </article>
+            <article class="recruit-card" data-pick="德鲁伊">
+              <div class="portrait">D</div>
+              <div><h3>德鲁伊</h3><p>加入恢复、缠绕、形态 Power。</p></div>
+              <span class="deck-delta">+4 牌</span>
+            </article>
+          </div>
+          <div class="modal-actions">
+            <button class="primary-btn" data-action="招募选中队友">招募</button>
+            <button class="ghost-btn" data-action="保留当前队伍">跳过</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="screen modal-screen" data-screen-panel="result">
+        <header class="screen-head">
+          <div>
+            <h2>战斗结算</h2>
+            <p>结算只给摘要，后续进入奖励选择。</p>
+          </div>
+          <span class="stage-chip">胜利</span>
+        </header>
+        <section class="run-stage-modal">
+          <div class="result-list">
+            <article class="result-line">
+              <div class="result-icon">XP</div>
+              <div><b>队伍经验</b><p>推进到 Lv5 的 62%。</p></div>
+              <span class="delta">+85</span>
+            </article>
+            <article class="result-line">
+              <div class="result-icon">G</div>
+              <div><b>金币</b><p>骸骨弓手掉落少量补给。</p></div>
+              <span class="delta">+31</span>
+            </article>
+            <article class="result-line">
+              <div class="result-icon">!</div>
+              <div><b>牌库污染</b><p>牧师获得 1 张伤口，营地可清理。</p></div>
+              <span class="delta" style="color: var(--red)">+1</span>
+            </article>
+          </div>
+          <div class="modal-actions">
+            <button class="primary-btn" data-action="查看奖励">查看奖励</button>
+            <button class="ghost-btn" data-action="返回地图">返回地图</button>
+          </div>
+        </section>
+      </section>
+
+      <div class="toast" aria-live="polite"></div>
+    </section>
+
+    <nav class="bottom-tabs" aria-label="hud tabs">
+      <button class="active">地图</button>
+      <button>队伍</button>
+      <button>牌库</button>
+      <button>日志</button>
+    </nav>
+  </main>
+
+  <script>
+    (() => {
+      const root = document.querySelector(".phone-shell");
+      const flowTabs = Array.from(root.querySelectorAll(".flow-tab"));
+      const screens = Array.from(root.querySelectorAll(".screen"));
+      const selectable = ".feat-card, .camp-action, .shop-item, .recruit-card";
+      const toast = root.querySelector(".toast");
+      const mapSpace = root.querySelector(".map-space");
+      const stageModeButtons = Array.from(root.querySelectorAll("[data-stage-mode-button]"));
+      let timer = 0;
+
+      const showToast = (text) => {
+        toast.textContent = text;
+        toast.classList.add("show");
+        clearTimeout(timer);
+        timer = setTimeout(() => toast.classList.remove("show"), 1300);
+      };
+
+      const showScreen = (name) => {
+        flowTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.screen === name));
+        screens.forEach((screen) => screen.classList.toggle("active", screen.dataset.screenPanel === name));
+      };
+
+      flowTabs.forEach((tab) => {
+        tab.addEventListener("click", () => showScreen(tab.dataset.screen));
+      });
+
+      stageModeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.stageModeButton;
+          mapSpace.dataset.stageMode = mode;
+          stageModeButtons.forEach((item) => item.classList.toggle("active", item === button));
+          showToast(mode === "battle" ? "舞台切换：敌人进入" : "舞台切换：探索门");
+        });
+      });
+
+      root.querySelectorAll(selectable).forEach((item) => {
+        item.addEventListener("click", () => {
+          const group = item.closest(".run-stage-modal");
+          group.querySelectorAll(selectable).forEach((other) => other.classList.remove("selected"));
+          item.classList.add("selected");
+          showToast(`已选择：${item.dataset.pick}`);
+        });
+      });
+
+      root.querySelectorAll("[data-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+          showToast(button.dataset.action);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
