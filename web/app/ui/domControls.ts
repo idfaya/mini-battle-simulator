@@ -78,6 +78,59 @@ function buildTargetButtons(
   return buttons;
 }
 
+function cardTypeLabel(card: RunCardState): string {
+  switch (card.type) {
+    case "attack":
+      return "ATTACK";
+    case "skill":
+      return "SKILL";
+    case "power":
+      return "POWER";
+    case "status":
+      return "STATUS";
+    case "curse":
+      return "CURSE";
+    default:
+      return String(card.type ?? "CARD").toUpperCase();
+  }
+}
+
+function cardHintText(card: RunCardState): string {
+  const parts: string[] = [];
+  if ((card.guardValue ?? 0) > 0) {
+    parts.push(`guard +${card.guardValue}`);
+  }
+  if ((card.targetCount ?? 0) > 1) {
+    parts.push(`${card.targetCount} 目标`);
+  }
+  if (card.exhaust) {
+    parts.push("消耗");
+  }
+  if (card.retain) {
+    parts.push("保留");
+  }
+  if (card.ethereal) {
+    parts.push("虚灵");
+  }
+  return parts.length > 0 ? parts.join(" · ") : "点击打出";
+}
+
+function cardDisabledReason(cardBattle: RunCardBattleState, card: RunCardState, costValue: number): string {
+  if (card.type === "status" || card.type === "curse") {
+    return "污染";
+  }
+  if (card.disabled) {
+    return "阵亡失效";
+  }
+  if (cardBattle.phase !== "player") {
+    return "敌方行动";
+  }
+  if (cardBattle.teamEnergy < costValue) {
+    return "能量不足";
+  }
+  return cardHintText(card);
+}
+
 export function createControls(
   onUltCast: (heroId: string) => void,
   onRestart: (setup: BattleSetup) => void,
@@ -359,7 +412,39 @@ export function renderControls(
   if (snapshot && !snapshot.result && options?.cardBattle?.hand?.length) {
     const cardBattle = options.cardBattle;
     controls.buttonsHost.style.display = "";
+    controls.buttonsHost.classList.add("battle-hand-panel");
     const selectedCard = cardBattle.hand.find((card) => card.uid === options.selectedCardUid) ?? null;
+
+    const handHeader = document.createElement("div");
+    handHeader.className = "battle-hand-head";
+
+    const energy = document.createElement("div");
+    energy.className = "battle-hand-energy";
+    energy.textContent = String(cardBattle.teamEnergy);
+
+    const turnText = document.createElement("div");
+    turnText.className = "battle-hand-turn";
+    const turnTitle = document.createElement("b");
+    turnTitle.textContent = cardBattle.phase === "player" ? `第 ${cardBattle.turn} 回合 · 玩家行动` : `第 ${cardBattle.turn} 回合 · 敌方行动`;
+    const turnMeta = document.createElement("span");
+    turnMeta.textContent = `能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} · 抽牌 ${cardBattle.drawPileCount} · 弃牌 ${cardBattle.discardPileCount} · Guard ${cardBattle.guard}`;
+    turnText.append(turnTitle, turnMeta);
+
+    const endTurnButton = document.createElement("button");
+    endTurnButton.className = "ult-button battle-end-turn-button";
+    endTurnButton.type = "button";
+    endTurnButton.disabled = cardBattle.phase !== "player" || typeof options.onEndTurn !== "function";
+    endTurnButton.textContent = cardBattle.phase === "player" ? "结束回合" : "敌方行动中";
+    endTurnButton.onpointerdown = (event) => {
+      event.preventDefault();
+      if (!endTurnButton.disabled) {
+        void options.onEndTurn?.();
+      }
+    };
+    handHeader.append(energy, turnText, endTurnButton);
+
+    const cardsGrid = document.createElement("div");
+    cardsGrid.className = "battle-hand-cards";
     const handNodes = cardBattle.hand.map((card) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -371,7 +456,8 @@ export function renderControls(
           card.disabled !== true &&
           cardBattle.teamEnergy >= costValue &&
           typeof options.onPlayCard === "function";
-        button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}`;
+        const isSelected = card.uid === selectedCard?.uid;
+        button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}${isSelected ? " selected" : ""}`;
         button.disabled = !canPlay;
         button.onpointerdown = (event) => {
           event.preventDefault();
@@ -388,6 +474,10 @@ export function renderControls(
         cost.className = "battle-card-cost";
         cost.textContent = String(card.cost ?? 0);
 
+        const type = document.createElement("span");
+        type.className = "battle-card-type";
+        type.textContent = cardTypeLabel(card);
+
         const name = document.createElement("span");
         name.className = "ult-button-name";
         name.textContent = card.name;
@@ -396,51 +486,38 @@ export function renderControls(
         owner.className = "ult-button-skill";
         owner.textContent = card.ownerName || "队伍";
 
+        const desc = document.createElement("span");
+        desc.className = "battle-card-desc";
+        desc.textContent = card.description || "通过 Feat 投影生成的战斗卡。";
+
         const hint = document.createElement("span");
         hint.className = "battle-card-hint";
-        hint.textContent = isPollution
-          ? "污染"
-          : card.disabled
-          ? "阵亡失效"
-          : cardBattle.phase !== "player"
-            ? "敌方行动"
-          : cardBattle.teamEnergy < costValue
-            ? "能量不足"
-            : (card.guardValue ?? 0) > 0
-              ? `防御 +${card.guardValue}`
-            : (card.targetCount ?? 0) > 1
-              ? `最多 ${card.targetCount} 目标`
-            : "点击打出";
+        hint.textContent = cardDisabledReason(cardBattle, card, costValue);
 
-        button.append(cost, name, owner, hint);
+        button.append(cost, type, name, owner, desc, hint);
         return button;
       });
+    cardsGrid.append(...handNodes);
     const targetNodes = selectedCard ? buildTargetButtons(snapshot, selectedCard, {
       onCancel: () => options.onSelectCard?.(null),
       onChooseTarget: (targetId) => {
         void options.onPlayCard?.(selectedCard.uid, targetId);
       },
     }) : [];
-    const endTurnButton = document.createElement("button");
-    endTurnButton.className = "ult-button battle-card-button battle-end-turn-button";
-    endTurnButton.type = "button";
-    endTurnButton.disabled = cardBattle.phase !== "player" || typeof options.onEndTurn !== "function";
-    endTurnButton.textContent = cardBattle.phase === "player" ? "结束回合" : "敌方行动中";
-    endTurnButton.onpointerdown = (event) => {
-      event.preventDefault();
-      if (!endTurnButton.disabled) {
-        void options.onEndTurn?.();
-      }
-    };
-    controls.buttonsHost.replaceChildren(...handNodes, ...targetNodes, endTurnButton);
+    const targetGrid = document.createElement("div");
+    targetGrid.className = "battle-target-grid";
+    targetGrid.append(...targetNodes);
+    controls.buttonsHost.replaceChildren(handHeader, cardsGrid, targetGrid);
   } else if (snapshot && !snapshot.result) {
     controls.buttonsHost.style.display = "";
+    controls.buttonsHost.classList.remove("battle-hand-panel");
     const missing = document.createElement("div");
     missing.className = "battle-card-missing";
     missing.textContent = "cardBattle 未初始化：战斗牌局状态缺失";
     controls.buttonsHost.replaceChildren(missing);
   } else {
     controls.buttonsHost.style.display = "none";
+    controls.buttonsHost.classList.remove("battle-hand-panel");
   }
 
   // Battle result actions live in a dedicated host (not mixed with ult buttons).
