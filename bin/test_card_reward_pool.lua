@@ -66,6 +66,14 @@ assert_true(tostring(gained.uid or ""):find("reward_card_", 1, true) == 1, "rewa
 assert_true(gained.type ~= "status" and gained.type ~= "curse", "reward card should be playable card type")
 assert_true(tonumber(gained.ownerRosterId) == tonumber(cleric.rosterId), "reward card owner should be active cleric")
 assert_true(tonumber(gained.skillId) == tonumber(gainOption.skillId), "reward card should keep selected skillId")
+assert_true(
+    (tonumber(gained.drawCards) or 0) > 0
+        or (tonumber(gained.energyGain) or 0) > 0
+        or (tonumber(gained.guardValue) or 0) > 0
+        or gained.retain == true
+        or gained.exhaust == true,
+    "reward card should carry at least one card-layer effect"
+)
 
 CardBattle.StartBattle(runState, {
     leftTeam = {

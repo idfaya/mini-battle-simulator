@@ -168,6 +168,54 @@ local function inferTargetSide(skill)
     return "enemy"
 end
 
+local function pickNumber(...)
+    for i = 1, select("#", ...) do
+        local value = select(i, ...)
+        if value ~= nil then
+            local number = tonumber(value)
+            if number ~= nil then
+                return number
+            end
+        end
+    end
+    return nil
+end
+
+local function applyCardEffectOverrides(card, effects)
+    if type(card) ~= "table" or type(effects) ~= "table" then
+        return card
+    end
+
+    local drawCardsValue = pickNumber(effects.drawCards, effects.draw, effects.cardDraw)
+    if drawCardsValue ~= nil then
+        card.drawCards = math.max(0, math.floor(drawCardsValue))
+    end
+
+    local energyGainValue = pickNumber(effects.energyGain, effects.energy, effects.gainEnergy)
+    if energyGainValue ~= nil then
+        card.energyGain = math.max(0, math.floor(energyGainValue))
+    end
+
+    local guardValue = pickNumber(effects.guardValue, effects.guard)
+    if guardValue ~= nil and guardValue > 0 then
+        card.guardValue = (tonumber(card.guardValue) or 0) + math.floor(guardValue)
+    end
+
+    if effects.exhaust ~= nil then
+        card.exhaust = effects.exhaust == true
+    end
+    if effects.retain ~= nil then
+        card.retain = effects.retain == true
+    end
+    if effects.ethereal ~= nil then
+        card.ethereal = effects.ethereal == true
+    end
+    if effects.type ~= nil then
+        card.type = tostring(effects.type)
+    end
+    return card
+end
+
 local function buildSkillCard(runState, hero, feat, skillId, opts)
     opts = opts or {}
     local skill = SkillsTable.GetSkillConfig(skillId)
@@ -199,7 +247,7 @@ local function buildSkillCard(runState, hero, feat, skillId, opts)
     if targetCount <= 0 and targetMode == "Muti" then
         targetCount = 99
     end
-    return {
+    local card = {
         uid = nil,
         cardId = opts.cardId or tonumber(feat and feat.id) or tonumber(skillId) or sequence,
         featId = feat and feat.id or nil,
@@ -215,6 +263,8 @@ local function buildSkillCard(runState, hero, feat, skillId, opts)
         cost = cost,
         type = opts.type or inferCardType(skill),
         guardValue = guardValue,
+        drawCards = 0,
+        energyGain = 0,
         targetSide = inferTargetSide(skill),
         targetMode = targetMode,
         targetCount = targetCount,
@@ -227,6 +277,8 @@ local function buildSkillCard(runState, hero, feat, skillId, opts)
         removed = false,
         upgradeLevel = 0,
     }
+    applyCardEffectOverrides(card, opts.cardEffects or opts.cardEffect)
+    return card
 end
 
 local function appendCard(cards, runState, hero, feat, skillId)
@@ -405,6 +457,10 @@ function CardBattle.UpgradeLibraryCard(runState, cardUid)
         card.cost = math.max(0, (tonumber(card.cost) or 0) - 1)
     elseif (tonumber(card.guardValue) or 0) > 0 then
         card.guardValue = (tonumber(card.guardValue) or 0) + 2
+    elseif (tonumber(card.drawCards) or 0) > 0 then
+        card.drawCards = (tonumber(card.drawCards) or 0) + 1
+    elseif (tonumber(card.energyGain) or 0) > 0 then
+        card.energyGain = (tonumber(card.energyGain) or 0) + 1
     end
     return true, { cardUid = card.uid, cardName = card.name, upgraded = true }
 end
@@ -481,6 +537,7 @@ function CardBattle.AddRewardSkillCard(runState, entry)
         name = entry.name,
         description = entry.description,
         cost = entry.cost,
+        cardEffects = entry.cardEffects,
         sequence = #library.cards + 1,
     })
     if not card then
@@ -519,6 +576,8 @@ function CardBattle.AddCurseCard(runState, subtype)
         type = "curse",
         statusSubtype = subtype,
         guardValue = 0,
+        drawCards = 0,
+        energyGain = 0,
         targetSide = "none",
         targetMode = "",
         targetCount = 0,
@@ -841,6 +900,15 @@ function CardBattle.PlayCard(runState, cardUid, opts)
     if guardValue > 0 then
         state.guard = (math.max(0, math.floor(tonumber(state.guard) or 0))) + guardValue
     end
+    local energyGain = math.max(0, math.floor(tonumber(card.energyGain) or 0))
+    if energyGain > 0 then
+        local hardCap = tonumber(state.energyHardCap) or DEFAULTS.energyHardCap
+        state.teamEnergy = math.min(hardCap, (tonumber(state.teamEnergy) or 0) + energyGain)
+    end
+    local drawCount = math.max(0, math.floor(tonumber(card.drawCards) or 0))
+    if drawCount > 0 then
+        drawCards(state, drawCount)
+    end
     if card.exhaust == true then
         state.exhaustPile[#state.exhaustPile + 1] = card
     elseif card.type == "power" then
@@ -855,6 +923,8 @@ function CardBattle.PlayCard(runState, cardUid, opts)
         cardName = card.name,
         cast = castResult,
         teamEnergy = state.teamEnergy,
+        drawCards = drawCount,
+        energyGain = energyGain,
     }
 end
 
@@ -953,6 +1023,8 @@ local function serializeCards(cards)
             cost = card.cost,
             type = card.type,
             guardValue = card.guardValue,
+            drawCards = tonumber(card.drawCards) or 0,
+            energyGain = tonumber(card.energyGain) or 0,
             targetSide = card.targetSide,
             targetMode = card.targetMode,
             targetCount = card.targetCount,

@@ -330,6 +330,8 @@ export type RunCardState = {
   cost: number;
   type: "attack" | "skill" | "power" | "status" | "curse";
   guardValue?: number;
+  drawCards?: number;
+  energyGain?: number;
   targetSide?: "enemy" | "ally" | "self" | string;
   targetMode?: string;
   targetCount?: number;

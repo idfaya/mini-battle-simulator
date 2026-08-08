@@ -1248,6 +1248,30 @@ status / curse 默认不绑定 Hero owner，使用 `ownerScope = "team"`。
 
 内容池规模不能只满足功能验证。Act1 MVP 至少覆盖所有职业的基础行动牌和主要主动 / 限次技能，形成约 30 张的显式 Card pool；稀有度只控制奖励权重与展示，不改变底层 Skill 结算。后续扩展优先补每职业 2-3 张“战术变体卡”，再考虑新增 Skill runtime。
 
+### 13.8.2 Card 效果变体 V1
+
+只把 Skill 包成 Card 不够。卡牌层必须提供独立决策价值，否则玩家只是把旧技能按钮换成卡面。V1 先引入低风险的卡牌层效果：
+
+| 字段 | 规则 | 设计用途 |
+| --- | --- | --- |
+| `drawCards` | 打出并成功结算后抽 N 张牌，不超过 `handLimit` | 形成过牌、找核心牌、处理污染的决策 |
+| `energyGain` | 打出并成功结算后回复 N 点队伍能量，受 `energyHardCap` 限制 | 形成 0 费 / 返费 / 连段节奏 |
+| `guardValue` | 在 Skill 结算外额外获得队伍 Guard | 让防御牌不只依赖旧 Skill 语义 |
+| `retain` | 回合结束保留在手牌 | 让治疗、控制、爆发牌可以等窗口 |
+| `exhaust` | 打出后本场消耗 | 支撑强力一次性牌和爆发牌 |
+
+这些效果都属于 Card 层，不新增独立伤害链。打出流程为：
+
+```text
+校验目标与费用
+→ 调用原 Skill / Timeline
+→ 扣除能量
+→ 结算 Card 层 Guard / 回能 / 抽牌
+→ 按 exhaust / power / discard 归档
+```
+
+奖励池卡必须优先做“战术变体”，而不是只改名字。例如同一个基础攻击可以做成 `抽 1` 的循环牌，爆发牌可以 `exhaust`，治疗/控制牌可以 `retain`，高节奏职业可提供 `energyGain`。这一步先不做 `vulnerable / weak / poison` 等新 Debuff，避免把范围扩大到 Buff 系统。
+
 ### 13.9 Retain / Ethereal / Exhaust
 
 关键卡牌关键词必须定义清楚：

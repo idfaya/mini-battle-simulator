@@ -10,7 +10,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "潜袭短击",
-        description = "加入 1 张游荡者基础攻击牌。稳定打击单个敌人。",
+        description = "加入 1 张游荡者循环攻击牌。打击单个敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 102,
@@ -21,7 +22,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "诡诈打击",
-        description = "加入 1 张游荡者技巧牌。以诡诈攻势压低目标血线。",
+        description = "加入 1 张游荡者节奏牌。打击后返还 1 点能量，本场消耗。",
+        cardEffects = { energyGain = 1, exhaust = true },
     },
     {
         id = 103,
@@ -32,7 +34,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "战士挥砍",
-        description = "加入 1 张战士基础攻击牌。稳定造成武器伤害。",
+        description = "加入 1 张战士攻防牌。稳定造成武器伤害，并获得 3 Guard。",
+        cardEffects = { guardValue = 3 },
     },
     {
         id = 104,
@@ -43,7 +46,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "护卫架势",
-        description = "加入 1 张战士护卫牌。转入防护姿态，稳住前排。",
+        description = "加入 1 张战士保留防御牌。获得额外 8 Guard，回合结束保留。",
+        cardEffects = { guardValue = 8, retain = true },
     },
     {
         id = 105,
@@ -54,7 +58,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "战术回气",
-        description = "加入 1 张战士回气牌。回复自身生命，保持战线。",
+        description = "加入 1 张战士回能牌。回复自身生命，打出后返还 1 点能量。",
+        cardEffects = { energyGain = 1 },
     },
     {
         id = 106,
@@ -65,7 +70,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "徒手打击",
-        description = "加入 1 张武僧基础攻击牌。快速打击单个敌人。",
+        description = "加入 1 张武僧连段牌。快速打击单个敌人，打出后返还 1 点能量。",
+        cardEffects = { energyGain = 1 },
     },
     {
         id = 107,
@@ -76,7 +82,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "震慑拳",
-        description = "加入 1 张武僧控制牌。尝试打断敌方节奏。",
+        description = "加入 1 张武僧控制循环牌。尝试打断敌方节奏，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 108,
@@ -87,7 +94,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "影步连打",
-        description = "加入 1 张武僧连击牌。以高频打击压制目标。",
+        description = "加入 1 张武僧爆发牌。高频打击并返还 1 点能量，本场消耗。",
+        cardEffects = { energyGain = 1, exhaust = true },
     },
     {
         id = 109,
@@ -98,7 +106,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "明镜止水",
-        description = "加入 1 张武僧调息牌。恢复状态并延长战线。",
+        description = "加入 1 张武僧调息牌。恢复状态，获得 6 Guard，回合结束保留。",
+        cardEffects = { guardValue = 6, retain = true },
     },
     {
         id = 110,
@@ -109,7 +118,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "圣武打击",
-        description = "加入 1 张圣武士基础攻击牌。以圣武之力攻击敌人。",
+        description = "加入 1 张圣武士攻防牌。以圣武之力攻击敌人，并获得 3 Guard。",
+        cardEffects = { guardValue = 3 },
     },
     {
         id = 111,
@@ -120,7 +130,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "圣疗",
-        description = "加入 1 张圣武士治疗牌。救助受伤友军。",
+        description = "加入 1 张圣武士保留治疗牌。救助受伤友军，回合结束保留，本场消耗。",
+        cardEffects = { retain = true, exhaust = true },
     },
     {
         id = 112,
@@ -131,7 +142,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "破邪斩",
-        description = "加入 1 张圣武士爆发牌。对邪恶敌人施以重击。",
+        description = "加入 1 张圣武士爆发牌。对敌人施以重击，返还 1 点能量，本场消耗。",
+        cardEffects = { energyGain = 1, exhaust = true },
     },
     {
         id = 113,
@@ -142,7 +154,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "神圣灵光",
-        description = "加入 1 张圣武士灵光牌。强化队伍防护窗口。",
+        description = "加入 1 张圣武士灵光牌。强化队伍防护窗口，回合结束保留。",
+        cardEffects = { retain = true },
     },
     {
         id = 114,
@@ -153,7 +166,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "远程射击",
-        description = "加入 1 张游侠基础攻击牌。远程打击单个敌人。",
+        description = "加入 1 张游侠循环攻击牌。远程打击单个敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 115,
@@ -164,7 +178,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "二连射",
-        description = "加入 1 张游侠二连射牌。对最多 2 名敌人射击。",
+        description = "加入 1 张游侠二连射牌。对最多 2 名敌人射击，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 116,
@@ -175,7 +190,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "暮影射击",
-        description = "加入 1 张游侠精准牌。集中火力打击关键目标。",
+        description = "加入 1 张游侠精准牌。集中火力打击关键目标，打出后返还 1 点能量。",
+        cardEffects = { energyGain = 1 },
     },
     {
         id = 117,
@@ -186,7 +202,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "缠绕箭",
-        description = "加入 1 张游侠控制牌。限制敌方行动。",
+        description = "加入 1 张游侠保留控制牌。限制敌方行动，回合结束保留。",
+        cardEffects = { retain = true },
     },
     {
         id = 118,
@@ -197,7 +214,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "箭雨",
-        description = "加入 1 张游侠范围牌。覆盖敌方阵列。",
+        description = "加入 1 张游侠范围爆发牌。覆盖敌方阵列，本场消耗。",
+        cardEffects = { exhaust = true },
     },
     {
         id = 119,
@@ -208,7 +226,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "圣火术",
-        description = "加入 1 张牧师基础法术牌。以圣焰灼烧敌人。",
+        description = "加入 1 张牧师循环法术牌。以圣焰灼烧敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 120,
@@ -219,7 +238,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "治愈真言",
-        description = "加入 1 张牧师治疗牌。治疗生命最低友军。",
+        description = "加入 1 张牧师保留治疗牌。治疗生命最低友军，回合结束保留。",
+        cardEffects = { retain = true },
     },
     {
         id = 121,
@@ -230,7 +250,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "祝福术",
-        description = "加入 1 张牧师增益牌。提高队伍稳定性。",
+        description = "加入 1 张牧师增益牌。提高队伍稳定性，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 122,
@@ -241,7 +262,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "驱散亡灵",
-        description = "加入 1 张牧师光耀牌。对敌方多目标造成伤害并减速。",
+        description = "加入 1 张牧师光耀爆发牌。对敌方多目标造成伤害并减速，本场消耗。",
+        cardEffects = { exhaust = true },
     },
     {
         id = 123,
@@ -252,7 +274,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "火焰弹",
-        description = "加入 1 张火焰法师基础法术牌。点燃单个敌人。",
+        description = "加入 1 张火焰法师循环法术牌。点燃单个敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 124,
@@ -263,7 +286,8 @@ RunCardRewardPool.CARDS = {
         weight = 10,
         cost = 1,
         name = "灰烬爆燃",
-        description = "加入 1 张术士火焰牌。打击目标并刷新燃烧。",
+        description = "加入 1 张火焰法师回能牌。打击目标并刷新燃烧，返还 1 点能量。",
+        cardEffects = { energyGain = 1 },
     },
     {
         id = 125,
@@ -274,7 +298,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "烈焰风暴",
-        description = "加入 1 张火焰法师范围牌。以烈焰压制敌群。",
+        description = "加入 1 张火焰法师范围爆发牌。以烈焰压制敌群，本场消耗。",
+        cardEffects = { exhaust = true },
     },
     {
         id = 126,
@@ -285,7 +310,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "寒霜射线",
-        description = "加入 1 张冰霜法师基础法术牌。以寒霜打击敌人。",
+        description = "加入 1 张冰霜法师循环法术牌。以寒霜打击敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 127,
@@ -296,7 +322,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "冻结新星",
-        description = "加入 1 张法师控制牌。造成冰霜伤害并尝试冻结。",
+        description = "加入 1 张冰霜法师保留控制牌。造成冰霜伤害并尝试冻结，回合结束保留。",
+        cardEffects = { retain = true },
     },
     {
         id = 128,
@@ -307,7 +334,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "暴风雪",
-        description = "加入 1 张冰霜法师范围牌。压制敌方阵列。",
+        description = "加入 1 张冰霜法师范围爆发牌。压制敌方阵列，本场消耗。",
+        cardEffects = { exhaust = true },
     },
     {
         id = 129,
@@ -318,7 +346,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "邪能冲击",
-        description = "加入 1 张魔契师基础法术牌。以邪能打击敌人。",
+        description = "加入 1 张魔契师循环法术牌。以邪能打击敌人，打出后抽 1 张牌。",
+        cardEffects = { drawCards = 1 },
     },
     {
         id = 130,
@@ -329,7 +358,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "雷链",
-        description = "加入 1 张魔契师雷电牌。当前目标与额外敌人连锁受击。",
+        description = "加入 1 张魔契师雷电节奏牌。连锁受击后返还 1 点能量。",
+        cardEffects = { energyGain = 1 },
     },
     {
         id = 131,
@@ -340,7 +370,8 @@ RunCardRewardPool.CARDS = {
         weight = 6,
         cost = 2,
         name = "雷暴",
-        description = "加入 1 张魔契师范围牌。以雷暴压制敌群。",
+        description = "加入 1 张魔契师范围爆发牌。以雷暴压制敌群，抽 1 张牌，本场消耗。",
+        cardEffects = { drawCards = 1, exhaust = true },
     },
     {
         id = 132,
@@ -351,7 +382,8 @@ RunCardRewardPool.CARDS = {
         weight = 12,
         cost = 1,
         name = "狂斧劈砍",
-        description = "加入 1 张狂战士基础攻击牌。以重斧打击敌人。",
+        description = "加入 1 张狂战士攻防牌。以重斧打击敌人，并获得 4 Guard。",
+        cardEffects = { guardValue = 4 },
     },
     {
         id = 133,
@@ -362,7 +394,8 @@ RunCardRewardPool.CARDS = {
         weight = 8,
         cost = 1,
         name = "重击",
-        description = "加入 1 张狂战士压制牌。集中力量重创目标。",
+        description = "加入 1 张狂战士压制牌。集中力量重创目标，返还 1 点能量，本场消耗。",
+        cardEffects = { energyGain = 1, exhaust = true },
     },
 }
 

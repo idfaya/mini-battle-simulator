@@ -100,6 +100,12 @@ function cardHintText(card: RunCardState): string {
   if ((card.guardValue ?? 0) > 0) {
     parts.push(`guard +${card.guardValue}`);
   }
+  if ((card.drawCards ?? 0) > 0) {
+    parts.push(`抽 ${card.drawCards}`);
+  }
+  if ((card.energyGain ?? 0) > 0) {
+    parts.push(`能量 +${card.energyGain}`);
+  }
   if ((card.targetCount ?? 0) > 1) {
     parts.push(`${card.targetCount} 目标`);
   }
