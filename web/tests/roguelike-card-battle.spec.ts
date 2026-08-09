@@ -194,16 +194,74 @@ test("roguelike card battle supports real hand click, target click, and end turn
   expect(before.cardBattle?.enemyIntents?.length ?? 0).toBeGreaterThan(0);
   expect(before.battleSnapshot?.rightTeam?.some((unit) => unit.isAlive !== false && (unit.hp ?? 0) > 0)).toBe(true);
 
-  const playableCard = page.locator(".battle-card-button.ready").filter({ hasNot: page.locator(".battle-end-turn-button") }).first();
+  const playableCard = page.locator(".battle-card-button.ready[data-target-side='enemy']").first();
   await expect(playableCard).toBeVisible();
   const beforeHandCount = before.cardBattle?.hand?.length ?? 0;
   const beforeEnergy = before.cardBattle?.teamEnergy ?? 0;
+  await page.evaluate(() => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        playCard: (cardUid: string, targetId?: string) => Promise<{ events?: Array<{ type?: string }> }>;
+      };
+      __lastPlayCardEventTypes?: string[];
+    };
+    const host = runtime.__miniBattleHost;
+    if (!host || runtime.__lastPlayCardEventTypes) {
+      return;
+    }
+    const originalPlayCard = host.playCard.bind(host);
+    host.playCard = async (cardUid: string, targetId?: string) => {
+      const response = await originalPlayCard(cardUid, targetId);
+      runtime.__lastPlayCardEventTypes = (response.events ?? []).map((event) => String(event.type ?? ""));
+      return response;
+    };
+  });
   await playableCard.click();
+  await expect(page.locator(".battle-target-button")).toHaveCount(0);
 
-  const targetButton = page.locator(".battle-target-button:not(.battle-target-button--cancel)").first();
-  if (await targetButton.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await targetButton.click();
-  }
+  const targetPoint = await page.evaluate(async () => {
+    const runtime = window as typeof window & {
+      __miniBattleHost?: {
+        getRunSnapshot: () => Promise<RunSnapshotForTest>;
+      };
+      __miniBattleRenderer?: {
+        canvas: HTMLCanvasElement;
+        pickBattleUnit: (clientX: number, clientY: number) => { id: string } | null;
+      };
+    };
+    const snapshot = await runtime.__miniBattleHost?.getRunSnapshot();
+    const renderer = runtime.__miniBattleRenderer;
+    if (!snapshot?.battleSnapshot || !renderer) {
+      throw new Error("battle renderer is not ready");
+    }
+    const aliveEnemies = (snapshot.battleSnapshot.rightTeam ?? []).filter((unit) => unit.isAlive !== false && (unit.hp ?? 0) > 0);
+    const frontEnemies = aliveEnemies.filter((unit) => {
+      const position = Number((unit as { position?: number }).position ?? 0);
+      return position >= 1 && position <= 3;
+    });
+    const targetIds = new Set((frontEnemies.length > 0 ? frontEnemies : aliveEnemies).map((unit) => String(unit.id)));
+    const rect = renderer.canvas.getBoundingClientRect();
+    for (let y = rect.top + 20; y < rect.bottom - 20; y += 12) {
+      for (let x = rect.left + 20; x < rect.right - 20; x += 12) {
+        const picked = renderer.pickBattleUnit(x, y);
+        if (picked && targetIds.has(String(picked.id))) {
+          return { x, y };
+        }
+      }
+    }
+    throw new Error("failed to find clickable enemy on canvas");
+  });
+  await page.mouse.click(targetPoint.x, targetPoint.y);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const runtime = window as typeof window & { __lastPlayCardEventTypes?: string[] };
+          return runtime.__lastPlayCardEventTypes ?? [];
+        }),
+      { timeout: 10000 },
+    )
+    .toContain("skill_timeline_frame");
 
   await expect
     .poll(async () => {

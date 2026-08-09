@@ -18,6 +18,8 @@ local RoguelikeBattleBridge = {}
 
 local FRONT_POSITIONS = { 2, 1, 3 }
 local BACK_POSITIONS = { 5, 4, 6 }
+local MAX_ACTIVE_TEAM_SIZE = 4
+local MAX_OPENING_ENEMY_SIZE = 4
 
 -- 队伍 EXP 改造后，state.partyLevel 反映 partyExp 跨过的阈值（可一次跳 +N），
 -- 但实际每次升级三选一只让 1 名英雄升级，因此存活英雄的真实平均等级会显著低于 partyLevel。
@@ -415,6 +417,9 @@ local function buildBattleConfig(runState, battle, battleProfile)
             local heroData = buildHeroForBattle(rosterHero, modifiers)
             if heroData then
                 teamLeft[#teamLeft + 1] = heroData
+                if #teamLeft >= MAX_ACTIVE_TEAM_SIZE then
+                    break
+                end
             end
         end
     end
@@ -441,6 +446,9 @@ local function buildBattleConfig(runState, battle, battleProfile)
         local enemyData = buildEnemyForBattle(enemyId, wpType, budgetAdjust)
         if enemyData then
             teamRight[#teamRight + 1] = enemyData
+            if #teamRight >= MAX_OPENING_ENEMY_SIZE then
+                break
+            end
         end
     end
 
@@ -543,6 +551,13 @@ function RoguelikeBattleBridge.Tick(deltaMs)
         dt = dt - slice
     end
     return events
+end
+
+function RoguelikeBattleBridge.ConsumeEvents()
+    if BattleRuntime.consumeEvents then
+        return BattleRuntime.consumeEvents() or {}
+    end
+    return BattleRuntime.tick(0) or {}
 end
 
 function RoguelikeBattleBridge.QueueCommand(command)

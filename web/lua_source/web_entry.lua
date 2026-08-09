@@ -384,6 +384,7 @@ function MiniBattleWebApi.play_card(payloadJson)
         }
         if ok then
             response.result = result
+            response.events = result and result.events or {}
         else
             response.reason = result
         end
@@ -399,6 +400,7 @@ function MiniBattleWebApi.end_turn()
         }
         if ok then
             response.result = result
+            response.events = result and result.events or {}
         else
             response.reason = result
         end

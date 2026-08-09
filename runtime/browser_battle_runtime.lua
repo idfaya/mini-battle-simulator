@@ -994,6 +994,12 @@ function Runtime.tick(deltaMs)
     return events
 end
 
+function Runtime.consumeEvents()
+    local events = state.events or {}
+    state.events = {}
+    return events
+end
+
 function Runtime.queueCommand(command)
     if type(command) ~= "table" or command.type ~= "cast_ultimate" then
         rejectCommand(command, "invalid_command")

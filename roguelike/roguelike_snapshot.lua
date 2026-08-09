@@ -371,7 +371,7 @@ function RoguelikeSnapshot.Build(runState, battleSnapshot, opts)
         hiddenFloorCleared = runState.hiddenFloorCleared == true,
         hiddenFloorStairRoomId = runState.hiddenFloorStairRoomId,
         currentNodeId = runState.currentNodeId,
-        maxHeroCount = runState.maxHeroCount or 5,
+        maxHeroCount = runState.maxHeroCount or 4,
         partyLevel = runState.partyLevel or 1,
         partyExp = runState.partyExp or 0,
         levelProgressExp = runState.levelProgressExp or 0,

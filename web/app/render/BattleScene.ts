@@ -170,6 +170,7 @@ type FormationMetrics = {
   rowGap: number;
   centerGap: number;
   startX: number;
+  playerStartX: number;
   enemyBackY: number;
   enemyFrontY: number;
   playerFrontY: number;
@@ -452,7 +453,7 @@ export class BattleScene {
     const marginX = width < 520 ? 18 : 48;
     const desiredCardWidth = 208;
     const desiredGapX = width < 520 ? 14 : 28;
-    const minCardWidth = width < 520 ? 96 : 158;
+    const minCardWidth = width < 520 ? 78 : 148;
     const minGapX = width < 520 ? 8 : 16;
 
     const compactViewport = width < 520;
@@ -464,25 +465,27 @@ export class BattleScene {
     const minCenterGap = compactViewport ? 22 : 24;
 
     const availableX = Math.max(0, width - marginX * 2);
-    const desiredTotalX = desiredCardWidth * 3 + desiredGapX * 2;
+    const desiredTotalX = desiredCardWidth * 4 + desiredGapX * 3;
     const scaleX = desiredTotalX > 0 ? Math.min(1, availableX / desiredTotalX) : 1;
     const cardWidth = Math.max(minCardWidth, Math.floor(desiredCardWidth * scaleX));
     const gapX = Math.max(minGapX, Math.floor(desiredGapX * scaleX));
-    const totalWidth = cardWidth * 3 + gapX * 2;
-    const startX = Math.round((width - totalWidth) / 2);
+    const enemyTotalWidth = cardWidth * 3 + gapX * 2;
+    const playerTotalWidth = cardWidth * 4 + gapX * 3;
+    const startX = Math.round((width - enemyTotalWidth) / 2);
+    const playerStartX = Math.round((width - playerTotalWidth) / 2);
 
     const battlefieldTop = this.getBattlefieldTopSafeY(width) + (compactViewport ? 2 : 8);
     const battlefieldBottom = height - this.getBattlefieldBottomSafeY(width) - (compactViewport ? 2 : 4);
     const availableY = Math.max(0, battlefieldBottom - battlefieldTop);
-    const desiredTotalY = 2 * (2 * desiredCardHeight + desiredRowGap) + desiredCenterGap;
+    const desiredTotalY = 2 * desiredCardHeight + desiredCenterGap;
     const scaleY = desiredTotalY > 0 ? Math.min(1, availableY / desiredTotalY) : 1;
     let cardHeight = Math.max(minCardHeight, Math.floor(desiredCardHeight * scaleY));
     let rowGap = Math.max(minRowGap, Math.floor(desiredRowGap * scaleY));
     let centerGap = Math.max(minCenterGap, Math.floor(desiredCenterGap * scaleY));
 
-    const totalFormationHeight = () => 4 * cardHeight + 2 * rowGap + centerGap;
+    const totalFormationHeight = () => 2 * cardHeight + centerGap;
 
-    const minTotalY = 4 * minCardHeight + 2 * minRowGap + minCenterGap;
+    const minTotalY = 2 * minCardHeight + minCenterGap;
     if (compactViewport && availableY > 0 && availableY < minTotalY) {
       const tightScale = availableY / minTotalY;
       cardHeight = Math.max(54, Math.floor(minCardHeight * tightScale));
@@ -499,21 +502,20 @@ export class BattleScene {
 
       rowGap = targetRowGap;
       centerGap = targetCenterGap;
-      cardHeight = Math.max(hardMinCardHeight, Math.floor((availableY - 2 * rowGap - centerGap) / 4));
+      cardHeight = Math.max(hardMinCardHeight, Math.floor((availableY - centerGap) / 2));
 
       if (totalFormationHeight() > availableY) {
         rowGap = hardMinRowGap;
         centerGap = hardMinCenterGap;
-        cardHeight = Math.max(40, Math.floor((availableY - 2 * rowGap - centerGap) / 4));
+        cardHeight = Math.max(40, Math.floor((availableY - centerGap) / 2));
       }
     }
 
-    // 4 行始终预留：enemy back -> enemy front -> center gap -> player front -> player back
-    // 即使某一行没有单位，也保留位置，避免 6v6 与 4v3 视觉层级不一致。
-    const enemyBackY = battlefieldTop;
-    const enemyFrontY = enemyBackY + cardHeight + rowGap;
+    // 双方均为 4 人单排：敌方在上，玩家在下，中间留技能动画空间。
+    const enemyFrontY = battlefieldTop;
+    const enemyBackY = enemyFrontY;
     const playerFrontY = enemyFrontY + cardHeight + centerGap;
-    const playerBackY = playerFrontY + cardHeight + rowGap;
+    const playerBackY = playerFrontY;
 
     return {
       cardWidth,
@@ -522,6 +524,7 @@ export class BattleScene {
       rowGap,
       centerGap,
       startX,
+      playerStartX,
       enemyBackY,
       enemyFrontY,
       playerFrontY,
@@ -549,19 +552,9 @@ export class BattleScene {
 
   private layoutTeam(team: UnitState[], metrics: FormationMetrics, formationSide: FormationSide): UnitLayout[] {
     return team.map((unit, index) => {
-      const position = Number.isFinite(unit.position) ? Math.floor(unit.position) : 0;
-      const hasMappedPosition = position >= 1 && position <= 6;
-      const row: FormationRow = hasMappedPosition ? (position <= 3 ? "front" : "back") : index < 3 ? "front" : "back";
-      const column = hasMappedPosition ? (position - 1) % 3 : index % 3;
-      const baseX = metrics.startX + column * (metrics.cardWidth + metrics.gapX);
-      const baseY = formationSide === "enemy"
-        ? row === "front"
-          ? metrics.enemyFrontY
-          : metrics.enemyBackY
-        : row === "front"
-          ? metrics.playerFrontY
-          : metrics.playerBackY;
-
+      const column = Math.max(0, Math.min(3, index));
+      const baseX = metrics.playerStartX + column * (metrics.cardWidth + metrics.gapX);
+      const baseY = formationSide === "enemy" ? metrics.enemyFrontY : metrics.playerFrontY;
       return {
         x: baseX,
         y: baseY,
@@ -575,7 +568,7 @@ export class BattleScene {
         defeatedLabelAlpha: unit.isAlive ? 0 : 0.72,
         unit,
         formationSide,
-        row,
+        row: "front",
         column,
         baseX,
         baseY,
@@ -914,61 +907,96 @@ export class BattleScene {
       ctx.fill();
     }
 
-    const compact = width < 120 || height < 76;
-    const tight = height < 58;
-    const micro = height < 48;
-    const badgeSize = compact ? 16 : 22;
-    const nameX = compact ? x + 30 : x + 44;
-    if (compact) {
-      this.drawClassIconBadge(ctx, x + 8, y + 8, badgeSize, classBadge, unit.classIcon);
-    } else {
-      this.drawClassIconBadge(ctx, x + 12, y + 10, badgeSize, classBadge, unit.classIcon);
-    }
-
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = compact ? "bold 11px sans-serif" : "bold 18px sans-serif";
+    const compact = width < 116 || height < 82;
+    const tight = height < 66;
+    const micro = height < 52;
+    const pad = compact ? 6 : 9;
+    const artTop = y + (compact ? 23 : 30);
+    const artHeight = Math.max(micro ? 18 : 24, height * (compact ? 0.3 : 0.34));
+    const artBottom = Math.min(y + height - (compact ? 34 : 40), artTop + artHeight);
     const levelText = `Lv${Math.max(1, Math.floor(Number(unit.level) || 1))}`;
-    const levelWidth = compact ? 30 : 42;
-    const levelHeight = compact ? 14 : 20;
-    const levelX = x + width - levelWidth - (compact ? 8 : 12);
-    const levelY = y + (compact ? 8 : 11);
-    ctx.fillText(unit.name, nameX, y + (compact ? 21 : 26), Math.max(20, levelX - nameX - 6));
+    const attackLabel = unit.classId >= 6 && unit.classId <= 9 ? `DC ${Math.floor(unit.spellDC)}` : `HIT ${unit.hit >= 0 ? "+" : ""}${Math.floor(unit.hit)}`;
+
+    ctx.fillStyle = unit.team === "left" ? "rgba(128, 237, 153, 0.13)" : "rgba(255, 209, 102, 0.12)";
+    ctx.beginPath();
+    ctx.roundRect(x + pad, y + pad, width - pad * 2, height - pad * 2, 14);
+    ctx.fill();
 
     ctx.fillStyle = unit.team === "left" ? "rgba(128, 237, 153, 0.18)" : "rgba(255, 209, 102, 0.16)";
-    ctx.strokeStyle = unit.team === "left" ? "rgba(128, 237, 153, 0.56)" : "rgba(255, 209, 102, 0.52)";
+    ctx.beginPath();
+    ctx.roundRect(x + pad, y + pad, width - pad * 2, compact ? 18 : 22, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "#f8f9fa";
+    ctx.textBaseline = "middle";
+    ctx.font = compact ? "bold 9px sans-serif" : "bold 12px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(unit.className || "Class", x + pad + 6, y + pad + (compact ? 9 : 11), Math.max(26, width - pad * 2 - 44));
+    ctx.textAlign = "right";
+    ctx.fillText(levelText, x + width - pad - 6, y + pad + (compact ? 9 : 11), 34);
+
+    const artX = x + pad;
+    const artY = artTop;
+    const artW = width - pad * 2;
+    const artH = Math.max(18, artBottom - artTop);
+    const artGradient = ctx.createLinearGradient(artX, artY, artX + artW, artY + artH);
+    if (unit.team === "left") {
+      artGradient.addColorStop(0, "rgba(36, 59, 83, 0.9)");
+      artGradient.addColorStop(1, "rgba(26, 83, 92, 0.72)");
+    } else {
+      artGradient.addColorStop(0, "rgba(87, 48, 39, 0.9)");
+      artGradient.addColorStop(1, "rgba(87, 65, 39, 0.72)");
+    }
+    ctx.fillStyle = artGradient;
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(levelX, levelY, levelWidth, levelHeight, levelHeight / 2);
+    ctx.roundRect(artX, artY, artW, artH, 12);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#f8f9fa";
-    ctx.font = compact ? "bold 8px sans-serif" : "bold 11px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(levelText, levelX + levelWidth / 2, levelY + levelHeight / 2 + 0.5, levelWidth - 4);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
 
-    const hpY = micro ? y + height - 22 : tight ? y + height - 26 : compact ? y + height - 30 : y + 52;
+    const portraitSize = Math.max(micro ? 18 : 24, Math.min(artH - 6, artW * 0.32));
+    this.drawClassIconBadge(
+      ctx,
+      artX + artW / 2 - portraitSize / 2,
+      artY + artH / 2 - portraitSize / 2,
+      portraitSize,
+      classBadge,
+      unit.classIcon,
+    );
+
+    ctx.fillStyle = "rgba(255,255,255,0.86)";
+    ctx.font = compact ? "bold 10px sans-serif" : "bold 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(unit.name, x + width / 2, artY + artH + (compact ? 12 : 16), width - pad * 2);
+
+    const hpY = micro ? y + height - 21 : tight ? y + height - 25 : compact ? y + height - 28 : y + height - 35;
     const hpRate = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
-    const hpBarHeight = micro ? 5 : tight ? 6 : compact ? 8 : 10;
-    this.drawBar(ctx, x + 12, hpY, width - 24, hpBarHeight, hpRate, this.getHpBarColor(hpRate), "#263238");
+    const hpBarHeight = micro ? 5 : compact ? 7 : 8;
+    this.drawBar(ctx, x + pad, hpY, width - pad * 2, hpBarHeight, hpRate, this.getHpBarColor(hpRate), "#263238");
     ctx.fillStyle = "#f8f9fa";
     ctx.font = compact ? "bold 7px sans-serif" : "bold 10px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(`${Math.max(0, Math.floor(unit.hp))}/${Math.floor(unit.maxHp)}`, x + width / 2, hpY + hpBarHeight / 2);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
+
+    const chipY = hpY + hpBarHeight + (micro ? 2 : 4);
+    const chipHeight = micro ? 11 : compact ? 13 : 16;
+    const chipGap = compact ? 3 : 5;
+    const chipWidth = (width - pad * 2 - chipGap * 2) / 3;
+    this.drawCardStatChip(ctx, x + pad, chipY, chipWidth, chipHeight, `AC ${Math.floor(unit.ac)}`, "#7ea7ff");
+    this.drawCardStatChip(ctx, x + pad + chipWidth + chipGap, chipY, chipWidth, chipHeight, attackLabel, "#c77dff");
+    this.drawCardStatChip(ctx, x + pad + (chipWidth + chipGap) * 2, chipY, chipWidth, chipHeight, `INI ${Math.floor(unit.initiative)}`, "#ffd166");
 
     this.drawBuffIcons(
       ctx,
-      compact ? x + 10 : x + 16,
-      micro ? hpY + 8 : tight ? hpY + 10 : compact ? hpY + 12 : y + 72,
-      compact ? width - 20 : width - 32,
+      x + pad,
+      Math.min(hpY - (micro ? 10 : 14), artY + artH + (compact ? 14 : 18)),
+      width - pad * 2,
       unit,
-      micro ? 10 : tight ? 14 : 18,
-      micro ? 4 : 6,
+      micro ? 9 : tight ? 11 : 13,
+      micro ? 3 : 4,
     );
 
     if (layout.darken > 0) {
@@ -1017,6 +1045,33 @@ export class BattleScene {
     ctx.restore();
   }
 
+  private drawCardStatChip(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    accent: string,
+  ) {
+    ctx.save();
+    ctx.fillStyle = "rgba(5, 12, 24, 0.62)";
+    ctx.strokeStyle = accent;
+    ctx.globalAlpha = 0.96;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, Math.max(5, height / 2));
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#f8f9fa";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = height <= 12 ? "bold 7px sans-serif" : height <= 14 ? "bold 8px sans-serif" : "bold 9px sans-serif";
+    ctx.fillText(text, x + width / 2, y + height / 2 + 0.5, width - 4);
+    ctx.restore();
+  }
+
   private getClassBadge(classId: number): ClassBadge {
     if (classId >= 1 && classId <= 5) {
       return { fill: "#243b53", stroke: "#9fb3c8" };
@@ -1047,7 +1102,7 @@ export class BattleScene {
     ctx.fillStyle = "#f8f9fa";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "16px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+    ctx.font = `${Math.max(10, Math.floor(size * 0.68))}px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif`;
     ctx.fillText(icon && icon.length > 0 ? icon : "?", x + size / 2, y + size / 2 + 1);
 
     ctx.restore();

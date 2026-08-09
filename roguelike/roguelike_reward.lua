@@ -20,16 +20,16 @@ local function recruitHero(runState, classId)
     if resolvedClassId <= 0 then
         return false, "invalid_recruit_class"
     end
-    if RoguelikeRoster.GetTeamUnitCount(runState) >= (tonumber(runState.maxHeroCount) or 0) then
-        return false, "team_full"
-    end
+    local teamState = RoguelikeRoster.GetTeamUnitCount(runState) < (tonumber(runState.maxHeroCount) or 0)
+        and "active"
+        or "bench"
 
     local rosterId = allocateRosterId(runState)
     local unit = HeroData.CreateClassUnit(resolvedClassId, {
         rosterId = rosterId,
         unitId = string.format("class_unit_%d_%d", resolvedClassId, rosterId),
         level = tonumber(runState.partyLevel) or 1,
-        teamState = "active",
+        teamState = teamState,
         source = "recruit",
         ultimateCharges = 1,
         ultimateChargesMax = 1,
@@ -38,7 +38,7 @@ local function recruitHero(runState, classId)
     if not unit then
         return false, "recruit_create_failed"
     end
-    RoguelikeRoster.AddOwnedUnit(runState, unit, "active")
+    RoguelikeRoster.AddOwnedUnit(runState, unit, teamState)
     return true, unit
 end
 

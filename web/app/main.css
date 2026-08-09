@@ -1020,27 +1020,6 @@ body {
   white-space: normal;
 }
 
-.battle-target-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.battle-target-button {
-  min-height: 54px;
-  border-color: rgba(126, 167, 255, 0.5);
-  background: rgba(21, 32, 54, 0.94);
-  color: #e6eefb;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.battle-target-button--cancel {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(31, 41, 55, 0.88);
-  color: rgba(217, 226, 236, 0.72);
-}
-
 .ult-button-name,
 .ult-button-skill {
   display: block;

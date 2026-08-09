@@ -451,6 +451,8 @@ export type RunLiteSnapshot = {
 export type RunActionResponse = {
   accepted: boolean;
   reason?: string;
+  result?: unknown;
+  events?: BattleEvent[];
 };
 
 export type RunTickResult = {

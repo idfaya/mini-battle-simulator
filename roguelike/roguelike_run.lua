@@ -33,6 +33,7 @@ local STARTER_STAR = 1
 local CHAPTER_LEVEL_CAP = LevelCurve.CHAPTER_LEVEL_CAP
 local DEFAULT_STARTER_TEAM_SIZE = 4
 local DEFAULT_STARTER_FRONT_COUNT = 2
+local MAX_ACTIVE_TEAM_SIZE = 4
 
 local function allocateRosterId(runState)
     runState.nextRosterId = (runState.nextRosterId or 1)
@@ -349,7 +350,7 @@ local function resetRunState()
         levelCap = CHAPTER_LEVEL_CAP,
         shopRefreshCount = 0,
         shopSoldMap = {},
-        maxHeroCount = 5,
+        maxHeroCount = MAX_ACTIVE_TEAM_SIZE,
         currentBattleId = nil,
         currentBattleConfig = nil,
         lastBattleSummary = nil,
@@ -714,7 +715,7 @@ local function enterChapterResult()
         local nextChapter = RoguelikeMap.GetChapter(nextChapterId)
         if nextChapter then
             state.chapterId = nextChapterId
-            state.maxHeroCount = nextChapter.maxHeroCount or state.maxHeroCount
+            state.maxHeroCount = math.min(MAX_ACTIVE_TEAM_SIZE, nextChapter.maxHeroCount or state.maxHeroCount)
             -- targetMaxLevel 是章节节奏设计目标（用于怪物等级曲线），不是 partyLevel 硬上限。
             -- partyLevel 上限统一走 CHAPTER_LEVEL_CAP，避免 partyLevel 触达 targetMaxLevel 时 UI 误显示"已满级"。
             state.levelCap = CHAPTER_LEVEL_CAP
@@ -799,7 +800,7 @@ function RoguelikeRun.StartRun(config)
     state.chapterId = chapterId
     state.gold = chapter.startGold or 0
     state.food = chapter.startFood or 0
-    state.maxHeroCount = chapter.maxHeroCount or 5
+    state.maxHeroCount = math.min(MAX_ACTIVE_TEAM_SIZE, chapter.maxHeroCount or MAX_ACTIVE_TEAM_SIZE)
     state.partyLevel = STARTER_LEVEL
     state.partyExp = 0
     state.levelProgressExp = 0
@@ -1038,7 +1039,11 @@ function RoguelikeRun.PlayCard(cardUid, targetId)
     RoguelikeBattleBridge.EvaluateBattleEnd()
     cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
     CardBattle.SyncOwnerAvailability(state, cachedBattleSnapshot)
-    resolveCurrentBattleIfFinished({})
+    local events = RoguelikeBattleBridge.ConsumeEvents and RoguelikeBattleBridge.ConsumeEvents() or {}
+    resolveCurrentBattleIfFinished(events)
+    if ok and type(result) == "table" then
+        result.events = events
+    end
     return ok, result
 end
 
@@ -1061,9 +1066,13 @@ function RoguelikeRun.EndTurn()
             return battleResult and battleResult.isFinished == true
         end,
     })
+    local events = RoguelikeBattleBridge.ConsumeEvents and RoguelikeBattleBridge.ConsumeEvents() or {}
     cachedBattleSnapshot = RoguelikeBattleBridge.GetSnapshot()
     CardBattle.SyncOwnerAvailability(state, cachedBattleSnapshot)
-    resolveCurrentBattleIfFinished({})
+    resolveCurrentBattleIfFinished(events)
+    if ok and type(result) == "table" then
+        result.events = events
+    end
     return ok, result
 end
 

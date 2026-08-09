@@ -206,11 +206,19 @@ export class LuaBattleHost {
   }
 
   async playCard(cardUid: string, targetId?: string): Promise<RunActionResponse> {
-    return this.callApi<RunActionResponse>("play_card", { cardUid, targetId });
+    const result = this.callApi<RunActionResponse>("play_card", { cardUid, targetId });
+    return {
+      ...result,
+      events: (result.events ?? []).map(normalizeEvent),
+    };
   }
 
   async endTurn(): Promise<RunActionResponse> {
-    return this.callApi<RunActionResponse>("end_turn", {});
+    const result = this.callApi<RunActionResponse>("end_turn", {});
+    return {
+      ...result,
+      events: (result.events ?? []).map(normalizeEvent),
+    };
   }
 
   async restartRun(config?: unknown): Promise<RunSnapshot> {

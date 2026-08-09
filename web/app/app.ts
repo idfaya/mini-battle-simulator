@@ -416,6 +416,9 @@ async function bootstrapRunMode(
   const playRunCard = async (cardUid: string, targetId?: string) => {
     const response = await host.playCard(cardUid, targetId);
     if (response.accepted) {
+      if (response.events?.length) {
+        battleStore.appendEvents(response.events);
+      }
       selectedRunCardUid = null;
       syncRunSnapshot(await host.getRunSnapshot());
     }
@@ -456,6 +459,9 @@ async function bootstrapRunMode(
   const endRunTurn = async () => {
     const response = await host.endTurn();
     if (response.accepted) {
+      if (response.events?.length) {
+        battleStore.appendEvents(response.events);
+      }
       syncRunSnapshot(await host.getRunSnapshot());
     }
   };

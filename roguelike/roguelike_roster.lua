@@ -1,5 +1,7 @@
 local RoguelikeRoster = {}
 
+local MAX_ACTIVE_TEAM_SIZE = 4
+
 local function isBenchUnit(unit)
     return unit and unit.teamState == "bench"
 end
@@ -44,9 +46,13 @@ function RoguelikeRoster.RefreshLegacyViews(runState)
     local owned = ensureOwnedUnits(runState)
     local teamRoster = {}
     local benchRoster = {}
+    local maxActive = math.max(1, math.floor(tonumber(runState.maxHeroCount) or MAX_ACTIVE_TEAM_SIZE))
     for _, unit in ipairs(owned) do
         normalizeTeamState(unit, "active")
         if isBenchUnit(unit) then
+            benchRoster[#benchRoster + 1] = unit
+        elseif #teamRoster >= maxActive then
+            unit.teamState = "bench"
             benchRoster[#benchRoster + 1] = unit
         else
             teamRoster[#teamRoster + 1] = unit
@@ -104,7 +110,7 @@ function RoguelikeRoster.PromoteBenchHero(runState, benchRosterId)
     if not unit or unit.teamState ~= "bench" then
         return false, "bench_hero_not_found"
     end
-    if RoguelikeRoster.GetTeamUnitCount(runState) >= (runState.maxHeroCount or 5) then
+    if RoguelikeRoster.GetTeamUnitCount(runState) >= (runState.maxHeroCount or MAX_ACTIVE_TEAM_SIZE) then
         return false, "team_full"
     end
     unit.teamState = "active"

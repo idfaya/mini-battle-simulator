@@ -29,55 +29,6 @@ function getFormationSlot(unit: UnitState, fallbackIndex: number) {
   };
 }
 
-function isAlive(unit: UnitState): boolean {
-  return unit.isAlive && unit.hp > 0;
-}
-
-function isFrontRow(unit: UnitState): boolean {
-  return unit.position >= 1 && unit.position <= 3;
-}
-
-function buildTargetButtons(
-  snapshot: BattleSnapshot,
-  card: RunCardState,
-  handlers: {
-    onCancel: () => void;
-    onChooseTarget: (targetId: string) => void;
-  },
-): HTMLButtonElement[] {
-  const sourcePool = card.targetSide === "ally" ? snapshot.leftTeam : snapshot.rightTeam;
-  let candidates = sourcePool.filter(isAlive);
-  if (card.targetSide !== "ally" && card.ignoreFrontProtection !== true) {
-    const frontCandidates = candidates.filter(isFrontRow);
-    if (frontCandidates.length > 0) {
-      candidates = frontCandidates;
-    }
-  }
-
-  const buttons = candidates.map((unit) => {
-    const button = document.createElement("button");
-    button.className = "ult-button battle-target-button";
-    button.type = "button";
-    button.textContent = `${card.name} → ${unit.name}`;
-    button.onpointerdown = (event) => {
-      event.preventDefault();
-      handlers.onChooseTarget(unit.id);
-    };
-    return button;
-  });
-
-  const cancel = document.createElement("button");
-  cancel.className = "ult-button battle-target-button battle-target-button--cancel";
-  cancel.type = "button";
-  cancel.textContent = "取消选牌";
-  cancel.onpointerdown = (event) => {
-    event.preventDefault();
-    handlers.onCancel();
-  };
-  buttons.push(cancel);
-  return buttons;
-}
-
 function cardTypeLabel(card: RunCardState): string {
   switch (card.type) {
     case "attack":
@@ -464,6 +415,8 @@ export function renderControls(
           typeof options.onPlayCard === "function";
         const isSelected = card.uid === selectedCard?.uid;
         button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}${isSelected ? " selected" : ""}`;
+        button.dataset.cardUid = card.uid;
+        button.dataset.targetSide = String(card.targetSide ?? "none");
         button.disabled = !canPlay;
         button.onpointerdown = (event) => {
           event.preventDefault();
@@ -504,16 +457,7 @@ export function renderControls(
         return button;
       });
     cardsGrid.append(...handNodes);
-    const targetNodes = selectedCard ? buildTargetButtons(snapshot, selectedCard, {
-      onCancel: () => options.onSelectCard?.(null),
-      onChooseTarget: (targetId) => {
-        void options.onPlayCard?.(selectedCard.uid, targetId);
-      },
-    }) : [];
-    const targetGrid = document.createElement("div");
-    targetGrid.className = "battle-target-grid";
-    targetGrid.append(...targetNodes);
-    controls.buttonsHost.replaceChildren(handHeader, cardsGrid, targetGrid);
+    controls.buttonsHost.replaceChildren(handHeader, cardsGrid);
   } else if (snapshot && !snapshot.result) {
     controls.buttonsHost.style.display = "";
     controls.buttonsHost.classList.remove("battle-hand-panel");
