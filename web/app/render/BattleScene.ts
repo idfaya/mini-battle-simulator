@@ -216,6 +216,7 @@ export class BattleScene {
   private backgroundCacheCanvas: HTMLCanvasElement | null = null;
   private backgroundCacheKey = "";
   private cardGradientCache = new Map<string, CanvasGradient>();
+  private portraitImageCache = new Map<string, HTMLImageElement>();
   private lastResolvedLayouts: Array<{
     id: string;
     team: string;
@@ -955,15 +956,20 @@ export class BattleScene {
     ctx.fill();
     ctx.stroke();
 
-    const portraitSize = Math.max(micro ? 18 : 24, Math.min(artH - 6, artW * 0.32));
-    this.drawClassIconBadge(
-      ctx,
-      artX + artW / 2 - portraitSize / 2,
-      artY + artH / 2 - portraitSize / 2,
-      portraitSize,
-      classBadge,
-      unit.classIcon,
-    );
+    const portraitImage = this.getPortraitImage(unit);
+    if (portraitImage?.complete && portraitImage.naturalWidth > 0) {
+      this.drawPortraitImage(ctx, portraitImage, artX, artY, artW, artH);
+    } else {
+      const portraitSize = Math.max(micro ? 18 : 24, Math.min(artH - 6, artW * 0.32));
+      this.drawClassIconBadge(
+        ctx,
+        artX + artW / 2 - portraitSize / 2,
+        artY + artH / 2 - portraitSize / 2,
+        portraitSize,
+        classBadge,
+        unit.classIcon,
+      );
+    }
 
     ctx.fillStyle = "rgba(255,255,255,0.86)";
     ctx.font = compact ? "bold 10px sans-serif" : "bold 14px sans-serif";
@@ -1042,6 +1048,124 @@ export class BattleScene {
     ctx.fillStyle = color;
     ctx.font = font;
     ctx.fillText(text, x + 8, y + 14);
+    ctx.restore();
+  }
+
+  private getPortraitImage(unit: UnitState): HTMLImageElement | null {
+    if (typeof Image === "undefined") {
+      return null;
+    }
+    const url = this.buildPortraitUrl(unit);
+    const cached = this.portraitImageCache.get(url);
+    if (cached) {
+      return cached;
+    }
+    const image = new Image();
+    image.decoding = "async";
+    image.loading = "lazy";
+    image.src = url;
+    this.portraitImageCache.set(url, image);
+    return image;
+  }
+
+  private buildPortraitUrl(unit: UnitState) {
+    const prompt = this.buildPortraitPrompt(unit);
+    return `https://copilot-cn.bytedance.net/api/ide/v1/text_to_image?prompt=${encodeURIComponent(prompt)}&image_size=portrait_4_3`;
+  }
+
+  private buildPortraitPrompt(unit: UnitState) {
+    const role = this.getPortraitRolePrompt(unit);
+    const faction = unit.team === "left"
+      ? "heroic adventurer, determined expression"
+      : "hostile dungeon enemy, threatening expression";
+    return [
+      "fantasy roguelike card game character portrait",
+      role,
+      faction,
+      "half body portrait, centered composition, dramatic rim light",
+      "dark dungeon background, painterly digital art, high detail",
+      "clean silhouette, readable at small card size, no text, no logo",
+    ].join(", ");
+  }
+
+  private getPortraitRolePrompt(unit: UnitState) {
+    const className = `${unit.className ?? ""} ${unit.name ?? ""}`.toLowerCase();
+    if (unit.team === "right") {
+      if (className.includes("skeleton") || className.includes("骸骨") || className.includes("骨")) {
+        return "undead skeleton warrior with cracked bone armor and cold blue eyes";
+      }
+      if (className.includes("orc") || className.includes("兽人")) {
+        return "brutal orc raider with rough iron armor and a heavy weapon";
+      }
+      if (className.includes("shadow") || className.includes("暗影") || className.includes("暗术")) {
+        return "shadow cultist mage wearing dark robes and violet arcane glow";
+      }
+      if (className.includes("goblin") || className.includes("哥布林")) {
+        return "cunning goblin skirmisher with leather armor and a jagged spear";
+      }
+      return "dangerous dungeon monster combatant with worn armor";
+    }
+    if (unit.classId === 1 || className.includes("fighter") || className.includes("战士")) {
+      return "armored human fighter with sword and shield";
+    }
+    if (unit.classId === 2 || className.includes("barbarian") || className.includes("野蛮")) {
+      return "fierce barbarian warrior with axe, fur cloak, battle scars";
+    }
+    if (unit.classId === 3 || className.includes("monk") || className.includes("武僧")) {
+      return "disciplined martial artist monk in travel robes, glowing fists";
+    }
+    if (unit.classId === 4 || className.includes("ranger") || className.includes("游侠")) {
+      return "agile ranger archer with green cloak and longbow";
+    }
+    if (unit.classId === 5 || className.includes("rogue") || className.includes("游荡")) {
+      return "stealthy rogue assassin with daggers and hooded leather armor";
+    }
+    if (unit.classId === 6 || className.includes("wizard") || className.includes("法师")) {
+      return "wise wizard with spellbook, blue arcane light, embroidered robes";
+    }
+    if (unit.classId === 7 || className.includes("warlock") || className.includes("术士")) {
+      return "mysterious warlock with eldritch flame and dark pact markings";
+    }
+    if (unit.classId === 8 || className.includes("cleric") || className.includes("牧师")) {
+      return "radiant cleric healer with holy symbol and warm golden light";
+    }
+    if (unit.classId === 9 || className.includes("druid") || className.includes("德鲁伊")) {
+      return "nature druid with antler motif, leaves, and green primal magic";
+    }
+    if (unit.classId === 10 || className.includes("paladin") || className.includes("圣武士")) {
+      return "noble paladin knight with holy armor and glowing oath sigil";
+    }
+    return "fantasy adventurer hero with distinctive class equipment";
+  }
+
+  private drawPortraitImage(
+    ctx: CanvasRenderingContext2D,
+    image: HTMLImageElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, 12);
+    ctx.clip();
+    const sourceAspect = image.naturalWidth / Math.max(1, image.naturalHeight);
+    const targetAspect = width / Math.max(1, height);
+    let sx = 0;
+    let sy = 0;
+    let sw = image.naturalWidth;
+    let sh = image.naturalHeight;
+    if (sourceAspect > targetAspect) {
+      sw = image.naturalHeight * targetAspect;
+      sx = (image.naturalWidth - sw) / 2;
+    } else {
+      sh = image.naturalWidth / targetAspect;
+      sy = Math.max(0, (image.naturalHeight - sh) * 0.24);
+    }
+    ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    ctx.fillRect(x, y, width, height);
     ctx.restore();
   }
 
