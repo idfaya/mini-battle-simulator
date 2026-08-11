@@ -43,8 +43,8 @@
 
 ### 2.3 Run 内成长（Feat）
 
-- 战后经验进入 `partyExp`；升级时从存活英雄的下一级 Feat 汇总池三选一。
-- 规则见 [`character_progression_design.md`](./character_progression_design.md)。**无职业卡、无 Run 内招募。**
+- 战后经验进入 `partyExp`；升级和战斗奖励围绕 Feat / Card 对队伍牌库的改造展开。
+- Feat 仍是唯一成长入口；Card 是 Feat 与 Skill 在战斗内的投影。规则见 [`character_progression_design.md`](./character_progression_design.md) 与 [`feat_card_battle_design.md`](./feat_card_battle_design.md)。**无 Run 内招募。**
 
 ### 2.4 技能
 
@@ -296,7 +296,7 @@ Class 单位升级时，统一执行：
 ## 7. 子职业与能力解锁（Feat）
 
 - **子职业**：英雄在 **Lv3** 选中该职业的子职核心 Feat 后锁定分支；**Lv5** Feat 为该子职 capstone。
-- **能力单元**：所有战斗内能力由 Feat 授予或修改 `skill`，战前编译为 `BuildState`（[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md)）。
+- **能力单元**：所有战斗内能力由 Feat 授予或修改 `skill`，战前编译为 `BuildState`（[`docs/implementation_guidelines.md`](../docs/implementation_guidelines.md)）；卡牌战斗中再由 `Card -> Skill -> Timeline` 执行。
 - **技能槽语义**（`basic_attack_slot` / `core_slot` / `mid_slot` / `high_slot`）仍用于描述职业结构；具体启用哪条技能由已选 Feat 决定。
 - **本期**：Run 内固定 4 名起手英雄，无招募、无转职换 `class_id`。
 
@@ -371,9 +371,10 @@ Class
 
 - 职业技能规则由：
   - `roguelike_feat_skill_fill_sheet.md`（Feat 树节点级 SSOT，含母技能映射与每职业 Feat 树）
-  - `auto_battle_targeting.md`（自动战斗目标选择倾向）
+  - `feat_card_battle_design.md`（Card / 队伍牌库 / 能量 / Intent / guard 规则）
+  - `auto_battle_targeting.md`（敌方 Intent 与自动目标倾向）
   定义。
-- 运行时统一落到 `Feat -> Skill`。
+- 运行时统一落到 `Feat -> Card -> Skill`；Card 负责费用、抽弃牌、guard、retain / exhaust 等卡牌层规则，Skill 负责伤害、治疗、Buff 与 Timeline 结算。
 
 ---
 

@@ -10,8 +10,8 @@
 
 ## 1. 设计目标
 
-1. **队伍 EXP + 升级三选一汇总池**：战斗经验只升队伍，队伍升级时玩家从"全队下一级 feat 候选"中随机三选一，选 feat 即同时定向升级对应队员；
-2. **取消职业卡 / 进阶 / 挂起进阶**机制；子职 = Lv3 升级时由 feat 选择决定；
+1. **队伍 EXP + 升级三选一汇总池**：战斗经验只升队伍，队伍升级时玩家从"全队下一级 feat / card 改造候选"中随机三选一，选 feat 即同时定向升级对应队员，选 card 改造则只改变队伍牌库；
+2. **取消旧职业卡 / 进阶 / 挂起进阶**机制；子职 = Lv3 升级时由 feat 选择决定；
 3. **Run 内死亡与复活**：HP 归零进入濒死，战斗结束仍倒地视为阵亡；通过商店复活卷轴 / 营地房恢复；
 4. **不做跨 Run 永久成长**：装备 / feat / 等级仅在本 Run 内有效，Run 结束全部清空（地牢外、元进度、永久死亡均不在本期）。
 
@@ -62,7 +62,7 @@
 → 发放节点金币
 → 结算节点掉落（精英固定掉落；宝箱房随机开出金币 / 装备）
 → 发放战斗经验进入 partyExp
-→ 检查升级 → 兑现升级触发的天赋卡三选一（按等级 → 档位映射，不可跳过）
+→ 检查升级 → 兑现升级触发的 Feat / Card 三选一（可选升级牌、删牌、拿新牌或选择 Feat）
 → 固定恢复
 → 进入下一房间
 ```
@@ -111,13 +111,14 @@
 
 | 类别 | 文件 | 修改 | 说明 |
 | --- | --- | --- | --- |
-| 配置（新增） | `config/data/feat_cards.json` | 新增 | 天赋卡静态数据（实际复用 `feats.lua` schema 升级） |
+| 配置（新增） | `config/roguelike/run_card_reward_pool.lua` | 新增 | 战后 Card 奖励显式池，引用现有 Skill 并附加 cardEffects |
 | 配置（新增） | `config/data/equipments.json` | 新增 | 装备静态数据 |
 | 配置（新增） | `config/data/blesses.json` | 新增 | Bless 静态数据 |
 | 配置（修改） | `config/tables/feats.lua` | 修改 | 补 `tier` / `tags` 字段，导出按档位查询 API |
 | 配置（修改） | `config/tables/skill_meta.lua` | 修改 | 同步天赋卡引用的 skill 元数据 |
 | Run 层（新增） | `roguelike/feat_picker.lua` | 新增 | 升级三选一会话 |
-| Run 层（修改） | `roguelike/roguelike_run.lua` | 修改 | Run 持有表新增 `partyExp` / 阵亡名册 |
+| Run 层（修改） | `roguelike/roguelike_run.lua` | 修改 | Run 持有表新增 `partyExp` / 阵亡名册 / `cardLibrary` |
+| Run 层（新增） | `roguelike/card_battle.lua` | 新增 | 队伍牌库、starter package、手牌、能量、guard、status / curse |
 | Run 层（修改） | `roguelike/roguelike_battle_resolver.lua` | 修改 | 战斗胜利后挂入升级三选一 / 阵亡判定 |
 | Run 层（修改） | `roguelike/roguelike_reward.lua` | 修改 | 装备 / bless 掉落 |
 | 战斗层（修改） | `modules/hero_build.lua` | 修改 | 解析 feat / 装备 / bless 注入运行时被动 |
@@ -160,9 +161,9 @@
 
 ## 8. 验收口径
 
-- **节奏密度**：每场战斗结束 1 秒内有「队伍升级三选一」或「装备入库」反馈，至少二选一发生。
+- **节奏密度**：每场战斗结束 1 秒内有「队伍升级三选一」「Card 奖励 / 牌库维护」或「装备入库」反馈，至少一项发生。
 - **升级反馈率**：MVP 配置下，单 Run 内队伍升级 ≥ 12 次（覆盖 4 名英雄各 3 级以上的预期分发）。
-- **构筑分化**：同职业不同 Run 的「已选 feat + 装备 + bless」组合重合度 ≤ 30%（自动统计）。
+- **构筑分化**：同职业不同 Run 的「已选 feat + cardLibrary + 装备 + bless」组合重合度 ≤ 30%（自动统计）。
 - **子职业触达**：单 Run 内 ≥ 75% 的存活英雄能在通关前选中 Lv3 子职业核心 feat。
 - **测试覆盖**：
   - `bin/` 新增至少 2 个回归脚本（汇总池三选一 / 复活流程）。

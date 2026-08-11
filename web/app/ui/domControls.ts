@@ -48,6 +48,9 @@ function cardTypeLabel(card: RunCardState): string {
 
 function cardHintText(card: RunCardState): string {
   const parts: string[] = [];
+  if (card.upgraded === true || (card.upgradeLevel ?? 0) > 0) {
+    parts.push(`升级 +${Math.max(1, card.upgradeLevel ?? 1)}`);
+  }
   if ((card.guardValue ?? 0) > 0) {
     parts.push(`guard +${card.guardValue}`);
   }
@@ -56,6 +59,25 @@ function cardHintText(card: RunCardState): string {
   }
   if ((card.energyGain ?? 0) > 0) {
     parts.push(`能量 +${card.energyGain}`);
+  }
+  if ((card.momentumGain ?? 0) > 0) {
+    parts.push(`蓄势 +${card.momentumGain}`);
+  }
+  if ((card.momentumSpend ?? 0) > 0) {
+    const spendBits = [`耗势 ${card.momentumSpend}`];
+    if ((card.momentumCostReduction ?? 0) > 0) {
+      spendBits.push(`费用 -${card.momentumCostReduction}`);
+    }
+    if ((card.momentumEnergyGain ?? 0) > 0) {
+      spendBits.push(`能量 +${card.momentumEnergyGain}`);
+    }
+    if ((card.momentumDrawCards ?? 0) > 0) {
+      spendBits.push(`抽 ${card.momentumDrawCards}`);
+    }
+    if ((card.momentumGuardValue ?? 0) > 0) {
+      spendBits.push(`guard +${card.momentumGuardValue}`);
+    }
+    parts.push(spendBits.join("/"));
   }
   if ((card.targetCount ?? 0) > 1) {
     parts.push(`${card.targetCount} 目标`);
@@ -72,6 +94,15 @@ function cardHintText(card: RunCardState): string {
   return parts.length > 0 ? parts.join(" · ") : "点击打出";
 }
 
+function effectiveCardCost(cardBattle: RunCardBattleState, card: RunCardState, baseCost: number): number {
+  const momentum = Math.max(0, Math.floor(cardBattle.momentum ?? 0));
+  const spend = Math.max(0, Math.floor(card.momentumSpend ?? 0));
+  if (spend > 0 && momentum >= spend) {
+    return Math.max(0, baseCost - Math.max(0, Math.floor(card.momentumCostReduction ?? 0)));
+  }
+  return baseCost;
+}
+
 function cardDisabledReason(cardBattle: RunCardBattleState, card: RunCardState, costValue: number): string {
   if (card.type === "status" || card.type === "curse") {
     return "污染";
@@ -82,7 +113,7 @@ function cardDisabledReason(cardBattle: RunCardBattleState, card: RunCardState, 
   if (cardBattle.phase !== "player") {
     return "敌方行动";
   }
-  if (cardBattle.teamEnergy < costValue) {
+  if (cardBattle.teamEnergy < effectiveCardCost(cardBattle, card, costValue)) {
     return "能量不足";
   }
   return cardHintText(card);
@@ -356,11 +387,14 @@ export function renderControls(
     const cardBattle = options.cardBattle;
     const intentText = (cardBattle.enemyIntents ?? []).length
       ? (cardBattle.enemyIntents ?? [])
-          .map((intent) => `${intent.enemyName ?? "敌人"}:${intent.skillName ?? intent.type}${intent.targetNames.length ? `→${intent.targetNames.join("/")}` : ""}`)
+          .map((intent) => {
+            const preview = intent.preview?.summary ? ` [${intent.preview.summary}]` : "";
+            return `${intent.enemyName ?? "敌人"}:${intent.skillName ?? intent.type}${intent.targetNames.length ? `→${intent.targetNames.join("/")}` : ""}${preview}`;
+          })
           .join(" | ")
       : "无";
     lines.push(
-      `牌局: ${cardBattle.phase} | 能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} | 抽牌 ${cardBattle.drawPileCount} | 弃牌 ${cardBattle.discardPileCount} | 消耗 ${cardBattle.exhaustPileCount} | Intent ${intentText}`,
+      `牌局: ${cardBattle.phase} | 能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} | 蓄势 ${cardBattle.momentum ?? 0}/${cardBattle.momentumMax ?? 3} | 抽牌 ${cardBattle.drawPileCount} | 弃牌 ${cardBattle.discardPileCount} | 消耗 ${cardBattle.exhaustPileCount} | Intent ${intentText}`,
     );
   }
   controls.status.textContent = lines.join("\n");
@@ -384,7 +418,7 @@ export function renderControls(
     const turnTitle = document.createElement("b");
     turnTitle.textContent = cardBattle.phase === "player" ? `第 ${cardBattle.turn} 回合 · 玩家行动` : `第 ${cardBattle.turn} 回合 · 敌方行动`;
     const turnMeta = document.createElement("span");
-    turnMeta.textContent = `能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} · 抽牌 ${cardBattle.drawPileCount} · 弃牌 ${cardBattle.discardPileCount} · Guard ${cardBattle.guard}`;
+    turnMeta.textContent = `能量 ${cardBattle.teamEnergy}/${cardBattle.maxEnergy} · 蓄势 ${cardBattle.momentum ?? 0}/${cardBattle.momentumMax ?? 3} · 抽牌 ${cardBattle.drawPileCount} · 弃牌 ${cardBattle.discardPileCount} · Guard ${cardBattle.guard}`;
     turnText.append(turnTitle, turnMeta);
 
     const endTurnButton = document.createElement("button");
@@ -406,15 +440,17 @@ export function renderControls(
         const button = document.createElement("button");
         button.type = "button";
         const costValue = Number(card.cost ?? 0);
+        const playableCost = effectiveCardCost(cardBattle, card, costValue);
         const isPollution = card.type === "status" || card.type === "curse";
         const canPlay =
           cardBattle.phase === "player" &&
           !isPollution &&
           card.disabled !== true &&
-          cardBattle.teamEnergy >= costValue &&
+          cardBattle.teamEnergy >= playableCost &&
           typeof options.onPlayCard === "function";
         const isSelected = card.uid === selectedCard?.uid;
-        button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}${isSelected ? " selected" : ""}`;
+        const upgradedClass = card.upgraded === true || (card.upgradeLevel ?? 0) > 0 ? " upgraded" : "";
+        button.className = `ult-button battle-card-button battle-card-button--${card.type}${canPlay ? " ready" : ""}${isSelected ? " selected" : ""}${upgradedClass}`;
         button.dataset.cardUid = card.uid;
         button.dataset.targetSide = String(card.targetSide ?? "none");
         button.disabled = !canPlay;
@@ -423,6 +459,8 @@ export function renderControls(
           if (!button.disabled) {
             if (card.targetSide === "self") {
               void options.onPlayCard?.(card.uid, card.ownerInstanceId ? String(card.ownerInstanceId) : undefined);
+            } else if (card.targetSide === "none" || card.targetSide == null) {
+              void options.onPlayCard?.(card.uid);
             } else {
               options.onSelectCard?.(card.uid);
             }
@@ -431,7 +469,7 @@ export function renderControls(
 
         const cost = document.createElement("span");
         cost.className = "battle-card-cost";
-        cost.textContent = String(card.cost ?? 0);
+        cost.textContent = playableCost !== costValue ? `${costValue}>${playableCost}` : String(card.cost ?? 0);
 
         const type = document.createElement("span");
         type.className = "battle-card-type";

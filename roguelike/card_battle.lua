@@ -12,8 +12,12 @@ local DEFAULTS = {
     energyHardCap = 6,
     handLimit = 10,
     guardCardValue = 4,
+    starterGuardValue = 5,
+    momentumMax = 3,
     woundPerDamagingIntent = 1,
 }
+
+local heroHasActiveSkill
 
 local function hasTag(skill, expected)
     for _, tag in ipairs(skill and skill.tags or {}) do
@@ -201,6 +205,36 @@ local function applyCardEffectOverrides(card, effects)
         card.guardValue = (tonumber(card.guardValue) or 0) + math.floor(guardValue)
     end
 
+    local momentumGain = pickNumber(effects.momentumGain, effects.gainMomentum)
+    if momentumGain ~= nil then
+        card.momentumGain = math.max(0, math.floor(momentumGain))
+    end
+
+    local momentumSpend = pickNumber(effects.momentumSpend, effects.spendMomentum)
+    if momentumSpend ~= nil then
+        card.momentumSpend = math.max(0, math.floor(momentumSpend))
+    end
+
+    local momentumCostReduction = pickNumber(effects.momentumCostReduction, effects.momentumCostDiscount)
+    if momentumCostReduction ~= nil then
+        card.momentumCostReduction = math.max(0, math.floor(momentumCostReduction))
+    end
+
+    local momentumEnergyGain = pickNumber(effects.momentumEnergyGain)
+    if momentumEnergyGain ~= nil then
+        card.momentumEnergyGain = math.max(0, math.floor(momentumEnergyGain))
+    end
+
+    local momentumDrawCards = pickNumber(effects.momentumDrawCards, effects.momentumDraw)
+    if momentumDrawCards ~= nil then
+        card.momentumDrawCards = math.max(0, math.floor(momentumDrawCards))
+    end
+
+    local momentumGuardValue = pickNumber(effects.momentumGuardValue, effects.momentumGuard)
+    if momentumGuardValue ~= nil then
+        card.momentumGuardValue = math.max(0, math.floor(momentumGuardValue))
+    end
+
     if effects.exhaust ~= nil then
         card.exhaust = effects.exhaust == true
     end
@@ -265,6 +299,12 @@ local function buildSkillCard(runState, hero, feat, skillId, opts)
         guardValue = guardValue,
         drawCards = 0,
         energyGain = 0,
+        momentumGain = 0,
+        momentumSpend = 0,
+        momentumCostReduction = 0,
+        momentumEnergyGain = 0,
+        momentumDrawCards = 0,
+        momentumGuardValue = 0,
         targetSide = inferTargetSide(skill),
         targetMode = targetMode,
         targetCount = targetCount,
@@ -281,6 +321,220 @@ local function buildSkillCard(runState, hero, feat, skillId, opts)
     return card
 end
 
+local function getHeroActiveSkills(hero)
+    local result = {}
+    for _, skill in ipairs(hero and hero.skillsConfig or {}) do
+        if tonumber(skill.skillId or skill.id) and tostring(skill.runtimeKind or "active") ~= "passive" then
+            result[#result + 1] = skill
+        end
+    end
+    for _, skill in ipairs(hero and hero.buildState and hero.buildState.activeSkills or {}) do
+        if tonumber(skill.id or skill.skillId) then
+            result[#result + 1] = skill
+        end
+    end
+    return result
+end
+
+local function pickPrimaryStarterSkill(hero)
+    for _, skill in ipairs(getHeroActiveSkills(hero)) do
+        local skillId = tonumber(skill.id or skill.skillId)
+        local config = SkillsTable.GetSkillConfig(skillId)
+        if config and inferTargetSide(config) == "enemy" then
+            return skillId
+        end
+    end
+    local first = getHeroActiveSkills(hero)[1]
+    return first and tonumber(first.id or first.skillId) or nil
+end
+
+local function pickUtilityStarterSkill(hero, primarySkillId)
+    for _, skill in ipairs(getHeroActiveSkills(hero)) do
+        local skillId = tonumber(skill.id or skill.skillId)
+        if skillId and skillId ~= tonumber(primarySkillId) then
+            return skillId
+        end
+    end
+    return primarySkillId
+end
+
+local function buildStarterSkillCard(runState, hero, skillId, slotIndex, opts)
+    if not skillId or not heroHasActiveSkill(hero, skillId) then
+        return nil
+    end
+    opts = opts or {}
+    local card, reason = buildSkillCard(runState, hero, nil, skillId, {
+        cardId = string.format("starter_%s_%d", tostring(hero and hero.classId or 0), slotIndex),
+        sourceKey = string.format("starter:%s:%d:%s",
+            tostring(hero and (hero.rosterId or hero.heroId) or 0),
+            slotIndex,
+            tostring(skillId)),
+        name = opts.name,
+        description = opts.description,
+        cost = opts.cost or 1,
+        type = opts.type,
+        cardEffects = opts.cardEffects,
+        sequence = slotIndex,
+    })
+    if not card then
+        return nil, reason
+    end
+    card.starter = true
+    return card
+end
+
+local function buildStarterPureCard(hero, slotIndex, suffix, opts)
+    opts = opts or {}
+    suffix = suffix or "pure"
+    local sourceKey = string.format("starter:%s:%d:%s",
+        tostring(hero and (hero.rosterId or hero.heroId) or 0),
+        slotIndex,
+        tostring(suffix))
+    return {
+        uid = nil,
+        cardId = string.format("starter_%s_%s", tostring(suffix), tostring(hero and hero.classId or 0)),
+        featId = nil,
+        skillId = nil,
+        sourceKey = sourceKey,
+        name = opts.name or "战术准备",
+        description = opts.description or "Starter 策略牌。调整本回合出牌节奏。",
+        ownerRosterId = hero and hero.rosterId or nil,
+        ownerInstanceId = hero and hero.unitId or nil,
+        ownerHeroId = hero and hero.heroId or nil,
+        ownerName = hero and hero.name or nil,
+        ownerClassId = hero and hero.classId or nil,
+        cost = tonumber(opts.cost) or 0,
+        type = opts.type or "skill",
+        guardValue = tonumber(opts.guardValue) or 0,
+        drawCards = tonumber(opts.drawCards) or 0,
+        energyGain = tonumber(opts.energyGain) or 0,
+        momentumGain = tonumber(opts.momentumGain) or 0,
+        momentumSpend = tonumber(opts.momentumSpend) or 0,
+        momentumCostReduction = tonumber(opts.momentumCostReduction) or 0,
+        momentumEnergyGain = tonumber(opts.momentumEnergyGain) or 0,
+        momentumDrawCards = tonumber(opts.momentumDrawCards) or 0,
+        momentumGuardValue = tonumber(opts.momentumGuardValue) or 0,
+        targetSide = opts.targetSide or "none",
+        targetMode = opts.targetMode or "",
+        targetCount = tonumber(opts.targetCount) or 0,
+        ignoreFrontProtection = false,
+        upgraded = false,
+        exhaust = opts.exhaust == true,
+        retain = opts.retain == true,
+        ethereal = opts.ethereal == true,
+        disabled = hero and (hero.isDead == true or (tonumber(hero.currentHp) or 0) <= 0) or false,
+        removed = false,
+        upgradeLevel = 0,
+        starter = true,
+    }
+end
+
+local function buildStarterSetupCard(hero, slotIndex)
+    local classId = tonumber(hero and hero.classId) or 0
+    local setupByClass = {
+        [1] = { name = "伺机而动", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势，为偷袭或诡诈窗口找牌。", drawCards = 1, momentumGain = 1 },
+        [2] = { name = "战术号令", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势，把能量集中给关键攻防牌。", drawCards = 1, momentumGain = 1 },
+        [3] = { name = "疾风步法", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势，寻找连段或防守牌。", drawCards = 1, momentumGain = 1 },
+        [4] = { name = "誓约准备", description = "0 费 Setup。获得 3 Guard 与 1 蓄势，保留到需要承压的回合。", guardValue = 3, momentumGain = 1, retain = true },
+        [5] = { name = "瞄准", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势，保留以等待集火窗口。", drawCards = 1, momentumGain = 1, retain = true },
+        [6] = { name = "短祷", description = "0 费 Setup。获得 3 Guard、抽 1 张牌并获得 1 蓄势。", guardValue = 3, drawCards = 1, momentumGain = 1 },
+        [7] = { name = "聚炎", description = "0 费 Setup。获得 1 蓄势并回复 1 点能量，本场消耗，用于火焰爆发回合。", energyGain = 1, momentumGain = 1, exhaust = true },
+        [8] = { name = "凝霜", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势，保留以等待控制窗口。", drawCards = 1, momentumGain = 1, retain = true },
+        [9] = { name = "魔契充能", description = "0 费 Setup。获得 1 蓄势并回复 1 点能量，本场消耗，用于雷链爆发回合。", energyGain = 1, momentumGain = 1, exhaust = true },
+        [10] = { name = "鲁莽蓄势", description = "0 费 Setup。获得 1 蓄势并回复 1 点能量，本场消耗，用于重击或防守取舍。", energyGain = 1, momentumGain = 1, exhaust = true },
+    }
+    local opts = setupByClass[classId] or { name = "战术准备", description = "0 费 Setup。抽 1 张牌并获得 1 蓄势。", drawCards = 1, momentumGain = 1 }
+    return buildStarterPureCard(hero, slotIndex, "setup", opts)
+end
+
+local function buildStarterDefenseCard(hero, slotIndex)
+    local classId = tonumber(hero and hero.classId) or 0
+    local frontliner = classId == 1 or classId == 2 or classId == 3 or classId == 4 or classId == 10
+    local optsByClass = {
+        [2] = { name = "架盾", description = "获得 7 Guard。战士可以把本回合资源转成承压窗口。", cost = 1, guardValue = 7 },
+        [4] = { name = "守誓", description = "获得 5 Guard，回合结束保留。等待敌方 Intent 高压回合。", cost = 1, guardValue = 5, retain = true },
+        [6] = { name = "庇护祈祷", description = "获得 5 Guard，回合结束保留。治疗牌可以等到真正需要时再打。", cost = 1, guardValue = 5, retain = true },
+        [8] = { name = "冰障", description = "获得 4 Guard 并抽 1 张牌。防守同时寻找控制牌。", cost = 1, guardValue = 4, drawCards = 1 },
+        [10] = { name = "硬扛", description = "获得 6 Guard。本回合选择承伤而非继续进攻。", cost = 1, guardValue = 6 },
+    }
+    local opts = optsByClass[classId] or {
+        name = frontliner and "防御" or "走位",
+        description = frontliner and "获得 5 Guard，用来抵挡随后敌方 Intent。" or "获得 4 Guard，后排角色用来处理被点名风险。",
+        cost = 1,
+        guardValue = frontliner and DEFAULTS.starterGuardValue or 4,
+    }
+    return buildStarterPureCard(hero, slotIndex, "guard", opts)
+end
+
+local function starterPrimaryEffects(classId)
+    local effectsByClass = {
+        [1] = { drawCards = 1 },
+        [2] = { guardValue = 2 },
+        [3] = { energyGain = 1 },
+        [4] = { guardValue = 2 },
+        [5] = { drawCards = 1 },
+        [6] = { drawCards = 1 },
+        [7] = { drawCards = 1 },
+        [8] = { drawCards = 1 },
+        [9] = { drawCards = 1 },
+        [10] = { guardValue = 2 },
+    }
+    return effectsByClass[tonumber(classId) or 0] or {}
+end
+
+local function starterPayoffSpec(hero, utilitySkillId, primarySkillId)
+    local classId = tonumber(hero and hero.classId) or 0
+    local useUtility = utilitySkillId and utilitySkillId ~= primarySkillId
+    local skillId = useUtility and utilitySkillId or primarySkillId
+    local specsByClass = {
+        [1] = { name = "偷袭兑现", description = "Payoff。若耗 1 蓄势，本张降 1 费并返还 1 能量，本场消耗。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumEnergyGain = 1, exhaust = true } },
+        [2] = { name = "回气窗口", description = "Payoff。保留救场能力；若耗 1 蓄势，本张降 1 费并获得 4 Guard，本场消耗。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumGuardValue = 4, retain = true, exhaust = true } },
+        [3] = { name = "连段收束", description = "Payoff。若耗 1 蓄势，本张降 1 费并抽 1 张牌。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumDrawCards = 1 } },
+        [4] = { name = "圣疗窗口", description = "Payoff。保留救场治疗；若耗 1 蓄势，本张降 1 费并获得 4 Guard，本场消耗。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumGuardValue = 4, retain = true, exhaust = true } },
+        [5] = { name = "集中射击", description = "Payoff。2 费集中火力；若耗 1 蓄势，本张降 1 费并抽 1 张牌，本场消耗。", cost = 2, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumDrawCards = 1, exhaust = true } },
+        [6] = { name = "治愈窗口", description = "Payoff。保留治疗窗口；若耗 1 蓄势，本张降 1 费并获得 4 Guard。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumGuardValue = 4, retain = true } },
+        [7] = { name = "爆燃火花", description = "Payoff。2 费火焰爆发；若耗 1 蓄势，本张降 1 费并返还 1 能量，本场消耗。", cost = 2, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumEnergyGain = 1, exhaust = true } },
+        [8] = { name = "冰封窗口", description = "Payoff。保留冰霜处理牌；若耗 1 蓄势，本张降 1 费并抽 1 张牌。", cost = 1, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumDrawCards = 1, retain = true } },
+        [9] = { name = "雷涌窗口", description = "Payoff。2 费雷电爆发；若耗 1 蓄势，本张降 1 费、返还 1 能量并抽 1 张牌，本场消耗。", cost = 2, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumEnergyGain = 1, momentumDrawCards = 1, exhaust = true } },
+        [10] = { name = "狂怒压上", description = "Payoff。2 费压制；若耗 1 蓄势，本张降 1 费并获得 4 Guard，本场消耗。", cost = 2, cardEffects = { momentumSpend = 1, momentumCostReduction = 1, momentumGuardValue = 4, exhaust = true } },
+    }
+    local spec = specsByClass[classId] or { name = "职业窗口", description = "Payoff。职业节奏牌。", cost = 1, cardEffects = {} }
+    spec.skillId = skillId
+    return spec
+end
+
+local function buildStarterCards(runState)
+    local cards = {}
+    for _, hero in ipairs(runState and runState.teamRoster or {}) do
+        if hero.teamState ~= "bench" then
+            local classId = tonumber(hero and hero.classId) or 0
+            local primarySkillId = pickPrimaryStarterSkill(hero)
+            local utilitySkillId = pickUtilityStarterSkill(hero, primarySkillId)
+            local primarySkill = SkillsTable.GetSkillConfig(primarySkillId)
+
+            local firstAttack = buildStarterSkillCard(runState, hero, primarySkillId, 1, {
+                name = primarySkill and primarySkill.name or "基础攻击",
+                description = "Starter 基础动作。提供最低输出，并按职业附带少量节奏收益。",
+                cardEffects = starterPrimaryEffects(classId),
+            })
+            if firstAttack then cards[#cards + 1] = firstAttack end
+
+            cards[#cards + 1] = buildStarterSetupCard(hero, 2)
+            cards[#cards + 1] = buildStarterDefenseCard(hero, 3)
+
+            local payoffSpec = starterPayoffSpec(hero, utilitySkillId, primarySkillId)
+            local payoff = buildStarterSkillCard(runState, hero, payoffSpec.skillId, 4, {
+                name = payoffSpec.name,
+                description = payoffSpec.description,
+                cost = payoffSpec.cost,
+                cardEffects = payoffSpec.cardEffects,
+            })
+            if payoff then cards[#cards + 1] = payoff end
+        end
+    end
+    return cards
+end
+
 local function appendCard(cards, runState, hero, feat, skillId)
     local card = buildSkillCard(runState, hero, feat, skillId, { sequence = #cards + 1 })
     if card then
@@ -294,11 +548,13 @@ local function buildProjectedCards(runState)
         if hero.teamState ~= "bench" then
             for _, featId in ipairs(collectHeroFeatIds(hero)) do
                 local feat = FeatBuildConfig.GetFeat(featId)
-                for _, effect in ipairs(feat and feat.effects or {}) do
-                    if effect.type == "grant_skill" and effect.skill then
-                        appendCard(cards, runState, hero, feat, effect.skill)
-                    elseif effect.type == "replace_skill" and effect.newSkill then
-                        appendCard(cards, runState, hero, feat, effect.newSkill)
+                if (tonumber(feat and feat.level) or 0) > 1 then
+                    for _, effect in ipairs(feat and feat.effects or {}) do
+                        if effect.type == "grant_skill" and effect.skill then
+                            appendCard(cards, runState, hero, feat, effect.skill)
+                        elseif effect.type == "replace_skill" and effect.newSkill then
+                            appendCard(cards, runState, hero, feat, effect.newSkill)
+                        end
                     end
                 end
             end
@@ -344,7 +600,12 @@ function CardBattle.SyncLibrary(runState)
         end
     end
 
+    local projectedCards = buildStarterCards(runState)
     for _, projected in ipairs(buildProjectedCards(runState)) do
+        projectedCards[#projectedCards + 1] = projected
+    end
+
+    for _, projected in ipairs(projectedCards) do
         local sourceKey = tostring(projected.sourceKey or "")
         if sourceKey ~= "" and not bySourceKey[sourceKey] then
             projected.uid = allocateLibraryCardUid(library, "runlib_card")
@@ -367,7 +628,7 @@ local function isCardOwnerActive(runState, card)
         and (tonumber(hero.currentHp) or 0) > 0
 end
 
-local function heroHasActiveSkill(hero, skillId)
+heroHasActiveSkill = function(hero, skillId)
     local id = tonumber(skillId) or 0
     if id <= 0 or type(hero) ~= "table" then
         return false
@@ -407,6 +668,7 @@ local function buildDeck(runState)
         local owner = findRosterHero(runState, card and card.ownerRosterId)
         local hasSkill = card.type == "status"
             or card.type == "curse"
+            or card.skillId == nil
             or card.ownerScope == "team"
             or heroHasActiveSkill(owner, card.skillId)
         if card.removed ~= true and isCardOwnerActive(runState, card) and hasSkill then
@@ -453,14 +715,26 @@ function CardBattle.UpgradeLibraryCard(runState, cardUid)
 
     card.upgraded = true
     card.upgradeLevel = 1
-    if (tonumber(card.cost) or 0) > 0 then
-        card.cost = math.max(0, (tonumber(card.cost) or 0) - 1)
+    if (tonumber(card.momentumSpend) or 0) > 0 then
+        if (tonumber(card.momentumEnergyGain) or 0) > 0 then
+            card.momentumEnergyGain = (tonumber(card.momentumEnergyGain) or 0) + 1
+        elseif (tonumber(card.momentumDrawCards) or 0) > 0 then
+            card.momentumDrawCards = (tonumber(card.momentumDrawCards) or 0) + 1
+        elseif (tonumber(card.momentumGuardValue) or 0) > 0 then
+            card.momentumGuardValue = (tonumber(card.momentumGuardValue) or 0) + 2
+        else
+            card.momentumCostReduction = (tonumber(card.momentumCostReduction) or 0) + 1
+        end
+    elseif (tonumber(card.momentumGain) or 0) > 0 then
+        card.momentumGain = (tonumber(card.momentumGain) or 0) + 1
     elseif (tonumber(card.guardValue) or 0) > 0 then
         card.guardValue = (tonumber(card.guardValue) or 0) + 2
     elseif (tonumber(card.drawCards) or 0) > 0 then
         card.drawCards = (tonumber(card.drawCards) or 0) + 1
     elseif (tonumber(card.energyGain) or 0) > 0 then
         card.energyGain = (tonumber(card.energyGain) or 0) + 1
+    elseif (tonumber(card.cost) or 0) > 0 then
+        card.cost = math.max(0, (tonumber(card.cost) or 0) - 1)
     end
     return true, { cardUid = card.uid, cardName = card.name, upgraded = true }
 end
@@ -798,6 +1072,8 @@ function CardBattle.StartBattle(runState, battleSnapshot)
         tempEnergy = 0,
         chargeEnergy = 0,
         energyHardCap = DEFAULTS.energyHardCap,
+        momentum = 0,
+        momentumMax = DEFAULTS.momentumMax,
         handLimit = DEFAULTS.handLimit,
         drawCount = drawCount,
         guard = 0,
@@ -855,6 +1131,24 @@ local function findHandCard(state, cardUid)
     return nil, nil
 end
 
+local function resolveMomentumSpend(state, card)
+    local available = math.max(0, math.floor(tonumber(state and state.momentum) or 0))
+    local spend = math.max(0, math.floor(tonumber(card and card.momentumSpend) or 0))
+    if spend <= 0 or available < spend then
+        return 0
+    end
+    return spend
+end
+
+local function resolveEffectiveCost(state, card)
+    local baseCost = math.max(0, math.floor(tonumber(card and card.cost) or 0))
+    local momentumSpend = resolveMomentumSpend(state, card)
+    if momentumSpend > 0 then
+        baseCost = math.max(0, baseCost - math.max(0, math.floor(tonumber(card.momentumCostReduction) or 0)))
+    end
+    return baseCost, momentumSpend
+end
+
 function CardBattle.PlayCard(runState, cardUid, opts)
     opts = opts or {}
     local state = runState and runState.cardBattle
@@ -876,13 +1170,13 @@ function CardBattle.PlayCard(runState, cardUid, opts)
         return false, "card_disabled"
     end
 
-    local cost = tonumber(card.cost) or 0
+    local cost, momentumSpend = resolveEffectiveCost(state, card)
     if (tonumber(state.teamEnergy) or 0) < cost then
         return false, "not_enough_energy"
     end
 
     local castResult = nil
-    if type(opts.castCard) == "function" then
+    if card.skillId ~= nil and type(opts.castCard) == "function" then
         local ok, result = opts.castCard(card, opts.targetId)
         if not ok then
             return false, result or "cast_failed"
@@ -896,18 +1190,36 @@ function CardBattle.PlayCard(runState, cardUid, opts)
     end
 
     state.teamEnergy = (tonumber(state.teamEnergy) or 0) - cost
+    local momentumBefore = math.max(0, math.floor(tonumber(state.momentum) or 0))
+    if momentumSpend > 0 then
+        state.momentum = math.max(0, momentumBefore - momentumSpend)
+    end
     local guardValue = math.max(0, math.floor(tonumber(card.guardValue) or 0))
+    if momentumSpend > 0 then
+        guardValue = guardValue + math.max(0, math.floor(tonumber(card.momentumGuardValue) or 0))
+    end
     if guardValue > 0 then
         state.guard = (math.max(0, math.floor(tonumber(state.guard) or 0))) + guardValue
     end
     local energyGain = math.max(0, math.floor(tonumber(card.energyGain) or 0))
+    if momentumSpend > 0 then
+        energyGain = energyGain + math.max(0, math.floor(tonumber(card.momentumEnergyGain) or 0))
+    end
     if energyGain > 0 then
         local hardCap = tonumber(state.energyHardCap) or DEFAULTS.energyHardCap
         state.teamEnergy = math.min(hardCap, (tonumber(state.teamEnergy) or 0) + energyGain)
     end
     local drawCount = math.max(0, math.floor(tonumber(card.drawCards) or 0))
+    if momentumSpend > 0 then
+        drawCount = drawCount + math.max(0, math.floor(tonumber(card.momentumDrawCards) or 0))
+    end
     if drawCount > 0 then
         drawCards(state, drawCount)
+    end
+    local momentumGain = math.max(0, math.floor(tonumber(card.momentumGain) or 0))
+    if momentumGain > 0 then
+        local momentumMax = tonumber(state.momentumMax) or DEFAULTS.momentumMax
+        state.momentum = math.min(momentumMax, (math.max(0, math.floor(tonumber(state.momentum) or 0))) + momentumGain)
     end
     if card.exhaust == true then
         state.exhaustPile[#state.exhaustPile + 1] = card
@@ -923,8 +1235,14 @@ function CardBattle.PlayCard(runState, cardUid, opts)
         cardName = card.name,
         cast = castResult,
         teamEnergy = state.teamEnergy,
+        effectiveCost = cost,
         drawCards = drawCount,
         energyGain = energyGain,
+        guardValue = guardValue,
+        momentumBefore = momentumBefore,
+        momentumSpend = momentumSpend,
+        momentumGain = momentumGain,
+        momentum = state.momentum,
     }
 end
 
@@ -947,6 +1265,7 @@ local function beginPlayerTurn(state, buildEnemyIntents)
     state.turn = (tonumber(state.turn) or 1) + 1
     state.guard = 0
     state.tempEnergy = 0
+    state.momentum = 0
     state.teamEnergy = math.min(
         tonumber(state.energyHardCap) or DEFAULTS.energyHardCap,
         tonumber(state.maxEnergy) or DEFAULTS.maxEnergy
@@ -1025,6 +1344,12 @@ local function serializeCards(cards)
             guardValue = card.guardValue,
             drawCards = tonumber(card.drawCards) or 0,
             energyGain = tonumber(card.energyGain) or 0,
+            momentumGain = tonumber(card.momentumGain) or 0,
+            momentumSpend = tonumber(card.momentumSpend) or 0,
+            momentumCostReduction = tonumber(card.momentumCostReduction) or 0,
+            momentumEnergyGain = tonumber(card.momentumEnergyGain) or 0,
+            momentumDrawCards = tonumber(card.momentumDrawCards) or 0,
+            momentumGuardValue = tonumber(card.momentumGuardValue) or 0,
             targetSide = card.targetSide,
             targetMode = card.targetMode,
             targetCount = card.targetCount,
@@ -1069,6 +1394,22 @@ local function serializeIntents(intents)
         for index, targetName in ipairs(intent.targetNames or {}) do
             targetNames[index] = targetName
         end
+        local preview = nil
+        if type(intent.preview) == "table" then
+            local keywords = {}
+            for index, keyword in ipairs(intent.preview.keywords or {}) do
+                keywords[index] = keyword
+            end
+            preview = {
+                damageDice = intent.preview.damageDice,
+                expectedDamage = intent.preview.expectedDamage,
+                targetCount = intent.preview.targetCount,
+                isAoe = intent.preview.isAoe == true,
+                saveType = intent.preview.saveType,
+                keywords = keywords,
+                summary = intent.preview.summary,
+            }
+        end
         result[i] = {
             enemyInstanceId = intent.enemyInstanceId,
             enemyName = intent.enemyName,
@@ -1077,6 +1418,7 @@ local function serializeIntents(intents)
             skillName = intent.skillName,
             targetIds = targetIds,
             targetNames = targetNames,
+            preview = preview,
         }
     end
     return result
@@ -1096,6 +1438,8 @@ function CardBattle.Serialize(state)
         energyHardCap = state.energyHardCap or DEFAULTS.energyHardCap,
         tempEnergy = state.tempEnergy or 0,
         chargeEnergy = state.chargeEnergy or 0,
+        momentum = tonumber(state.momentum) or 0,
+        momentumMax = tonumber(state.momentumMax) or DEFAULTS.momentumMax,
         guard = state.guard or 0,
         handLimit = state.handLimit or DEFAULTS.handLimit,
         drawCount = state.drawCount or DEFAULTS.drawCount,

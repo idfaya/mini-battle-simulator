@@ -15,7 +15,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 ├── single_battle_design.md
 │   └── single_battle_parameter_table.md
 ├── class_system_design.md                ← 职业 / 5e 画像
-│   └── auto_battle_targeting.md          ← 自动战斗目标倾向
+│   └── auto_battle_targeting.md          ← 敌方 Intent / 自动目标倾向
 ├── feat_card_battle_design.md            ← Feat 卡牌化小队回合制
 ├── character_progression_design.md        ← Run 养成
 ├── dungeon_design.md                      ← 地牢 / 房间
@@ -34,7 +34,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 | 改 Buff / 状态规则 | `buff_system_design.md`（§2.4 状态符、§11 设计债）→ `roguelike_feat_skill_fill_sheet.md` §8 |
 | 改职业 / 5e 属性口径 | `class_system_design.md` |
 | 改职业核心技 / Feat 树节点 | `roguelike_feat_skill_fill_sheet.md` |
-| 改自动战斗 AI 目标倾向 | `auto_battle_targeting.md` |
+| 改敌方 Intent / 自动目标倾向 | `auto_battle_targeting.md` |
 | 改养成 / Feat 档位 | `character_progression_design.md` |
 | 改地牢 / 房间 / 掉落 / trinket / 隐藏层 | `dungeon_design.md`（§3.3、§4.4–§4.7） |
 | 改遭遇预算 / 怪物生态 | `roguelike_random_battle_parameter_table.md` + `roguelike_monster_system_design.md` |
@@ -43,7 +43,7 @@ combat_system_design.md     ← 术语 + 战场硬规则
 
 ## 产品口径摘要
 
-- **战斗**：3+3、自动回合、波次清场立刷、单场无成长。
-- **养成**：`partyExp`（5e PHB 阈值）+ Feat 三选一；无职业卡、无招募扩编。第一章怪物难度随楼层抬升（更高 CR 遭遇池 + budget），展示 `Level` 跟 `enemies.json`/`exp_5e` 映射；队伍章末约 Lv9–10。
+- **战斗**：Feat 卡牌化小队回合制；上场英雄贡献队伍牌库，玩家每回合看敌方 Intent、用共享能量打手牌，Card 调用现有 Skill / Timeline 结算。
+- **养成**：`partyExp`（5e PHB 阈值）+ Feat / Card 三选一；无 Run 内招募扩编。Feat 仍是成长入口，Card 是 Feat 与 Skill 的战斗投影；第一章怪物难度随楼层抬升（更高 CR 遭遇池 + budget），展示 `Level` 跟 `enemies.json`/`exp_5e` 映射；队伍章末约 Lv9–10。
 - **地牢**：3×5 房间迷宫；事件 5e 检定；精英装备 + 概率 bless；章末 Boss 必掉 trinket；事件大成功可开隐藏层（3~5 房 + 双倍 trinket）。
 - **难度**：`budget.difficulty` + `budget.pressureFactor`；章节内随楼层换更高 CR 的 `run_enemy_pick_pool`（见 `design/dungeon_design.md` §3.2）。

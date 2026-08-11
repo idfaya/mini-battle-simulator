@@ -337,6 +337,9 @@ function isFrontRowBattleUnit(unit: UnitState): boolean {
 }
 
 function getTargetableUnits(snapshot: BattleSnapshot, card: RunCardState): UnitState[] {
+  if (card.targetSide === "none" || card.targetSide == null) {
+    return [];
+  }
   if (card.targetSide === "self") {
     const owner = snapshot.leftTeam.find((unit) => unit.id === String(card.ownerInstanceId ?? ""));
     return owner && isAliveBattleUnit(owner) ? [owner] : [];
@@ -677,6 +680,7 @@ async function bootstrapRunMode(
         selectedRunCardUid,
         cardPhase: cardBattle?.phase ?? null,
         teamEnergy: cardBattle?.teamEnergy ?? null,
+        momentum: cardBattle?.momentum ?? null,
         guard: cardBattle?.guard ?? null,
         drawPileCount: cardBattle?.drawPileCount ?? null,
         discardPileCount: cardBattle?.discardPileCount ?? null,
@@ -690,6 +694,9 @@ async function bootstrapRunMode(
           card.statusSubtype,
           card.targetSide,
           card.targetCount,
+          card.momentumGain,
+          card.momentumSpend,
+          card.momentumCostReduction,
         ]) ?? [],
         intents: cardBattle?.enemyIntents?.map((intent) => [
           intent.enemyInstanceId,

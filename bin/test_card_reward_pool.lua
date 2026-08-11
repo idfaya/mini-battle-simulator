@@ -70,9 +70,16 @@ assert_true(
     (tonumber(gained.drawCards) or 0) > 0
         or (tonumber(gained.energyGain) or 0) > 0
         or (tonumber(gained.guardValue) or 0) > 0
+        or (tonumber(gained.momentumGain) or 0) > 0
+        or (tonumber(gained.momentumSpend) or 0) > 0
         or gained.retain == true
         or gained.exhaust == true,
     "reward card should carry at least one card-layer effect"
+)
+assert_true(
+    (tonumber(gained.momentumGain) or 0) > 0
+        or (tonumber(gained.momentumSpend) or 0) > 0,
+    "reward card should participate in setup/payoff momentum"
 )
 
 CardBattle.StartBattle(runState, {

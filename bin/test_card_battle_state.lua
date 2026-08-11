@@ -12,6 +12,16 @@ local function assert_true(cond, msg)
     end
 end
 
+local function assert_intent_preview(intents, msgPrefix)
+    assert_true(#(intents or {}) > 0, (msgPrefix or "enemy") .. " intents should be visible")
+    local intent = intents[1]
+    assert_true(type(intent.preview) == "table", (msgPrefix or "enemy") .. " intent preview missing")
+    assert_true((tonumber(intent.preview.targetCount) or 0) >= #(intent.targetIds or {}),
+        (msgPrefix or "enemy") .. " intent preview targetCount mismatch")
+    assert_true(tostring(intent.preview.summary or "") ~= "",
+        (msgPrefix or "enemy") .. " intent preview summary missing")
+end
+
 local function findSelectableNode(snapshot, pred)
     for _, node in ipairs((snapshot.map and snapshot.map.nodes) or {}) do
         if node.selectable and pred(node) then
@@ -84,11 +94,14 @@ assert_true(snapshot.phase == "battle", "expected battle phase, got " .. tostrin
 assert_true(type(snapshot.cardBattle) == "table", "cardBattle missing from full snapshot")
 assert_true(snapshot.cardBattle.teamEnergy == 4, "teamEnergy should start at 4 for a four-hero team")
 assert_true(snapshot.cardBattle.maxEnergy == 4, "maxEnergy should start at 4 for a four-hero team")
+assert_true(snapshot.cardBattle.momentum == 0, "momentum should start at 0")
+assert_true(snapshot.cardBattle.momentumMax == 3, "momentumMax should start at 3")
 assert_true(#(snapshot.cardBattle.deck or {}) > 0, "deck should not be empty")
+assert_true(#(snapshot.cardBattle.deck or {}) >= 16, "four-hero starter deck should contain at least 16 cards")
 assert_true(#(snapshot.cardBattle.hand or {}) > 0, "hand should not be empty")
 assert_true(snapshot.cardBattle.drawCount == 6, "drawCount should start at 6 for a four-hero team")
 assert_true(#snapshot.cardBattle.hand <= 6, "opening hand should be capped by draw count")
-assert_true(#(snapshot.cardBattle.enemyIntents or {}) > 0, "enemy intents should be visible")
+assert_intent_preview(snapshot.cardBattle.enemyIntents, "opening")
 
 Run.Tick(5000)
 snapshot = Run.GetSnapshot()
@@ -151,11 +164,18 @@ if firstCard.targetSide == "enemy" then
 end
 ok, result = Run.PlayCard(firstCard.uid, targetId)
 assert_true(ok, "play card failed: " .. tostring(result))
-assert_true(type(result.cast) == "table", "play card should invoke skill runtime")
-assert_true(result.cast.skillId == firstCard.skillId, "cast skillId mismatch")
+if firstCard.skillId ~= nil then
+    assert_true(type(result.cast) == "table", "play card should invoke skill runtime")
+    assert_true(result.cast.skillId == firstCard.skillId, "cast skillId mismatch")
+end
 snapshot = Run.GetSnapshot()
-assert_true(snapshot.cardBattle.teamEnergy == energyBefore - (firstCard.cost or 0), "teamEnergy did not decrease by card cost")
-assert_true(#snapshot.cardBattle.hand == handBefore - 1, "hand count did not decrease")
+local expectedEnergy = math.min(
+    tonumber(snapshot.cardBattle.energyHardCap) or 6,
+    energyBefore - (tonumber(result.effectiveCost) or tonumber(firstCard.cost) or 0) + (tonumber(result.energyGain) or 0)
+)
+assert_true(snapshot.cardBattle.teamEnergy == expectedEnergy, "teamEnergy did not resolve card cost and energy gain")
+assert_true(#snapshot.cardBattle.hand >= handBefore - 1, "played card should leave hand")
+assert_true(#snapshot.cardBattle.hand <= handBefore - 1 + (result.drawCards or 0), "hand count should only increase by card draw")
 local movedCount = (snapshot.cardBattle.discardPileCount or 0) - discardBefore
     + (snapshot.cardBattle.exhaustPileCount or 0) - exhaustBefore
     + #(snapshot.cardBattle.powers or {}) - powerBefore
@@ -170,7 +190,7 @@ if snapshot.phase == "battle" then
     assert_true(snapshot.cardBattle.turn == turnBefore + 1, "turn did not advance")
     assert_true(snapshot.cardBattle.teamEnergy == snapshot.cardBattle.maxEnergy, "teamEnergy should refresh")
     assert_true(#(snapshot.cardBattle.hand or {}) > 0, "new player turn should draw hand")
-    assert_true(#(snapshot.cardBattle.enemyIntents or {}) > 0, "next turn enemy intents should refresh")
+    assert_intent_preview(snapshot.cardBattle.enemyIntents, "next turn")
 end
 
 print("test_card_battle_state: ok")

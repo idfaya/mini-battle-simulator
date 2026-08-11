@@ -11,6 +11,7 @@ local EnemyData = require("config.enemy_data")
 local BattleEnergyConfig = require("config.battle_energy_config")
 local BattleRhythmConfig = require("config.battle_rhythm_config")
 local ClassRoleConfig = require("config.tables.classes")
+local SkillsTable = require("config.tables.skills")
 local ArrayUtils = require("utils.array_utils")
 local Logger = require("utils.logger")
 
@@ -1147,6 +1148,142 @@ function Runtime.playSkillCard(command)
     }
 end
 
+local function hasTag(skill, expected)
+    for _, tag in ipairs(skill and skill.tags or {}) do
+        if tag == expected then
+            return true
+        end
+    end
+    return false
+end
+
+local function inferIntentType(skill)
+    local rules = skill and skill.rules or {}
+    if rules.hardControl == true or hasTag(skill, "control") then
+        return "control"
+    end
+    if hasTag(skill, "heal") or hasTag(skill, "support") or hasTag(skill, "aura") or hasTag(skill, "buff") then
+        return "buff"
+    end
+    if hasTag(skill, "debuff") or hasTag(skill, "mark") then
+        return "debuff"
+    end
+    return "attack"
+end
+
+local function averageDiceExpression(expr)
+    local text = tostring(expr or ""):gsub("%s+", "")
+    if text == "" then
+        return nil
+    end
+
+    local total = 0
+    for sign, countText, sidesText in text:gmatch("([+-]?)(%d*)d(%d+)") do
+        local count = tonumber(countText)
+        if not count or count <= 0 then
+            count = 1
+        end
+        local sides = tonumber(sidesText) or 0
+        local value = count * (sides + 1) / 2
+        if sign == "-" then
+            value = -value
+        end
+        total = total + value
+    end
+
+    local flatText = text:gsub("[+-]?%d*d%d+", "")
+    for numberText in flatText:gmatch("[+-]?%d+") do
+        total = total + (tonumber(numberText) or 0)
+    end
+
+    if total <= 0 then
+        return nil
+    end
+    return math.floor(total + 0.5)
+end
+
+local function resolveIntentDamageDice(enemy, skill)
+    local rules = skill and skill.rules or {}
+    local diceExpr = tostring(rules.damageDice or "")
+    if diceExpr ~= "" then
+        return diceExpr
+    end
+
+    local attackMode = tostring(rules.attackMode or "")
+    local kind = tostring(rules.kind or "")
+    local ok, resolved = pcall(function()
+        if attackMode:find("spell", 1, true) or kind == "spell" then
+            return BattleSkill.GetSpellDamageDice(enemy, skill, rules.isAOE == true, kind)
+        end
+        return BattleSkill.GetPhysicalDamageDice(enemy, skill, kind)
+    end)
+    if ok and resolved and tostring(resolved) ~= "" then
+        return tostring(resolved)
+    end
+    return nil
+end
+
+local function buildIntentKeywords(skill)
+    local keywords = {}
+    local seen = {}
+    local function add(value)
+        local text = tostring(value or "")
+        if text ~= "" and not seen[text] then
+            keywords[#keywords + 1] = text
+            seen[text] = true
+        end
+    end
+
+    local rules = skill and skill.rules or {}
+    if rules.isAOE == true then add("AOE") end
+    if rules.hardControl == true then add("控制") end
+    if rules.saveType then add("豁免:" .. tostring(rules.saveType)) end
+    for _, tag in ipairs(skill and skill.tags or {}) do
+        if tag == "fire" then add("火焰")
+        elseif tag == "ice" or tag == "frost" then add("冰霜")
+        elseif tag == "thunder" then add("雷电")
+        elseif tag == "poison" then add("中毒")
+        elseif tag == "mark" then add("标记")
+        elseif tag == "aoe" then add("AOE")
+        elseif tag == "heal" then add("治疗")
+        elseif tag == "guard" then add("防护")
+        end
+    end
+    return keywords
+end
+
+local function buildIntentPreview(enemy, skill, targets)
+    local rules = skill and skill.rules or {}
+    local targetCount = #(targets or {})
+    local damageDice = resolveIntentDamageDice(enemy, skill)
+    local expectedDamage = averageDiceExpression(damageDice)
+    local keywords = buildIntentKeywords(skill)
+    local parts = {}
+
+    if damageDice then
+        parts[#parts + 1] = "伤害 " .. damageDice
+    end
+    if expectedDamage then
+        parts[#parts + 1] = "均值约 " .. tostring(expectedDamage)
+    end
+    if targetCount > 0 then
+        parts[#parts + 1] = "目标 " .. tostring(targetCount)
+    end
+    if #keywords > 0 then
+        parts[#parts + 1] = table.concat(keywords, "/")
+    end
+
+    return {
+        damageDice = damageDice,
+        expectedDamage = expectedDamage,
+        targetCount = targetCount,
+        isAoe = rules.isAOE == true or targetCount > 1,
+        saveType = rules.saveType,
+        keywords = keywords,
+        summary = table.concat(parts, " · "),
+    }
+end
+
 local function buildIntentForEnemy(enemy)
     if not isAliveUnit(enemy) then
         return nil
@@ -1158,6 +1295,7 @@ local function buildIntentForEnemy(enemy)
     if not skill then
         return nil
     end
+    local skillConfig = SkillsTable.GetSkillConfig(skill.skillId) or skill
 
     local targetIds = {}
     local targetNames = {}
@@ -1171,11 +1309,12 @@ local function buildIntentForEnemy(enemy)
     return {
         enemyInstanceId = enemy.instanceId,
         enemyName = enemy.name,
-        type = "attack",
+        type = inferIntentType(skillConfig),
         skillId = skill.skillId,
         skillName = skill.name,
         targetIds = targetIds,
         targetNames = targetNames,
+        preview = buildIntentPreview(enemy, skillConfig, targets),
     }
 end
 

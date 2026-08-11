@@ -332,6 +332,12 @@ export type RunCardState = {
   guardValue?: number;
   drawCards?: number;
   energyGain?: number;
+  momentumGain?: number;
+  momentumSpend?: number;
+  momentumCostReduction?: number;
+  momentumEnergyGain?: number;
+  momentumDrawCards?: number;
+  momentumGuardValue?: number;
   targetSide?: "enemy" | "ally" | "self" | string;
   targetMode?: string;
   targetCount?: number;
@@ -358,6 +364,15 @@ export type RunEnemyIntentState = {
   skillName?: string;
   targetIds: number[];
   targetNames: string[];
+  preview?: {
+    damageDice?: string;
+    expectedDamage?: number;
+    targetCount?: number;
+    isAoe?: boolean;
+    saveType?: string;
+    keywords?: string[];
+    summary?: string;
+  };
 };
 
 export type RunCardBattleState = {
@@ -370,6 +385,8 @@ export type RunCardBattleState = {
   energyHardCap?: number;
   tempEnergy?: number;
   chargeEnergy?: number;
+  momentum?: number;
+  momentumMax?: number;
   guard: number;
   handLimit: number;
   drawCount: number;

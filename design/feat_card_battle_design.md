@@ -601,12 +601,20 @@ owner 复活后：
 ```lua
 intent = {
     enemyInstanceId = 2001,
+    enemyName = "骸骨弓手",
     type = "attack",
     skillId = 90001001,
-    targetId = 10001,
+    skillName = "骨箭",
+    targetIds = { 10001 },
+    targetNames = { "战士" },
     preview = {
-        damage = 8,
-        armorReduction = 2,
+        damageDice = "1d8+2",
+        expectedDamage = 7,
+        targetCount = 1,
+        isAoe = false,
+        saveType = nil,
+        keywords = {},
+        summary = "伤害 1d8+2 · 均值约 7 · 目标 1",
     }
 }
 ```
@@ -631,11 +639,11 @@ Intent 必须让玩家知道本回合主要压力：
 谁会行动
 行动类型
 大致目标
-大致伤害或状态
+大致伤害骰、均值、目标数量或状态关键词
 是否蓄力
 ```
 
-不要求展示完整骰子展开，但必须展示战术上可判断的信息。
+不要求展示完整结算展开，也不提前掷骰；当前实现从 AI 已选 Skill 和目标中生成 `preview`，展示 `damageDice`、`expectedDamage`、`targetCount`、`keywords` 与 `summary`，用于支撑玩家本回合攻防判断。
 
 ---
 
@@ -1116,11 +1124,32 @@ MVP 默认：
 4 Hero × 4 Card = 16 Card 实例
 ```
 
-starter Card 不是永久废卡，但应明显弱于升级后的职业 Card。其作用是：
+starter Card 不是永久废卡，但应明显弱于升级后的职业 Card。starter 不采用「每名角色平均 2 攻 1 防 1 功能」的均质模板，而采用职业牌包：
+
+```text
+基础动作：该职业母技能，负责最低输出或治疗入口
+Setup：0 费 / 抽牌 / 返费 / retain，用来制造连段起点
+防守窗口：guard / retain，用来对抗本轮 Intent
+Payoff：高费、返费或 exhaust 的职业窗口牌，用来形成爆发或救场取舍
+```
+
+起手和奖励 Card 可以使用 `momentum`（蓄势）表达连招：
+
+| 字段 | 规则 | 用途 |
+| --- | --- | --- |
+| `momentumGain` | 打出后获得 N 点队伍蓄势，默认上限 3 | setup / 循环牌为后续爆发铺垫 |
+| `momentumSpend` | 若当前蓄势足够，打出时消耗 N 点蓄势 | payoff 兑现窗口 |
+| `momentumCostReduction` | 成功耗势时，本张 Card 费用降低 N | 让爆发回合来自前置准备，而不是平均出牌 |
+| `momentumEnergyGain` / `momentumDrawCards` / `momentumGuardValue` | 成功耗势后追加返费 / 抽牌 / Guard | 形成输出、过牌、防守三类兑现 |
+
+`momentum` 是队伍级、回合内可见资源，默认不跨完整回合保留。Setup 是否现在打、Payoff 是否等到蓄势后再打，是回合内主要取舍之一。
+
+starter 设计目标：
 
 - 保证任何队伍都有基础攻防。
 - 提供删牌、替换、升级的长期构筑目标。
 - 让招募新角色有「能力增加 + 牌库稀释」的真实代价。
+- 让回合内不是平均给每个角色出牌，而是围绕手牌和 Intent 选择把资源集中给某个连段、爆发或防守窗口。
 
 ### 13.4 Card 实例与重复牌
 
@@ -1140,8 +1169,9 @@ cardInstance = {
 当前实现落点：
 
 - Run 状态保存 `cardLibrary.cards`，作为跨战斗的永久队伍牌库。
-- `cardLibrary` 的初始内容仍由上场 Hero 的 Lv1 Feat / 已选 Feat 投影生成，保证 Feat 仍是成长来源。
-- 每张 `Card` 持有稳定 `uid` 与 `sourceKey = ownerRosterId:featId:skillId`。升级、删除默认作用于 `uid` 对应实例。
+- `cardLibrary` 的初始内容由每名上场 Hero 的职业 starter package 生成：基础动作、0 费 setup、防守窗口、职业 payoff；4 人起手队伍至少 16 张 Card。
+- Lv2+ 已选 Feat 继续按 `grant_skill` / `replace_skill` 投影为新 Card，保证 Feat 仍是成长来源；Lv1 Feat 不再额外生成重复牌。
+- 每张 `Card` 持有稳定 `uid` 与 `sourceKey`。starter 使用 `starter:ownerRosterId:slot:skillId/guard`；Feat Card 使用 `ownerRosterId:featId:skillId`。升级、删除默认作用于 `uid` 对应实例。
 - 当玩家后续获得新 Feat 时，只补齐新出现的 `sourceKey`，不重建已有实例，避免覆盖已升级或已删除的牌。
 - 删除仅把实例标记为 `removed = true`，战斗构筑时过滤；这样后续调试和快照仍能追踪来源。
 
@@ -1181,9 +1211,11 @@ maxUpgradeLevel = 2 -- 特定路线 / trinket
 
 升级必须改变 Card 决策价值，不能只做无感小数值：
 
-- 降费。
-- 增加 guard / 伤害 / 治疗。
-- 增加抽牌 / 返费。
+- Setup 牌：优先增加 `momentumGain`，让它更稳定地启动连段。
+- Payoff 牌：优先强化 `momentumEnergyGain` / `momentumDrawCards` / `momentumGuardValue`，没有明确兑现项时再增加 `momentumCostReduction`。
+- 防守牌：增加 `guardValue` 或 `momentumGuardValue`。
+- 循环牌：增加抽牌 / 返费 / 蓄势。
+- 普通牌：降费。
 - 增加 retain / exhaust / ethereal。
 - 改变目标、范围或触发时机。
 
@@ -1248,6 +1280,12 @@ status / curse 默认不绑定 Hero owner，使用 `ownerScope = "team"`。
 
 内容池规模不能只满足功能验证。Act1 MVP 至少覆盖所有职业的基础行动牌和主要主动 / 限次技能，形成约 30 张的显式 Card pool；稀有度只控制奖励权重与展示，不改变底层 Skill 结算。后续扩展优先补每职业 2-3 张“战术变体卡”，再考虑新增 Skill runtime。
 
+当前奖励池落点：
+
+- common 循环牌倾向 `drawCards + momentumGain`，让玩家拿牌时能选择提高连段稳定性。
+- uncommon/rare 职业窗口牌倾向 `momentumSpend + momentumCostReduction`，并按职业追加返能、抽牌或 Guard，形成可构筑的 payoff。
+- 治疗 / 控制 / 防守牌保留 `retain`，用于等待敌方 Intent，而不是抽到就打。
+
 ### 13.8.2 Card 效果变体 V1
 
 只把 Skill 包成 Card 不够。卡牌层必须提供独立决策价值，否则玩家只是把旧技能按钮换成卡面。V1 先引入低风险的卡牌层效果：
@@ -1259,14 +1297,15 @@ status / curse 默认不绑定 Hero owner，使用 `ownerScope = "team"`。
 | `guardValue` | 在 Skill 结算外额外获得队伍 Guard | 让防御牌不只依赖旧 Skill 语义 |
 | `retain` | 回合结束保留在手牌 | 让治疗、控制、爆发牌可以等窗口 |
 | `exhaust` | 打出后本场消耗 | 支撑强力一次性牌和爆发牌 |
+| `momentum*` | setup 攒势、payoff 耗势触发降费 / 返费 / 抽牌 / Guard | 支撑连招、爆发与不均质出牌 |
 
 这些效果都属于 Card 层，不新增独立伤害链。打出流程为：
 
 ```text
 校验目标与费用
-→ 调用原 Skill / Timeline
-→ 扣除能量
-→ 结算 Card 层 Guard / 回能 / 抽牌
+→ 有 skillId 时调用原 Skill / Timeline；无 skillId 的 Card 只结算卡牌层效果
+→ 扣除能量；若成功耗势则先应用本张 Card 的费用降低
+→ 结算 Card 层 Guard / 回能 / 抽牌 / 蓄势收益
 → 按 exhaust / power / discard 归档
 ```
 
